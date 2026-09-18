@@ -8,6 +8,14 @@ import { loadEnv } from '../env.js';
 export interface DecodedAuthToken {
   uid: string;
   email: string | null;
+  /**
+   * Whether Firebase has confirmed the user actually controls this email address (they
+   * clicked a verification link, or it came from a provider that already verifies it,
+   * e.g. Google). Firebase itself allows sign-up with an unverified email, so this must
+   * be checked before trusting `email` for anything privilege-granting — see
+   * src/plugins/auth.ts's use of it before auto-activating a pending invite.
+   */
+  emailVerified: boolean;
   name: string | null;
 }
 
@@ -61,6 +69,7 @@ export default fp(
         return {
           uid: decoded.uid,
           email: decoded.email ?? null,
+          emailVerified: decoded.email_verified ?? false,
           name: (decoded.name as string | undefined) ?? null,
         };
       },

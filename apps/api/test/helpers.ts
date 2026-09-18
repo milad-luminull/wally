@@ -54,15 +54,20 @@ export async function buildTestApp(): Promise<TestContext> {
   };
 }
 
-/** Registers a fake user identity and returns the bearer token to use for it. */
+/**
+ * Registers a fake user identity and returns the bearer token to use for it.
+ * `emailVerified` defaults to true (a normal fixture user) — pass false to simulate an
+ * attacker who signed up claiming someone else's email without confirming it.
+ */
 export function registerTestUser(
   ctx: TestContext,
   uid: string,
   email: string,
   name: string | null = null,
+  emailVerified = true,
 ): string {
   const token = `token-${uid}`;
-  ctx.tokens.set(token, { uid, email, name });
+  ctx.tokens.set(token, { uid, email, emailVerified, name });
   return token;
 }
 

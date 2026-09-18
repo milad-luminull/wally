@@ -67,8 +67,14 @@ export default fp(
         create: { ownerId: user.id, name: 'Meine Wand' },
       });
 
-      // Auto-activate any pending invite addressed to this email, on any whiteboard.
-      await activatePendingInvitesForEmail(fastify.prisma, user.id, email);
+      // Auto-activate any pending invite addressed to this email, on any whiteboard —
+      // but only once Firebase confirms this user actually controls the address. Firebase
+      // allows sign-up with an unverified email, so skipping this check would let anyone
+      // claim someone else's pending invite just by typing in their email at signup,
+      // with no access to that inbox at all.
+      if (decoded.emailVerified) {
+        await activatePendingInvitesForEmail(fastify.prisma, user.id, email);
+      }
 
       request.user = { id: user.id, email: user.email, displayName: user.displayName };
     });

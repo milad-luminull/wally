@@ -6,6 +6,7 @@ import {
   type Prisma,
   type ReferenceType,
 } from './generated/client/index.js';
+import { generateShareToken } from '../src/lib/tokens.js';
 
 const prisma = new PrismaClient();
 
@@ -396,10 +397,13 @@ async function main() {
     },
   });
 
-  await prisma.shareLink.upsert({
+  // `create` only runs the first time this seed executes for this board — a random token
+  // generated here is fine to keep across reruns since `update` never touches it, and
+  // avoids checking a predictable, guessable literal into source control.
+  const shareLink = await prisma.shareLink.upsert({
     where: { whiteboardId: board.id },
     update: { role: 'VIEW' },
-    create: { whiteboardId: board.id, token: 'seed-share-token-view', role: 'VIEW' },
+    create: { whiteboardId: board.id, token: generateShareToken(), role: 'VIEW' },
   });
 
   await upsertReferenceOptions();
@@ -410,6 +414,7 @@ async function main() {
     owner: owner.email,
     members: [editColleague.email, viewColleague.email],
     pendingInvite: 'lena.hofer@finlex.de',
+    shareLinkToken: shareLink.token,
   });
 }
 

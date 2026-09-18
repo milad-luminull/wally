@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -7,14 +6,11 @@ import { requireRole, requireWhiteboardAccess } from '../lib/authorization.js';
 import { toShareLinkDto } from '../lib/dto.js';
 import { AppError } from '../lib/errors.js';
 import { redeemShareLink } from '../lib/members.js';
+import { generateShareToken } from '../lib/tokens.js';
 import { loadEnv } from '../env.js';
 
 const whiteboardIdParams = z.object({ id: z.string() });
 const tokenParams = z.object({ token: z.string() });
-
-function generateToken(): string {
-  return randomBytes(24).toString('base64url');
-}
 
 export default async function shareLinkRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -55,7 +51,7 @@ export default async function shareLinkRoutes(fastify: FastifyInstance) {
         throw new AppError(409, 'SHARE_LINK_EXISTS', 'A share link already exists for this board');
       }
       const shareLink = await request.server.prisma.shareLink.create({
-        data: { whiteboardId: ctx.whiteboardId, token: generateToken(), role: request.body.role },
+        data: { whiteboardId: ctx.whiteboardId, token: generateShareToken(), role: request.body.role },
       });
       reply.code(201);
       return toShareLinkDto(shareLink, baseUrl);
@@ -117,7 +113,7 @@ export default async function shareLinkRoutes(fastify: FastifyInstance) {
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'No share link');
       const shareLink = await request.server.prisma.shareLink.update({
         where: { whiteboardId: ctx.whiteboardId },
-        data: { token: generateToken() },
+        data: { token: generateShareToken() },
       });
       return toShareLinkDto(shareLink, baseUrl);
     },
