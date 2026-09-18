@@ -1,0 +1,7 @@
+# Working rules for this project
+
+- Work in cycles, not one pass. Plan → build → test → review → fix. Repeat until every requirement is done. At the end of each cycle, list what is done, what is open, and what you will do next. Do not stop while any item is open.
+- Adapt the workflow to the task. Do not follow a fixed script. Re-plan when you learn something new. If a requirement is unclear, ask before you build. If you find a gap or conflict, report it; do not fill it with an assumption.
+- No skipped requirements, no shortcuts. Before you build, write the full requirement list as a checklist. Every item must be implemented, tested, and marked done before you report completion. A stub, TODO, placeholder, or "can be added later" is not done. Do not remove or narrow a requirement to make it easier.
+- Design and UX quality is a top priority, equal to correctness. For every screen and flow: clear hierarchy, consistent spacing and typography, sensible defaults, loading and empty and error states, keyboard and screen-reader access, responsive layout. Review each UI change as a designer would before you mark it done. If a design decision is not specified, choose the option a strong product designer would choose and explain why.
+- Verify before you claim. Run the app, run the tests, and check the UI. Report only what you have verified. If something does not work, say so.
