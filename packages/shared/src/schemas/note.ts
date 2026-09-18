@@ -23,9 +23,22 @@ const tagsSchema = z
   .max(MAX_TAGS_PER_NOTE)
   .default([]);
 
-/** POST /whiteboards/:id/notes */
+/**
+ * POST /whiteboards/:id/notes
+ *
+ * `title` deliberately has no `.min(1)` — a note created from a canvas double-click
+ * starts blank ("Ohne Titel" in the UI) and is titled afterwards via the detail panel,
+ * matching the reference mockup's behavior. `.default('')` only applies when `title` is
+ * omitted entirely; since there's no `.min(1)` to conflict with it, an omitted title and
+ * an explicit `""` both correctly resolve to `''`.
+ *
+ * `tags` uses `tagsSchema` directly (not `.optional()`) so an omitted `tags` resolves
+ * through `tagsSchema`'s own `.default([])` to `[]` rather than to `undefined` — wrapping
+ * an already-defaulted schema in `.optional()` would short-circuit before that default
+ * ever ran.
+ */
 export const noteCreateSchema = z.object({
-  title: z.string().trim().min(1).max(NOTE_TITLE_MAX_LENGTH).default(''),
+  title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).default(''),
   priority: notePrioritySchema.default('MITTEL'),
   horizon: noteHorizonSchema.default('HEUTE'),
   freeX: z.number().default(0),
@@ -34,15 +47,26 @@ export const noteCreateSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   referenceType: referenceTypeSchema.nullable().optional(),
   referenceLabel: z.string().trim().max(REFERENCE_LABEL_MAX_LENGTH).nullable().optional(),
-  tags: tagsSchema.optional(),
+  tags: tagsSchema,
   colour: noteColourSchema.default('WEISS'),
 });
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 
-/** PATCH /notes/:id — only the fields that aren't handled by their own dedicated route. */
+/**
+ * PATCH /notes/:id — only the fields that aren't handled by their own dedicated route.
+ *
+ * `title` allows clearing to `''` (no `.min(1)`) — a note can legitimately go back to
+ * "Ohne Titel", same reasoning as `noteCreateSchema`.
+ *
+ * `tags` keeps `.optional()` here (unlike create): PATCH semantics need three distinct
+ * states — omitted means "don't touch tags", `[]` means "clear all tags", a non-empty
+ * array means "replace with these". `tagsSchema`'s own `.default([])` never actually
+ * fires in this position (an explicit `[]` already validates via the inner array schema
+ * without needing the default) — it's simply inert here, not wrong.
+ */
 export const noteUpdateSchema = z
   .object({
-    title: z.string().trim().min(1).max(NOTE_TITLE_MAX_LENGTH).optional(),
+    title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
     dueDate: z.string().date().nullable().optional(),
     referenceType: referenceTypeSchema.nullable().optional(),
     referenceLabel: z.string().trim().max(REFERENCE_LABEL_MAX_LENGTH).nullable().optional(),

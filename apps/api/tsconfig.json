@@ -1,0 +1,18 @@
+{
+  "extends": "@wally/config/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  // No `rootDir` here (unlike tsconfig.build.json) — this config's `include` spans both
+  // src/ and prisma/, and `rootDir` requires every included file to live under it. `tsc
+  // --noEmit` (typecheck) still enforces that constraint even without emitting, so setting
+  // rootDir: "src" here made prisma/seed.ts fail with TS6059. "prisma" is included so
+  // `typecheck` also covers prisma/seed.ts; the `build` script uses tsconfig.build.json
+  // (src only, with its own rootDir: "src") instead — seed.ts is run directly via
+  // `tsx prisma/seed.ts`, and including it in an *emitting* build would violate rootDir.
+  "include": ["src", "prisma"],
+  "exclude": ["dist", "node_modules", "prisma/generated"]
+}

@@ -1,0 +1,214 @@
+// Wally API — Prisma schema.
+//
+// Enum value sets below MUST exactly match packages/shared/src/enums.ts.
+// There is a parity test (src/lib/enum-parity.test.ts) asserting this — keep both files
+// in lockstep by hand whenever either changes.
+
+// Generated into prisma/generated/client rather than the default node_modules/.prisma
+// location — the repo's root .gitignore already anticipates `apps/api/prisma/generated/`,
+// and a custom output keeps the generated client self-contained and pnpm-workspace-safe.
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NotePriority {
+  HOCH
+  MITTEL
+  NIEDRIG
+}
+
+enum NoteHorizon {
+  HEUTE
+  DIESE_WOCHE
+  SPAETER
+}
+
+// Apricot is intentionally excluded — Finlex's design system reserves apricot for
+// functional accents only, never decoration. Keep in sync with packages/shared/src/enums.ts.
+enum NoteColour {
+  WEISS
+  EIS
+  SAND
+  MINZE
+  HIMMEL
+}
+
+enum NoteStatus {
+  OPEN
+  DONE
+}
+
+enum ReferenceType {
+  KUNDE
+  VERTRAG
+  SCHADEN
+}
+
+enum WhiteboardRole {
+  VIEW
+  EDIT
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+}
+
+enum NoteHistoryEventType {
+  CREATED
+  MOVED
+}
+
+/// A local user profile, keyed by Firebase UID. Upserted lazily on first authenticated
+/// request (see src/plugins/auth.ts) — there is no separate sign-up endpoint.
+model User {
+  id          String   @id
+  email       String   @unique
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownedWhiteboard    Whiteboard?
+  memberships        WhiteboardMember[]
+  assignedNotes      Note[]             @relation("NoteAssignee")
+  createdNotes       Note[]             @relation("NoteCreatedBy")
+  historyEventsActed NoteHistoryEvent[] @relation("HistoryEventActor")
+
+  @@map("users")
+}
+
+/// One whiteboard per owner. The owner is NOT a WhiteboardMember row — ownership is
+/// this ownerId FK, and authorization code treats OWNER as a synthetic role above EDIT.
+model Whiteboard {
+  id        String   @id @default(uuid())
+  name      String   @default("Meine Wand")
+  ownerId   String   @unique
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members   WhiteboardMember[]
+  shareLink ShareLink?
+  notes     Note[]
+
+  @@map("whiteboards")
+}
+
+/// Sharing grant for a whiteboard. Either linked to an existing User (userId) or still
+/// just an email invite (invitedEmail) — auth.ts auto-activates+links it by email match
+/// the first time that person authenticates.
+model WhiteboardMember {
+  id           String            @id @default(uuid())
+  whiteboardId String
+  whiteboard   Whiteboard        @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invitedEmail String?
+  role         WhiteboardRole
+  status       MembershipStatus
+  invitedAt    DateTime          @default(now())
+  activatedAt  DateTime?
+
+  @@unique([whiteboardId, userId])
+  @@unique([whiteboardId, invitedEmail])
+  @@map("whiteboard_members")
+}
+
+/// At most one share link per whiteboard (whiteboardId is unique).
+model ShareLink {
+  id           String         @id @default(uuid())
+  whiteboardId String         @unique
+  whiteboard   Whiteboard     @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+  token        String         @unique
+  role         WhiteboardRole
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("share_links")
+}
+
+/// A to-do note. horizon, priority and freeX/freeY are three independent fields — moving
+/// a note in one organization mode never touches the others (see plan's "three
+/// independent fields" decision). No sort-index columns: zones auto-flow by
+/// dueDate-then-createdAt.
+model Note {
+  id             String         @id @default(uuid())
+  whiteboardId   String
+  whiteboard     Whiteboard     @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+  title          String
+  status         NoteStatus     @default(OPEN)
+  completedAt    DateTime?
+  priority       NotePriority   @default(MITTEL)
+  horizon        NoteHorizon    @default(HEUTE)
+  freeX          Float          @default(0)
+  freeY          Float          @default(0)
+  dueDate        DateTime?      @db.Date
+  assigneeId     String?
+  assignee       User?          @relation("NoteAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  referenceType  ReferenceType?
+  referenceLabel String?
+  tags           String[]       @default([])
+  colour         NoteColour     @default(WEISS)
+  createdById    String?
+  createdBy      User?          @relation("NoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  subtasks Subtask[]
+  history  NoteHistoryEvent[]
+
+  @@index([whiteboardId, status])
+  @@index([whiteboardId, horizon])
+  @@index([whiteboardId, priority])
+  @@index([assigneeId])
+  @@map("notes")
+}
+
+/// Subtasks DO keep manual order (sortIndex), unlike notes, since they're an explicit
+/// checklist rather than a spatial/organizational concept.
+model Subtask {
+  id        String   @id @default(uuid())
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  text      String
+  done      Boolean  @default(false)
+  sortIndex Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("subtasks")
+}
+
+model NoteHistoryEvent {
+  id         String               @id @default(uuid())
+  noteId     String
+  note       Note                 @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  type       NoteHistoryEventType
+  occurredAt DateTime             @default(now())
+  actorId    String?
+  actor      User?                @relation("HistoryEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  metadata   Json?
+
+  @@index([noteId])
+  @@map("note_history_events")
+}
+
+/// Pure lookup table backing the reference-suggestion dropdown (Kunde/Vertrag/Schaden).
+/// No FK from Note — there's no real platform integration yet, per the plan.
+model ReferenceOption {
+  id        String        @id @default(uuid())
+  type      ReferenceType
+  label     String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([type, label])
+  @@index([type])
+  @@map("reference_options")
+}

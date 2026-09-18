@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Finlex Platform design tokens — hex values transcribed 1:1 from the design system's
+ * §4.1 token table (window.T in the source design system; not directly importable here,
+ * so re-declared as CSS custom properties). Two additions beyond that table, both
+ * judgment calls flagged in the build report:
+ *   --note-eis: the "Eisblau" note-colour swatch reuses the Brand-layer iceblue primary
+ *     (#C6DDDD) since Platform's own token table has no separate "ice" swatch — it's the
+ *     same value the reference mockup used for that swatch.
+ *   --status-neutral-bold: the design system documents five *named* status hues but
+ *     doesn't give neutral/grey explicit hex steps the way it does success/warning/
+ *     danger/info; borderStrong (#D3D9D9) is reused here as the neutral "bold" dot colour
+ *     since it already serves as the system's structural grey.
+ */
+:root {
+  /* Brand anchors */
+  --petrol: #02474f;
+  --petrol-dark: #013138;
+  --petrol-mid: #036470;
+  --petrol-edge: #05555f;
+  --apricot: #fd6f52;
+  --apricot-dark: #e8603f;
+  --iceblue: #c6dddd;
+
+  /* Surfaces & borders */
+  --canvas: #e9eeee;
+  --surface: #f5f8f8;
+  --surface-alt: #fbfcfc;
+  --white: #ffffff;
+  --inset: #edf2f2;
+  --inset-hover: #f7fafa;
+  --border: #e1e7e7;
+  --border-subtle: #eef2f2;
+  --border-strong: #d3d9d9;
+  --border-input: #dde4e4;
+
+  /* Text ramp */
+  --fg-1: #02474f;
+  --fg-2: #42585b;
+  --fg-3: #6d7e81;
+  --fg-muted: #5a6b6e;
+  --fg-faint: #8a9e9e;
+  --faint: #b7c4c4;
+
+  /* Status tones — text / bold(solid-fill) pairs */
+  --status-success: #0b6b4c;
+  --status-success-bold: #128054;
+  --status-warning: #8a5215;
+  --status-warning-bold: #e09b2d;
+  --status-danger: #b32222;
+  --status-danger-bold: #c42b2b;
+  --status-info: #2160b0;
+  --status-info-bold: #2a6fc4;
+  --status-neutral: #6d7e81;
+  --status-neutral-bold: #d3d9d9;
+  --on-status-warning: var(--petrol);
+
+  /* Note-colour swatches (5 — Apricot intentionally excluded, functional-only) */
+  --note-eis: var(--iceblue);
+  --note-sand: var(--status-warning-bold);
+  --note-minze: var(--status-success-bold);
+  --note-himmel: var(--status-info-bold);
+
+  /* shadcn-style contract — plain hex, see tailwind.config.ts header comment */
+  --background: var(--canvas);
+  --foreground: var(--fg-1);
+  --card: var(--white);
+  --card-foreground: var(--fg-1);
+  --popover: var(--white);
+  --popover-foreground: var(--fg-1);
+  --primary: var(--petrol);
+  --primary-foreground: var(--white);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--fg-1);
+  --muted: var(--inset);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--apricot);
+  --accent-foreground: var(--white);
+  --destructive: var(--status-danger-bold);
+  --destructive-foreground: var(--white);
+  --ring: var(--apricot-dark);
+  /* Focus ring at the design system's documented alpha (0 0 0 3px accent at 22%
+   * alpha — see the mockup's own `rgba(232,96,63,0.22)` focus-visible rule and DS §4.4).
+   * Tailwind's `/NN` opacity-modifier syntax can't apply to a plain `var(--x)` hex colour
+   * (it needs a `<alpha-value>` placeholder inside an rgb()/hsl() function), so every
+   * focus ring references this pre-blended value directly via `ring-[color:var(--ring-alpha)]`
+   * instead of `ring-ring/40` (which would silently produce no ring at all). */
+  --ring-alpha: rgba(232, 96, 63, 0.22);
+  --input: var(--border-input);
+  --radius: 10px;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+.font-head {
+  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+::placeholder {
+  color: var(--fg-muted);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion: keep opacity fades, kill translate/scale transforms. Components that
+   animate a translate/scale (drag, panel slide-in) gate themselves via useReducedMotion
+   for JS-driven cases; this covers plain CSS-transition cases app-wide. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.wally-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.wally-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+.wally-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

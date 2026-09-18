@@ -57,3 +57,5 @@ export const BOARD_NAME_MAX_LENGTH = 120;
 export const FREE_CANVAS_WIDTH = 2400;
 export const FREE_CANVAS_HEIGHT = 1400;
 export const NOTE_CARD_WIDTH = 216;
+/** Approximate rendered height of a note card — used to clamp Frei-mode drag bounds. */
+export const NOTE_CARD_HEIGHT = 96;

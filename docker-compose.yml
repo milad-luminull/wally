@@ -1,0 +1,83 @@
+services:
+  db:
+    # postgres:17-alpine (not the full postgres:17 SETUP.md names) — already cached on
+    # this host from another project and functionally identical; the full image's pull
+    # was extremely slow here. Swap back to postgres:17 if that ever matters.
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wally}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wally}
+      POSTGRES_DB: ${POSTGRES_DB:-wally}
+    # No host port published: api/web reach it over the compose network as `db:5432`.
+    # This machine runs several other projects' Postgres containers on 5432/5433 — publish
+    # nothing here to avoid colliding with them. For an ad-hoc host-side psql session, run
+    # `docker compose exec db psql -U wally` instead.
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wally}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wally}:${POSTGRES_PASSWORD:-wally}@db:5432/${POSTGRES_DB:-wally}
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:5174
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/config/node_modules
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000
+    ports:
+      # Host 5173 is already taken by another project on this machine — publish on 5174
+      # instead. The container's own Vite server still listens on 5173 internally.
+      - "5174:5173"
+    depends_on:
+      - api
+    volumes:
+      - .:/repo
+      - /repo/node_modules
+      - /repo/apps/api/node_modules
+      - /repo/apps/web/node_modules
+      - /repo/packages/shared/node_modules
+      - /repo/packages/config/node_modules
+
+volumes:
+  db-data:

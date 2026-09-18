@@ -1,0 +1,73 @@
+import { X } from 'lucide-react';
+import { EFFECTIVE_ROLE_LABELS, WHITEBOARD_ROLE_LABELS, whiteboardRoleValues, type MemberDto } from '@wally/shared';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { IconTooltip } from '@/components/ui/tooltip';
+import { initialsOf } from '../util/noteDerived';
+import { useUpdateMemberRole } from '../hooks/mutations/useUpdateMemberRole';
+import { useRemoveMember } from '../hooks/mutations/useRemoveMember';
+
+interface MemberListProps {
+  boardId: string;
+  members: MemberDto[];
+  ownerId: string;
+  isOwner: boolean;
+}
+
+/** Shows both ACTIVE members and PENDING invites (see queryKeys.invites' doc comment —
+ * both statuses live in the one members list). Owner-only role/remove controls per
+ * SPEC §9. */
+export function MemberList({ boardId, members, ownerId, isOwner }: MemberListProps) {
+  const updateRole = useUpdateMemberRole(boardId);
+  const removeMember = useRemoveMember(boardId);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {members.map((member) => {
+        const name = member.displayName ?? member.email;
+        const isBoardOwner = member.userId === ownerId;
+        return (
+          <div key={member.id} className="flex items-center gap-2.5">
+            <Avatar>
+              <AvatarFallback>{initialsOf(name)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-13 font-medium text-fg-1">{name}</div>
+              {member.status === 'PENDING' && <div className="text-11 text-fg-muted">Ausstehend</div>}
+            </div>
+            {isOwner && !isBoardOwner ? (
+              <>
+                <Select value={member.role} onValueChange={(role) => updateRole.mutate({ memberId: member.id, role: role as typeof member.role })}>
+                  <SelectTrigger aria-label={`Rolle von ${name}`} className="h-7 w-24 border-0 p-0 text-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {whiteboardRoleValues.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {WHITEBOARD_ROLE_LABELS[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <IconTooltip label={`${name} entfernen`}>
+                  <button
+                    type="button"
+                    onClick={() => removeMember.mutate(member.id)}
+                    aria-label={`${name} entfernen`}
+                    className="p-1 text-fg-faint transition-colors hover:text-status-danger"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </IconTooltip>
+              </>
+            ) : (
+              <span className="whitespace-nowrap text-12 text-fg-muted">
+                {isBoardOwner ? EFFECTIVE_ROLE_LABELS.OWNER : WHITEBOARD_ROLE_LABELS[member.role]}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
