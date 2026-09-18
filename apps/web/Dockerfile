@@ -16,7 +16,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 WORKDIR /repo/apps/web
 EXPOSE 5173
-CMD ["pnpm", "--filter", "@wally/web", "dev", "--", "--host"]
+# `dev` (package.json) already includes --host — Vite must bind 0.0.0.0, not just
+# localhost, for the compose port mapping to actually reach it from the host.
+CMD ["pnpm", "--filter", "@wally/web", "dev"]
 
 # ---------------------------------------------------------------------------
 # build — compiles the static production bundle. packages/shared ships its TypeScript

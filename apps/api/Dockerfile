@@ -6,6 +6,11 @@ FROM node:22-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+# node:22-slim has no `openssl` CLI, which Prisma's postinstall shells out to in order to
+# detect the right query-engine binary target. Without it, Prisma silently defaults to
+# openssl-1.1.x, which doesn't match this image's actual OpenSSL 3.x (Debian bookworm) —
+# the engine then fails to load at runtime ("query engine library not found").
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # -----------------------------------------------------------------------------------
@@ -21,6 +26,15 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile || pnpm install
 COPY . .
+# Baking a real (Linux-built) Prisma Client into the image — not just at container
+# runtime — matters because docker-compose masks apps/api/prisma/generated with its own
+# volume (same reasoning as the node_modules masks above: without it, the bind mount's
+# host-platform-generated client would shadow the container's). A *fresh* anonymous
+# volume is seeded from whatever the image already has at that path, exactly like
+# node_modules already is — so generating here means every future container (the long-
+# running service, and every one-off `docker compose run` for migrate/seed/tests) gets a
+# working client with no manual "generate once" step.
+RUN pnpm --filter @wally/api db:generate
 EXPOSE 4000
 CMD ["pnpm", "--filter", "@wally/api", "dev"]
 
@@ -55,6 +69,9 @@ RUN pnpm deploy --filter=@wally/api --prod /app/deploy/api
 # -----------------------------------------------------------------------------------
 FROM node:22-slim AS prod
 ENV NODE_ENV=production
+# Same OpenSSL-detection reasoning as the base stage above — the query engine copied in
+# from `build` needs the CLI present at runtime too, not just at generate-time.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/deploy/api/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist

@@ -25,6 +25,10 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       target: dev
+    # On a fresh checkout the Prisma Client isn't generated yet (see the masked volume
+    # below) — the dev server exits until `make migrate` runs once. Restart so it comes
+    # up on its own right after, instead of needing a second `make up`.
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -43,6 +47,11 @@ services:
       - /app/apps/web/node_modules
       - /app/packages/shared/node_modules
       - /app/packages/config/node_modules
+      # Masked for the same reason as node_modules above: the bind mount would otherwise
+      # overlay whatever a host-run `prisma generate` produced (host-platform engine
+      # binaries) over the container's own linux-built client, breaking Prisma Client at
+      # runtime. Generate inside the container (`make migrate`/`make seed` do this).
+      - /app/apps/api/prisma/generated
     healthcheck:
       test:
         [
