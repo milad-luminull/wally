@@ -17,6 +17,10 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: 'on-first-retry',
+    // These specs assert German copy. The app falls back to navigator.language when nothing
+    // is stored, and Playwright's device presets report en-US — without this pin every spec
+    // would silently render in English and fail on the first getByLabel('E-Mail').
+    locale: 'de-DE',
   },
   projects: [
     {
