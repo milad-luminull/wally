@@ -11,11 +11,13 @@ export function useCreateOrUpdateShareLink(boardId: string) {
     onMutate: async (role) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.shareLink(boardId) });
       const previous = queryClient.getQueryData<ShareLinkDto>(queryKeys.shareLink(boardId));
-      if (previous) queryClient.setQueryData<ShareLinkDto>(queryKeys.shareLink(boardId), { ...previous, role });
+      if (previous)
+        queryClient.setQueryData<ShareLinkDto>(queryKeys.shareLink(boardId), { ...previous, role });
       return { previous };
     },
     onError: (_err, _role, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKeys.shareLink(boardId), context.previous);
+      if (context?.previous)
+        queryClient.setQueryData(queryKeys.shareLink(boardId), context.previous);
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.shareLink(boardId), data);

@@ -61,8 +61,13 @@ describe('rate limiting', () => {
 
     for (let i = 0; i < 40; i += 1) {
       expect(
-        (await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) }))
-          .statusCode,
+        (
+          await ctx.app.inject({
+            method: 'GET',
+            url: '/whiteboards',
+            headers: ctx.authHeader(token),
+          })
+        ).statusCode,
       ).toBe(200);
     }
   });

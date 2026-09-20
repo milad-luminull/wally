@@ -53,7 +53,9 @@ function ZoneBand({
       )}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-3.5">
-        <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">{group.label}</h2>
+        <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">
+          {group.label}
+        </h2>
         <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-11 font-semibold tabular-nums text-fg-muted">
           {group.notes.length}
         </span>

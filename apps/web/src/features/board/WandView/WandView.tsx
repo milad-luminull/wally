@@ -102,7 +102,10 @@ export function WandView({
    * it in one synchronous commit, before the browser can paint the gap. It is dropped again
    * as soon as the cache catches up.
    */
-  const [pendingMove, setPendingMove] = useState<{ noteId: string; patch: Partial<NoteDto> } | null>(null);
+  const [pendingMove, setPendingMove] = useState<{
+    noteId: string;
+    patch: Partial<NoteDto>;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -120,7 +123,10 @@ export function WandView({
   useEffect(() => {
     if (!pendingMove) return;
     const note = findNote(notes, pendingMove.noteId);
-    if (!note) { setPendingMove(null); return; }
+    if (!note) {
+      setPendingMove(null);
+      return;
+    }
     const settled = (Object.keys(pendingMove.patch) as (keyof NoteDto)[]).every(
       (k) => note[k] === pendingMove.patch[k],
     );
@@ -186,7 +192,9 @@ export function WandView({
 
   /** Where the lifted card sits at the moment of release, in viewport coordinates. */
   function overlayRect(): DOMRect | null {
-    return document.querySelector('[data-note-overlay]')?.parentElement?.getBoundingClientRect() ?? null;
+    return (
+      document.querySelector('[data-note-overlay]')?.parentElement?.getBoundingClientRect() ?? null
+    );
   }
 
   /**
@@ -206,7 +214,8 @@ export function WandView({
     });
 
     const el = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"]`);
-    if (!el || !releaseRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!el || !releaseRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      return;
 
     const landed = el.getBoundingClientRect();
     const dx = releaseRect.left - landed.left;
@@ -250,8 +259,14 @@ export function WandView({
       // Patching before clearing `activeId` keeps both in the same commit, so the card is
       // never painted at its old coordinates after the overlay goes away.
       const origin = rollback?.previousList?.find((n) => n.id === noteId) ?? note;
-      const x = Math.max(0, Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, origin.freeX + event.delta.x));
-      const y = Math.max(0, Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, origin.freeY + event.delta.y));
+      const x = Math.max(
+        0,
+        Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, origin.freeX + event.delta.x),
+      );
+      const y = Math.max(
+        0,
+        Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, origin.freeY + event.delta.y),
+      );
       const released = overlayRect();
       commitMove(noteId, { freeX: x, freeY: y });
       moveNote.mutate({ noteId, input: { mode: 'FREE', x, y }, rollback });
@@ -280,9 +295,15 @@ export function WandView({
     // schema default of {0, 0} would stack every one of them in the corner there.
     const at = nextFreeNotePosition(notes);
     if (axis === 'horizon')
-      createNote.mutate({ ...at, horizon: key as NoteHorizon }, { onSuccess: (n) => onOpenNote(n.id) });
+      createNote.mutate(
+        { ...at, horizon: key as NoteHorizon },
+        { onSuccess: (n) => onOpenNote(n.id) },
+      );
     else if (axis === 'priority')
-      createNote.mutate({ ...at, priority: key as NotePriority }, { onSuccess: (n) => onOpenNote(n.id) });
+      createNote.mutate(
+        { ...at, priority: key as NotePriority },
+        { onSuccess: (n) => onOpenNote(n.id) },
+      );
   }
 
   function handleCreateAt(x: number, y: number) {
@@ -329,7 +350,13 @@ export function WandView({
           at the zone the note came from. `settleCard` below does the travel instead. */}
       <DragOverlay dropAnimation={null}>
         {activeNote ? (
-          <NoteCard note={activeNote} currentUserId={currentUserId} selected={false} onOpen={() => {}} overlay />
+          <NoteCard
+            note={activeNote}
+            currentUserId={currentUserId}
+            selected={false}
+            onOpen={() => {}}
+            overlay
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

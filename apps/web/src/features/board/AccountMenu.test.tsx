@@ -12,9 +12,8 @@ vi.mock('@/features/auth/AuthProvider', async () => {
 
 const mockUseLanguage = vi.fn();
 vi.mock('@/i18n/LanguageProvider', async () => {
-  const actual = await vi.importActual<typeof import('@/i18n/LanguageProvider')>(
-    '@/i18n/LanguageProvider',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
   return { ...actual, useLanguage: () => mockUseLanguage() };
 });
 
@@ -59,20 +58,16 @@ describe('AccountMenu', () => {
    * runtimes on the ShareSheet and BoardSwitcher popover suites. It fits on a dev machine but
    * tipped over the default inside the container.
    */
-  it(
-    'switches language from the keyboard',
-    async () => {
-      const user = await openMenu();
+  it('switches language from the keyboard', async () => {
+    const user = await openMenu();
 
-      await user.click(screen.getByLabelText('Sprache'));
-      // Endonyms are never translated, so a user stranded in the wrong language can still
-      // recognise their own.
-      await user.click(await screen.findByRole('option', { name: 'English' }));
+    await user.click(screen.getByLabelText('Sprache'));
+    // Endonyms are never translated, so a user stranded in the wrong language can still
+    // recognise their own.
+    await user.click(await screen.findByRole('option', { name: 'English' }));
 
-      expect(setLanguage).toHaveBeenCalledWith('en');
-    },
-    60_000,
-  );
+    expect(setLanguage).toHaveBeenCalledWith('en');
+  }, 60_000);
 
   it('announces a failed save rather than silently reverting', async () => {
     mockUseLanguage.mockReturnValue({
@@ -84,6 +79,8 @@ describe('AccountMenu', () => {
 
     await openMenu();
 
-    expect(screen.getByRole('status')).toHaveTextContent('Sprache konnte nicht gespeichert werden.');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Sprache konnte nicht gespeichert werden.',
+    );
   });
 });

@@ -60,7 +60,6 @@ export const noteStatusValues = ['OPEN', 'DONE'] as const;
 export const noteStatusSchema = z.enum(noteStatusValues);
 export type NoteStatus = z.infer<typeof noteStatusSchema>;
 
-
 export const whiteboardRoleValues = ['VIEW', 'EDIT'] as const;
 export const whiteboardRoleSchema = z.enum(whiteboardRoleValues);
 export type WhiteboardRole = z.infer<typeof whiteboardRoleSchema>;

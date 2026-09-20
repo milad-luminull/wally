@@ -81,10 +81,7 @@ export function toSubtaskSummary(subtasks: WithId<SubtaskDoc>[]): SubtaskSummary
   };
 }
 
-export function toHistoryEventDto(
-  event: WithId<HistoryEventDoc>,
-  users: UserMap,
-): HistoryEventDto {
+export function toHistoryEventDto(event: WithId<HistoryEventDoc>, users: UserMap): HistoryEventDto {
   return {
     id: event.id,
     type: event.type,
@@ -202,4 +199,3 @@ export function toShareLinkDto(shareLink: WithId<ShareLinkDoc>, baseUrl: string)
     url: `${baseUrl.replace(/\/$/, '')}/share/${shareLink.id}`,
   };
 }
-

@@ -51,7 +51,11 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
  * throws a typed ApiError so callers/hooks can branch on `.status`/`.kind` rather than
  * parsing strings.
  */
-async function request<T>(path: string, options: RequestOptions = {}, schema?: z.ZodType<T>): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestOptions = {},
+  schema?: z.ZodType<T>,
+): Promise<T> {
   const doFetch = async (forceRefresh: boolean) => {
     const token = await getFreshIdToken(forceRefresh);
     // Read off the i18next instance rather than React state — apiClient lives outside React
@@ -85,7 +89,8 @@ async function request<T>(path: string, options: RequestOptions = {}, schema?: z
     } catch {
       // no JSON body
     }
-    const message = body && typeof body === 'object' && 'message' in body ? String(body.message) : undefined;
+    const message =
+      body && typeof body === 'object' && 'message' in body ? String(body.message) : undefined;
     throw new ApiError(res.status, body, message);
   }
 
@@ -98,7 +103,11 @@ async function request<T>(path: string, options: RequestOptions = {}, schema?: z
   // fails loudly here in dev instead of silently flowing into components as `any`.
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    throw new ApiError(res.status, json, `Response failed schema validation for ${path}: ${parsed.error.message}`);
+    throw new ApiError(
+      res.status,
+      json,
+      `Response failed schema validation for ${path}: ${parsed.error.message}`,
+    );
   }
   return parsed.data;
 }
@@ -110,5 +119,6 @@ export const api = {
     request(path, { method: 'POST', body }, schema),
   patch: <T>(path: string, body: unknown, schema?: z.ZodType<T>) =>
     request(path, { method: 'PATCH', body }, schema),
-  delete: <T = void>(path: string, schema?: z.ZodType<T>) => request(path, { method: 'DELETE' }, schema),
+  delete: <T = void>(path: string, schema?: z.ZodType<T>) =>
+    request(path, { method: 'DELETE' }, schema),
 };

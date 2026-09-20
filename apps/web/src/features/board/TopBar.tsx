@@ -6,7 +6,13 @@ import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/cn';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
@@ -25,9 +31,21 @@ import { BoardSwitcher } from './BoardSwitcher';
  */
 function buildAxisOptions(t: T): SegmentedOption<BoardAxis>[] {
   return [
-    { value: 'horizon', label: t('board.topBar.axis.horizon.label'), hint: t('board.topBar.axis.horizon.hint') },
-    { value: 'priority', label: t('board.topBar.axis.priority.label'), hint: t('board.topBar.axis.priority.hint') },
-    { value: 'free', label: t('board.topBar.axis.free.label'), hint: t('board.topBar.axis.free.hint') },
+    {
+      value: 'horizon',
+      label: t('board.topBar.axis.horizon.label'),
+      hint: t('board.topBar.axis.horizon.hint'),
+    },
+    {
+      value: 'priority',
+      label: t('board.topBar.axis.priority.label'),
+      hint: t('board.topBar.axis.priority.hint'),
+    },
+    {
+      value: 'free',
+      label: t('board.topBar.axis.free.label'),
+      hint: t('board.topBar.axis.free.hint'),
+    },
   ];
 }
 
@@ -167,7 +185,12 @@ export function TopBar({
 
       <div className="flex flex-wrap items-center gap-2.5">
         {viewOptions.length > 1 && (
-          <Segmented options={viewOptions} value={view} onChange={onSetView} aria-label={t('board.topBar.view.ariaLabel')} />
+          <Segmented
+            options={viewOptions}
+            value={view}
+            onChange={onSetView}
+            aria-label={t('board.topBar.view.ariaLabel')}
+          />
         )}
 
         {/* The axis groups notes in BOTH Wand and Liste, so it stays visible regardless of
@@ -218,7 +241,12 @@ export function TopBar({
           </div>
         )}
 
-        <ShareSheet boardId={boardId} ownerId={board.ownerId} isOwner={isOwner} isBelowTablet={isBelowTablet} />
+        <ShareSheet
+          boardId={boardId}
+          ownerId={board.ownerId}
+          isOwner={isOwner}
+          isBelowTablet={isBelowTablet}
+        />
 
         {canEdit && (
           <IconTooltip label={t('board.topBar.newNote')}>

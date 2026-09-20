@@ -30,9 +30,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
       // update(), not set(): email/displayName/emailVerified are Firebase's to own and
       // provisioning writes them. A profile deleted between the preHandler and here raises
       // gRPC NOT_FOUND, which app.ts's error handler already turns into a 404.
-      await usersCol(request.server.db)
-        .doc(request.user.id)
-        .update({ language, updatedAt: now() });
+      await usersCol(request.server.db).doc(request.user.id).update({ language, updatedAt: now() });
       return toMeDto({ ...request.user, language });
     },
   );

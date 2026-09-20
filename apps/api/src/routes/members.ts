@@ -98,9 +98,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           ...rows
             .filter(
               (row) =>
-                row.id !== existing.id &&
-                row.userId === existing.userId &&
-                row.status === 'ACTIVE',
+                row.id !== existing.id && row.userId === existing.userId && row.status === 'ACTIVE',
             )
             .map((row) => row.role),
         ])!;
@@ -152,9 +150,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           rows
             .filter(
               (row) =>
-                row.id !== existing.id &&
-                row.userId === existing.userId &&
-                row.status === 'ACTIVE',
+                row.id !== existing.id && row.userId === existing.userId && row.status === 'ACTIVE',
             )
             .map((row) => row.role),
         );

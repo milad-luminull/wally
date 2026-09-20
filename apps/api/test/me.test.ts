@@ -39,7 +39,11 @@ describe('/me', () => {
   it('returns the profile, defaulting a caller with no Accept-Language to German', async () => {
     const token = registerTestUser(ctx, 'me-de', 'max.berger@finlex.de', 'Max Berger');
 
-    const response = await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: ctx.authHeader(token),
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
@@ -71,7 +75,11 @@ describe('/me', () => {
     await createTestUser(ctx.db, 'me-legacy', 'legacy@finlex.de', 'Legacy', true, 'absent');
     const token = registerTestUser(ctx, 'me-legacy', 'legacy@finlex.de', 'Legacy');
 
-    const response = await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: ctx.authHeader(token),
+    });
 
     expect(response.json().language).toBe('de');
     const stored = await usersCol(ctx.db).doc('me-legacy').get();
@@ -155,8 +163,17 @@ describe('/me', () => {
     });
 
     // Force the provisioning update branch by changing the name on the token.
-    ctx.tokens.set(token, { uid: 'me-rename', email: 'rename@finlex.de', emailVerified: true, name: 'Renamed' });
-    const response = await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    ctx.tokens.set(token, {
+      uid: 'me-rename',
+      email: 'rename@finlex.de',
+      emailVerified: true,
+      name: 'Renamed',
+    });
+    const response = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: ctx.authHeader(token),
+    });
 
     expect(response.json()).toMatchObject({ displayName: 'Renamed', language: 'en' });
     const stored = await usersCol(ctx.db).doc('me-rename').get();

@@ -38,9 +38,10 @@ export function useBoardViewState() {
       view: viewParam === 'list' ? 'list' : 'wand',
       axis: axisParam === 'priority' || axisParam === 'free' ? axisParam : 'horizon',
       q: searchParams.get('q') ?? '',
-      priority: (priorityParam?.split(',').filter((p): p is NotePriority =>
-        VALID_PRIORITIES.includes(p as NotePriority),
-      ) ?? []) as NotePriority[],
+      priority: (priorityParam
+        ?.split(',')
+        .filter((p): p is NotePriority => VALID_PRIORITIES.includes(p as NotePriority)) ??
+        []) as NotePriority[],
       mine: searchParams.get('mine') === '1',
       done: searchParams.get('done') !== '0',
       fieldKey: searchParams.get('field'),
@@ -69,7 +70,8 @@ export function useBoardViewState() {
     setView: (view: BoardView) => setParam('view', view === 'wand' ? null : view, 'push'),
     setAxis: (axis: BoardAxis) => setParam('axis', axis === 'horizon' ? null : axis, 'push'),
     setQuery: (q: string) => setParam('q', q || null, 'replace'),
-    setPriority: (priority: NotePriority[]) => setParam('priority', priority.length ? priority.join(',') : null, 'push'),
+    setPriority: (priority: NotePriority[]) =>
+      setParam('priority', priority.length ? priority.join(',') : null, 'push'),
     setMine: (mine: boolean) => setParam('mine', mine ? '1' : null, 'push'),
     setDone: (done: boolean) => setParam('done', done ? null : '0', 'push'),
     setFieldKey: (key: string | null) => {

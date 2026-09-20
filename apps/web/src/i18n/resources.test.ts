@@ -50,7 +50,9 @@ describe('message catalogues', () => {
   // An empty string is the shape a half-finished translation takes, and it renders as an
   // invisible label rather than as an obvious hole.
   it('have no empty values', () => {
-    const empty = [...german, ...english].filter(([, value]) => value.trim() === '').map(([key]) => key);
+    const empty = [...german, ...english]
+      .filter(([, value]) => value.trim() === '')
+      .map(([key]) => key);
     expect(empty).toEqual([]);
   });
 
@@ -70,7 +72,10 @@ describe('message catalogues', () => {
   // "1 Notizen" rather than as an error.
   it('define both plural forms wherever either is defined', () => {
     const incomplete: string[] = [];
-    for (const [label, catalogue] of [['de', german], ['en', english]] as const) {
+    for (const [label, catalogue] of [
+      ['de', german],
+      ['en', english],
+    ] as const) {
       for (const key of catalogue.keys()) {
         const other = key.endsWith('_one')
           ? `${key.slice(0, -4)}_other`

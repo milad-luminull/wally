@@ -1,4 +1,9 @@
-import { FREE_CANVAS_HEIGHT, FREE_CANVAS_WIDTH, NOTE_CARD_HEIGHT, NOTE_CARD_WIDTH } from '@wally/shared';
+import {
+  FREE_CANVAS_HEIGHT,
+  FREE_CANVAS_WIDTH,
+  NOTE_CARD_HEIGHT,
+  NOTE_CARD_WIDTH,
+} from '@wally/shared';
 
 /** Keeps the first card clear of the canvas corner, so it reads as placed rather than stuck. */
 const MARGIN = 32;

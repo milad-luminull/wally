@@ -38,14 +38,14 @@
 
 All commands run inside Docker. The host needs only Docker and `make`.
 
-| Command        | Purpose                                      |
-| -------------- | -------------------------------------------- |
-| `make up`      | Build and start the whole stack              |
-| `make down`    | Stop and remove containers                   |
-| `make logs`    | Follow logs of all services                  |
-| `make test`    | Run all tests                                |
-| `make lint`    | Run lint and type checks                     |
-| `make seed`    | Load development seed data                   |
+| Command     | Purpose                         |
+| ----------- | ------------------------------- |
+| `make up`   | Build and start the whole stack |
+| `make down` | Stop and remove containers      |
+| `make logs` | Follow logs of all services     |
+| `make test` | Run all tests                   |
+| `make lint` | Run lint and type checks        |
+| `make seed` | Load development seed data      |
 
 `make up` is the only command a new developer needs.
 

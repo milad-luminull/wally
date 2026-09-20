@@ -25,15 +25,15 @@ services:
       # 8080 is the Firestore data API it reads, and 9150 the websocket behind its request
       # monitor. Publishing only 4001 gets you a blank page and a "Failed to fetch".
       # The API container still reaches the data port as `firestore:8080`.
-      - "4001:4001"
-      - "8080:8080"
-      - "9150:9150"
+      - '4001:4001'
+      - '8080:8080'
+      - '9150:9150'
     healthcheck:
       test:
         [
-          "CMD",
-          "node",
-          "-e",
+          'CMD',
+          'node',
+          '-e',
           "fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 5s
@@ -56,7 +56,7 @@ services:
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
     ports:
-      - "4000:4000"
+      - '4000:4000'
     depends_on:
       firestore:
         condition: service_healthy
@@ -70,9 +70,9 @@ services:
     healthcheck:
       test:
         [
-          "CMD",
-          "node",
-          "-e",
+          'CMD',
+          'node',
+          '-e',
           "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
@@ -92,7 +92,7 @@ services:
     ports:
       # Host 5173 is already taken by another project on this machine — publish on 5174
       # instead. The container's own Vite server still listens on 5173 internally.
-      - "5174:5173"
+      - '5174:5173'
     depends_on:
       - api
     volumes:

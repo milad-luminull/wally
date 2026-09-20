@@ -20,7 +20,10 @@ import type { AuthVerifier, DecodedAuthToken } from '../src/plugins/firebase.js'
  * tokens. Call `.set('token-for-max', { uid, email, name })` then send
  * `Authorization: Bearer token-for-max` in `.inject()` calls.
  */
-export function createFakeAuthVerifier(): { verifier: AuthVerifier; tokens: Map<string, DecodedAuthToken> } {
+export function createFakeAuthVerifier(): {
+  verifier: AuthVerifier;
+  tokens: Map<string, DecodedAuthToken>;
+} {
   const tokens = new Map<string, DecodedAuthToken>();
   const verifier: AuthVerifier = {
     async verifyIdToken(token: string) {
@@ -152,14 +155,16 @@ export async function createTestUser(
   const timestamp = now();
   // Cast because the 'absent' case deliberately builds a document that is NOT a valid
   // UserDoc — that is the whole point of the fixture.
-  await usersCol(db).doc(id).set({
-    email: normalizeEmail(email),
-    displayName,
-    emailVerified,
-    ...(language === 'absent' ? {} : { language }),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  } as UserDoc);
+  await usersCol(db)
+    .doc(id)
+    .set({
+      email: normalizeEmail(email),
+      displayName,
+      emailVerified,
+      ...(language === 'absent' ? {} : { language }),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    } as UserDoc);
   return id;
 }
 
@@ -208,7 +213,6 @@ export async function createTestMembership(
   });
   return ref.id;
 }
-
 
 export async function createTestShareLink(
   db: Firestore,

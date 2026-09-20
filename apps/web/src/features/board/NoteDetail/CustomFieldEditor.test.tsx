@@ -55,7 +55,12 @@ describe('CustomFieldEditor', () => {
 
   it('hides the inputs and remove buttons when disabled', () => {
     render(
-      <CustomFieldEditor fields={{ Kunde: 'Müller GmbH' }} onSet={vi.fn()} onRemove={vi.fn()} disabled />,
+      <CustomFieldEditor
+        fields={{ Kunde: 'Müller GmbH' }}
+        onSet={vi.fn()}
+        onRemove={vi.fn()}
+        disabled
+      />,
     );
 
     expect(screen.queryByLabelText('Feldname')).not.toBeInTheDocument();

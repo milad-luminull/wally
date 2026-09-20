@@ -2,7 +2,13 @@ import { LogOut } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -39,13 +45,17 @@ export function AccountMenu() {
         className="flex items-center justify-center rounded-full transition-transform duration-150 ease-ds hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt motion-reduce:hover:translate-y-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
       >
         <Avatar className="h-8 w-8 ring-2 ring-border-subtle">
-          <AvatarFallback className="bg-[color:var(--petrol-dark)] text-11">{initialsOf(name)}</AvatarFallback>
+          <AvatarFallback className="bg-[color:var(--petrol-dark)] text-11">
+            {initialsOf(name)}
+          </AvatarFallback>
         </Avatar>
       </PopoverTrigger>
 
       <PopoverContent className="w-64 p-0">
         <div className="flex flex-col gap-0.5 border-b border-border-subtle px-4 py-3">
-          {user.displayName && <p className="truncate text-13 font-semibold text-fg-1">{user.displayName}</p>}
+          {user.displayName && (
+            <p className="truncate text-13 font-semibold text-fg-1">{user.displayName}</p>
+          )}
           <p className="truncate text-12 text-fg-muted">{user.email}</p>
         </div>
         <div className="flex flex-col gap-1.5 border-b border-border-subtle px-3 py-3">
@@ -71,7 +81,11 @@ export function AccountMenu() {
           {/* The whole UI changing language is silent otherwise. This confirms the switch to a
               screen-reader user, and carries the rollback message when the save fails. */}
           <p role="status" className="min-h-[1rem] text-11 text-fg-muted">
-            {saveFailed ? t('account.language.saveFailed') : isSaving ? t('account.language.saving') : ''}
+            {saveFailed
+              ? t('account.language.saveFailed')
+              : isSaving
+                ? t('account.language.saving')
+                : ''}
           </p>
         </div>
 

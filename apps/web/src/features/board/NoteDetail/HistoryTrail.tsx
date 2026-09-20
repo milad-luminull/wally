@@ -40,7 +40,10 @@ export function HistoryTrail({ history }: { history: HistoryEventDto[] }) {
         {visible.map((event, index) => {
           const { action, who, when } = eventText(event, t);
           return (
-            <li key={`${event.occurredAt}-${index}`} className="flex items-baseline gap-2 text-12 text-fg-muted">
+            <li
+              key={`${event.occurredAt}-${index}`}
+              className="flex items-baseline gap-2 text-12 text-fg-muted"
+            >
               <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-border-strong" />
               <span className="font-medium text-fg-2">{action}</span>
               <span className="min-w-0 flex-1 truncate">{who}</span>

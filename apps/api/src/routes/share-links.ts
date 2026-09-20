@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { shareLinkDtoSchema, shareLinkRedeemResultSchema, shareLinkRoleSchema } from '@wally/shared';
+import {
+  shareLinkDtoSchema,
+  shareLinkRedeemResultSchema,
+  shareLinkRoleSchema,
+} from '@wally/shared';
 import type { ShareLinkDoc, WithId } from '../lib/db/types.js';
 import { now, shareLinksCol, whiteboardsCol, withId } from '../lib/db/collections.js';
 import { requireRole, requireWhiteboardAccess } from '../lib/authorization.js';
@@ -32,7 +36,9 @@ export default async function shareLinkRoutes(fastify: FastifyInstance) {
     },
     async (request) => {
       const shareLink = withId(
-        await shareLinksCol(request.server.db).doc(requireToken(request.whiteboardContext!.board)).get(),
+        await shareLinksCol(request.server.db)
+          .doc(requireToken(request.whiteboardContext!.board))
+          .get(),
       );
       if (!shareLink) throw new AppError(404, 'NOT_FOUND', 'No share link');
       return toShareLinkDto(shareLink, baseUrl);

@@ -34,28 +34,28 @@ export const DialogContent = React.forwardRef<
   const { t } = useTranslation();
 
   return (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-1/2 top-1/2 z-overlay w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-e3',
-        'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      {!hideClose && (
-        <DialogPrimitive.Close
-          aria-label={t('common.close')}
-          className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
-        >
-          <X className="h-4 w-4" />
-        </DialogPrimitive.Close>
-      )}
-    </DialogPrimitive.Content>
-  </DialogPortal>
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          'fixed left-1/2 top-1/2 z-overlay w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-e3',
+          'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        {!hideClose && (
+          <DialogPrimitive.Close
+            aria-label={t('common.close')}
+            className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+          >
+            <X className="h-4 w-4" />
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
   );
 });
 DialogContent.displayName = DialogPrimitive.Content.displayName;
@@ -80,7 +80,11 @@ export const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn('text-13 text-fg-muted', className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn('text-13 text-fg-muted', className)}
+    {...props}
+  />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 

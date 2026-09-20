@@ -70,7 +70,11 @@ describe('auth preHandler', () => {
 
   it('auto-activates a pending invite matching the caller email, whatever its casing', async () => {
     const ownerToken = registerTestUser(ctx, 'auth-owner', 'auth-owner@finlex.de');
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(ownerToken) });
+    await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(ownerToken),
+    });
 
     await createTestMembership(ctx.db, 'auth-owner', {
       invitedEmail: 'invitee@finlex.de',
@@ -80,7 +84,11 @@ describe('auth preHandler', () => {
 
     // The invited person authenticates with an email that differs only in case.
     const inviteeToken = registerTestUser(ctx, 'auth-invitee', 'INVITEE@FINLEX.DE');
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(inviteeToken) });
+    await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(inviteeToken),
+    });
 
     const [member] = docsWithId(await membersCol(ctx.db, 'auth-owner').get());
     expect(member?.status).toBe('ACTIVE');
@@ -96,7 +104,11 @@ describe('auth preHandler', () => {
     // could claim someone else's pending invite just by typing in their email address,
     // no access to that inbox required.
     const ownerToken = registerTestUser(ctx, 'auth-owner-2', 'auth-owner-2@finlex.de');
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(ownerToken) });
+    await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(ownerToken),
+    });
 
     await createTestMembership(ctx.db, 'auth-owner-2', {
       invitedEmail: 'real-invitee@finlex.de',
@@ -111,7 +123,11 @@ describe('auth preHandler', () => {
       null,
       false, // emailVerified: false
     );
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(attackerToken) });
+    await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(attackerToken),
+    });
 
     const [member] = docsWithId(await membersCol(ctx.db, 'auth-owner-2').get());
     expect(member?.status).toBe('PENDING');

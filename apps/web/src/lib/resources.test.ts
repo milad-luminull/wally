@@ -22,7 +22,12 @@ describe('notesApi write-route response contract', () => {
 
   function respondWith(body: unknown) {
     const spy = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
     );
     globalThis.fetch = spy as unknown as typeof fetch;
     return spy;
@@ -42,7 +47,9 @@ describe('notesApi write-route response contract', () => {
 
   it('accepts a list-shaped body from move', async () => {
     respondWith(listShaped);
-    await expect(notesApi.move('note-1', { mode: 'HORIZON', horizon: 'SPAETER' })).resolves.toMatchObject({
+    await expect(
+      notesApi.move('note-1', { mode: 'HORIZON', horizon: 'SPAETER' }),
+    ).resolves.toMatchObject({
       id: 'note-1',
       horizon: 'SPAETER',
     });
@@ -50,7 +57,9 @@ describe('notesApi write-route response contract', () => {
 
   it('accepts a list-shaped body from the other write routes', async () => {
     respondWith(listShaped);
-    await expect(notesApi.update('note-1', { title: 'x' })).resolves.toMatchObject({ id: 'note-1' });
+    await expect(notesApi.update('note-1', { title: 'x' })).resolves.toMatchObject({
+      id: 'note-1',
+    });
 
     respondWith(listShaped);
     await expect(notesApi.assign('note-1', null)).resolves.toMatchObject({ id: 'note-1' });
@@ -67,7 +76,9 @@ describe('notesApi write-route response contract', () => {
 
   it('still accepts a fuller detail-shaped body, so the routes may grow later', async () => {
     respondWith({ ...listShaped, subtasks: [], history: [] });
-    await expect(notesApi.move('note-1', { mode: 'PRIORITY', priority: 'HOCH' })).resolves.toMatchObject({
+    await expect(
+      notesApi.move('note-1', { mode: 'PRIORITY', priority: 'HOCH' }),
+    ).resolves.toMatchObject({
       id: 'note-1',
     });
   });
@@ -83,7 +94,12 @@ describe('shareLinkApi.redeem', () => {
 
   function respondWith(body: unknown) {
     const spy = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
     );
     globalThis.fetch = spy as unknown as typeof fetch;
     return spy;

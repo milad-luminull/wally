@@ -12,7 +12,12 @@ vi.mock('@/lib/resources', () => ({
 
 import { membersApi, shareLinkApi } from '@/lib/resources';
 
-const owner = makeMember({ id: 'm-owner', userId: 'user-1', email: 'max.berger@finlex.de', displayName: 'Max Berger' });
+const owner = makeMember({
+  id: 'm-owner',
+  userId: 'user-1',
+  email: 'max.berger@finlex.de',
+  displayName: 'Max Berger',
+});
 
 // Asserted against directly rather than re-reading `navigator.clipboard.writeText` at
 // assertion time — kept as our own reference so a later re-stub can't change what the
@@ -21,8 +26,16 @@ let clipboardWriteText: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.mocked(membersApi.list).mockResolvedValue([owner]);
-  vi.mocked(shareLinkApi.get).mockResolvedValue({ token: 'tok', role: 'VIEW', url: 'https://hub.finlex.de/w/tok' });
-  vi.mocked(shareLinkApi.createOrUpdate).mockResolvedValue({ token: 'tok', role: 'VIEW', url: 'https://hub.finlex.de/w/tok' });
+  vi.mocked(shareLinkApi.get).mockResolvedValue({
+    token: 'tok',
+    role: 'VIEW',
+    url: 'https://hub.finlex.de/w/tok',
+  });
+  vi.mocked(shareLinkApi.createOrUpdate).mockResolvedValue({
+    token: 'tok',
+    role: 'VIEW',
+    url: 'https://hub.finlex.de/w/tok',
+  });
 });
 
 async function openShareSheet() {
@@ -39,7 +52,9 @@ async function openShareSheet() {
     configurable: true,
   });
 
-  renderWithProviders(<ShareSheet boardId="board-1" ownerId="user-1" isOwner isBelowTablet={false} />);
+  renderWithProviders(
+    <ShareSheet boardId="board-1" ownerId="user-1" isOwner isBelowTablet={false} />,
+  );
   await user.click(screen.getByRole('button', { name: 'Teilen' }));
   await screen.findByText('https://hub.finlex.de/w/tok');
   return user;
@@ -58,7 +73,9 @@ describe('ShareSheet', () => {
 
   it('shows an optimistic PENDING row immediately on a valid invite submit', async () => {
     let resolveInvite!: (value: Awaited<ReturnType<typeof membersApi.invite>>) => void;
-    vi.mocked(membersApi.invite).mockReturnValue(new Promise((resolve) => (resolveInvite = resolve)));
+    vi.mocked(membersApi.invite).mockReturnValue(
+      new Promise((resolve) => (resolveInvite = resolve)),
+    );
 
     const user = await openShareSheet();
     await user.type(screen.getByLabelText('E-Mail-Adresse einladen'), 'irem.yildiz@finlex.de');
@@ -67,7 +84,14 @@ describe('ShareSheet', () => {
     expect(await screen.findByText('irem.yildiz@finlex.de')).toBeInTheDocument();
     expect(screen.getByText('Ausstehend')).toBeInTheDocument();
 
-    resolveInvite(makeMember({ id: 'm-new', email: 'irem.yildiz@finlex.de', displayName: null, status: 'PENDING' }));
+    resolveInvite(
+      makeMember({
+        id: 'm-new',
+        email: 'irem.yildiz@finlex.de',
+        displayName: null,
+        status: 'PENDING',
+      }),
+    );
     await waitFor(() => expect(membersApi.invite).toHaveBeenCalledTimes(1));
   });
 
@@ -84,7 +108,9 @@ describe('ShareSheet', () => {
       const copyButton = screen.getByRole('button', { name: 'Kopieren' });
       await user.click(copyButton);
 
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Kopiert' })).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Kopiert' })).toBeInTheDocument(),
+      );
       expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.finlex.de/w/tok');
 
       // The component's own revert setTimeout fires and calls setState while this raw
@@ -93,7 +119,9 @@ describe('ShareSheet', () => {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 2100));
       });
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Kopieren' })).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Kopieren' })).toBeInTheDocument(),
+      );
     },
     { timeout: 20000 },
   );

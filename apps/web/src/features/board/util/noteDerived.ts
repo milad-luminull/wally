@@ -208,7 +208,11 @@ export function collectFieldValues(notes: NoteDto[], key: string): string[] {
   return [...values].sort((a, b) => a.localeCompare(b, 'de'));
 }
 
-export function filterNotes(notes: NoteDto[], view: BoardViewState, currentUserId: string | undefined): NoteDto[] {
+export function filterNotes(
+  notes: NoteDto[],
+  view: BoardViewState,
+  currentUserId: string | undefined,
+): NoteDto[] {
   const q = view.q.trim().toLowerCase();
   const fieldKey = view.fieldKey?.toLocaleLowerCase('de');
   const fieldValue = view.fieldValue?.toLocaleLowerCase('de');
@@ -249,7 +253,9 @@ export function initialsOf(name: string): string {
     .toUpperCase();
 }
 
-export function displayName(user: { email: string; displayName: string | null } | null | undefined): string {
+export function displayName(
+  user: { email: string; displayName: string | null } | null | undefined,
+): string {
   if (!user) return '';
   return user.displayName ?? user.email;
 }

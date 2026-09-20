@@ -33,7 +33,7 @@ make up        # builds and starts the Firestore emulator, api, web
 make seed      # loads demo data (a sample board, notes, and members)
 ```
 
-- Web: http://localhost:5174 *(not 5173 — see [Ports](#ports))*
+- Web: http://localhost:5174 _(not 5173 — see [Ports](#ports))_
 - API: http://localhost:4000
 - Firestore emulator UI: http://localhost:4001 — browse the local data
 
@@ -51,27 +51,28 @@ The backend verifies Firebase ID tokens; the frontend signs users in with the Fi
 
 1. **Enable sign-in methods**: Firebase console → Authentication → Sign-in method → enable Email/Password and Google.
 1. **Create the Firestore database**: Firebase console → Firestore Database → Create database. Only needed for a real deployment — local development uses the emulator and never touches it.
-2. **Web app config** (`VITE_FIREBASE_*` in `.env`): Project Settings → General → Your apps → Web app → copy `apiKey`, `authDomain`, `projectId`, `appId`.
-3. **Service account** (`FIREBASE_*` in `.env`): Project Settings → Service accounts → Generate new private key → copy `project_id`, `client_email`, `private_key` (keep the `\n` escapes as-is).
+1. **Web app config** (`VITE_FIREBASE_*` in `.env`): Project Settings → General → Your apps → Web app → copy `apiKey`, `authDomain`, `projectId`, `appId`.
+1. **Service account** (`FIREBASE_*` in `.env`): Project Settings → Service accounts → Generate new private key → copy `project_id`, `client_email`, `private_key` (keep the `\n` escapes as-is).
 
 If your Google Cloud org blocks service-account key creation (`iam.disableServiceAccountKeyCreation`), you'll need an org admin to grant a project-level exception on **both** the legacy and managed versions of that constraint (Organization Policies in the Cloud Console) — they're enforced independently.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `make up` | Build and start the Firestore emulator, api, web |
-| `make down` | Stop and remove containers |
-| `make logs` | Follow logs of all services |
-| `make test` | Run all tests (backend + frontend, via Turbo) |
-| `make lint` | Run lint across the workspace |
-| `make typecheck` | Type-check across the workspace |
-| `make seed` | Load development seed data (idempotent) |
-| `make e2e` | Run Playwright end-to-end tests (needs `make up` first) |
+| Command          | Purpose                                                 |
+| ---------------- | ------------------------------------------------------- |
+| `make up`        | Build and start the Firestore emulator, api, web        |
+| `make down`      | Stop and remove containers                              |
+| `make logs`      | Follow logs of all services                             |
+| `make test`      | Run all tests (backend + frontend, via Turbo)           |
+| `make lint`      | Run lint across the workspace                           |
+| `make typecheck` | Type-check across the workspace                         |
+| `make seed`      | Load development seed data (idempotent)                 |
+| `make e2e`       | Run Playwright end-to-end tests (needs `make up` first) |
 
 ## Ports
 
 Host port `5173` was already in use by another local project when this was built, so:
+
 - Web is published on **`5174`** (container still runs Vite on 5173 internally).
 - The Firestore emulator publishes **`4001`** (Emulator UI), **`8080`** (Firestore data) and **`9150`** (the UI's request-monitor websocket). All three are needed: the Emulator UI runs in your browser, so it reaches the emulator over the host rather than the compose network — publishing only 4001 gets you a blank page. The API container talks to it as `firestore:8080` regardless.
 

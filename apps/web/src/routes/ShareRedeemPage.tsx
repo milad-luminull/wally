@@ -59,7 +59,10 @@ export function ShareRedeemPage() {
     }
 
     return (
-      <AuthLayout title={t('routes.redeem.failed.title')} subtitle={t('routes.redeem.failed.subtitle')}>
+      <AuthLayout
+        title={t('routes.redeem.failed.title')}
+        subtitle={t('routes.redeem.failed.subtitle')}
+      >
         <div className="flex flex-col gap-4">
           <p role="alert" className="text-13 text-status-danger">
             {t('routes.redeem.failed.body')}
@@ -87,7 +90,10 @@ export function ShareRedeemPage() {
   }
 
   return (
-    <AuthLayout title={t('routes.redeem.pending.title')} subtitle={t('routes.redeem.pending.subtitle')}>
+    <AuthLayout
+      title={t('routes.redeem.pending.title')}
+      subtitle={t('routes.redeem.pending.subtitle')}
+    >
       <div className="flex flex-col gap-3" role="status" aria-label={t('common.loading')}>
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-4 w-32" />

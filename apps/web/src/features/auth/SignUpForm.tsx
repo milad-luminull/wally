@@ -11,11 +11,7 @@ import { Label } from '@/components/ui/label';
 /** Messages are catalogue keys, resolved at render — see the note in SignInForm. */
 const signUpSchema = z
   .object({
-    email: z
-      .string()
-      .trim()
-      .min(1, 'validation.email.required')
-      .email('validation.email.invalid'),
+    email: z.string().trim().min(1, 'validation.email.required').email('validation.email.invalid'),
     password: z.string().min(8, 'validation.password.tooShort'),
     passwordConfirm: z.string().min(1, 'validation.password.confirmRequired'),
   })
@@ -139,7 +135,9 @@ export function SignUpForm() {
           value={passwordConfirm}
           onChange={(e) => setPasswordConfirm(e.target.value)}
           aria-invalid={Boolean(fieldErrors.passwordConfirm)}
-          aria-describedby={fieldErrors.passwordConfirm ? 'signup-password-confirm-error' : undefined}
+          aria-describedby={
+            fieldErrors.passwordConfirm ? 'signup-password-confirm-error' : undefined
+          }
         />
         {fieldErrors.passwordConfirm && (
           <p id="signup-password-confirm-error" className="text-12 text-status-danger">
@@ -170,7 +168,11 @@ export function SignUpForm() {
 
       <p className="text-center text-13 text-fg-muted">
         {t('auth.signUp.haveAccount')}{' '}
-        <Link to="/login" state={{ from }} className="font-medium text-fg-1 underline-offset-4 hover:underline">
+        <Link
+          to="/login"
+          state={{ from }}
+          className="font-medium text-fg-1 underline-offset-4 hover:underline"
+        >
           {t('auth.signUp.toSignIn')}
         </Link>
       </p>

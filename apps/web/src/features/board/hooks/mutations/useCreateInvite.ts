@@ -22,7 +22,10 @@ export function useCreateInvite(boardId: string) {
         role: input.role,
         status: 'PENDING',
       };
-      queryClient.setQueryData<MemberDto[]>(queryKeys.members(boardId), (prev) => [...(prev ?? []), optimistic]);
+      queryClient.setQueryData<MemberDto[]>(queryKeys.members(boardId), (prev) => [
+        ...(prev ?? []),
+        optimistic,
+      ]);
       return { previous, tempId };
     },
     onError: (_err, _input, context) => {

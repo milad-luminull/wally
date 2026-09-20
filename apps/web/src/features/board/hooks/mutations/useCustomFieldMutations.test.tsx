@@ -52,7 +52,10 @@ describe('custom field mutations', () => {
     result.current.mutate({ noteId: note.id, key: 'Vertragsnr', value: '4711' });
 
     await waitFor(() => {
-      expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Müller GmbH', Vertragsnr: '4711' });
+      expect(listFields(queryClient, note.id)).toEqual({
+        Kunde: 'Müller GmbH',
+        Vertragsnr: '4711',
+      });
       expect(detailFields(queryClient, note.id)).toEqual({
         Kunde: 'Müller GmbH',
         Vertragsnr: '4711',

@@ -20,7 +20,11 @@ describe('note routes', () => {
     await ctx.app.close();
   });
 
-  async function createNote(boardId: string, token: string, overrides: Record<string, unknown> = {}) {
+  async function createNote(
+    boardId: string,
+    token: string,
+    overrides: Record<string, unknown> = {},
+  ) {
     const res = await ctx.app.inject({
       method: 'POST',
       url: `/whiteboards/${boardId}/notes`,
@@ -177,9 +181,7 @@ describe('note routes', () => {
 
     it('400s on custom fields that break the key rules or the per-note cap', async () => {
       const fx = await createBoardFixture(ctx);
-      const tooMany = Object.fromEntries(
-        Array.from({ length: 21 }, (_, i) => [`Feld${i}`, 'x']),
-      );
+      const tooMany = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`Feld${i}`, 'x']));
 
       for (const customFields of [
         tooMany,
@@ -371,7 +373,7 @@ describe('note routes', () => {
       expect(gone).toBeNull();
     });
 
-    it('DELETE /notes/:id takes the note\'s subtasks and history with it', async () => {
+    it("DELETE /notes/:id takes the note's subtasks and history with it", async () => {
       // Firestore does not delete subcollections when their parent document goes, and
       // there are no foreign keys left to cascade — the route has to do this by hand.
       const { fx, noteId } = await setup();

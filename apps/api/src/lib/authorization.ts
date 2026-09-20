@@ -28,10 +28,7 @@ declare module 'fastify' {
  * every request, which is why active memberships are mirrored onto the board rather than
  * costing a second query here.
  */
-export function resolveRole(
-  board: WithId<WhiteboardDoc>,
-  userId: string,
-): EffectiveRole | null {
+export function resolveRole(board: WithId<WhiteboardDoc>, userId: string): EffectiveRole | null {
   if (board.ownerId === userId) return 'OWNER';
   return board.memberRoles[userId] ?? null;
 }
@@ -51,8 +48,7 @@ export async function getEffectiveRole(
 }
 
 type WhiteboardSource =
-  | { kind: 'whiteboardParam'; paramName?: string }
-  | { kind: 'noteParam'; paramName?: string };
+  { kind: 'whiteboardParam'; paramName?: string } | { kind: 'noteParam'; paramName?: string };
 
 /**
  * Composable preHandler #1: resolves which whiteboard the request is about (directly

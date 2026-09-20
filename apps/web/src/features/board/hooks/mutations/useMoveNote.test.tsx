@@ -25,7 +25,11 @@ describe('useMoveNote', () => {
   function setup(initialNote: NoteDto) {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(queryKeys.notes(boardId), [initialNote]);
-    queryClient.setQueryData(['notes', initialNote.id], { ...initialNote, subtasks: [], history: [] });
+    queryClient.setQueryData(['notes', initialNote.id], {
+      ...initialNote,
+      subtasks: [],
+      history: [],
+    });
 
     function wrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -59,7 +63,9 @@ describe('useMoveNote', () => {
   it('rolls back the optimistic patch when the request fails', async () => {
     const note = makeNote({ horizon: 'HEUTE' });
     let rejectMove!: (err: unknown) => void;
-    vi.mocked(notesApi.move).mockReturnValue(new Promise((_resolve, reject) => (rejectMove = reject)));
+    vi.mocked(notesApi.move).mockReturnValue(
+      new Promise((_resolve, reject) => (rejectMove = reject)),
+    );
 
     const { queryClient, result } = setup(note);
 

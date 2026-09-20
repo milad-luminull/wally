@@ -2,7 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { findFieldKey, type CustomFields, type NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { queryKeys } from '../queryKeys';
-import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import {
+  cancelNoteCaches,
+  patchNoteCaches,
+  restoreNoteCaches,
+  settleNoteCaches,
+  snapshotNoteCaches,
+} from './shared';
 
 /** Like tags, there is no dedicated per-property route — PATCH /notes/:id replaces the
  * whole `customFields` map, so both hooks read the current cached map and send the next

@@ -11,7 +11,8 @@ export function useBoardRename(boardId: string) {
     onMutate: async (name) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.board(boardId) });
       const previous = queryClient.getQueryData<WhiteboardDto>(queryKeys.board(boardId));
-      if (previous) queryClient.setQueryData<WhiteboardDto>(queryKeys.board(boardId), { ...previous, name });
+      if (previous)
+        queryClient.setQueryData<WhiteboardDto>(queryKeys.board(boardId), { ...previous, name });
       return { previous };
     },
     onError: (_err, _name, context) => {

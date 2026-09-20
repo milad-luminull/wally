@@ -45,7 +45,15 @@ interface NoteCardProps {
  * re-parented, so React unmounts and remounts it — any mount-triggered animation here
  * would replay on every move.
  */
-export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay = false, dragging = false }: NoteCardProps) {
+export function NoteCard({
+  note,
+  currentUserId,
+  selected,
+  onOpen,
+  style,
+  overlay = false,
+  dragging = false,
+}: NoteCardProps) {
   const { t } = useTranslation();
   const { priority: priorityLabels } = useEnumLabels();
   const due = dueInfo(note, t);
@@ -58,7 +66,10 @@ export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay
     <>
       {/* Colour spine. Rendered as an element rather than a left border so it can sit
           flush inside the card's rounded corners. */}
-      <span aria-hidden className={cn('absolute inset-y-0 left-0 w-[3px]', noteColourSpineClass[note.colour])} />
+      <span
+        aria-hidden
+        className={cn('absolute inset-y-0 left-0 w-[3px]', noteColourSpineClass[note.colour])}
+      />
 
       <span
         className={cn(
@@ -71,7 +82,10 @@ export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay
 
       <div className="flex items-center gap-2">
         <span
-          className={cn('flex items-center gap-1 whitespace-nowrap text-11 tabular-nums', dueToneClass[due.tone])}
+          className={cn(
+            'flex items-center gap-1 whitespace-nowrap text-11 tabular-nums',
+            dueToneClass[due.tone],
+          )}
           style={{ fontWeight: due.weight }}
         >
           {isDone && <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
@@ -91,7 +105,10 @@ export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay
           <span
             role="img"
             aria-label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
-            className={cn('h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass[note.priority])}
+            className={cn(
+              'h-[7px] w-[7px] shrink-0 rounded-full',
+              priorityToneClass[note.priority],
+            )}
           />
         )}
 
@@ -157,7 +174,16 @@ interface RestingProps {
 }
 
 /** Split out so the overlay variant above never calls `useDraggable`. */
-function RestingNoteCard({ note, selected, isDone, dragging, onOpen, style, surface, body }: RestingProps) {
+function RestingNoteCard({
+  note,
+  selected,
+  isDone,
+  dragging,
+  onOpen,
+  style,
+  surface,
+  body,
+}: RestingProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
   const hidden = dragging || isDragging;
 
@@ -186,7 +212,9 @@ function RestingNoteCard({ note, selected, isDone, dragging, onOpen, style, surf
           'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
           noteColourTintClass[note.colour],
-          selected ? 'border-primary shadow-e2 ring-1 ring-primary' : 'border-border-subtle shadow-pin',
+          selected
+            ? 'border-primary shadow-e2 ring-1 ring-primary'
+            : 'border-border-subtle shadow-pin',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column
           // does not reflow under the cursor mid-drag.

@@ -23,7 +23,18 @@ describe('FilterBar', () => {
   it('debounces the search input before calling setQuery', async () => {
     const setQuery = vi.fn();
     render(
-      <FilterBar view={baseView()} setQuery={setQuery} setPriority={vi.fn()} setMine={vi.fn()} setDone={vi.fn()} setFieldKey={vi.fn()} setFieldValue={vi.fn()} fieldKeys={[]} fieldValues={[]} isBelowTablet={false} />,
+      <FilterBar
+        view={baseView()}
+        setQuery={setQuery}
+        setPriority={vi.fn()}
+        setMine={vi.fn()}
+        setDone={vi.fn()}
+        setFieldKey={vi.fn()}
+        setFieldValue={vi.fn()}
+        fieldKeys={[]}
+        fieldValues={[]}
+        isBelowTablet={false}
+      />,
     );
 
     const input = screen.getByLabelText('Notizen durchsuchen');
@@ -38,7 +49,18 @@ describe('FilterBar', () => {
   it('lets multiple priority chips be selected at once', async () => {
     const setPriority = vi.fn();
     const { rerender } = render(
-      <FilterBar view={baseView()} setQuery={vi.fn()} setPriority={setPriority} setMine={vi.fn()} setDone={vi.fn()} setFieldKey={vi.fn()} setFieldValue={vi.fn()} fieldKeys={[]} fieldValues={[]} isBelowTablet={false} />,
+      <FilterBar
+        view={baseView()}
+        setQuery={vi.fn()}
+        setPriority={setPriority}
+        setMine={vi.fn()}
+        setDone={vi.fn()}
+        setFieldKey={vi.fn()}
+        setFieldValue={vi.fn()}
+        fieldKeys={[]}
+        fieldValues={[]}
+        isBelowTablet={false}
+      />,
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Nach Priorität Hoch filtern' }));
@@ -66,7 +88,18 @@ describe('FilterBar', () => {
     const setMine = vi.fn();
     const setDone = vi.fn();
     render(
-      <FilterBar view={baseView()} setQuery={vi.fn()} setPriority={vi.fn()} setMine={setMine} setDone={setDone} setFieldKey={vi.fn()} setFieldValue={vi.fn()} fieldKeys={[]} fieldValues={[]} isBelowTablet={false} />,
+      <FilterBar
+        view={baseView()}
+        setQuery={vi.fn()}
+        setPriority={vi.fn()}
+        setMine={setMine}
+        setDone={setDone}
+        setFieldKey={vi.fn()}
+        setFieldValue={vi.fn()}
+        fieldKeys={[]}
+        fieldValues={[]}
+        isBelowTablet={false}
+      />,
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Nur meine' }));
@@ -78,9 +111,22 @@ describe('FilterBar', () => {
 
   it('collapses filters into a single Filter button below 720px', () => {
     render(
-      <FilterBar view={baseView()} setQuery={vi.fn()} setPriority={vi.fn()} setMine={vi.fn()} setDone={vi.fn()} setFieldKey={vi.fn()} setFieldValue={vi.fn()} fieldKeys={[]} fieldValues={[]} isBelowTablet />,
+      <FilterBar
+        view={baseView()}
+        setQuery={vi.fn()}
+        setPriority={vi.fn()}
+        setMine={vi.fn()}
+        setDone={vi.fn()}
+        setFieldKey={vi.fn()}
+        setFieldValue={vi.fn()}
+        fieldKeys={[]}
+        fieldValues={[]}
+        isBelowTablet
+      />,
     );
     expect(screen.getByRole('button', { name: /Filter/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Nach Priorität Hoch filtern' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Nach Priorität Hoch filtern' }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -235,7 +235,9 @@ export default async function noteRoutes(fastify: FastifyInstance) {
         ...(body.colour !== undefined ? { colour: body.colour } : {}),
       };
       const updatedAt = now();
-      await notesCol(db).doc(note.id).update({ ...changes, updatedAt });
+      await notesCol(db)
+        .doc(note.id)
+        .update({ ...changes, updatedAt });
 
       const updated = { ...note, ...changes, updatedAt };
       return toNoteDto(updated, await usersForNote(db, updated));
@@ -325,9 +327,7 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       const note = request.noteContext!;
       const db = request.server.db;
       const updatedAt = now();
-      await notesCol(db)
-        .doc(note.id)
-        .update({ status: 'OPEN', completedAt: null, updatedAt });
+      await notesCol(db).doc(note.id).update({ status: 'OPEN', completedAt: null, updatedAt });
 
       const updated: WithId<NoteDoc> = {
         ...note,

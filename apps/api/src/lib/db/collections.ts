@@ -59,7 +59,6 @@ export const historyCol = (db: Firestore, noteId: string): CollectionReference<H
 export const shareLinksCol = (db: Firestore): CollectionReference<ShareLinkDoc> =>
   db.collection('shareLinks').withConverter(converter<ShareLinkDoc>());
 
-
 /**
  * Emails are compared with exact equality because Firestore has no case-insensitive
  * matching. Every write path must run addresses through here so those comparisons hold.
@@ -73,9 +72,7 @@ export function normalizeEmail(email: string): string {
  * the field existed carry no value at all, and an absent flag must never be mistaken for a
  * verified address — see UserDoc.emailVerified.
  */
-export function isEmailVerified(
-  user: Pick<UserDoc, 'emailVerified'> | null | undefined,
-): boolean {
+export function isEmailVerified(user: Pick<UserDoc, 'emailVerified'> | null | undefined): boolean {
   return user?.emailVerified === true;
 }
 

@@ -127,4 +127,3 @@ export type ShareLinkDoc = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
-

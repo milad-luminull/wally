@@ -1,7 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteStatus } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import {
+  cancelNoteCaches,
+  patchNoteCaches,
+  restoreNoteCaches,
+  settleNoteCaches,
+  snapshotNoteCaches,
+} from './shared';
 
 export function useToggleNoteStatus(boardId: string) {
   const queryClient = useQueryClient();

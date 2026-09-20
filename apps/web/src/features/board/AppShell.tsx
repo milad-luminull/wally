@@ -27,7 +27,11 @@ function BoardSkeleton({ columns }: { columns: number }) {
   const { t } = useTranslation();
 
   return (
-    <div className="board-surface flex min-w-0 flex-1 gap-4 overflow-hidden p-5 lg:p-6" role="status" aria-label={t('common.loading')}>
+    <div
+      className="board-surface flex min-w-0 flex-1 gap-4 overflow-hidden p-5 lg:p-6"
+      role="status"
+      aria-label={t('common.loading')}
+    >
       {Array.from({ length: columns }).map((_, column) => (
         <div
           key={column}
@@ -59,7 +63,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const isOwner = isOwnerRole(board.currentUserRole);
   const notes = notesQuery.data ?? EMPTY_NOTES;
 
-  const filteredNotes = useMemo(() => filterNotes(notes, viewState, user?.uid), [notes, viewState, user?.uid]);
+  const filteredNotes = useMemo(
+    () => filterNotes(notes, viewState, user?.uid),
+    [notes, viewState, user?.uid],
+  );
   // Facets for the property filter, derived from the unfiltered board so choosing a value
   // never empties the list of values you could switch to.
   const fieldKeys = useMemo(() => collectFieldKeys(notes), [notes]);
@@ -126,7 +133,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             axis={viewState.axis}
             currentUserId={user?.uid}
             onOpenNote={viewState.openNote}
-            onToggleDone={(noteId, status) => toggleStatus.mutate({ noteId, currentStatus: status })}
+            onToggleDone={(noteId, status) =>
+              toggleStatus.mutate({ noteId, currentStatus: status })
+            }
             canEdit={canEdit}
             isBelowDesktop={isBelowDesktop}
           />

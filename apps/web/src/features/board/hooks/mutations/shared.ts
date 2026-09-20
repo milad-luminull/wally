@@ -51,14 +51,23 @@ export function cancelNoteCaches(queryClient: QueryClient, boardId: string, note
   void queryClient.cancelQueries({ queryKey: ['notes', noteId] }, { revert: false });
 }
 
-export function snapshotNoteCaches(queryClient: QueryClient, boardId: string, noteId: string): NoteCacheSnapshot {
+export function snapshotNoteCaches(
+  queryClient: QueryClient,
+  boardId: string,
+  noteId: string,
+): NoteCacheSnapshot {
   return {
     previousList: queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId)),
     previousDetail: queryClient.getQueryData<NoteDetailDto>(['notes', noteId]),
   };
 }
 
-export function restoreNoteCaches(queryClient: QueryClient, boardId: string, noteId: string, snap: NoteCacheSnapshot) {
+export function restoreNoteCaches(
+  queryClient: QueryClient,
+  boardId: string,
+  noteId: string,
+  snap: NoteCacheSnapshot,
+) {
   if (snap.previousList) queryClient.setQueryData(queryKeys.notes(boardId), snap.previousList);
   if (snap.previousDetail) queryClient.setQueryData(['notes', noteId], snap.previousDetail);
 }
@@ -74,7 +83,9 @@ export function patchNoteCaches(
   queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) =>
     prev?.map((n) => (n.id === noteId ? { ...n, ...patch } : n)),
   );
-  queryClient.setQueryData<NoteDetailDto>(['notes', noteId], (prev) => (prev ? { ...prev, ...patch } : prev));
+  queryClient.setQueryData<NoteDetailDto>(['notes', noteId], (prev) =>
+    prev ? { ...prev, ...patch } : prev,
+  );
 }
 
 export function settleNoteCaches(queryClient: QueryClient, boardId: string, noteId: string) {

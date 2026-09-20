@@ -19,8 +19,7 @@ describe('members business logic', () => {
     await resetDatabase(PROJECT_ID);
   });
 
-  const listMembers = async (boardId: string) =>
-    docsWithId(await membersCol(db, boardId).get());
+  const listMembers = async (boardId: string) => docsWithId(await membersCol(db, boardId).get());
   const memberRoles = async (boardId: string) =>
     (await withId(await whiteboardsCol(db).doc(boardId).get()))?.memberRoles;
 
@@ -88,7 +87,11 @@ describe('members business logic', () => {
 
       const member = await upsertInvite(db, board, 'invitee@finlex.de', 'EDIT');
 
-      expect(member).toMatchObject({ status: 'PENDING', userId: null, invitedEmail: 'invitee@finlex.de' });
+      expect(member).toMatchObject({
+        status: 'PENDING',
+        userId: null,
+        invitedEmail: 'invitee@finlex.de',
+      });
       expect(await memberRoles(board)).toEqual({});
     });
 
@@ -185,9 +188,7 @@ describe('members business logic', () => {
 
       // A single batch would have failed the whole commit here — inside the auth hook, so
       // every other board's activation would go down with it, on every request.
-      await expect(
-        activatePendingInvitesForEmail(db, 'alice', 'alice@finlex.de'),
-      ).resolves.toBe(0);
+      await expect(activatePendingInvitesForEmail(db, 'alice', 'alice@finlex.de')).resolves.toBe(0);
     });
 
     it('drops a pending invite addressed to the board owner rather than making them a member', async () => {
@@ -211,10 +212,16 @@ describe('members business logic', () => {
   describe('redeemShareLink', () => {
     /** redeemShareLink takes the caller, not a bare uid: claiming an invite keyed by
      *  invitedEmail is only allowed for an address Firebase has confirmed. */
-    const caller = (id: string, email: string, emailVerified = true) => ({ id, email, emailVerified });
+    const caller = (id: string, email: string, emailVerified = true) => ({
+      id,
+      email,
+      emailVerified,
+    });
 
     it('returns null for an invalid token', async () => {
-      await expect(redeemShareLink(db, 'nonexistent-token', caller('some-user', 's@finlex.de'))).resolves.toBeNull();
+      await expect(
+        redeemShareLink(db, 'nonexistent-token', caller('some-user', 's@finlex.de')),
+      ).resolves.toBeNull();
     });
 
     it('is a no-op when the owner redeems their own link', async () => {

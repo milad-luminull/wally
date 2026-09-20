@@ -10,10 +10,7 @@ import { AppError } from './errors.js';
  * `request.whiteboardContext.board` rather than reading it a second time — `memberRoles`
  * holds ACTIVE members only, which is exactly the check.
  */
-export function assertValidAssignee(
-  board: WithId<WhiteboardDoc>,
-  assigneeId: string | null,
-): void {
+export function assertValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): void {
   if (assigneeId === null) return;
   if (board.ownerId === assigneeId || board.memberRoles[assigneeId]) return;
 
@@ -43,7 +40,10 @@ interface MovableNoteFields {
  * This is the explicit regression point against the mockup's derive-from-position
  * shortcut (see the plan's "three independent fields" data-model decision).
  */
-export function computeMoveUpdate(existing: MovableNoteFields, input: NoteMoveInput): MoveComputation {
+export function computeMoveUpdate(
+  existing: MovableNoteFields,
+  input: NoteMoveInput,
+): MoveComputation {
   if (input.mode === 'HORIZON') {
     return {
       data: { horizon: input.horizon },

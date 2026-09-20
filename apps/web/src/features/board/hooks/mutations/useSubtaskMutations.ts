@@ -12,16 +12,30 @@ function snapshot(queryClient: QueryClient, noteId: string) {
   return queryClient.getQueryData<NoteDetailDto>(['notes', noteId]);
 }
 
-function restore(queryClient: QueryClient, boardId: string, noteId: string, previous: NoteDetailDto | undefined) {
+function restore(
+  queryClient: QueryClient,
+  boardId: string,
+  noteId: string,
+  previous: NoteDetailDto | undefined,
+) {
   if (!previous) return;
   queryClient.setQueryData(['notes', noteId], previous);
   queryClient.setQueryData(queryKeys.notes(boardId), (prev: NoteDetailDto[] | undefined) =>
-    prev?.map((n) => (n.id === noteId ? { ...n, subtaskSummary: summaryOf(previous.subtasks) } : n)),
+    prev?.map((n) =>
+      n.id === noteId ? { ...n, subtaskSummary: summaryOf(previous.subtasks) } : n,
+    ),
   );
 }
 
-function writeSubtasks(queryClient: QueryClient, boardId: string, noteId: string, subtasks: SubtaskDto[]) {
-  queryClient.setQueryData<NoteDetailDto>(['notes', noteId], (prev) => (prev ? { ...prev, subtasks } : prev));
+function writeSubtasks(
+  queryClient: QueryClient,
+  boardId: string,
+  noteId: string,
+  subtasks: SubtaskDto[],
+) {
+  queryClient.setQueryData<NoteDetailDto>(['notes', noteId], (prev) =>
+    prev ? { ...prev, subtasks } : prev,
+  );
   queryClient.setQueryData(queryKeys.notes(boardId), (prev: NoteDetailDto[] | undefined) =>
     prev?.map((n) => (n.id === noteId ? { ...n, subtaskSummary: summaryOf(subtasks) } : n)),
   );
@@ -35,7 +49,8 @@ function settle(queryClient: QueryClient, boardId: string, noteId: string) {
 export function useAddSubtask(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, text }: { noteId: string; text: string }) => subtasksApi.create(noteId, { text }),
+    mutationFn: ({ noteId, text }: { noteId: string; text: string }) =>
+      subtasksApi.create(noteId, { text }),
     onMutate: ({ noteId, text }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);
@@ -62,8 +77,15 @@ export function useAddSubtask(boardId: string) {
 export function useToggleSubtask(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, subtaskId, done }: { noteId: string; subtaskId: string; done: boolean }) =>
-      subtasksApi.update(noteId, subtaskId, { done }),
+    mutationFn: ({
+      noteId,
+      subtaskId,
+      done,
+    }: {
+      noteId: string;
+      subtaskId: string;
+      done: boolean;
+    }) => subtasksApi.update(noteId, subtaskId, { done }),
     onMutate: ({ noteId, subtaskId, done }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);
@@ -85,7 +107,8 @@ export function useToggleSubtask(boardId: string) {
 export function useRemoveSubtask(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, subtaskId }: { noteId: string; subtaskId: string }) => subtasksApi.remove(noteId, subtaskId),
+    mutationFn: ({ noteId, subtaskId }: { noteId: string; subtaskId: string }) =>
+      subtasksApi.remove(noteId, subtaskId),
     onMutate: ({ noteId, subtaskId }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);

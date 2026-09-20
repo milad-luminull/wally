@@ -1,11 +1,6 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { INITIAL_BOARD_NAME } from '@wally/shared';
-import type {
-  NoteColour,
-  NoteHorizon,
-  NotePriority,
-  NoteStatus,
-} from '@wally/shared';
+import type { NoteColour, NoteHorizon, NotePriority, NoteStatus } from '@wally/shared';
 import type { MemberDoc, NoteDoc, UserDoc } from './lib/db/types.js';
 import {
   historyCol,
@@ -42,9 +37,39 @@ function dateFromNow(days: number): string {
 
 async function seedUsers(db: Firestore, timestamp: Timestamp) {
   const users: [string, UserDoc][] = [
-    [OWNER_UID, { email: 'max.berger@finlex.de', displayName: 'Max Berger', emailVerified: true, language: 'de', createdAt: timestamp, updatedAt: timestamp }],
-    [EDIT_COLLEAGUE_UID, { email: 'andrea.reiter@finlex.de', displayName: 'Andrea Reiter', emailVerified: true, language: 'de', createdAt: timestamp, updatedAt: timestamp }],
-    [VIEW_COLLEAGUE_UID, { email: 'irem.yildiz@finlex.de', displayName: 'Irem Yıldız', emailVerified: true, language: 'de', createdAt: timestamp, updatedAt: timestamp }],
+    [
+      OWNER_UID,
+      {
+        email: 'max.berger@finlex.de',
+        displayName: 'Max Berger',
+        emailVerified: true,
+        language: 'de',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ],
+    [
+      EDIT_COLLEAGUE_UID,
+      {
+        email: 'andrea.reiter@finlex.de',
+        displayName: 'Andrea Reiter',
+        emailVerified: true,
+        language: 'de',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ],
+    [
+      VIEW_COLLEAGUE_UID,
+      {
+        email: 'irem.yildiz@finlex.de',
+        displayName: 'Irem Yıldız',
+        emailVerified: true,
+        language: 'de',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      },
+    ],
   ];
   await Promise.all(users.map(([id, user]) => usersCol(db).doc(id).set(user)));
 }
@@ -90,7 +115,6 @@ async function seedMembers(db: Firestore, timestamp: Timestamp) {
   ];
   await Promise.all(members.map(([id, member]) => membersCol(db, BOARD_ID).doc(id).set(member)));
 }
-
 
 interface NoteSeed {
   id: string;
@@ -355,14 +379,16 @@ async function main() {
 
   await seedUsers(db, timestamp);
 
-  await whiteboardsCol(db).doc(BOARD_ID).set({
-    name: INITIAL_BOARD_NAME.de,
-    ownerId: OWNER_UID,
-    memberRoles: { [EDIT_COLLEAGUE_UID]: 'EDIT', [VIEW_COLLEAGUE_UID]: 'VIEW' },
-    shareLinkToken,
-    createdAt: existingBoard?.createdAt ?? timestamp,
-    updatedAt: timestamp,
-  });
+  await whiteboardsCol(db)
+    .doc(BOARD_ID)
+    .set({
+      name: INITIAL_BOARD_NAME.de,
+      ownerId: OWNER_UID,
+      memberRoles: { [EDIT_COLLEAGUE_UID]: 'EDIT', [VIEW_COLLEAGUE_UID]: 'VIEW' },
+      shareLinkToken,
+      createdAt: existingBoard?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    });
 
   await shareLinksCol(db).doc(shareLinkToken).set({
     whiteboardId: BOARD_ID,

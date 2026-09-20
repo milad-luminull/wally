@@ -19,11 +19,7 @@ import { Label } from '@/components/ui/label';
  * fixes both, and costs no useMemo.
  */
 const signInSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .min(1, 'validation.email.required')
-    .email('validation.email.invalid'),
+  email: z.string().trim().min(1, 'validation.email.required').email('validation.email.invalid'),
   password: z.string().min(1, 'validation.password.required'),
 });
 
@@ -153,7 +149,11 @@ export function SignInForm() {
 
       <p className="text-center text-13 text-fg-muted">
         {t('auth.signIn.noAccount')}{' '}
-        <Link to="/signup" state={{ from }} className="font-medium text-fg-1 underline-offset-4 hover:underline">
+        <Link
+          to="/signup"
+          state={{ from }}
+          className="font-medium text-fg-1 underline-offset-4 hover:underline"
+        >
           {t('auth.signIn.toSignUp')}
         </Link>
       </p>

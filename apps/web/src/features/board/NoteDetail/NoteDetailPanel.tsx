@@ -12,7 +12,13 @@ import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,9 +43,16 @@ import { useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useToggleNoteStatus } from '../hooks/mutations/useToggleNoteStatus';
 import { useAssignNote } from '../hooks/mutations/useAssignNote';
 import { useDeleteNote } from '../hooks/mutations/useDeleteNote';
-import { useAddSubtask, useRemoveSubtask, useToggleSubtask } from '../hooks/mutations/useSubtaskMutations';
+import {
+  useAddSubtask,
+  useRemoveSubtask,
+  useToggleSubtask,
+} from '../hooks/mutations/useSubtaskMutations';
 import { useAddTag, useRemoveTag } from '../hooks/mutations/useTagMutations';
-import { useSetCustomField, useRemoveCustomField } from '../hooks/mutations/useCustomFieldMutations';
+import {
+  useSetCustomField,
+  useRemoveCustomField,
+} from '../hooks/mutations/useCustomFieldMutations';
 import { collectFieldKeys, priorityToneClass } from '../util/noteDerived';
 import { useNotes } from '../hooks/useNotes';
 import { Field, FieldLabel, PanelSection } from './Field';
@@ -90,7 +103,14 @@ function useEscapeToClose(onClose: () => void, enabled: boolean) {
   }, [enabled, onClose]);
 }
 
-export function NoteDetailPanel({ noteId, boardId, canEdit, axis, isBelowDesktop, onClose }: NoteDetailPanelProps) {
+export function NoteDetailPanel({
+  noteId,
+  boardId,
+  canEdit,
+  axis,
+  isBelowDesktop,
+  onClose,
+}: NoteDetailPanelProps) {
   const { t } = useTranslation();
   useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
 
@@ -146,7 +166,14 @@ interface ContentProps {
   autoFocusTitle: boolean;
 }
 
-function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusTitle }: ContentProps) {
+function NoteDetailContent({
+  noteId,
+  boardId,
+  canEdit,
+  axis,
+  onClose,
+  autoFocusTitle,
+}: ContentProps) {
   const { t } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const { data: note, isLoading } = useNoteDetail(noteId);
@@ -235,7 +262,10 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
 
   function handlePriorityChange(value: string) {
     if (!value) return;
-    moveNote.mutate({ noteId: note!.id, input: { mode: 'PRIORITY', priority: value as NotePriority } });
+    moveNote.mutate({
+      noteId: note!.id,
+      input: { mode: 'PRIORITY', priority: value as NotePriority },
+    });
   }
 
   function handleZoneChange(value: string) {
@@ -246,7 +276,10 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         input: { mode: 'HORIZON', horizon: value as (typeof noteHorizonValues)[number] },
       });
     } else if (axis === 'priority') {
-      moveNote.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: value as NotePriority } });
+      moveNote.mutate({
+        noteId: note.id,
+        input: { mode: 'PRIORITY', priority: value as NotePriority },
+      });
     }
   }
 
@@ -260,7 +293,9 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
     assignNote.mutate({
       noteId: note.id,
       assigneeId: value,
-      optimisticAssignee: member ? { id: value, email: member.email, displayName: member.displayName } : null,
+      optimisticAssignee: member
+        ? { id: value, email: member.email, displayName: member.displayName }
+        : null,
     });
   }
 
@@ -269,7 +304,11 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
       <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
         <span
           role="img"
-          aria-label={isDone ? t('note.doneStatus') : `${t('note.priorityLabel')}: ${priorityLabels[note.priority]}`}
+          aria-label={
+            isDone
+              ? t('note.doneStatus')
+              : `${t('note.priorityLabel')}: ${priorityLabels[note.priority]}`
+          }
           className={cn(
             'h-2 w-2 shrink-0 rounded-full',
             isDone ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
@@ -303,7 +342,9 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             id="note-done"
             checked={isDone}
             disabled={disabled}
-            onCheckedChange={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
+            onCheckedChange={() =>
+              toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })
+            }
           />
           {/* Quieter than the title, but deliberately not as quiet as a field label: this is
               the note's one state control, and it has to read as interactive. The generous
@@ -345,7 +386,12 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         <PanelSection>
           <Field>
             <FieldLabel>{t('note.priorityLabel')}</FieldLabel>
-            <ToggleGroup type="single" value={note.priority} onValueChange={handlePriorityChange} disabled={disabled}>
+            <ToggleGroup
+              type="single"
+              value={note.priority}
+              onValueChange={handlePriorityChange}
+              disabled={disabled}
+            >
               {notePriorityValues.map((p) => (
                 <ToggleGroupItem key={p} variant="chip" value={p} aria-label={priorityLabels[p]}>
                   <span className={cn('h-[7px] w-[7px] rounded-full', priorityToneClass[p])} />
@@ -385,13 +431,19 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
                 type="date"
                 value={note.dueDate ?? ''}
                 disabled={disabled}
-                onChange={(e) => updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })}
+                onChange={(e) =>
+                  updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
+                }
                 className="h-9 text-13"
               />
             </Field>
             <Field>
               <FieldLabel>{t('note.assigneeLabel')}</FieldLabel>
-              <Select value={note.assignee?.id ?? NO_ASSIGNEE} onValueChange={handleAssigneeChange} disabled={disabled}>
+              <Select
+                value={note.assignee?.id ?? NO_ASSIGNEE}
+                onValueChange={handleAssigneeChange}
+                disabled={disabled}
+              >
                 <SelectTrigger
                   aria-label={t('note.assigneeLabel')}
                   className="h-9 rounded-md border border-input bg-card px-3 text-13"
@@ -433,7 +485,9 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             subtasks={note.subtasks}
             disabled={disabled}
             onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
-            onToggle={(subtaskId, done) => toggleSubtask.mutate({ noteId: note.id, subtaskId, done })}
+            onToggle={(subtaskId, done) =>
+              toggleSubtask.mutate({ noteId: note.id, subtaskId, done })
+            }
             onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
           />
         </PanelSection>
@@ -442,7 +496,9 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
           <ColorSwatchPicker
             value={note.colour}
             disabled={disabled}
-            onChange={(colour: NoteColour) => updateNote.mutate({ noteId: note.id, input: { colour } })}
+            onChange={(colour: NoteColour) =>
+              updateNote.mutate({ noteId: note.id, input: { colour } })
+            }
           />
         </PanelSection>
 

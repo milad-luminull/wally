@@ -1,13 +1,20 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteUpdateInput } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import {
+  cancelNoteCaches,
+  patchNoteCaches,
+  restoreNoteCaches,
+  settleNoteCaches,
+  snapshotNoteCaches,
+} from './shared';
 
 export function useUpdateNote(boardId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, input }: { noteId: string; input: NoteUpdateInput }) => notesApi.update(noteId, input),
+    mutationFn: ({ noteId, input }: { noteId: string; input: NoteUpdateInput }) =>
+      notesApi.update(noteId, input),
     onMutate: ({ noteId, input }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);

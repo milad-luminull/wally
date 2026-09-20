@@ -125,9 +125,14 @@ export function ListView({
         )}
 
         {groups.map((group) => (
-          <section key={group.key} className="overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-e1">
+          <section
+            key={group.key}
+            className="overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-e1"
+          >
             <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-alt px-4 py-2.5">
-              <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">{group.label}</h2>
+              <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">
+                {group.label}
+              </h2>
               <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-11 font-semibold tabular-nums text-fg-muted">
                 {group.notes.length}
               </span>

@@ -95,7 +95,9 @@ describe('AuthProvider', () => {
 
     // The account exists either way; failing the sign-up over the mail would strand them
     // with credentials they were never told worked.
-    await expect(result.current.signUpWithEmail('max@finlex.de', 'geheim123')).resolves.toBeUndefined();
+    await expect(
+      result.current.signUpWithEmail('max@finlex.de', 'geheim123'),
+    ).resolves.toBeUndefined();
   });
 
   /**

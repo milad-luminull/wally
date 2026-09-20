@@ -11,7 +11,9 @@ export function useDeleteNote(boardId: string) {
     onMutate: async (noteId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notes(boardId) });
       const previous = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) => prev?.filter((n) => n.id !== noteId));
+      queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) =>
+        prev?.filter((n) => n.id !== noteId),
+      );
       queryClient.removeQueries({ queryKey: ['notes', noteId] });
       return { previous };
     },

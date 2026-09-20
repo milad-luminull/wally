@@ -2,12 +2,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { queryKeys } from '../queryKeys';
-import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import {
+  cancelNoteCaches,
+  patchNoteCaches,
+  restoreNoteCaches,
+  settleNoteCaches,
+  snapshotNoteCaches,
+} from './shared';
 
 /** No dedicated add/remove-tag route — PATCH /notes/:id's `tags` field is a full-array
  * replace (see packages/shared/src/schemas/note.ts), so both hooks read the current
  * cached tags and send the next full array. */
-function currentTags(queryClient: ReturnType<typeof useQueryClient>, boardId: string, noteId: string): string[] {
+function currentTags(
+  queryClient: ReturnType<typeof useQueryClient>,
+  boardId: string,
+  noteId: string,
+): string[] {
   const list = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
   return list?.find((n) => n.id === noteId)?.tags ?? [];
 }

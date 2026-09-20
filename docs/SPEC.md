@@ -10,12 +10,12 @@ A user owns a whiteboard and can optionally share it with colleagues. The applic
 
 The application consists of:
 
-* A whiteboard containing notes
-* Multiple ways to organize the same notes
-* A list representation of the notes
-* Detailed information associated with each note
-* Filtering and search
-* Sharing and collaboration
+- A whiteboard containing notes
+- Multiple ways to organize the same notes
+- A list representation of the notes
+- Detailed information associated with each note
+- Filtering and search
+- Sharing and collaboration
 
 The whiteboard is owned by one user.
 
@@ -33,9 +33,9 @@ The whiteboard supports three organization modes:
 
 Notes can be organized into:
 
-* Today
-* This week
-* Later
+- Today
+- This week
+- Later
 
 Moving a note between areas updates its horizon value.
 
@@ -43,9 +43,9 @@ Moving a note between areas updates its horizon value.
 
 Notes can be organized into:
 
-* High
-* Medium
-* Low
+- High
+- Medium
+- Low
 
 Moving a note between areas updates its priority.
 
@@ -77,19 +77,19 @@ Each note represents one to-do item.
 
 A note has:
 
-* Title
-* Priority
-* Horizon / grid position
-* Due date
-* Assignee
-* Properties (user-defined key/value pairs)
-* Tags
-* Subtasks
-* Colour
-* Status
-* Position on the whiteboard
-* Creation history
-* Movement history
+- Title
+- Priority
+- Horizon / grid position
+- Due date
+- Assignee
+- Properties (user-defined key/value pairs)
+- Tags
+- Subtasks
+- Colour
+- Status
+- Position on the whiteboard
+- Creation history
+- Movement history
 
 Properties are free-form key/value pairs the user defines per note — for example
 `Kunde: Müller GmbH` or `Vertragsnr: 4711`. Keys are not drawn from a fixed list: any label
@@ -112,10 +112,10 @@ A note can contain a checklist of subtasks.
 
 Users can:
 
-* Add a subtask
-* Mark a subtask as completed
-* Mark a completed subtask as incomplete
-* Remove a subtask
+- Add a subtask
+- Mark a subtask as completed
+- Mark a completed subtask as incomplete
+- Remove a subtask
 
 The application should expose the number of subtasks associated with a note.
 
@@ -125,13 +125,13 @@ The application should expose the number of subtasks associated with a note.
 
 Users with edit permission can:
 
-* Create a note
-* Edit a note
-* Move a note
-* Assign a note
-* Mark a note as done
-* Reopen a completed note
-* Delete a note
+- Create a note
+- Edit a note
+- Move a note
+- Assign a note
+- Mark a note as done
+- Reopen a completed note
+- Delete a note
 
 Completed notes remain available unless deleted.
 
@@ -141,10 +141,10 @@ Completed notes remain available unless deleted.
 
 Users can filter the visible notes using:
 
-* Text search
-* Priority
-* Assigned to me
-* Completed / not completed
+- Text search
+- Priority
+- Assigned to me
+- Completed / not completed
 
 Filters affect the currently displayed notes but do not modify or delete them.
 
@@ -156,14 +156,14 @@ The whiteboard owner can share the whiteboard with colleagues.
 
 Sharing supports at least two permission levels:
 
-* View
-* Edit
+- View
+- Edit
 
 The owner can:
 
-* Invite a colleague by email
-* Share access through a link
-* See who has access to the whiteboard
+- Invite a colleague by email
+- Share access through a link
+- See who has access to the whiteboard
 
 Users with edit permission can modify notes.
 
@@ -179,8 +179,8 @@ The application records basic history for each note.
 
 At minimum, history includes:
 
-* When the note was created
-* When the note was moved
+- When the note was created
+- When the note was moved
 
 History is informational and does not need to provide version restoration.
 
@@ -192,9 +192,9 @@ The application must work on desktop, tablet, and mobile screen sizes.
 
 On smaller screens:
 
-* Notes are available through a list-based representation
-* Note details remain accessible
-* Drag-and-drop positioning is not required
+- Notes are available through a list-based representation
+- Note details remain accessible
+- Drag-and-drop positioning is not required
 
 Dragging and free positioning are desktop capabilities.
 
@@ -220,8 +220,8 @@ property keys — is shown as entered, in whatever language it was written.
 
 The application should integrate with the existing Finlex platform where relevant, including:
 
-* Users
-* Authentication and permissions
+- Users
+- Authentication and permissions
 
 The exact integration mechanism is outside the scope of these requirements.
 
@@ -231,16 +231,16 @@ The exact integration mechanism is outside the scope of these requirements.
 
 The initial version does not require:
 
-* Real-time collaborative editing
-* Comments or conversations on notes
-* Attachments
-* Notifications or reminders
-* Recurring tasks
-* Task dependencies
-* Multiple whiteboards per user
-* Workflow automation
-* Version restoration
-* Reporting or analytics
-* Custom workflow or grid definitions
+- Real-time collaborative editing
+- Comments or conversations on notes
+- Attachments
+- Notifications or reminders
+- Recurring tasks
+- Task dependencies
+- Multiple whiteboards per user
+- Workflow automation
+- Version restoration
+- Reporting or analytics
+- Custom workflow or grid definitions
 
 These capabilities can be considered separately if needed later.

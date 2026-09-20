@@ -28,7 +28,11 @@ export default async function subtaskRoutes(fastify: FastifyInstance) {
     '/notes/:id/subtasks',
     {
       preHandler: [requireWhiteboardAccess({ kind: 'noteParam' }), requireRole(['OWNER', 'EDIT'])],
-      schema: { params: noteIdParams, body: subtaskCreateSchema, response: { 201: subtaskDtoSchema } },
+      schema: {
+        params: noteIdParams,
+        body: subtaskCreateSchema,
+        response: { 201: subtaskDtoSchema },
+      },
     },
     async (request, reply) => {
       const noteId = request.params.id;

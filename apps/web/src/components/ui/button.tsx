@@ -22,16 +22,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-e1 hover:bg-[color:var(--petrol-mid)] hover:shadow-e2',
+        default:
+          'bg-primary text-primary-foreground shadow-e1 hover:bg-[color:var(--petrol-mid)] hover:shadow-e2',
         /* Resting fill is --apricot-dark, not --apricot: the white glyph on plain apricot
            measures 2.77:1, under the 3:1 SC 1.4.11 requires for an icon that carries the
            button's meaning. --apricot-dark takes it to 3.40:1; --apricot-deep is the hover. */
         accent:
           'bg-[color:var(--apricot-dark)] text-accent-foreground shadow-e1 hover:bg-[color:var(--apricot-deep)] hover:shadow-e2',
-        outline: 'border border-border bg-card text-fg-1 hover:border-border-strong hover:bg-secondary',
+        outline:
+          'border border-border bg-card text-fg-1 hover:border-border-strong hover:bg-secondary',
         ghost: 'text-fg-muted hover:bg-inset hover:text-fg-1',
         link: 'text-fg-muted underline-offset-4 hover:text-fg-1 hover:underline p-0 h-auto active:scale-100',
-        destructive: 'text-status-danger hover:bg-[rgba(196,43,43,0.08)] hover:text-[color:var(--status-danger-bold)]',
+        destructive:
+          'text-status-danger hover:bg-[rgba(196,43,43,0.08)] hover:text-[color:var(--status-danger-bold)]',
       },
       size: {
         default: 'h-9 px-4 [@media(pointer:coarse)]:h-11',
@@ -45,15 +48,16 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
-    return <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+    return (
+      <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+    );
   },
 );
 Button.displayName = 'Button';

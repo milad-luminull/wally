@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { cn } from '@/lib/cn';
 import { priorityToneClass } from './util/noteDerived';
@@ -144,9 +150,18 @@ function PriorityChips({
   const { priority: priorityLabels } = useEnumLabels();
 
   return (
-    <ToggleGroup type="multiple" variant="chip" value={priority} onValueChange={(v) => setPriority(v as NotePriority[])}>
+    <ToggleGroup
+      type="multiple"
+      variant="chip"
+      value={priority}
+      onValueChange={(v) => setPriority(v as NotePriority[])}
+    >
       {notePriorityValues.map((p) => (
-        <ToggleGroupItem key={p} value={p} aria-label={t('board.filter.priorityAria', { label: priorityLabels[p] })}>
+        <ToggleGroupItem
+          key={p}
+          value={p}
+          aria-label={t('board.filter.priorityAria', { label: priorityLabels[p] })}
+        >
           <span className={cn('h-1.5 w-1.5 rounded-full', priorityToneClass[p])} />
           {priorityLabels[p]}
         </ToggleGroupItem>
@@ -228,12 +243,16 @@ export function FilterBar({
             </SheetHeader>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">{t('board.filter.priorityHeading')}</span>
+                <span className="text-12 font-semibold text-fg-muted">
+                  {t('board.filter.priorityHeading')}
+                </span>
                 <PriorityChips priority={view.priority} setPriority={setPriority} />
               </div>
               {fieldKeys.length > 0 && (
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-12 font-semibold text-fg-muted">{t('board.filter.fieldHeading')}</span>
+                  <span className="text-12 font-semibold text-fg-muted">
+                    {t('board.filter.fieldHeading')}
+                  </span>
                   <FieldFilter
                     view={view}
                     fieldKeys={fieldKeys}
@@ -244,9 +263,16 @@ export function FilterBar({
                 </div>
               )}
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">{t('board.filter.showHeading')}</span>
+                <span className="text-12 font-semibold text-fg-muted">
+                  {t('board.filter.showHeading')}
+                </span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
+                  <BooleanToggles
+                    mine={view.mine}
+                    setMine={setMine}
+                    done={view.done}
+                    setDone={setDone}
+                  />
                 </div>
               </div>
               {hasActiveFilters && (

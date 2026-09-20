@@ -41,22 +41,32 @@ const sheetVariants = cva('fixed z-overlay flex flex-col gap-0 bg-card shadow-e3
 });
 
 interface SheetContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
+  extends
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
 }
 
-export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, SheetContentProps>(
-  ({ side = 'right', className, children, hideClose, ...props }, ref) => {
-    // See the note in dialog.tsx — the close button's name is the only copy here.
-    const { t } = useTranslation();
+export const SheetContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  SheetContentProps
+>(({ side = 'right', className, children, hideClose, ...props }, ref) => {
+  // See the note in dialog.tsx — the close button's name is the only copy here.
+  const { t } = useTranslation();
 
-    return (
+  return (
     <SheetPortal>
       <SheetOverlay />
-      <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+      >
         {side === 'bottom' && (
-          <span aria-hidden className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-border-strong" />
+          <span
+            aria-hidden
+            className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-border-strong"
+          />
         )}
         {children}
         {!hideClose && (
@@ -69,20 +79,25 @@ export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimi
         )}
       </DialogPrimitive.Content>
     </SheetPortal>
-    );
-  },
-);
+  );
+});
 SheetContent.displayName = DialogPrimitive.Content.displayName;
 
 export function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-1 border-b border-border p-5', className)} {...props} />;
+  return (
+    <div className={cn('flex flex-col gap-1 border-b border-border p-5', className)} {...props} />
+  );
 }
 
 export const SheetTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('font-head text-18 font-semibold text-fg-1', className)} {...props} />
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn('font-head text-18 font-semibold text-fg-1', className)}
+    {...props}
+  />
 ));
 SheetTitle.displayName = DialogPrimitive.Title.displayName;
 
@@ -90,6 +105,10 @@ export const SheetDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn('text-13 text-fg-muted', className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn('text-13 text-fg-muted', className)}
+    {...props}
+  />
 ));
 SheetDescription.displayName = DialogPrimitive.Description.displayName;

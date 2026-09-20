@@ -8,7 +8,16 @@ import { makeNoteDetail } from '@/test/fixtures';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
 vi.mock('@/lib/resources', () => ({
-  notesApi: { get: vi.fn(), list: vi.fn(), update: vi.fn(), move: vi.fn(), assign: vi.fn(), complete: vi.fn(), reopen: vi.fn(), remove: vi.fn() },
+  notesApi: {
+    get: vi.fn(),
+    list: vi.fn(),
+    update: vi.fn(),
+    move: vi.fn(),
+    assign: vi.fn(),
+    complete: vi.fn(),
+    reopen: vi.fn(),
+    remove: vi.fn(),
+  },
   subtasksApi: { create: vi.fn(), update: vi.fn(), remove: vi.fn() },
   membersApi: { list: vi.fn() },
 }));
@@ -16,8 +25,12 @@ vi.mock('@/lib/resources', () => ({
 import { membersApi, notesApi } from '@/lib/resources';
 
 beforeEach(() => {
-  vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE' }));
-  vi.mocked(notesApi.move).mockResolvedValue(makeNoteDetail({ priority: 'HOCH', horizon: 'SPAETER' }));
+  vi.mocked(notesApi.get).mockResolvedValue(
+    makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE' }),
+  );
+  vi.mocked(notesApi.move).mockResolvedValue(
+    makeNoteDetail({ priority: 'HOCH', horizon: 'SPAETER' }),
+  );
   vi.mocked(notesApi.remove).mockResolvedValue(undefined);
   vi.mocked(notesApi.list).mockResolvedValue([]);
   vi.mocked(membersApi.list).mockResolvedValue([]);
@@ -40,7 +53,6 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
 }
 
 describe('NoteDetailPanel', () => {
-
   /**
    * Completion used to be a filled, full-width button in the footer labelled "Erledigt".
    * That is the slot — and the word — every sheet uses for "dismiss", so people pressing it

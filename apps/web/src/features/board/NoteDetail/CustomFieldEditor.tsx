@@ -50,7 +50,10 @@ export function CustomFieldEditor({
     if (!key || !value) return;
     if (atCapacity && !findFieldKey(fields, key)) return;
     // Typing "kunde" when "Kunde" exists edits that property rather than adding a twin.
-    onSet(findFieldKey(fields, key) ?? key.slice(0, FIELD_KEY_MAX_LENGTH), value.slice(0, FIELD_VALUE_MAX_LENGTH));
+    onSet(
+      findFieldKey(fields, key) ?? key.slice(0, FIELD_KEY_MAX_LENGTH),
+      value.slice(0, FIELD_VALUE_MAX_LENGTH),
+    );
     setKeyDraft('');
     setValueDraft('');
   }

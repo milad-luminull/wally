@@ -4,9 +4,27 @@ import { makeNote } from '@/test/fixtures';
 import { ListView } from './ListView';
 
 const notes = [
-  makeNote({ id: 'n1', title: 'Heute-Notiz', horizon: 'HEUTE', priority: 'HOCH', dueDate: '2026-09-18' }),
-  makeNote({ id: 'n2', title: 'Woche-Notiz', horizon: 'DIESE_WOCHE', priority: 'MITTEL', dueDate: '2026-09-22' }),
-  makeNote({ id: 'n3', title: 'Weitere Heute-Notiz', horizon: 'HEUTE', priority: 'NIEDRIG', dueDate: '2026-09-17' }),
+  makeNote({
+    id: 'n1',
+    title: 'Heute-Notiz',
+    horizon: 'HEUTE',
+    priority: 'HOCH',
+    dueDate: '2026-09-18',
+  }),
+  makeNote({
+    id: 'n2',
+    title: 'Woche-Notiz',
+    horizon: 'DIESE_WOCHE',
+    priority: 'MITTEL',
+    dueDate: '2026-09-22',
+  }),
+  makeNote({
+    id: 'n3',
+    title: 'Weitere Heute-Notiz',
+    horizon: 'HEUTE',
+    priority: 'NIEDRIG',
+    dueDate: '2026-09-17',
+  }),
 ];
 
 describe('ListView', () => {

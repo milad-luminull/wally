@@ -39,7 +39,12 @@ export function Field({ children, className }: { children: ReactNode; className?
  * no heading of their own — the field labels inside are already the only labels needed. */
 export function PanelSection({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <section className={cn('flex flex-col gap-4 border-t border-border-subtle px-5 py-4 first:border-t-0', className)}>
+    <section
+      className={cn(
+        'flex flex-col gap-4 border-t border-border-subtle px-5 py-4 first:border-t-0',
+        className,
+      )}
+    >
       {children}
     </section>
   );

@@ -54,7 +54,8 @@ export const en = {
     },
     verify: {
       title: 'Confirm your email address',
-      sentTo: 'We sent an email to <strong>{{email}}</strong>. Until you confirm it we cannot add you to a board you have been invited to.',
+      sentTo:
+        'We sent an email to <strong>{{email}}</strong>. Until you confirm it we cannot add you to a board you have been invited to.',
       resend: 'Resend email',
       resending: 'Sending…',
       resendIn: 'Resend in {{seconds}}s',

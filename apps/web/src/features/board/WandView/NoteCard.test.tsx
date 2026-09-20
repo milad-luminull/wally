@@ -23,7 +23,8 @@ import { NoteCard } from './NoteCard';
  * carry a mount-triggered animation.
  */
 describe('NoteCard', () => {
-  const animationNames = () => Object.keys((tailwindConfig.theme?.extend?.animation as Record<string, string>) ?? {});
+  const animationNames = () =>
+    Object.keys((tailwindConfig.theme?.extend?.animation as Record<string, string>) ?? {});
 
   it('defines no mount-triggered entry animation for note cards', () => {
     expect(animationNames()).not.toContain('note-in');
@@ -42,7 +43,13 @@ describe('NoteCard', () => {
 
   it('renders the drag overlay copy with no animation class', () => {
     const { container } = render(
-      <NoteCard note={makeNote()} currentUserId="user-1" selected={false} onOpen={vi.fn()} overlay />,
+      <NoteCard
+        note={makeNote()}
+        currentUserId="user-1"
+        selected={false}
+        onOpen={vi.fn()}
+        overlay
+      />,
     );
 
     const wrapper = container.querySelector('[data-note-overlay]');

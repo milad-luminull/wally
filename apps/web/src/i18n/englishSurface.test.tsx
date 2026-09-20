@@ -39,7 +39,9 @@ describe('the English surface', () => {
 
     // "Today" is also a note's own due-date label when the fixture is due today, so this
     // pins the group header specifically: the text immediately followed by its count.
-    const header = screen.getAllByText('Today').find((el) => el.nextElementSibling?.textContent === '1');
+    const header = screen
+      .getAllByText('Today')
+      .find((el) => el.nextElementSibling?.textContent === '1');
     expect(header).toBeInTheDocument();
     expect(screen.queryByText('Heute')).not.toBeInTheDocument();
   });

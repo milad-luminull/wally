@@ -15,7 +15,13 @@ interface SubtaskChecklistProps {
   disabled?: boolean;
 }
 
-export function SubtaskChecklist({ subtasks, onAdd, onToggle, onRemove, disabled }: SubtaskChecklistProps) {
+export function SubtaskChecklist({
+  subtasks,
+  onAdd,
+  onToggle,
+  onRemove,
+  disabled,
+}: SubtaskChecklistProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState('');
   const done = subtasks.filter((s) => s.done).length;
@@ -59,7 +65,12 @@ export function SubtaskChecklist({ subtasks, onAdd, onToggle, onRemove, disabled
                   : t('note.subtasks.markDone', { text: subtask.text })
               }
             />
-            <span className={cn('flex-1 text-13 leading-snug text-fg-2', subtask.done && 'text-fg-muted line-through')}>
+            <span
+              className={cn(
+                'flex-1 text-13 leading-snug text-fg-2',
+                subtask.done && 'text-fg-muted line-through',
+              )}
+            >
               {subtask.text}
             </span>
             {!disabled && (

@@ -1,13 +1,15 @@
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import {
-  whiteboardRoleValues,
-  type MemberDto,
-  type WhiteboardRole,
-} from '@wally/shared';
+import { whiteboardRoleValues, type MemberDto, type WhiteboardRole } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { initialsOf } from '../util/noteDerived';
 import { useUpdateMemberRole } from '../hooks/mutations/useUpdateMemberRole';
@@ -41,13 +43,20 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate text-13 font-medium text-fg-1">{name}</div>
-              {member.status === 'PENDING' && <div className="text-11 text-fg-muted">{t('share.members.pending')}</div>}
+              {member.status === 'PENDING' && (
+                <div className="text-11 text-fg-muted">{t('share.members.pending')}</div>
+              )}
             </div>
             {isOwner && !isBoardOwner ? (
               <>
                 {/* Only reachable for non-owner rows, so member.role is VIEW|EDIT here even
                     though MemberDto.role also admits the synthetic owner's OWNER. */}
-                <Select value={member.role} onValueChange={(role) => updateRole.mutate({ memberId: member.id, role: role as WhiteboardRole })}>
+                <Select
+                  value={member.role}
+                  onValueChange={(role) =>
+                    updateRole.mutate({ memberId: member.id, role: role as WhiteboardRole })
+                  }
+                >
                   <SelectTrigger
                     aria-label={t('share.members.roleAria', { name })}
                     className="h-8 w-[104px] shrink-0 rounded-md border border-border bg-card px-2.5 text-12"

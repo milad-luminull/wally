@@ -5,7 +5,13 @@ import type { MessageKey } from '@/i18n/keys';
 import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useCreateInvite } from '../hooks/mutations/useCreateInvite';
 
@@ -24,7 +30,9 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
     e.preventDefault();
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) {
-      setError((parsed.error.issues[0]?.message as MessageKey | undefined) ?? 'validation.email.invalid');
+      setError(
+        (parsed.error.issues[0]?.message as MessageKey | undefined) ?? 'validation.email.invalid',
+      );
       return;
     }
     setError(null);
@@ -51,7 +59,10 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
       />
       <div className="flex items-center gap-2">
         <Select value={role} onValueChange={(v) => setRole(v as WhiteboardRole)}>
-          <SelectTrigger aria-label={t('share.invite.roleAria')} className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13">
+          <SelectTrigger
+            aria-label={t('share.invite.roleAria')}
+            className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -62,7 +73,12 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
             ))}
           </SelectContent>
         </Select>
-        <Button type="submit" variant="accent" disabled={createInvite.isPending} className="shrink-0">
+        <Button
+          type="submit"
+          variant="accent"
+          disabled={createInvite.isPending}
+          className="shrink-0"
+        >
           {createInvite.isPending ? t('share.invite.pending') : t('share.invite.submit')}
         </Button>
       </div>

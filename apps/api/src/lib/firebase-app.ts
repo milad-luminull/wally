@@ -1,4 +1,11 @@
-import { applicationDefault, cert, getApp, getApps, initializeApp, type App } from 'firebase-admin/app';
+import {
+  applicationDefault,
+  cert,
+  getApp,
+  getApps,
+  initializeApp,
+  type App,
+} from 'firebase-admin/app';
 import { loadEnv } from '../env.js';
 
 /**

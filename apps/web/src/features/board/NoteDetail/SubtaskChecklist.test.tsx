@@ -32,7 +32,14 @@ describe('SubtaskChecklist', () => {
 
   it('toggles a subtask via its checkbox', async () => {
     const onToggle = vi.fn();
-    render(<SubtaskChecklist subtasks={[makeSubtask({ done: false })]} onAdd={vi.fn()} onToggle={onToggle} onRemove={vi.fn()} />);
+    render(
+      <SubtaskChecklist
+        subtasks={[makeSubtask({ done: false })]}
+        onAdd={vi.fn()}
+        onToggle={onToggle}
+        onRemove={vi.fn()}
+      />,
+    );
 
     await userEvent.click(screen.getByRole('checkbox', { name: /als erledigt markieren/i }));
     expect(onToggle).toHaveBeenCalledWith('s1', true);
@@ -40,7 +47,14 @@ describe('SubtaskChecklist', () => {
 
   it('removes a subtask', async () => {
     const onRemove = vi.fn();
-    render(<SubtaskChecklist subtasks={[makeSubtask()]} onAdd={vi.fn()} onToggle={vi.fn()} onRemove={onRemove} />);
+    render(
+      <SubtaskChecklist
+        subtasks={[makeSubtask()]}
+        onAdd={vi.fn()}
+        onToggle={vi.fn()}
+        onRemove={onRemove}
+      />,
+    );
 
     await userEvent.click(screen.getByRole('button', { name: /entfernen/i }));
     expect(onRemove).toHaveBeenCalledWith('s1');
@@ -50,12 +64,23 @@ describe('SubtaskChecklist', () => {
     const onAdd = vi.fn();
     render(<SubtaskChecklist subtasks={[]} onAdd={onAdd} onToggle={vi.fn()} onRemove={vi.fn()} />);
 
-    await userEvent.type(screen.getByLabelText('Unteraufgabe hinzufügen'), 'Vergleich versenden{Enter}');
+    await userEvent.type(
+      screen.getByLabelText('Unteraufgabe hinzufügen'),
+      'Vergleich versenden{Enter}',
+    );
     expect(onAdd).toHaveBeenCalledWith('Vergleich versenden');
   });
 
   it('renders no interactive controls when disabled', () => {
-    render(<SubtaskChecklist subtasks={[makeSubtask()]} onAdd={vi.fn()} onToggle={vi.fn()} onRemove={vi.fn()} disabled />);
+    render(
+      <SubtaskChecklist
+        subtasks={[makeSubtask()]}
+        onAdd={vi.fn()}
+        onToggle={vi.fn()}
+        onRemove={vi.fn()}
+        disabled
+      />,
+    );
     expect(screen.queryByLabelText('Unteraufgabe hinzufügen')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /entfernen/i })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeDisabled();

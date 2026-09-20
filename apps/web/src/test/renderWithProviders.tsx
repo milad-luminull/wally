@@ -22,7 +22,10 @@ export function createTestQueryClient() {
  */
 export function renderWithProviders(
   ui: ReactElement,
-  { route = '/', queryClient = createTestQueryClient() }: { route?: string; queryClient?: QueryClient } = {},
+  {
+    route = '/',
+    queryClient = createTestQueryClient(),
+  }: { route?: string; queryClient?: QueryClient } = {},
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (

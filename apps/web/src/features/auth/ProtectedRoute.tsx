@@ -8,7 +8,11 @@ function FullPageSkeleton() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex h-screen flex-col gap-4 bg-background p-6" role="status" aria-label={t('common.loading')}>
+    <div
+      className="flex h-screen flex-col gap-4 bg-background p-6"
+      role="status"
+      aria-label={t('common.loading')}
+    >
       <div className="flex items-center gap-4">
         <Skeleton className="h-8 w-8 rounded-full" />
         <Skeleton className="h-6 w-40" />

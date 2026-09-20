@@ -53,7 +53,8 @@ export const meApi = {
 
 export const boardsApi = {
   list: (): Promise<WhiteboardSummaryDto[]> => api.get('/whiteboards', whiteboardListSchema),
-  get: (boardId: string): Promise<WhiteboardDto> => api.get(`/whiteboards/${boardId}`, whiteboardDtoSchema),
+  get: (boardId: string): Promise<WhiteboardDto> =>
+    api.get(`/whiteboards/${boardId}`, whiteboardDtoSchema),
   rename: (boardId: string, name: string): Promise<WhiteboardDto> =>
     api.patch(`/whiteboards/${boardId}`, { name }, whiteboardDtoSchema),
 };
@@ -88,8 +89,10 @@ export const notesApi = {
     api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDtoSchema),
   assign: (noteId: string, assigneeId: string | null): Promise<NoteDto> =>
     api.post(`/notes/${noteId}/assign`, noteAssignSchema.parse({ assigneeId }), noteDtoSchema),
-  complete: (noteId: string): Promise<NoteDto> => api.post(`/notes/${noteId}/complete`, {}, noteDtoSchema),
-  reopen: (noteId: string): Promise<NoteDto> => api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema),
+  complete: (noteId: string): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/complete`, {}, noteDtoSchema),
+  reopen: (noteId: string): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema),
   remove: (noteId: string): Promise<void> => api.delete(`/notes/${noteId}`),
 };
 
@@ -97,28 +100,49 @@ export const subtasksApi = {
   create: (noteId: string, input: SubtaskCreateInput): Promise<SubtaskDto> =>
     api.post(`/notes/${noteId}/subtasks`, subtaskCreateSchema.parse(input), subtaskDtoSchema),
   update: (noteId: string, subtaskId: string, input: SubtaskUpdateInput): Promise<SubtaskDto> =>
-    api.patch(`/notes/${noteId}/subtasks/${subtaskId}`, subtaskUpdateSchema.parse(input), subtaskDtoSchema),
+    api.patch(
+      `/notes/${noteId}/subtasks/${subtaskId}`,
+      subtaskUpdateSchema.parse(input),
+      subtaskDtoSchema,
+    ),
   remove: (noteId: string, subtaskId: string): Promise<void> =>
     api.delete(`/notes/${noteId}/subtasks/${subtaskId}`),
 };
 
 export const membersApi = {
-  list: (boardId: string): Promise<MemberDto[]> => api.get(`/whiteboards/${boardId}/members`, memberListSchema),
+  list: (boardId: string): Promise<MemberDto[]> =>
+    api.get(`/whiteboards/${boardId}/members`, memberListSchema),
   invite: (boardId: string, input: InviteCreateInput): Promise<MemberDto> =>
-    api.post(`/whiteboards/${boardId}/members/invite`, inviteCreateSchema.parse(input), memberDtoSchema),
-  updateRole: (boardId: string, memberId: string, input: MemberRoleUpdateInput): Promise<MemberDto> =>
-    api.patch(`/whiteboards/${boardId}/members/${memberId}`, memberRoleUpdateSchema.parse(input), memberDtoSchema),
+    api.post(
+      `/whiteboards/${boardId}/members/invite`,
+      inviteCreateSchema.parse(input),
+      memberDtoSchema,
+    ),
+  updateRole: (
+    boardId: string,
+    memberId: string,
+    input: MemberRoleUpdateInput,
+  ): Promise<MemberDto> =>
+    api.patch(
+      `/whiteboards/${boardId}/members/${memberId}`,
+      memberRoleUpdateSchema.parse(input),
+      memberDtoSchema,
+    ),
   remove: (boardId: string, memberId: string): Promise<void> =>
     api.delete(`/whiteboards/${boardId}/members/${memberId}`),
 };
 
 export const shareLinkApi = {
-  get: (boardId: string): Promise<ShareLinkDto> => api.get(`/whiteboards/${boardId}/share-link`, shareLinkDtoSchema),
+  get: (boardId: string): Promise<ShareLinkDto> =>
+    api.get(`/whiteboards/${boardId}/share-link`, shareLinkDtoSchema),
   createOrUpdate: (boardId: string, role: WhiteboardRole): Promise<ShareLinkDto> =>
-    api.post(`/whiteboards/${boardId}/share-link`, shareLinkRoleSchema.parse({ role }), shareLinkDtoSchema),
+    api.post(
+      `/whiteboards/${boardId}/share-link`,
+      shareLinkRoleSchema.parse({ role }),
+      shareLinkDtoSchema,
+    ),
   /** The route declares params only, so the body is empty — same shape as notesApi's
    *  body-less POSTs. Tokens are base64url, so they need no escaping. */
   redeem: (token: string): Promise<ShareLinkRedeemResult> =>
     api.post(`/share-links/${token}/redeem`, {}, shareLinkRedeemResultSchema),
 };
-

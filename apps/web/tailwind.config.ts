@@ -121,12 +121,30 @@ export default {
           from: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
           to: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
         },
-        'slide-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
-        'slide-out-right': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(100%)' } },
-        'slide-in-bottom': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
-        'slide-out-bottom': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(100%)' } },
-        'pop-in': { from: { opacity: '0', transform: 'scale(0.94)' }, to: { opacity: '1', transform: 'scale(1)' } },
-        'pop-out': { from: { opacity: '1', transform: 'scale(1)' }, to: { opacity: '0', transform: 'scale(0.94)' } },
+        'slide-in-right': {
+          from: { transform: 'translateX(100%)' },
+          to: { transform: 'translateX(0)' },
+        },
+        'slide-out-right': {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(100%)' },
+        },
+        'slide-in-bottom': {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
+        'slide-out-bottom': {
+          from: { transform: 'translateY(0)' },
+          to: { transform: 'translateY(100%)' },
+        },
+        'pop-in': {
+          from: { opacity: '0', transform: 'scale(0.94)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        'pop-out': {
+          from: { opacity: '1', transform: 'scale(1)' },
+          to: { opacity: '0', transform: 'scale(0.94)' },
+        },
         /* Skeletons sweep instead of pulsing — reads as loading, not as a broken element. */
         shimmer: { from: { backgroundPosition: '200% 0' }, to: { backgroundPosition: '-200% 0' } },
       },

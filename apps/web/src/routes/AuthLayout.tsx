@@ -5,7 +5,15 @@ import type { ReactNode } from 'react';
  * same dotted petrol surface carries over here instead of dropping the user onto a plain
  * grey page with a floating box.
  */
-export function AuthLayout({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+export function AuthLayout({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
   return (
     <main className="board-surface flex min-h-[100dvh] flex-col items-center justify-center px-4 py-10">
       <div className="flex w-full max-w-[380px] flex-col gap-6">

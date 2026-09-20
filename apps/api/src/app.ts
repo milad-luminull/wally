@@ -89,8 +89,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     max: 300,
     timeWindow: '1 minute',
     hook: 'preHandler',
-    keyGenerator: (request) =>
-      (request.user as AuthenticatedUser | undefined)?.id ?? request.ip,
+    keyGenerator: (request) => (request.user as AuthenticatedUser | undefined)?.id ?? request.ip,
     // An AppError, not a plain object: the plugin hands this to setErrorHandler, which
     // reads statusCode/code off it. A bare object has neither, so it fell through to the
     // 500 branch and reported a rate limit as a server fault.

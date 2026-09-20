@@ -73,7 +73,11 @@ export function WandCanvas({
 
   return (
     <div className="relative h-full min-w-0 flex-1">
-      <div ref={scrollRef} className="wally-scroll h-full w-full overflow-auto" onDoubleClick={handleDoubleClick}>
+      <div
+        ref={scrollRef}
+        className="wally-scroll h-full w-full overflow-auto"
+        onDoubleClick={handleDoubleClick}
+      >
         <div
           ref={setNodeRef}
           className={cn(

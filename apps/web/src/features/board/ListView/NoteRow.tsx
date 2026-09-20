@@ -33,7 +33,9 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
       : undefined;
   // First property alphabetically, so the meta line is stable rather than following
   // whatever order Firestore returns the map in.
-  const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) => a.localeCompare(b, 'de'));
+  const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b, 'de'),
+  );
   const fieldLabel = firstField ? `${firstField[0]}: ${firstField[1]}` : undefined;
   const metaParts = [fieldLabel, assigneeName, checklistLabel || undefined].filter(Boolean);
 
@@ -103,7 +105,10 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
       </div>
 
       <div className="flex shrink-0 items-center gap-2.5 pt-0.5">
-        <span className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])} style={{ fontWeight: due.weight }}>
+        <span
+          className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])}
+          style={{ fontWeight: due.weight }}
+        >
           {due.label}
         </span>
         {note.priority === 'HOCH' && !isDone && (

@@ -21,7 +21,15 @@ interface ShareSheetProps {
   isBelowTablet: boolean;
 }
 
-function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: string; isOwner: boolean }) {
+function ShareBody({
+  boardId,
+  ownerId,
+  isOwner,
+}: {
+  boardId: string;
+  ownerId: string;
+  isOwner: boolean;
+}) {
   const { data: members = [], isLoading: membersLoading } = useMembers(boardId);
   const { t } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
@@ -58,11 +66,19 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-inset px-3 py-2">
             {shareLinkQuery.data ? (
-              <span className="min-w-0 flex-1 truncate text-12 text-fg-2">{shareLinkQuery.data.url}</span>
+              <span className="min-w-0 flex-1 truncate text-12 text-fg-2">
+                {shareLinkQuery.data.url}
+              </span>
             ) : (
               <Skeleton className="h-4 flex-1" />
             )}
-            <Button variant="link" size="text" onClick={handleCopy} disabled={!shareLinkQuery.data} className="shrink-0 text-12 font-semibold">
+            <Button
+              variant="link"
+              size="text"
+              onClick={handleCopy}
+              disabled={!shareLinkQuery.data}
+              className="shrink-0 text-12 font-semibold"
+            >
               {copied ? t('share.copied') : t('share.copy')}
             </Button>
           </div>
@@ -72,7 +88,10 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
             className="w-full"
             value={shareLinkQuery.data?.role ?? 'VIEW'}
             onChange={(role) => createOrUpdateShareLink.mutate(role as WhiteboardRole)}
-            options={whiteboardRoleValues.map((role) => ({ value: role, label: whiteboardRole[role] }))}
+            options={whiteboardRoleValues.map((role) => ({
+              value: role,
+              label: whiteboardRole[role],
+            }))}
           />
 
           <p className="text-12 leading-relaxed text-fg-muted">
