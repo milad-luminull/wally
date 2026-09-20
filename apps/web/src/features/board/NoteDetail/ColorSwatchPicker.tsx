@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { noteColourValues, type NoteColour } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
@@ -17,11 +18,12 @@ interface ColorSwatchPickerProps {
  * note-colour choice, so there is no "Apricot" option here, unlike the reference mockup.
  */
 export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPickerProps) {
+  const { t } = useTranslation();
   const { colour: colourLabels } = useEnumLabels();
 
   return (
     <div className="flex flex-col gap-2">
-      <FieldLabel>Farbe</FieldLabel>
+      <FieldLabel>{t('note.colourLabel')}</FieldLabel>
       <div className="grid grid-cols-7 justify-items-start gap-2.5">
         {noteColourValues.map((colour) => (
           <button

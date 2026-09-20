@@ -51,7 +51,7 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
       />
       <div className="flex items-center gap-2">
         <Select value={role} onValueChange={(v) => setRole(v as WhiteboardRole)}>
-          <SelectTrigger aria-label="Rolle" className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13">
+          <SelectTrigger aria-label={t('share.invite.roleAria')} className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

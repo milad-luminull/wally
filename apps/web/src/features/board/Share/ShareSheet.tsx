@@ -84,7 +84,7 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
       )}
 
       <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
-        <p className="text-12 font-medium text-fg-muted">Mitglieder</p>
+        <p className="text-12 font-medium text-fg-muted">{t('share.membersHeading')}</p>
         {membersLoading ? (
           <Skeleton className="h-16 w-full" />
         ) : (

@@ -193,6 +193,7 @@ export const de = {
     panelAria: 'Notizdetails',
     titlePlaceholder: 'Was ist zu tun?',
     titleAria: 'Titel',
+    colourLabel: 'Farbe',
     priorityLabel: 'Priorität',
     dueLabel: 'Fällig',
     assigneeLabel: 'Zuständig',
@@ -298,8 +299,10 @@ export const de = {
       roleAria: 'Rolle von {{name}}',
       remove: '{{name}} entfernen',
     },
+    membersHeading: 'Mitglieder',
     invite: {
       placeholder: 'name@finlex.de',
+      roleAria: 'Rolle',
       aria: 'E-Mail-Adresse einladen',
       submit: 'Einladen',
       pending: 'Lädt ein…',

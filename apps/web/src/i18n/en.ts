@@ -177,6 +177,7 @@ export const en = {
     panelAria: 'Note details',
     titlePlaceholder: 'What needs doing?',
     titleAria: 'Title',
+    colourLabel: 'Colour',
     priorityLabel: 'Priority',
     dueLabel: 'Due',
     assigneeLabel: 'Assignee',
@@ -279,8 +280,10 @@ export const en = {
       roleAria: "{{name}}'s role",
       remove: 'Remove {{name}}',
     },
+    membersHeading: 'Members',
     invite: {
       placeholder: 'name@finlex.de',
+      roleAria: 'Role',
       aria: 'Invite email address',
       submit: 'Invite',
       pending: 'Inviting…',

@@ -9,9 +9,13 @@ import { join, relative } from 'node:path';
  * and react-refresh — `react/jsx-no-literals` would mean a new dependency, and SETUP.md says
  * to ask first. This needs none.
  *
- * It looks for German-specific characters, which is a deliberately narrow net: it cannot catch
- * "Neue Notiz", and it is not trying to. It catches the overwhelming majority of real German
- * copy, and every string it does catch is unambiguously copy rather than an identifier.
+ * Two nets, because either alone leaks:
+ *   - German-specific characters. Catches most prose, but nothing in "Mitglieder" or "Rolle".
+ *   - A literal string in an aria-label, placeholder or title. Language-agnostic, and these
+ *     are exactly the attributes whose copy is invisible on screen, so a missed translation
+ *     there survives even a careful manual pass.
+ *   - A bare word between JSX tags. Also language-agnostic; this is what caught "Mitglieder",
+ *     which has no German-specific character in it at all.
  */
 /** vitest runs with cwd at the package root (see vitest.config.ts). */
 const SRC = join(process.cwd(), 'src');
@@ -21,6 +25,8 @@ const ALLOWLIST = new Set([
   // Endonyms — a language picker names each language in itself, so these are the same in
   // every locale and must never be translated.
   'features/board/AccountMenu.tsx',
+  // The product name is a proper noun.
+  'routes/AuthLayout.tsx',
 ]);
 
 function sourceFiles(dir: string): string[] {
@@ -48,7 +54,13 @@ describe('no hardcoded German copy outside the catalogues', () => {
       if (ALLOWLIST.has(rel)) continue;
       const code = stripComments(readFileSync(file, 'utf8'));
       code.split('\n').forEach((line, index) => {
-        if (/[äöüßÄÖÜ„]/.test(line)) offenders.push(`${rel}:${index + 1}: ${line.trim()}`);
+        const german = /[äöüßÄÖÜ„]/.test(line);
+        const literalAttribute = /\b(aria-label|placeholder|title)="[^"]+"/.test(line);
+        // Text between tags with no interpolation in it — i.e. copy, not a rendered value.
+        const literalJsxText = /<[^<>]*>[^<>{}]*[A-Za-z]{2,}[^<>{}]*<\//.test(line);
+        if (german || literalAttribute || literalJsxText) {
+          offenders.push(`${rel}:${index + 1}: ${line.trim()}`);
+        }
       });
     }
 
