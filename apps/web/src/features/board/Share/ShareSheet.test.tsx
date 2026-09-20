@@ -57,7 +57,7 @@ describe('ShareSheet', () => {
   });
 
   it('shows an optimistic PENDING row immediately on a valid invite submit', async () => {
-    let resolveInvite!: (value: unknown) => void;
+    let resolveInvite!: (value: Awaited<ReturnType<typeof membersApi.invite>>) => void;
     vi.mocked(membersApi.invite).mockReturnValue(new Promise((resolve) => (resolveInvite = resolve)));
 
     const user = await openShareSheet();

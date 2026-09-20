@@ -37,7 +37,7 @@ describe('useMoveNote', () => {
 
   it('optimistically patches the notes-list cache before the request resolves, then keeps it on success', async () => {
     const note = makeNote({ horizon: 'HEUTE' });
-    let resolveMove!: (value: unknown) => void;
+    let resolveMove!: (value: Awaited<ReturnType<typeof notesApi.move>>) => void;
     vi.mocked(notesApi.move).mockReturnValue(new Promise((resolve) => (resolveMove = resolve)));
 
     const { queryClient, result } = setup(note);
@@ -49,7 +49,7 @@ describe('useMoveNote', () => {
       expect(cached?.[0]?.horizon).toBe('SPAETER');
     });
 
-    resolveMove({ ...note, horizon: 'SPAETER', subtasks: [], history: [] });
+    resolveMove({ ...note, horizon: 'SPAETER' });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
