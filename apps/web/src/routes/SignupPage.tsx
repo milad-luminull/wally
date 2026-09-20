@@ -1,9 +1,11 @@
 import { Navigate, useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { SignUpForm } from '@/features/auth/SignUpForm';
 import { AuthLayout } from './AuthLayout';
 
 export function SignupPage() {
+  const { t } = useTranslation();
   const { status } = useAuth();
   const location = useLocation();
   // onAuthStateChanged can flip `status` before the form's own navigate runs, so this
@@ -13,7 +15,7 @@ export function SignupPage() {
   if (status === 'authenticated') return <Navigate to={from} replace />;
 
   return (
-    <AuthLayout title="Konto erstellen" subtitle="Lege dein persönliches Whiteboard an.">
+    <AuthLayout title={t('routes.signup.title')} subtitle={t('routes.signup.subtitle')}>
       <SignUpForm />
     </AuthLayout>
   );

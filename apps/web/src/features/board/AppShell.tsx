@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -23,8 +24,10 @@ const EMPTY_NOTES: NoteDto[] = [];
 /** Mirrors the real zone/card geometry rather than showing three generic blocks, so the
  * board does not visibly re-flow the moment notes arrive. */
 function BoardSkeleton({ columns }: { columns: number }) {
+  const { t } = useTranslation();
+
   return (
-    <div className="board-surface flex min-w-0 flex-1 gap-4 overflow-hidden p-5 lg:p-6" role="status" aria-label="Lädt…">
+    <div className="board-surface flex min-w-0 flex-1 gap-4 overflow-hidden p-5 lg:p-6" role="status" aria-label={t('common.loading')}>
       {Array.from({ length: columns }).map((_, column) => (
         <div
           key={column}

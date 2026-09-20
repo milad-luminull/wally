@@ -23,6 +23,7 @@ import {
   type NotePriority,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
+import type { T } from '@/i18n/enumLabels';
 import { noteMovePatch, useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useCreateNote } from '../hooks/mutations/useCreateNote';
 import { nextFreeNotePosition } from '../util/notePlacement';
@@ -55,8 +56,8 @@ function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
   return notes.find((n) => n.id === id);
 }
 
-function noteLabel(note: NoteDto | undefined): string {
-  return note?.title || 'Notiz ohne Titel';
+function noteLabel(note: NoteDto | undefined, t: T): string {
+  return note?.title || t('board.dnd.untitled');
 }
 
 /** Wraps ZoneBands (Horizon/Priority) or WandCanvas (Frei) in a single DndContext, so
@@ -134,18 +135,18 @@ export function WandView({
 
   const announcements: Announcements = {
     onDragStart({ active }) {
-      return `${noteLabel(findNote(notes, String(active.id)))} wird verschoben.`;
+      return t('board.dnd.picked', { note: noteLabel(findNote(notes, String(active.id)), t) });
     },
     onDragOver({ active, over }) {
-      if (!over) return `${noteLabel(findNote(notes, String(active.id)))} ist über keinem Ziel.`;
-      return `${noteLabel(findNote(notes, String(active.id)))} ist über einem Ablagebereich.`;
+      const note = noteLabel(findNote(notes, String(active.id)), t);
+      return t(over ? 'board.dnd.overZone' : 'board.dnd.overNothing', { note });
     },
     onDragEnd({ active, over }) {
-      if (!over) return `${noteLabel(findNote(notes, String(active.id)))} wurde nicht verschoben.`;
-      return `${noteLabel(findNote(notes, String(active.id)))} wurde verschoben.`;
+      const note = noteLabel(findNote(notes, String(active.id)), t);
+      return t(over ? 'board.dnd.moved' : 'board.dnd.notMoved', { note });
     },
     onDragCancel({ active }) {
-      return `Verschieben von ${noteLabel(findNote(notes, String(active.id)))} abgebrochen.`;
+      return t('board.dnd.cancelled', { note: noteLabel(findNote(notes, String(active.id)), t) });
     },
   };
 

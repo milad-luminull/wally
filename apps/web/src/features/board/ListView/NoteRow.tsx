@@ -109,7 +109,7 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         {note.priority === 'HOCH' && !isDone && (
           <span
             role="img"
-            aria-label={`Priorität: ${priorityLabels.HOCH}`}
+            aria-label={t('board.priorityPrefix', { label: priorityLabels.HOCH })}
             className={cn('mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass.HOCH)}
           />
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Share2 } from 'lucide-react';
 import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -22,6 +23,7 @@ interface ShareSheetProps {
 
 function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: string; isOwner: boolean }) {
   const { data: members = [], isLoading: membersLoading } = useMembers(boardId);
+  const { t } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
   const shareLinkQuery = useShareLink(boardId, isOwner);
   const createOrUpdateShareLink = useCreateOrUpdateShareLink(boardId);
@@ -50,7 +52,7 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="font-head text-15 font-bold text-fg-1">Wand teilen</p>
+      <p className="font-head text-15 font-bold text-fg-1">{t('share.title')}</p>
 
       {isOwner && (
         <div className="flex flex-col gap-3">
@@ -61,12 +63,12 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
               <Skeleton className="h-4 flex-1" />
             )}
             <Button variant="link" size="text" onClick={handleCopy} disabled={!shareLinkQuery.data} className="shrink-0 text-12 font-semibold">
-              {copied ? 'Kopiert' : 'Kopieren'}
+              {copied ? t('share.copied') : t('share.copy')}
             </Button>
           </div>
 
           <Segmented
-            aria-label="Rolle für den Link"
+            aria-label={t('share.linkRoleAria')}
             className="w-full"
             value={shareLinkQuery.data?.role ?? 'VIEW'}
             onChange={(role) => createOrUpdateShareLink.mutate(role as WhiteboardRole)}
@@ -75,8 +77,8 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
 
           <p className="text-12 leading-relaxed text-fg-muted">
             {shareLinkQuery.data?.role === 'EDIT'
-              ? 'Jeder mit dem Link kann Notizen anlegen und verschieben.'
-              : 'Jeder mit dem Link kann die Wand ansehen.'}
+              ? t('share.linkHint.EDIT')
+              : t('share.linkHint.VIEW')}
           </p>
         </div>
       )}
@@ -95,19 +97,20 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
           <InviteByEmailForm boardId={boardId} />
         </div>
       ) : (
-        <p className="text-12 text-fg-muted">Nur der Eigentümer kann Freigaben verwalten.</p>
+        <p className="text-12 text-fg-muted">{t('share.ownerOnly')}</p>
       )}
     </div>
   );
 }
 
 export function ShareSheet({ boardId, ownerId, isOwner, isBelowTablet }: ShareSheetProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const trigger = (
     <Button variant="ghost" size="sm" className="gap-1.5 text-fg-muted">
       <Share2 className="h-3.5 w-3.5" />
-      Teilen
+      {t('share.trigger')}
     </Button>
   );
 
@@ -117,7 +120,7 @@ export function ShareSheet({ boardId, ownerId, isOwner, isBelowTablet }: ShareSh
         <SheetTrigger asChild>{trigger}</SheetTrigger>
         <SheetContent side="bottom" className="max-h-[85vh]">
           <SheetHeader className="border-0 p-0 pb-4">
-            <SheetTitle className="sr-only">Wand teilen</SheetTitle>
+            <SheetTitle className="sr-only">{t('share.title')}</SheetTitle>
           </SheetHeader>
           <div className="wally-scroll overflow-y-auto px-1 pb-4">
             <ShareBody boardId={boardId} ownerId={ownerId} isOwner={isOwner} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Trash2, X } from 'lucide-react';
 import {
   notePriorityValues,
@@ -59,6 +60,8 @@ interface NoteDetailPanelProps {
 }
 
 export function NoteDetailPanel({ noteId, boardId, canEdit, axis, isBelowDesktop, onClose }: NoteDetailPanelProps) {
+  const { t } = useTranslation();
+
   if (isBelowDesktop) {
     return (
       <Sheet open={Boolean(noteId)} onOpenChange={(open) => !open && onClose()}>
@@ -83,7 +86,7 @@ export function NoteDetailPanel({ noteId, boardId, canEdit, axis, isBelowDesktop
   return (
     <aside
       role="complementary"
-      aria-label="Notizdetails"
+      aria-label={t('note.panelAria')}
       /* The desktop panel used to pop into the flex row with no transition, snapping the
          board narrower in one frame. Keying the animation on the note id replays the
          slide whenever a different note is opened. */
@@ -112,6 +115,7 @@ interface ContentProps {
 }
 
 function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusTitle }: ContentProps) {
+  const { t } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const { data: note, isLoading } = useNoteDetail(noteId);
   const { activeMembers } = useActiveMembers(boardId);
@@ -165,7 +169,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
 
   if (isLoading || !note) {
     return (
-      <div className="flex flex-col gap-6 p-5" role="status" aria-label="Lädt…">
+      <div className="flex flex-col gap-6 p-5" role="status" aria-label={t('common.loading')}>
         <div className="flex items-center justify-between">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-7 w-7 rounded-md" />
@@ -184,7 +188,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
   }
 
   const disabled = !canEdit;
-  const zoneLabel = axis === 'priority' ? 'Zeile' : 'Spalte';
+  const zoneLabel = t(axis === 'priority' ? 'note.zone.row' : 'note.zone.column');
   const showZone = axis !== 'free';
   const isDone = note.status === 'DONE';
 
@@ -233,7 +237,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
       <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
         <span
           role="img"
-          aria-label={isDone ? 'Erledigt' : `Priorität: ${priorityLabels[note.priority]}`}
+          aria-label={isDone ? t('note.doneStatus') : `${t('note.priorityLabel')}: ${priorityLabels[note.priority]}`}
           className={cn(
             'h-2 w-2 shrink-0 rounded-full',
             isDone ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
@@ -241,14 +245,14 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         />
         <span className="flex-1 truncate text-12 font-semibold text-fg-muted">
           {isDone
-            ? 'Erledigt'
+            ? t('note.doneStatus')
             : `${axis === 'priority' ? priorityLabels[note.priority] : horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`}
         </span>
-        <IconTooltip label="Schließen">
+        <IconTooltip label={t('common.close')}>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Schließen"
+            aria-label={t('common.close')}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
           >
             <X className="h-4 w-4" />
@@ -266,8 +270,8 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             onInput={resizeTitle}
             disabled={disabled}
             rows={1}
-            placeholder="Was ist zu tun?"
-            aria-label="Titel"
+            placeholder={t('note.titlePlaceholder')}
+            aria-label={t('note.titleAria')}
             /* Explicit `block` + `resize-none` and an auto-grown height: as a shrinkable
                flex child inside the old overflowing column this field collapsed to a few
                pixels tall. It is no longer a flex item. */
@@ -282,7 +286,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
 
         <PanelSection>
           <Field>
-            <FieldLabel>Priorität</FieldLabel>
+            <FieldLabel>{t('note.priorityLabel')}</FieldLabel>
             <ToggleGroup type="single" value={note.priority} onValueChange={handlePriorityChange} disabled={disabled}>
               {notePriorityValues.map((p) => (
                 <ToggleGroupItem key={p} variant="chip" value={p} aria-label={priorityLabels[p]}>
@@ -317,7 +321,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         <PanelSection>
           <div className="grid grid-cols-2 gap-4">
             <Field>
-              <FieldLabel htmlFor="note-due">Fällig</FieldLabel>
+              <FieldLabel htmlFor="note-due">{t('note.dueLabel')}</FieldLabel>
               <Input
                 id="note-due"
                 type="date"
@@ -328,16 +332,16 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
               />
             </Field>
             <Field>
-              <FieldLabel>Zuständig</FieldLabel>
+              <FieldLabel>{t('note.assigneeLabel')}</FieldLabel>
               <Select value={note.assignee?.id ?? NO_ASSIGNEE} onValueChange={handleAssigneeChange} disabled={disabled}>
                 <SelectTrigger
-                  aria-label="Zuständig"
+                  aria-label={t('note.assigneeLabel')}
                   className="h-9 rounded-md border border-input bg-card px-3 text-13"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_ASSIGNEE}>Niemand</SelectItem>
+                  <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
                   {activeMembers.map((member) => (
                     <SelectItem key={member.id} value={member.userId ?? member.id}>
                       {member.displayName ?? member.email}
@@ -396,25 +400,25 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
           onClick={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
           className="flex-1"
         >
-          {isDone ? 'Wieder offen' : 'Erledigt'}
+          {isDone ? t('note.reopen') : t('note.complete')}
         </Button>
 
         {!disabled && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon" aria-label="Löschen">
+              <Button variant="destructive" size="icon" aria-label={t('common.delete')}>
                 <Trash2 className="h-4 w-4" strokeWidth={1.9} />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Notiz löschen?</AlertDialogTitle>
+                <AlertDialogTitle>{t('note.delete.title')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  „{note.title || 'Ohne Titel'}“ wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.
+                  {t('note.delete.body', { title: note.title || t('common.untitled') })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   onClick={() => {
@@ -422,7 +426,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
                     onClose();
                   }}
                 >
-                  Löschen
+                  {t('common.delete')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

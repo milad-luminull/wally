@@ -90,7 +90,7 @@ export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay
         {showPriorityDot && (
           <span
             role="img"
-            aria-label={`Priorität: ${priorityLabels[note.priority]}`}
+            aria-label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
             className={cn('h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass[note.priority])}
           />
         )}

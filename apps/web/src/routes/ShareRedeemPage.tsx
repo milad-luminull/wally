@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router';
 import type { ApiErrorKind } from '@/lib/apiClient';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,6 +12,7 @@ import { AuthLayout } from './AuthLayout';
  * NotFoundPage. This page redeems the token and forwards to the board it unlocked.
  */
 export function ShareRedeemPage() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const redeem = useRedeemShareLink();
   const { mutate } = redeem;
@@ -38,18 +40,18 @@ export function ShareRedeemPage() {
     if (kind === 'not_found') {
       return (
         <AuthLayout
-          title="Dieser Link funktioniert nicht mehr"
-          subtitle="Er wurde zurückgezogen oder durch einen neuen ersetzt."
+          title={t('routes.redeem.gone.title')}
+          subtitle={t('routes.redeem.gone.subtitle')}
         >
           <div className="flex flex-col gap-4">
             <p role="alert" className="text-13 text-fg-muted">
-              Bitte die Person, die dir den Link geschickt hat, um einen neuen.
+              {t('routes.redeem.gone.body')}
             </p>
             <Link
               to="/"
               className="self-start text-13 font-medium text-fg-1 underline-offset-4 hover:underline"
             >
-              Zu deiner Wand
+              {t('routes.redeem.toBoard')}
             </Link>
           </div>
         </AuthLayout>
@@ -57,10 +59,10 @@ export function ShareRedeemPage() {
     }
 
     return (
-      <AuthLayout title="Das hat nicht geklappt" subtitle="Der Link konnte nicht eingelöst werden.">
+      <AuthLayout title={t('routes.redeem.failed.title')} subtitle={t('routes.redeem.failed.subtitle')}>
         <div className="flex flex-col gap-4">
           <p role="alert" className="text-13 text-status-danger">
-            Bitte versuche es noch einmal.
+            {t('routes.redeem.failed.body')}
           </p>
           <button
             type="button"
@@ -71,13 +73,13 @@ export function ShareRedeemPage() {
             }}
             className="self-start text-13 font-medium text-fg-1 underline-offset-4 hover:underline"
           >
-            Erneut versuchen
+            {t('common.retry')}
           </button>
           <Link
             to="/"
             className="self-start text-13 text-fg-muted underline-offset-4 hover:underline"
           >
-            Zu deiner Wand
+            {t('routes.redeem.toBoard')}
           </Link>
         </div>
       </AuthLayout>
@@ -85,8 +87,8 @@ export function ShareRedeemPage() {
   }
 
   return (
-    <AuthLayout title="Einen Moment" subtitle="Wir fügen dich zur Wand hinzu.">
-      <div className="flex flex-col gap-3" role="status" aria-label="Lädt…">
+    <AuthLayout title={t('routes.redeem.pending.title')} subtitle={t('routes.redeem.pending.subtitle')}>
+      <div className="flex flex-col gap-3" role="status" aria-label={t('common.loading')}>
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-4 w-32" />
       </div>

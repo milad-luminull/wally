@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
@@ -46,7 +47,11 @@ interface SheetContentProps
 }
 
 export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, SheetContentProps>(
-  ({ side = 'right', className, children, hideClose, ...props }, ref) => (
+  ({ side = 'right', className, children, hideClose, ...props }, ref) => {
+    // See the note in dialog.tsx — the close button's name is the only copy here.
+    const { t } = useTranslation();
+
+    return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
@@ -56,7 +61,7 @@ export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimi
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            aria-label="Schließen"
+            aria-label={t('common.close')}
             className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
           >
             <X className="h-4 w-4" />
@@ -64,7 +69,8 @@ export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimi
         )}
       </DialogPrimitive.Content>
     </SheetPortal>
-  ),
+    );
+  },
 );
 SheetContent.displayName = DialogPrimitive.Content.displayName;
 

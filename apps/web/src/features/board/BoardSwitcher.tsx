@@ -26,8 +26,8 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
   return (
     <Popover>
       <PopoverTrigger
-        aria-label="Wand wechseln"
-        title="Wand wechseln"
+        aria-label={t('board.switcherAria')}
+        title={t('board.switcherAria')}
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9"
       >
         <ChevronsUpDown className="h-3.5 w-3.5" strokeWidth={2} />
@@ -39,7 +39,7 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
             position clear of the chrome. */}
       <PopoverContent align="start" className="z-overlay w-64 p-0">
         <p className="border-b border-border-subtle px-4 py-2.5 text-11 font-semibold uppercase tracking-wide text-fg-muted">
-          Wände
+          {t('board.switcherHeading')}
         </p>
         <ul className="flex flex-col p-1.5">
           {boards.map((board) => {

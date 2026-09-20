@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   whiteboardRoleValues,
   type MemberDto,
@@ -23,6 +24,7 @@ interface MemberListProps {
  * both statuses live in the one members list). Owner-only role/remove controls per
  * SPEC §9. */
 export function MemberList({ boardId, members, ownerId, isOwner }: MemberListProps) {
+  const { t } = useTranslation();
   const { effectiveRole, whiteboardRole } = useEnumLabels();
   const updateRole = useUpdateMemberRole(boardId);
   const removeMember = useRemoveMember(boardId);
@@ -39,7 +41,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate text-13 font-medium text-fg-1">{name}</div>
-              {member.status === 'PENDING' && <div className="text-11 text-fg-muted">Ausstehend</div>}
+              {member.status === 'PENDING' && <div className="text-11 text-fg-muted">{t('share.members.pending')}</div>}
             </div>
             {isOwner && !isBoardOwner ? (
               <>
@@ -47,7 +49,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
                     though MemberDto.role also admits the synthetic owner's OWNER. */}
                 <Select value={member.role} onValueChange={(role) => updateRole.mutate({ memberId: member.id, role: role as WhiteboardRole })}>
                   <SelectTrigger
-                    aria-label={`Rolle von ${name}`}
+                    aria-label={t('share.members.roleAria', { name })}
                     className="h-8 w-[104px] shrink-0 rounded-md border border-border bg-card px-2.5 text-12"
                   >
                     <SelectValue />
@@ -60,11 +62,11 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
                     ))}
                   </SelectContent>
                 </Select>
-                <IconTooltip label={`${name} entfernen`}>
+                <IconTooltip label={t('share.members.remove', { name })}>
                   <button
                     type="button"
                     onClick={() => removeMember.mutate(member.id)}
-                    aria-label={`${name} entfernen`}
+                    aria-label={t('share.members.remove', { name })}
                     className="p-1 text-fg-faint transition-colors hover:text-status-danger"
                   >
                     <X className="h-3.5 w-3.5" />

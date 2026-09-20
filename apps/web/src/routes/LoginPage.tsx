@@ -1,9 +1,11 @@
 import { Navigate, useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { SignInForm } from '@/features/auth/SignInForm';
 import { AuthLayout } from './AuthLayout';
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { status } = useAuth();
   const location = useLocation();
   // onAuthStateChanged can flip `status` before the form's own navigate runs, so this
@@ -13,7 +15,7 @@ export function LoginPage() {
   if (status === 'authenticated') return <Navigate to={from} replace />;
 
   return (
-    <AuthLayout title="Willkommen zurück" subtitle="Melde dich an, um deine Wand zu sehen.">
+    <AuthLayout title={t('routes.login.title')} subtitle={t('routes.login.subtitle')}>
       <SignInForm />
     </AuthLayout>
   );

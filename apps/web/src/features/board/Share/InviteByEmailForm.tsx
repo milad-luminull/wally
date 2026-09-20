@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
+import type { MessageKey } from '@/i18n/keys';
 import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Input } from '@/components/ui/input';
@@ -7,20 +9,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useCreateInvite } from '../hooks/mutations/useCreateInvite';
 
-const emailSchema = z.string().trim().toLowerCase().email('Ungültige E-Mail-Adresse');
+/** Message is a catalogue key, resolved at render — see the note in SignInForm. */
+const emailSchema = z.string().trim().toLowerCase().email('validation.email.invalid');
 
 export function InviteByEmailForm({ boardId }: { boardId: string }) {
+  const { t } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
   const createInvite = useCreateInvite(boardId);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<WhiteboardRole>('EDIT');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<MessageKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Ungültige E-Mail-Adresse');
+      setError((parsed.error.issues[0]?.message as MessageKey | undefined) ?? 'validation.email.invalid');
       return;
     }
     setError(null);
@@ -40,8 +44,8 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
       <Input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="name@finlex.de"
-        aria-label="E-Mail-Adresse einladen"
+        placeholder={t('share.invite.placeholder')}
+        aria-label={t('share.invite.aria')}
         aria-invalid={Boolean(error)}
         className="h-9 text-13"
       />
@@ -59,12 +63,12 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
           </SelectContent>
         </Select>
         <Button type="submit" variant="accent" disabled={createInvite.isPending} className="shrink-0">
-          {createInvite.isPending ? 'Lädt ein…' : 'Einladen'}
+          {createInvite.isPending ? t('share.invite.pending') : t('share.invite.submit')}
         </Button>
       </div>
       {error && (
         <p role="alert" className="text-12 text-status-danger">
-          {error}
+          {t(error)}
         </p>
       )}
     </form>

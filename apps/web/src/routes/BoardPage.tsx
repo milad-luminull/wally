@@ -1,10 +1,12 @@
 import { useParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useBoard } from '@/features/board/hooks/useBoard';
 import { AppShell } from '@/features/board/AppShell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotFoundPage } from './NotFoundPage';
 
 export function BoardPage() {
+  const { t } = useTranslation();
   const { boardId } = useParams<{ boardId: string }>();
   const { data: board, isLoading, isError, error } = useBoard(boardId);
 
@@ -30,7 +32,7 @@ export function BoardPage() {
   if (isError || !board) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-2 bg-background px-4 text-center">
-        <p className="text-14 font-medium text-fg-1">Die Wand konnte nicht geladen werden.</p>
+        <p className="text-14 font-medium text-fg-1">{t('routes.board.loadFailed')}</p>
       </div>
     );
   }

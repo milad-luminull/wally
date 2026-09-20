@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -6,16 +7,19 @@ import type { WhiteboardSummaryDto } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { boardsApi } from '@/lib/resources';
 import { queryKeys } from '@/features/board/hooks/queryKeys';
+import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
-type Feedback = { tone: 'info' | 'error'; message: string } | null;
+/** Holds a catalogue KEY, not resolved copy, so a message already on screen re-renders in the
+ * new language after a switch — see the note in SignInForm. */
+type Feedback = { tone: 'info' | 'error'; key: MessageKey } | null;
 
-function friendlyResendError(err: unknown): string {
+function friendlyResendError(err: unknown): MessageKey {
   const code = (err as { code?: string } | undefined)?.code;
-  if (code === 'auth/too-many-requests') return 'Zu viele Versuche. Bitte warte einen Moment.';
-  return 'Die E-Mail konnte nicht gesendet werden. Bitte erneut versuchen.';
+  if (code === 'auth/too-many-requests') return 'auth.verify.tooMany';
+  return 'auth.verify.sendFailed';
 }
 
 /**
@@ -25,6 +29,7 @@ function friendlyResendError(err: unknown): string {
  * to, with nothing anywhere in the UI explaining why.
  */
 export function EmailVerificationBanner() {
+  const { t } = useTranslation();
   const { user, emailVerified, resendVerificationEmail, refreshUser } = useAuth();
   const queryClient = useQueryClient();
 
@@ -47,12 +52,12 @@ export function EmailVerificationBanner() {
     try {
       await resendVerificationEmail();
       setCooldown(RESEND_COOLDOWN_SECONDS);
-      setFeedback({ tone: 'info', message: 'E-Mail gesendet. Schau auch im Spam-Ordner nach.' });
+      setFeedback({ tone: 'info', key: 'auth.verify.sent' });
     } catch (err) {
       // Firebase throttles server-side too, so the cooldown starts either way — otherwise a
       // rejected send could be hammered into a longer lockout.
       setCooldown(RESEND_COOLDOWN_SECONDS);
-      setFeedback({ tone: 'error', message: friendlyResendError(err) });
+      setFeedback({ tone: 'error', key: friendlyResendError(err) });
     } finally {
       setBusy(null);
     }
@@ -64,10 +69,7 @@ export function EmailVerificationBanner() {
     try {
       const verified = await refreshUser();
       if (!verified) {
-        setFeedback({
-          tone: 'error',
-          message: 'Noch nicht bestätigt. Klicke zuerst den Link in der E-Mail.',
-        });
+        setFeedback({ tone: 'error', key: 'auth.verify.notYet' });
         return;
       }
 
@@ -88,7 +90,7 @@ export function EmailVerificationBanner() {
       // they were invited to. Surface it as a link instead of silently disappearing.
       setUnlocked(boards.find((board) => board.currentUserRole !== 'OWNER') ?? null);
     } catch {
-      setFeedback({ tone: 'error', message: 'Das hat nicht geklappt. Bitte erneut versuchen.' });
+      setFeedback({ tone: 'error', key: 'auth.verify.confirmFailed' });
     } finally {
       setBusy(null);
     }
@@ -103,14 +105,14 @@ export function EmailVerificationBanner() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 lg:px-7">
           <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
           <p role="status" className="text-13 font-semibold">
-            E-Mail bestätigt. Du hast jetzt Zugriff auf „{unlocked.name}“.
+            {t('auth.verify.unlocked', { name: unlocked.name })}
           </p>
           <Link
             to={`/boards/${unlocked.id}`}
             onClick={() => setUnlocked(null)}
             className="text-13 font-medium underline underline-offset-4"
           >
-            Wand öffnen
+            {t('auth.verify.openBoard')}
           </Link>
         </div>
       </div>
@@ -125,18 +127,22 @@ export function EmailVerificationBanner() {
         <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="text-13 font-semibold">Bestätige deine E-Mail-Adresse</p>
+          <p className="text-13 font-semibold">{t('auth.verify.title')}</p>
           <p className="text-12">
-            Wir haben dir eine E-Mail an <span className="font-medium">{user.email}</span>{' '}
-            geschickt. Erst danach können wir dich zu einer Wand hinzufügen, zu der du
-            eingeladen wurdest.
+            {/* <Trans>, not interpolation: the <span> sits mid-sentence and moves clause
+                position in English, so the markup has to travel with the words. */}
+            <Trans
+              i18nKey="auth.verify.sentTo"
+              values={{ email: user.email ?? '' }}
+              components={{ strong: <span className="font-medium" /> }}
+            />
           </p>
           {feedback && (
             <p
               role={feedback.tone === 'error' ? 'alert' : 'status'}
               className="text-12 font-medium"
             >
-              {feedback.message}
+              {t(feedback.key)}
             </p>
           )}
         </div>
@@ -153,10 +159,10 @@ export function EmailVerificationBanner() {
             className="focus-visible:ring-offset-[color:var(--status-warning-bold)]"
           >
             {busy === 'resend'
-              ? 'Sende…'
+              ? t('auth.verify.resending')
               : cooldown > 0
-                ? `Erneut senden in ${cooldown}s`
-                : 'E-Mail erneut senden'}
+                ? t('auth.verify.resendIn', { seconds: cooldown })
+                : t('auth.verify.resend')}
           </Button>
           <Button
             type="button"
@@ -165,7 +171,7 @@ export function EmailVerificationBanner() {
             disabled={busy !== null}
             className="focus-visible:ring-offset-[color:var(--status-warning-bold)]"
           >
-            {busy === 'confirm' ? 'Prüfe…' : 'Ich habe bestätigt'}
+            {busy === 'confirm' ? t('auth.verify.confirming') : t('auth.verify.confirm')}
           </Button>
         </div>
       </div>
