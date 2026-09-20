@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import type { NoteDetailDto, SubtaskDto } from '@wally/shared';
 import { subtasksApi } from '@/lib/resources';
 import { queryKeys } from '../queryKeys';
+import { cancelNoteCaches } from './shared';
 
 function summaryOf(subtasks: SubtaskDto[]) {
   return { done: subtasks.filter((s) => s.done).length, total: subtasks.length };
@@ -35,8 +36,8 @@ export function useAddSubtask(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ noteId, text }: { noteId: string; text: string }) => subtasksApi.create(noteId, { text }),
-    onMutate: async ({ noteId, text }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, text }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);
       if (previous) {
         const now = new Date().toISOString();
@@ -63,8 +64,8 @@ export function useToggleSubtask(boardId: string) {
   return useMutation({
     mutationFn: ({ noteId, subtaskId, done }: { noteId: string; subtaskId: string; done: boolean }) =>
       subtasksApi.update(noteId, subtaskId, { done }),
-    onMutate: async ({ noteId, subtaskId, done }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, subtaskId, done }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);
       if (previous) {
         writeSubtasks(
@@ -85,8 +86,8 @@ export function useRemoveSubtask(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ noteId, subtaskId }: { noteId: string; subtaskId: string }) => subtasksApi.remove(noteId, subtaskId),
-    onMutate: async ({ noteId, subtaskId }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, subtaskId }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const previous = snapshot(queryClient, noteId);
       if (previous) {
         writeSubtasks(

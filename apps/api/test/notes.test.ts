@@ -1,19 +1,22 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { historyCol, notesCol, subtasksCol, withId } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+
+const PROJECT_ID = 'wally-test-notes-routes';
 
 describe('note routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp();
+    ctx = await buildTestApp(PROJECT_ID);
   });
 
   afterEach(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
   });
 
   afterAll(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
     await ctx.app.close();
   });
 
@@ -50,12 +53,12 @@ describe('note routes', () => {
       expect(forbidden.statusCode).toBe(404);
     });
 
-    it('q filter matches title, referenceLabel, and tags, case-insensitively', async () => {
+    it('q filter matches title, custom fields, and tags, case-insensitively', async () => {
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken, { title: 'Cyber-Police prüfen' });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'Irrelevant',
-        referenceLabel: 'Cyber-Paket Plus',
+        customFields: { Vertrag: 'Cyber-Paket Plus' },
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Irrelevant', tags: ['cyber'] });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Ganz anderes Thema' });
@@ -67,6 +70,60 @@ describe('note routes', () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toHaveLength(3);
+    });
+
+    it('field filter matches by key alone and by key:value, case-insensitively', async () => {
+      const fx = await createBoardFixture(ctx);
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'A',
+        customFields: { Kunde: 'Müller GmbH' },
+      });
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'B',
+        customFields: { Kunde: 'Steiner AG' },
+      });
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'C',
+        customFields: { Vertragsnr: '4711' },
+      });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'D' });
+
+      const byKey = await ctx.app.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('kunde')}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(byKey.json()).toHaveLength(2);
+
+      const byPair = await ctx.app.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('Kunde:müller gmbh')}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(byPair.json()).toHaveLength(1);
+      expect(byPair.json()[0].title).toBe('A');
+    });
+
+    it('orders by due date, with undated notes last and none dropped', async () => {
+      // Firestore sorts null first and omits documents missing the ordered field
+      // entirely, so this ordering is done in memory. Both halves matter: an undated note
+      // must come last AND must still be in the list at all.
+      const fx = await createBoardFixture(ctx);
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Ohne Datum' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Spät', dueDate: '2027-01-31' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Früh', dueDate: '2026-01-31' });
+
+      const res = await ctx.app.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().map((n: { title: string }) => n.title)).toEqual([
+        'Früh',
+        'Spät',
+        'Ohne Datum',
+      ]);
     });
   });
 
@@ -104,6 +161,37 @@ describe('note routes', () => {
       const res = await createNote(fx.boardId, fx.ownerToken, { assigneeId: 'fx-outsider' });
       expect(res.statusCode).toBe(422);
     });
+
+    it('persists custom fields, and defaults them to {} when omitted', async () => {
+      const fx = await createBoardFixture(ctx);
+
+      const withFields = await createNote(fx.boardId, fx.ownerToken, {
+        customFields: { Kunde: 'Müller GmbH', Vertragsnr: '4711' },
+      });
+      expect(withFields.statusCode).toBe(201);
+      expect(withFields.json().customFields).toEqual({ Kunde: 'Müller GmbH', Vertragsnr: '4711' });
+
+      const without = await createNote(fx.boardId, fx.ownerToken);
+      expect(without.json().customFields).toEqual({});
+    });
+
+    it('400s on custom fields that break the key rules or the per-note cap', async () => {
+      const fx = await createBoardFixture(ctx);
+      const tooMany = Object.fromEntries(
+        Array.from({ length: 21 }, (_, i) => [`Feld${i}`, 'x']),
+      );
+
+      for (const customFields of [
+        tooMany,
+        { Kunde: 'A', kunde: 'B' }, // same property in two casings
+        { 'Kunde.Name': 'A' }, // Firestore field-path metacharacter
+        { [`${'k'.repeat(41)}`]: 'A' }, // key over FIELD_KEY_MAX_LENGTH
+        { Kunde: 'v'.repeat(201) }, // value over FIELD_VALUE_MAX_LENGTH
+      ]) {
+        const res = await createNote(fx.boardId, fx.ownerToken, { customFields });
+        expect(res.statusCode).toBe(400);
+      }
+    });
   });
 
   describe('note-scoped mutation routes (PATCH/move/assign/complete/reopen/delete)', () => {
@@ -138,6 +226,28 @@ describe('note routes', () => {
         payload: { title: 'Nope' },
       });
       expect(notFound.statusCode).toBe(404);
+    });
+
+    it('PATCH customFields: omitted leaves them alone, {} clears them', async () => {
+      const { fx, noteId } = await setup();
+
+      const patch = (payload: Record<string, unknown>) =>
+        ctx.app.inject({
+          method: 'PATCH',
+          url: `/notes/${noteId}`,
+          headers: ctx.authHeader(fx.ownerToken),
+          payload,
+        });
+
+      const set = await patch({ customFields: { Kunde: 'Müller GmbH' } });
+      expect(set.json().customFields).toEqual({ Kunde: 'Müller GmbH' });
+
+      // Touching an unrelated field must not disturb them.
+      const untouched = await patch({ title: 'Anderer Titel' });
+      expect(untouched.json().customFields).toEqual({ Kunde: 'Müller GmbH' });
+
+      const cleared = await patch({ customFields: {} });
+      expect(cleared.json().customFields).toEqual({});
     });
 
     it('POST /notes/:id/move — HORIZON mode leaves priority/freeX/freeY untouched', async () => {
@@ -257,8 +367,32 @@ describe('note routes', () => {
       });
       expect(ok.statusCode).toBe(204);
 
-      const gone = await ctx.prisma.note.findUnique({ where: { id: noteId } });
+      const gone = withId(await notesCol(ctx.db).doc(noteId).get());
       expect(gone).toBeNull();
+    });
+
+    it('DELETE /notes/:id takes the note\'s subtasks and history with it', async () => {
+      // Firestore does not delete subcollections when their parent document goes, and
+      // there are no foreign keys left to cascade — the route has to do this by hand.
+      const { fx, noteId } = await setup();
+      await ctx.app.inject({
+        method: 'POST',
+        url: `/notes/${noteId}/subtasks`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { text: 'Hängt am Note' },
+      });
+      expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(1);
+      expect((await historyCol(ctx.db, noteId).get()).size).toBe(1); // the CREATED event
+
+      const deleted = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/notes/${noteId}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(deleted.statusCode).toBe(204);
+
+      expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(0);
+      expect((await historyCol(ctx.db, noteId).get()).size).toBe(0);
     });
   });
 });

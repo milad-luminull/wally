@@ -38,7 +38,9 @@ export const SelectContent = React.forwardRef<
       ref={ref}
       position={position}
       className={cn(
-        'relative z-dropdown max-h-72 min-w-[8rem] overflow-hidden rounded-md border border-border bg-card text-fg-1 shadow-e2',
+        'relative z-dropdown max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-card text-fg-1 shadow-e3',
+        'origin-[var(--radix-select-content-transform-origin)]',
+        'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
         position === 'popper' && 'translate-y-1',
         className,
       )}

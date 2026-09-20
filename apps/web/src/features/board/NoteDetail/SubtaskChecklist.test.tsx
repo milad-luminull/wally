@@ -50,13 +50,13 @@ describe('SubtaskChecklist', () => {
     const onAdd = vi.fn();
     render(<SubtaskChecklist subtasks={[]} onAdd={onAdd} onToggle={vi.fn()} onRemove={vi.fn()} />);
 
-    await userEvent.type(screen.getByLabelText('Teilschritt hinzufügen'), 'Vergleich versenden{Enter}');
+    await userEvent.type(screen.getByLabelText('Unteraufgabe hinzufügen'), 'Vergleich versenden{Enter}');
     expect(onAdd).toHaveBeenCalledWith('Vergleich versenden');
   });
 
   it('renders no interactive controls when disabled', () => {
     render(<SubtaskChecklist subtasks={[makeSubtask()]} onAdd={vi.fn()} onToggle={vi.fn()} onRemove={vi.fn()} disabled />);
-    expect(screen.queryByLabelText('Teilschritt hinzufügen')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Unteraufgabe hinzufügen')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /entfernen/i })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeDisabled();
   });

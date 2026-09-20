@@ -16,7 +16,8 @@ export const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-overlay bg-[rgba(2,71,79,0.32)] opacity-0 transition-opacity duration-240 ease-ds data-[state=open]:opacity-100 motion-reduce:transition-none',
+      'fixed inset-0 z-overlay bg-[rgba(2,71,79,0.28)] backdrop-blur-[2px]',
+      'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
       className,
     )}
     {...props}
@@ -24,19 +25,19 @@ export const SheetOverlay = React.forwardRef<
 ));
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const sheetVariants = cva(
-  'fixed z-overlay flex flex-col gap-0 bg-card shadow-e2 transition duration-240 ease-ds motion-reduce:transition-none',
-  {
-    variants: {
-      side: {
-        right: 'inset-y-0 right-0 h-full w-full max-w-sm border-l border-border data-[state=closed]:translate-x-full data-[state=open]:translate-x-0',
-        bottom:
-          'inset-x-0 bottom-0 max-h-[85vh] rounded-t-xl border-t border-border data-[state=closed]:translate-y-full data-[state=open]:translate-y-0',
-      },
+/* Keyframed, not transitioned: Radix keeps the node mounted only while a CSS *animation*
+ * is running, so a `data-[state=closed]` transition never gets a chance to play. */
+const sheetVariants = cva('fixed z-overlay flex flex-col gap-0 bg-card shadow-e3', {
+  variants: {
+    side: {
+      right:
+        'inset-y-0 right-0 h-full w-full max-w-sm border-l border-border data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
+      bottom:
+        'inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl border-t border-border data-[state=open]:animate-slide-in-bottom data-[state=closed]:animate-slide-out-bottom',
     },
-    defaultVariants: { side: 'right' },
   },
-);
+  defaultVariants: { side: 'right' },
+});
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
@@ -49,11 +50,14 @@ export const SheetContent = React.forwardRef<React.ElementRef<typeof DialogPrimi
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+        {side === 'bottom' && (
+          <span aria-hidden className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-border-strong" />
+        )}
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
             aria-label="Schließen"
-            className="absolute right-4 top-4 rounded-sm text-fg-muted transition-colors hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+            className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
           >
             <X className="h-4 w-4" />
           </DialogPrimitive.Close>

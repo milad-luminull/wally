@@ -1,12 +1,16 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type Announcements,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   FREE_CANVAS_HEIGHT,
@@ -18,15 +22,27 @@ import {
   type NotePriority,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
-import { useMoveNote } from '../hooks/mutations/useMoveNote';
+import { noteMovePatch, useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useCreateNote } from '../hooks/mutations/useCreateNote';
+import { nextFreeNotePosition } from '../util/notePlacement';
+import {
+  cancelNoteCaches,
+  patchNoteCaches as writeNoteCaches,
+  restoreNoteCaches,
+  snapshotNoteCaches,
+  type NoteCacheSnapshot,
+} from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
+import { NoteCard } from './NoteCard';
 
 interface WandViewProps {
   boardId: string;
   notes: NoteDto[];
+  /** Notes on the board before filtering — distinguishes "empty board" from "filter hides
+   * everything" in the empty-state copy. */
+  totalNoteCount: number;
   currentUserId: string | undefined;
   axis: BoardAxis;
   selectedNoteId: string | null;
@@ -45,18 +61,72 @@ function noteLabel(note: NoteDto | undefined): string {
 /** Wraps ZoneBands (Horizon/Priority) or WandCanvas (Frei) in a single DndContext, so
  * dragging works identically regardless of axis — only the drop-target interpretation in
  * handleDragEnd differs. */
-export function WandView({ boardId, notes, currentUserId, axis, selectedNoteId, onOpenNote, canEdit }: WandViewProps) {
+export function WandView({
+  boardId,
+  notes,
+  totalNoteCount,
+  currentUserId,
+  axis,
+  selectedNoteId,
+  onOpenNote,
+  canEdit,
+}: WandViewProps) {
+  const queryClient = useQueryClient();
   const moveNote = useMoveNote(boardId);
   const createNote = useCreateNote(boardId);
+
+  /** The note currently under the cursor, rendered into `<DragOverlay>`. */
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeNote = activeId ? findNote(notes, activeId) : undefined;
+
+  /**
+   * Cache state as it was when this drag began. The board relocates the note optimistically
+   * while the pointer is still down, so this is what a failed request (or a cancelled drag)
+   * has to roll back to.
+   */
+  const dragRollback = useRef<{ noteId: string; snapshot: NoteCacheSnapshot } | null>(null);
+
+  /**
+   * The just-dropped move, held in React state so the board can paint it in the very frame
+   * the pointer is released.
+   *
+   * The query cache is the real source of truth, but writing to it only schedules a render:
+   * React Query notifies on a microtask and React's scheduler then decides when to commit.
+   * Meanwhile dnd-kit removes the drag overlay immediately on release. Any delay between
+   * those two therefore shows either the note back at its old position or, if it is kept
+   * hidden to avoid that, nothing at all — measured at over 100ms once the scheduler was
+   * under load. Overriding locally lets `flushSync` put the note in its new home and reveal
+   * it in one synchronous commit, before the browser can paint the gap. It is dropped again
+   * as soon as the cache catches up.
+   */
+  const [pendingMove, setPendingMove] = useState<{ noteId: string; patch: Partial<NoteDto> } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor),
   );
 
+  const shownNotes = useMemo(() => {
+    if (!pendingMove) return notes;
+    return notes.map((n) => (n.id === pendingMove.noteId ? { ...n, ...pendingMove.patch } : n));
+  }, [notes, pendingMove]);
+
+  // Let go of the override once the cache reports the same thing, so there is only ever one
+  // source of truth for longer than a moment. A rolled-back failure clears it too, because
+  // the entry then no longer matches and the effect below stops re-applying it.
+  useEffect(() => {
+    if (!pendingMove) return;
+    const note = findNote(notes, pendingMove.noteId);
+    if (!note) { setPendingMove(null); return; }
+    const settled = (Object.keys(pendingMove.patch) as (keyof NoteDto)[]).every(
+      (k) => note[k] === pendingMove.patch[k],
+    );
+    if (settled) setPendingMove(null);
+  }, [notes, pendingMove]);
+
   const groups = useMemo(
-    () => (axis === 'free' ? [] : groupByAxis(notes, axis)),
-    [notes, axis],
+    () => (axis === 'free' ? [] : groupByAxis(shownNotes, axis)),
+    [shownNotes, axis],
   );
 
   const announcements: Announcements = {
@@ -76,37 +146,139 @@ export function WandView({ boardId, notes, currentUserId, axis, selectedNoteId, 
     },
   };
 
+  /** Maps a droppable id to the move it represents, or null if it is not a zone. */
+  function zoneMoveFor(overId: string, note: NoteDto) {
+    if (overId.startsWith('zone:horizon:')) {
+      const horizon = overId.slice('zone:horizon:'.length) as NoteHorizon;
+      return horizon === note.horizon ? null : ({ mode: 'HORIZON', horizon } as const);
+    }
+    if (overId.startsWith('zone:priority:')) {
+      const priority = overId.slice('zone:priority:'.length) as NotePriority;
+      return priority === note.priority ? null : ({ mode: 'PRIORITY', priority } as const);
+    }
+    return null;
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const noteId = String(event.active.id);
+    setActiveId(noteId);
+    dragRollback.current = { noteId, snapshot: snapshotNoteCaches(queryClient, boardId, noteId) };
+    // Nothing in flight may land on top of the live repositioning below.
+    cancelNoteCaches(queryClient, boardId, noteId);
+  }
+
+  function commitMove(noteId: string, patch: Parameters<typeof writeNoteCaches>[3]) {
+    writeNoteCaches(queryClient, boardId, noteId, patch);
+  }
+
+  function endDrag() {
+    setActiveId(null);
+    dragRollback.current = null;
+  }
+
+  function cancelPendingMove() {
+    setPendingMove(null);
+  }
+
+  /** Where the lifted card sits at the moment of release, in viewport coordinates. */
+  function overlayRect(): DOMRect | null {
+    return document.querySelector('[data-note-overlay]')?.parentElement?.getBoundingClientRect() ?? null;
+  }
+
+  /**
+   * Lands the drop in a single synchronous commit, then plays the card in from the cursor.
+   *
+   * `flushSync` is what makes this safe: applying the local override and clearing the drag
+   * together means the note is painted in its new home, visible, in the same frame dnd-kit
+   * removes the overlay. There is no window in which the two disagree, so neither the old
+   * position nor an empty gap can ever be shown — regardless of how busy React's scheduler
+   * is. The card is then already laid out, so the travel can be measured and started right
+   * here instead of waiting for a later effect.
+   */
+  function settleCard(noteId: string, patch: Partial<NoteDto>, releaseRect: DOMRect | null) {
+    flushSync(() => {
+      setPendingMove({ noteId, patch });
+      endDrag();
+    });
+
+    const el = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"]`);
+    if (!el || !releaseRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const landed = el.getBoundingClientRect();
+    const dx = releaseRect.left - landed.left;
+    const dy = releaseRect.top - landed.top;
+    // Free-canvas drops land under the cursor, so there is usually nothing to travel.
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+
+    el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) rotate(1.2deg) scale(1.02)`, zIndex: '30' },
+        { transform: 'translate(0, 0) rotate(0deg) scale(1)', zIndex: '30' },
+      ],
+      { duration: 220, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
+    );
+  }
+
+  /** Restores the pre-drag cache state. Reads the note id out of the ref rather than
+   *  `activeId`, so it cannot miss the rollback because of a stale closure. */
+  function handleDragCancel() {
+    const pending = dragRollback.current;
+    if (pending) restoreNoteCaches(queryClient, boardId, pending.noteId, pending.snapshot);
+    cancelPendingMove();
+    endDrag();
+  }
+
   function handleDragEnd(event: DragEndEvent) {
-    if (!canEdit) return;
+    const rollback = dragRollback.current?.snapshot;
     const { active, over } = event;
-    if (!over) return;
     const noteId = String(active.id);
     const note = findNote(notes, noteId);
-    if (!note) return;
+
+    if (!canEdit || !over || !note) {
+      handleDragCancel();
+      return;
+    }
+
     const overId = String(over.id);
 
     if (overId === FREE_CANVAS_DROPPABLE_ID) {
-      const x = Math.max(0, Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, note.freeX + event.delta.x));
-      const y = Math.max(0, Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, note.freeY + event.delta.y));
-      moveNote.mutate({ noteId, input: { mode: 'FREE', x, y } });
+      // Free mode has no hover target to move into, so the position is only known now.
+      // Patching before clearing `activeId` keeps both in the same commit, so the card is
+      // never painted at its old coordinates after the overlay goes away.
+      const origin = rollback?.previousList?.find((n) => n.id === noteId) ?? note;
+      const x = Math.max(0, Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, origin.freeX + event.delta.x));
+      const y = Math.max(0, Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, origin.freeY + event.delta.y));
+      const released = overlayRect();
+      commitMove(noteId, { freeX: x, freeY: y });
+      moveNote.mutate({ noteId, input: { mode: 'FREE', x, y }, rollback });
+      settleCard(noteId, { freeX: x, freeY: y }, released);
       return;
     }
 
-    if (overId.startsWith('zone:horizon:')) {
-      const horizon = overId.slice('zone:horizon:'.length) as NoteHorizon;
-      if (horizon !== note.horizon) moveNote.mutate({ noteId, input: { mode: 'HORIZON', horizon } });
+    const move = zoneMoveFor(overId, note);
+    if (!move) {
+      endDrag();
       return;
     }
 
-    if (overId.startsWith('zone:priority:')) {
-      const priority = overId.slice('zone:priority:'.length) as NotePriority;
-      if (priority !== note.priority) moveNote.mutate({ noteId, input: { mode: 'PRIORITY', priority } });
-    }
+    // Apply the move before the overlay is released, so the card already occupies its new
+    // slot when dnd-kit measures where to glide to.
+    const released = overlayRect();
+    const patch = noteMovePatch(move);
+    commitMove(noteId, patch);
+    moveNote.mutate({ noteId, input: move, rollback });
+    settleCard(noteId, patch, released);
   }
 
   function handleCreateInZone(key: string) {
-    if (axis === 'horizon') createNote.mutate({ horizon: key as NoteHorizon }, { onSuccess: (n) => onOpenNote(n.id) });
-    else if (axis === 'priority') createNote.mutate({ priority: key as NotePriority }, { onSuccess: (n) => onOpenNote(n.id) });
+    // The zone decides where the card shows in this axis, but freeX/freeY still has to be
+    // something sensible: it is what Frei mode reads once the user switches over, and the
+    // schema default of {0, 0} would stack every one of them in the corner there.
+    const at = nextFreeNotePosition(notes);
+    if (axis === 'horizon')
+      createNote.mutate({ ...at, horizon: key as NoteHorizon }, { onSuccess: (n) => onOpenNote(n.id) });
+    else if (axis === 'priority')
+      createNote.mutate({ ...at, priority: key as NotePriority }, { onSuccess: (n) => onOpenNote(n.id) });
   }
 
   function handleCreateAt(x: number, y: number) {
@@ -114,15 +286,23 @@ export function WandView({ boardId, notes, currentUserId, axis, selectedNoteId, 
   }
 
   return (
-    <DndContext sensors={sensors} accessibility={{ announcements }} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      accessibility={{ announcements }}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       {axis === 'free' ? (
         <WandCanvas
-          notes={notes}
+          notes={shownNotes}
+          filtered={totalNoteCount > 0}
           currentUserId={currentUserId}
           selectedNoteId={selectedNoteId}
           onOpenNote={onOpenNote}
           onCreateAt={handleCreateAt}
           canEdit={canEdit}
+          activeDragId={activeId}
         />
       ) : (
         <ZoneBands
@@ -133,8 +313,21 @@ export function WandView({ boardId, notes, currentUserId, axis, selectedNoteId, 
           onOpenNote={onOpenNote}
           onCreateInZone={handleCreateInZone}
           canEdit={canEdit}
+          activeDragId={activeId}
         />
       )}
+
+      {/* The dragged card lives here rather than in its column. Both the zone body and the
+          board itself are scroll containers, so a card translated in place gets clipped at
+          the column edge the moment it starts moving toward another zone.
+          The overlay is removed on release without a dnd-kit drop animation: dnd-kit
+          measures that animation before React can render the move, so it always aimed back
+          at the zone the note came from. `settleCard` below does the travel instead. */}
+      <DragOverlay dropAnimation={null}>
+        {activeNote ? (
+          <NoteCard note={activeNote} currentUserId={currentUserId} selected={false} onOpen={() => {}} overlay />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

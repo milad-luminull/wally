@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-f'
+      - 'apps/api/Dockerfile'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest'
+      - '.'
+images:
+  - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest'

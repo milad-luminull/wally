@@ -136,7 +136,7 @@ export function SignInForm() {
 
       <p className="text-center text-13 text-fg-muted">
         Noch kein Konto?{' '}
-        <Link to="/signup" className="font-medium text-fg-1 underline-offset-4 hover:underline">
+        <Link to="/signup" state={{ from }} className="font-medium text-fg-1 underline-offset-4 hover:underline">
           Registrieren
         </Link>
       </p>

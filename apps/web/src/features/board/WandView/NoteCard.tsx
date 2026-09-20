@@ -1,15 +1,15 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import type { CSSProperties } from 'react';
+import { CheckCircle2, ListChecks } from 'lucide-react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { PRIORITY_LABELS } from '@wally/shared';
 import { cn } from '@/lib/cn';
-import { useReducedMotion } from '@/lib/useReducedMotion';
 import {
   dueInfo,
   dueToneClass,
   initialsOf,
-  noteColourBorderClass,
+  noteColourSpineClass,
+  noteColourTintClass,
   priorityToneClass,
   subtaskCountLabel,
 } from '../util/noteDerived';
@@ -20,72 +20,180 @@ interface NoteCardProps {
   selected: boolean;
   onOpen: () => void;
   style?: CSSProperties;
+  /**
+   * Render as the floating copy inside dnd-kit's `<DragOverlay>` rather than as a card
+   * resting on the board. The overlay is the element dnd-kit translates, so this variant
+   * registers no draggable and carries no animation of its own.
+   */
+  overlay?: boolean;
+  /**
+   * True while this note is the one being dragged. Comes from the board rather than
+   * dnd-kit's own `isDragging`: dnd-kit clears that the instant the pointer is released,
+   * in its own render pass, which un-hid the card a frame before the reposition landed.
+   * The board clears this in the same commit that writes the new position.
+   */
+  dragging?: boolean;
 }
 
-/** A draggable note card. Positioning (absolute for Frei mode, static flow for zoned
- * columns/rows) is entirely the caller's concern via `style` — this component only knows
- * how to render itself and report drag deltas through dnd-kit. */
-export function NoteCard({ note, currentUserId, selected, onOpen, style }: NoteCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: note.id });
-  const reducedMotion = useReducedMotion();
+/**
+ * A note card.
+ *
+ * Movement during a drag belongs to `<DragOverlay>` (see WandView), not to this component,
+ * for two reasons: the board's zones are scroll containers, so a card translated in place
+ * gets clipped the moment it crosses a column edge; and a note moving between zones is
+ * re-parented, so React unmounts and remounts it — any mount-triggered animation here
+ * would replay on every move.
+ */
+export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay = false, dragging = false }: NoteCardProps) {
   const due = dueInfo(note);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const showAssignee = note.assignee && note.assignee.id !== currentUserId;
-  const showPriorityDot = note.priority === 'HOCH' && note.status !== 'DONE';
+  const isDone = note.status === 'DONE';
+  const showPriorityDot = note.priority === 'HOCH' && !isDone;
 
-  const dragStyle: CSSProperties = {
+  const body = (
+    <>
+      {/* Colour spine. Rendered as an element rather than a left border so it can sit
+          flush inside the card's rounded corners. */}
+      <span aria-hidden className={cn('absolute inset-y-0 left-0 w-[3px]', noteColourSpineClass[note.colour])} />
+
+      <span
+        className={cn(
+          'font-head line-clamp-3 text-14 font-semibold leading-snug text-fg-1',
+          isDone && 'line-through decoration-fg-faint',
+        )}
+      >
+        {note.title || 'Ohne Titel'}
+      </span>
+
+      <div className="flex items-center gap-2">
+        <span
+          className={cn('flex items-center gap-1 whitespace-nowrap text-11 tabular-nums', dueToneClass[due.tone])}
+          style={{ fontWeight: due.weight }}
+        >
+          {isDone && <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
+          {due.label}
+        </span>
+
+        {checklistLabel && (
+          <span className="flex items-center gap-1 text-11 font-medium tabular-nums text-fg-muted">
+            <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+            {checklistLabel}
+          </span>
+        )}
+
+        <span className="flex-1" />
+
+        {showPriorityDot && (
+          <span
+            role="img"
+            aria-label={`Priorität: ${PRIORITY_LABELS[note.priority]}`}
+            className={cn('h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass[note.priority])}
+          />
+        )}
+
+        {showAssignee && note.assignee && (
+          <span
+            title={note.assignee.displayName ?? note.assignee.email}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground"
+          >
+            {initialsOf(note.assignee.displayName ?? note.assignee.email)}
+          </span>
+        )}
+      </div>
+    </>
+  );
+
+  const surface =
+    'relative flex w-[248px] select-none flex-col gap-2.5 overflow-hidden rounded-xl border p-3.5 pl-4 text-left';
+
+  if (overlay) {
+    return (
+      // Deliberately not `data-note-id`: that selector addresses cards on the board, and
+      // during a drag the overlay would otherwise be a second element with the same id.
+      <div data-note-overlay={note.id} aria-hidden>
+        <div
+          className={cn(
+            surface,
+            noteColourTintClass[note.colour],
+            // Lifted off the board and tilted a hair, so the card reads as picked up.
+            // Kept subtle: this is unwound on release, and a big tilt has further to fall.
+            'cursor-grabbing border-border-subtle shadow-e3 rotate-[1.2deg] scale-[1.02]',
+            isDone && 'opacity-60 saturate-50',
+          )}
+        >
+          {body}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <RestingNoteCard
+      note={note}
+      selected={selected}
+      isDone={isDone}
+      dragging={dragging}
+      onOpen={onOpen}
+      style={style}
+      surface={surface}
+      body={body}
+    />
+  );
+}
+
+interface RestingProps {
+  note: NoteDto;
+  selected: boolean;
+  isDone: boolean;
+  dragging: boolean;
+  onOpen: () => void;
+  style?: CSSProperties;
+  surface: string;
+  body: ReactNode;
+}
+
+/** Split out so the overlay variant above never calls `useDraggable`. */
+function RestingNoteCard({ note, selected, isDone, dragging, onOpen, style, surface, body }: RestingProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
+  const hidden = dragging || isDragging;
+
+  const wrapperStyle: CSSProperties = {
     ...style,
-    transform: transform ? CSS.Translate.toString(transform) : style?.transform,
-    zIndex: isDragging ? 30 : selected ? 20 : style?.zIndex,
-    transition: isDragging || reducedMotion ? undefined : 'transform 150ms cubic-bezier(0.2,0.7,0.2,1)',
+    zIndex: selected ? 20 : style?.zIndex,
   };
 
   return (
-    <div ref={setNodeRef} style={dragStyle} data-note-id={note.id}>
+    <div
+      ref={setNodeRef}
+      style={wrapperStyle}
+      data-note-id={note.id}
+      data-dragging={hidden || undefined}
+    >
       <button
         type="button"
         {...listeners}
         {...attributes}
         onClick={onOpen}
         className={cn(
-          'flex w-[216px] cursor-grab flex-col gap-3 rounded-xl border border-l-[3px] bg-card p-4 text-left shadow-none select-none',
+          surface,
+          'group/note cursor-grab',
+          // Hover/press easing only — never a transition on `opacity`, so picking a card
+          // up hides it on the same frame the overlay appears instead of cross-fading.
+          'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-          selected ? 'border-primary' : 'border-border',
-          noteColourBorderClass[note.colour],
-          isDragging && 'cursor-grabbing shadow-e2',
-          note.status === 'DONE' && 'opacity-55',
+          noteColourTintClass[note.colour],
+          selected ? 'border-primary shadow-e2 ring-1 ring-primary' : 'border-border-subtle shadow-pin',
+          // The overlay copy is what follows the cursor, so the source is hidden outright
+          // rather than left behind as a ghost. `invisible` keeps its slot, so the column
+          // does not reflow under the cursor mid-drag.
+          hidden
+            ? 'invisible'
+            : 'hover:-translate-y-0.5 hover:shadow-e2 motion-reduce:hover:translate-y-0',
+          isDone && 'opacity-60 saturate-50',
         )}
       >
-        <span
-          className={cn(
-            'font-head text-14 font-semibold leading-snug tracking-[-0.01em] text-fg-1',
-            note.status === 'DONE' && 'line-through',
-          )}
-        >
-          {note.title || 'Ohne Titel'}
-        </span>
-        <div className="flex items-center gap-2.5">
-          <span className={cn('text-11 tabular-nums whitespace-nowrap', dueToneClass[due.tone])} style={{ fontWeight: due.weight }}>
-            {due.label}
-          </span>
-          {checklistLabel && <span className="text-11 font-medium text-fg-muted tabular-nums">{checklistLabel}</span>}
-          <span className="flex-1" />
-          {showPriorityDot && (
-            <span
-              role="img"
-              aria-label={`Priorität: ${PRIORITY_LABELS[note.priority]}`}
-              className={cn('h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass[note.priority])}
-            />
-          )}
-          {showAssignee && note.assignee && (
-            <span
-              title={note.assignee.displayName ?? note.assignee.email}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground"
-            >
-              {initialsOf(note.assignee.displayName ?? note.assignee.email)}
-            </span>
-          )}
-        </div>
+        {body}
       </button>
     </div>
   );

@@ -4,11 +4,13 @@ dist/
 build/
 .turbo/
 .env
-.env.*.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 coverage/
 playwright-report/
 test-results/
-apps/api/prisma/generated/
 .vite/
+.firebase/
+*.tsbuildinfo

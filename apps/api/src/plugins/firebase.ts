@@ -1,8 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { loadEnv } from '../env.js';
+import { getFirebaseApp, hasServiceAccountCredentials, runsOnGoogleCloud } from '../lib/firebase-app.js';
 
 /** The minimal shape our app needs out of a verified Firebase ID token. */
 export interface DecodedAuthToken {
@@ -36,9 +35,12 @@ export interface FirebasePluginOptions {
 }
 
 /**
- * Initializes firebase-admin from env vars (unless a test-provided verifier makes that
- * unnecessary) and decorates the Fastify instance with `authVerifier`, the seam
- * src/plugins/auth.ts calls instead of touching the Firebase SDK directly.
+ * Decorates the Fastify instance with `authVerifier`, the seam src/plugins/auth.ts calls
+ * instead of touching the Firebase SDK directly.
+ *
+ * Firestore may run against the local emulator without credentials, but verifying real ID
+ * tokens cannot — so this refuses to start without a service account rather than failing
+ * per-request later. Tests supply their own verifier and never reach that check.
  */
 export default fp(
   async function firebasePlugin(fastify: FastifyInstance, opts: FirebasePluginOptions) {
@@ -47,21 +49,14 @@ export default fp(
       return;
     }
 
-    const env = loadEnv();
-
-    if (getApps().length === 0) {
-      initializeApp({
-        credential: cert({
-          projectId: env.FIREBASE_PROJECT_ID,
-          clientEmail: env.FIREBASE_CLIENT_EMAIL,
-          // .env stores the key with literal "\n" sequences (real newlines don't survive
-          // a single-line env value) — un-escape them before handing the key to the SDK.
-          privateKey: env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-        }),
-      });
+    if (!hasServiceAccountCredentials() && !runsOnGoogleCloud()) {
+      throw new Error(
+        'FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY are required to verify Firebase ID ' +
+          'tokens outside Google Cloud. See the Firebase setup section of README.md.',
+      );
     }
 
-    const auth = getAuth();
+    const auth = getAuth(getFirebaseApp());
 
     fastify.decorate('authVerifier', {
       async verifyIdToken(idToken: string): Promise<DecodedAuthToken> {

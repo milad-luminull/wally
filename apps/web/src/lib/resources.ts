@@ -13,11 +13,10 @@ import {
   memberRoleUpdateSchema,
   shareLinkDtoSchema,
   shareLinkRoleSchema,
+  shareLinkRedeemResultSchema,
   subtaskDtoSchema,
   subtaskCreateSchema,
   subtaskUpdateSchema,
-  referenceOptionDtoSchema,
-  referenceOptionQuerySchema,
   type WhiteboardDto,
   type WhiteboardSummaryDto,
   type NoteDto,
@@ -30,11 +29,10 @@ import {
   type InviteCreateInput,
   type MemberRoleUpdateInput,
   type ShareLinkDto,
+  type ShareLinkRedeemResult,
   type SubtaskDto,
   type SubtaskCreateInput,
   type SubtaskUpdateInput,
-  type ReferenceOptionDto,
-  type ReferenceType,
   type WhiteboardRole,
 } from '@wally/shared';
 import { api } from './apiClient';
@@ -42,7 +40,6 @@ import { api } from './apiClient';
 const noteListSchema = z.array(noteDtoSchema);
 const memberListSchema = z.array(memberDtoSchema);
 const whiteboardListSchema = z.array(whiteboardSummaryDtoSchema);
-const referenceOptionListSchema = z.array(referenceOptionDtoSchema);
 
 export const boardsApi = {
   list: (): Promise<WhiteboardSummaryDto[]> => api.get('/whiteboards', whiteboardListSchema),
@@ -51,6 +48,18 @@ export const boardsApi = {
     api.patch(`/whiteboards/${boardId}`, { name }, whiteboardDtoSchema),
 };
 
+/**
+ * The write routes (`create`, `update`, `move`, `assign`, `complete`, `reopen`) answer with
+ * the LIST-shaped note — see apps/api/src/routes/notes.ts, which returns `toNoteDto` from
+ * all of them and `toNoteDetailDto` only from `GET /notes/:id`. Declaring them as
+ * `noteDetailDtoSchema` made every one of those calls fail response validation on a 200
+ * ("subtasks: Required, history: Required"), which surfaced as an optimistic update being
+ * rolled back by `onError` and then re-applied by the settling refetch — the note visibly
+ * bounced back to where it came from after a successful drag.
+ *
+ * `noteDtoSchema` is also the forward-compatible choice: Zod objects strip unknown keys, so
+ * it keeps validating if these routes ever start returning the fuller detail payload.
+ */
 export const notesApi = {
   list: (boardId: string, query: Partial<NoteListQuery> = {}): Promise<NoteDto[]> =>
     api.get(`/whiteboards/${boardId}/notes`, noteListSchema, {
@@ -61,16 +70,16 @@ export const notesApi = {
       status: query.status,
     }),
   get: (noteId: string): Promise<NoteDetailDto> => api.get(`/notes/${noteId}`, noteDetailDtoSchema),
-  create: (boardId: string, input: Partial<NoteCreateInput>): Promise<NoteDetailDto> =>
-    api.post(`/whiteboards/${boardId}/notes`, noteCreateSchema.parse(input), noteDetailDtoSchema),
-  update: (noteId: string, input: NoteUpdateInput): Promise<NoteDetailDto> =>
-    api.patch(`/notes/${noteId}`, noteUpdateSchema.parse(input), noteDetailDtoSchema),
-  move: (noteId: string, input: NoteMoveInput): Promise<NoteDetailDto> =>
-    api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDetailDtoSchema),
-  assign: (noteId: string, assigneeId: string | null): Promise<NoteDetailDto> =>
-    api.post(`/notes/${noteId}/assign`, noteAssignSchema.parse({ assigneeId }), noteDetailDtoSchema),
-  complete: (noteId: string): Promise<NoteDetailDto> => api.post(`/notes/${noteId}/complete`, {}, noteDetailDtoSchema),
-  reopen: (noteId: string): Promise<NoteDetailDto> => api.post(`/notes/${noteId}/reopen`, {}, noteDetailDtoSchema),
+  create: (boardId: string, input: Partial<NoteCreateInput>): Promise<NoteDto> =>
+    api.post(`/whiteboards/${boardId}/notes`, noteCreateSchema.parse(input), noteDtoSchema),
+  update: (noteId: string, input: NoteUpdateInput): Promise<NoteDto> =>
+    api.patch(`/notes/${noteId}`, noteUpdateSchema.parse(input), noteDtoSchema),
+  move: (noteId: string, input: NoteMoveInput): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDtoSchema),
+  assign: (noteId: string, assigneeId: string | null): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/assign`, noteAssignSchema.parse({ assigneeId }), noteDtoSchema),
+  complete: (noteId: string): Promise<NoteDto> => api.post(`/notes/${noteId}/complete`, {}, noteDtoSchema),
+  reopen: (noteId: string): Promise<NoteDto> => api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema),
   remove: (noteId: string): Promise<void> => api.delete(`/notes/${noteId}`),
 };
 
@@ -97,9 +106,9 @@ export const shareLinkApi = {
   get: (boardId: string): Promise<ShareLinkDto> => api.get(`/whiteboards/${boardId}/share-link`, shareLinkDtoSchema),
   createOrUpdate: (boardId: string, role: WhiteboardRole): Promise<ShareLinkDto> =>
     api.post(`/whiteboards/${boardId}/share-link`, shareLinkRoleSchema.parse({ role }), shareLinkDtoSchema),
+  /** The route declares params only, so the body is empty — same shape as notesApi's
+   *  body-less POSTs. Tokens are base64url, so they need no escaping. */
+  redeem: (token: string): Promise<ShareLinkRedeemResult> =>
+    api.post(`/share-links/${token}/redeem`, {}, shareLinkRedeemResultSchema),
 };
 
-export const referenceOptionsApi = {
-  list: (type: ReferenceType): Promise<ReferenceOptionDto[]> =>
-    api.get('/reference-options', referenceOptionListSchema, referenceOptionQuerySchema.parse({ type })),
-};

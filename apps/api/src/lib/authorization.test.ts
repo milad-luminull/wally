@@ -1,69 +1,65 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { getTestPrisma, resetDatabase } from '../../test/helpers.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  createTestBoard,
+  createTestMembership,
+  createTestUser,
+  getTestDb,
+  resetDatabase,
+} from '../../test/helpers.js';
 import { getEffectiveRole } from './authorization.js';
 
+const PROJECT_ID = 'wally-test-authorization';
+
 describe('getEffectiveRole', () => {
-  const prisma = getTestPrisma();
+  const db = getTestDb(PROJECT_ID);
 
   beforeEach(async () => {
-    await resetDatabase(prisma);
-  });
-
-  afterAll(async () => {
-    await resetDatabase(prisma);
-    await prisma.$disconnect();
+    await resetDatabase(PROJECT_ID);
   });
 
   async function makeFixture() {
-    const owner = await prisma.user.create({ data: { id: 'u-owner', email: 'owner@finlex.de' } });
-    const editUser = await prisma.user.create({ data: { id: 'u-edit', email: 'edit@finlex.de' } });
-    const viewUser = await prisma.user.create({ data: { id: 'u-view', email: 'view@finlex.de' } });
-    const pendingUser = await prisma.user.create({
-      data: { id: 'u-pending', email: 'pending@finlex.de' },
-    });
-    const strangerUser = await prisma.user.create({
-      data: { id: 'u-stranger', email: 'stranger@finlex.de' },
-    });
-    const board = await prisma.whiteboard.create({ data: { ownerId: owner.id } });
-    await prisma.whiteboardMember.create({
-      data: { whiteboardId: board.id, userId: editUser.id, role: 'EDIT', status: 'ACTIVE' },
-    });
-    await prisma.whiteboardMember.create({
-      data: { whiteboardId: board.id, userId: viewUser.id, role: 'VIEW', status: 'ACTIVE' },
-    });
-    await prisma.whiteboardMember.create({
-      data: { whiteboardId: board.id, userId: pendingUser.id, role: 'EDIT', status: 'PENDING' },
-    });
-    return { owner, editUser, viewUser, pendingUser, strangerUser, board };
+    await createTestUser(db, 'u-owner', 'owner@finlex.de');
+    await createTestUser(db, 'u-edit', 'edit@finlex.de');
+    await createTestUser(db, 'u-view', 'view@finlex.de');
+    await createTestUser(db, 'u-pending', 'pending@finlex.de');
+    await createTestUser(db, 'u-stranger', 'stranger@finlex.de');
+
+    // Only ACTIVE memberships appear in memberRoles — that is exactly the distinction
+    // this function is being asked about.
+    const board = await createTestBoard(db, 'u-owner', { 'u-edit': 'EDIT', 'u-view': 'VIEW' });
+    await createTestMembership(db, board, { userId: 'u-edit', role: 'EDIT', status: 'ACTIVE' });
+    await createTestMembership(db, board, { userId: 'u-view', role: 'VIEW', status: 'ACTIVE' });
+    await createTestMembership(db, board, { userId: 'u-pending', role: 'EDIT', status: 'PENDING' });
+    return { board };
   }
 
   it('returns OWNER for the board owner', async () => {
-    const { board, owner } = await makeFixture();
-    await expect(getEffectiveRole(prisma, owner.id, board.id)).resolves.toBe('OWNER');
+    const { board } = await makeFixture();
+    await expect(getEffectiveRole(db, 'u-owner', board)).resolves.toBe('OWNER');
   });
 
   it('returns EDIT for an active EDIT member', async () => {
-    const { board, editUser } = await makeFixture();
-    await expect(getEffectiveRole(prisma, editUser.id, board.id)).resolves.toBe('EDIT');
+    const { board } = await makeFixture();
+    await expect(getEffectiveRole(db, 'u-edit', board)).resolves.toBe('EDIT');
   });
 
   it('returns VIEW for an active VIEW member', async () => {
-    const { board, viewUser } = await makeFixture();
-    await expect(getEffectiveRole(prisma, viewUser.id, board.id)).resolves.toBe('VIEW');
+    const { board } = await makeFixture();
+    await expect(getEffectiveRole(db, 'u-view', board)).resolves.toBe('VIEW');
   });
 
   it('returns null for a PENDING member (not yet active)', async () => {
-    const { board, pendingUser } = await makeFixture();
-    await expect(getEffectiveRole(prisma, pendingUser.id, board.id)).resolves.toBeNull();
+    const { board } = await makeFixture();
+    await expect(getEffectiveRole(db, 'u-pending', board)).resolves.toBeNull();
   });
 
   it('returns null for a non-member', async () => {
-    const { board, strangerUser } = await makeFixture();
-    await expect(getEffectiveRole(prisma, strangerUser.id, board.id)).resolves.toBeNull();
+    const { board } = await makeFixture();
+    await expect(getEffectiveRole(db, 'u-stranger', board)).resolves.toBeNull();
   });
 
   it('returns null for a nonexistent whiteboard', async () => {
-    const { strangerUser } = await makeFixture();
-    await expect(getEffectiveRole(prisma, strangerUser.id, 'does-not-exist')).resolves.toBeNull();
+    await makeFixture();
+    await expect(getEffectiveRole(db, 'u-stranger', 'does-not-exist')).resolves.toBeNull();
   });
 });

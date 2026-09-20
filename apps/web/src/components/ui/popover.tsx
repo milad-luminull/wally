@@ -16,8 +16,9 @@ export const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        'z-dropdown w-80 rounded-xl border border-border bg-card p-5 text-fg-1 shadow-e2 outline-none',
-        'origin-[var(--radix-popover-content-transform-origin)] scale-95 opacity-0 transition duration-150 ease-ds data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none motion-reduce:scale-100',
+        'z-dropdown w-80 rounded-xl border border-border bg-card p-5 text-fg-1 shadow-e3 outline-none',
+        'origin-[var(--radix-popover-content-transform-origin)]',
+        'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
         className,
       )}
       {...props}

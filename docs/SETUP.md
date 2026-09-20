@@ -16,9 +16,11 @@
 
 ## Backend (TypeScript)
 
-- Node 22, Fastify, Prisma, PostgreSQL.
+- Node 22, Fastify, Cloud Firestore (Firebase Admin SDK).
 - Zod schemas live in `packages/shared` and are reused for API validation.
 - Change trigger: use Python (FastAPI, SQLAlchemy, Pydantic) only if the app needs heavy data or ML libraries. Keep the same folder layout and share types via an OpenAPI spec.
+- Change trigger: move to a relational database only if the data outgrows what Firestore answers cheaply — cross-board reporting, aggregates over all notes, or joins that can't be a denormalized field. Firestore was chosen so the app has no idle database cost.
+- Firestore has no schema and no migrations. Document shapes are declared in `apps/api/src/lib/db/types.ts`, and composite indexes in `firestore.indexes.json` at the repo root. Both are hand-maintained; nothing enforces them at write time.
 
 ## Frontend (React)
 
@@ -37,21 +39,20 @@ All commands run inside Docker. The host needs only Docker and `make`.
 | `make logs`    | Follow logs of all services                  |
 | `make test`    | Run all tests                                |
 | `make lint`    | Run lint and type checks                     |
-| `make migrate` | Apply database migrations                    |
 | `make seed`    | Load development seed data                   |
 
 `make up` is the only command a new developer needs.
 
 ## Docker
 
-- One `docker-compose.yml` at the root. Services: `api`, `web`, `db` (postgres:17), plus any other dependency (redis, mailpit, etc.).
+- One `docker-compose.yml` at the root. Services: `api`, `web`, `firestore` (the Firebase emulator, built from `infra/firebase-emulator.Dockerfile`), plus any other dependency (redis, mailpit, etc.).
 - All dependencies live in compose. Never ask the developer to install or run anything outside it.
 - One `Dockerfile` per app, multi-stage: `dev` target with hot reload, `prod` target minimal.
 - `.env.example` lists every variable. Compose reads `.env`. Never commit `.env` or write real secret values into the repo.
 
 ## Tests
 
-- Backend: Vitest. Unit tests for business logic and validation. Integration tests for each API route against the real Postgres in compose.
+- Backend: Vitest. Unit tests for business logic and validation. Integration tests for each API route against the Firestore emulator in compose. Each test file declares its own emulator project id so files stay isolated and can run in parallel.
 - Frontend: Vitest + React Testing Library for components with logic (forms, state, conditional rendering). No tests for pure layout components.
 - End-to-end: Playwright. One happy-path test per main user flow. No more.
 - Test behaviour, not implementation. No snapshot tests. No tests that only check a mock was called.
@@ -78,7 +79,7 @@ All commands run inside Docker. The host needs only Docker and `make`.
 ## Ask before you do
 
 - Delete files or folders.
-- Change the database schema.
+- Change the stored document shapes or add a composite index.
 - Add or upgrade a dependency.
 - Touch authentication, authorization, or payments.
 - Change scope or drop a requirement.

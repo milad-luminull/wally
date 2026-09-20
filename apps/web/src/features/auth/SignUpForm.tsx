@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { z } from 'zod';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,11 @@ function friendlyAuthError(err: unknown): string {
 export function SignUpForm() {
   const { signUpWithEmail, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Carried through from ProtectedRoute, same as SignInForm. Without it a new user who
+  // opens a share link and picks "Registrieren" lands on their own empty board and the
+  // token is gone from history.
+  const from = (location.state as { from?: string } | null)?.from ?? '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,7 +61,7 @@ export function SignUpForm() {
     setLoading('email');
     try {
       await signUpWithEmail(parsed.data.email, parsed.data.password);
-      navigate('/', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setFormError(friendlyAuthError(err));
     } finally {
@@ -69,7 +74,7 @@ export function SignUpForm() {
     setLoading('google');
     try {
       await signInWithGoogle();
-      navigate('/', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setFormError(friendlyAuthError(err));
     } finally {
@@ -155,7 +160,7 @@ export function SignUpForm() {
 
       <p className="text-center text-13 text-fg-muted">
         Schon ein Konto?{' '}
-        <Link to="/login" className="font-medium text-fg-1 underline-offset-4 hover:underline">
+        <Link to="/login" state={{ from }} className="font-medium text-fg-1 underline-offset-4 hover:underline">
           Anmelden
         </Link>
       </p>

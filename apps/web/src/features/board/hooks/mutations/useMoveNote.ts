@@ -1,7 +1,34 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { NoteMoveInput } from '@wally/shared';
+import type { NoteDto, NoteMoveInput } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import {
+  cancelNoteCaches,
+  patchNoteCaches,
+  restoreNoteCaches,
+  settleNoteCaches,
+  snapshotNoteCaches,
+  type NoteCacheSnapshot,
+} from './shared';
+
+/** The cache fields each move mode owns. Exported so the board can apply the very same
+ * patch live during a drag, before this mutation ever runs. */
+export function noteMovePatch(input: NoteMoveInput): Partial<NoteDto> {
+  if (input.mode === 'HORIZON') return { horizon: input.horizon };
+  if (input.mode === 'PRIORITY') return { priority: input.priority };
+  return { freeX: input.x, freeY: input.y };
+}
+
+interface MoveVariables {
+  noteId: string;
+  input: NoteMoveInput;
+  /**
+   * Cache state to roll back to if the request fails. The board passes the snapshot it
+   * took when the drag *started*, because by the time this mutation runs it has already
+   * moved the note optimistically — snapshotting here would capture the moved state and
+   * make a rollback a no-op.
+   */
+  rollback?: NoteCacheSnapshot;
+}
 
 /**
  * The three organisation-mode moves touch only their own field (the plan's "three
@@ -12,17 +39,12 @@ export function useMoveNote(boardId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, input }: { noteId: string; input: NoteMoveInput }) => notesApi.move(noteId, input),
-    onMutate: async ({ noteId, input }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
-      const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
-      const patch =
-        input.mode === 'HORIZON'
-          ? { horizon: input.horizon }
-          : input.mode === 'PRIORITY'
-            ? { priority: input.priority }
-            : { freeX: input.x, freeY: input.y };
-      patchNoteCaches(queryClient, boardId, noteId, patch);
+    mutationFn: ({ noteId, input }: MoveVariables) => notesApi.move(noteId, input),
+    onMutate: ({ noteId, input, rollback }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
+      const snapshot = rollback ?? snapshotNoteCaches(queryClient, boardId, noteId);
+      // Idempotent when the board already applied this during the drag.
+      patchNoteCaches(queryClient, boardId, noteId, noteMovePatch(input));
       return snapshot;
     },
     onError: (_err, { noteId }, snapshot) => {

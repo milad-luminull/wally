@@ -1,0 +1,143 @@
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { docsWithId, membersCol, whiteboardsCol, withId } from '../src/lib/db/collections.js';
+import {
+  buildTestApp,
+  registerTestUser,
+  resetDatabase,
+  type TestContext,
+} from './helpers.js';
+
+const PROJECT_ID = 'wally-test-invite-security';
+
+/**
+ * Firebase permits sign-up with an address you do not control, so a `users` record is not
+ * evidence of owning the email on it. These cover the invite path end to end, because the
+ * gap that made this exploitable was a route-level one: plugins/auth.ts checked
+ * emailVerified before activating a PENDING invite, while upsertInvite reached the ACTIVE
+ * path without checking anything at all.
+ */
+describe('invite security', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await buildTestApp(PROJECT_ID);
+  });
+
+  afterEach(async () => {
+    await resetDatabase(PROJECT_ID);
+  });
+
+  afterAll(async () => {
+    await resetDatabase(PROJECT_ID);
+    await ctx.app.close();
+  });
+
+  /** Drives one request per token so the auth preHandler provisions each identity. */
+  async function authenticate(token: string) {
+    return ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+  }
+
+  async function inviteFromOwner(ownerToken: string, email: string, role: 'EDIT' | 'VIEW') {
+    return ctx.app.inject({
+      method: 'POST',
+      url: '/whiteboards/sec-owner/members/invite',
+      headers: ctx.authHeader(ownerToken),
+      payload: { email, role },
+    });
+  }
+
+  it('leaves an invite pending when the only user record for that address is unverified', async () => {
+    // The attacker signs up claiming the victim's address without confirming it, and makes
+    // one request so their user record exists before the invite is ever sent.
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    await authenticate(attackerToken);
+
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    await authenticate(ownerToken);
+
+    const res = await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+
+    expect(res.statusCode).toBe(200);
+    // Linking the invite to that record would hand the attacker the role the owner meant
+    // for the real owner of the inbox. It has to stay keyed by the address instead.
+    expect(res.json()).toMatchObject({ status: 'PENDING', userId: null });
+
+    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
+    // memberRoles is the sole input to resolveRole — an entry here IS access.
+    expect(board?.memberRoles).toEqual({});
+  });
+
+  it('404s the unverified claimant on the board they were never really invited to', async () => {
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    await authenticate(attackerToken);
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    await authenticate(ownerToken);
+    await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards/sec-owner',
+      headers: ctx.authHeader(attackerToken),
+    });
+
+    // 404 rather than 403: resolveRole returns null, and a non-member must not be able to
+    // learn that the board exists at all.
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('activates the invite for the verified owner of the address, not the squatter', async () => {
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    await authenticate(attackerToken);
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    await authenticate(ownerToken);
+    await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+
+    // A different uid now authenticates with the same address, verified this time.
+    const victimToken = registerTestUser(ctx, 'sec-victim', 'victim@finlex.de');
+    await authenticate(victimToken);
+
+    const members = docsWithId(await membersCol(ctx.db, 'sec-owner').get());
+    // Exactly one row: the pending invite is linked, not duplicated alongside it.
+    expect(members).toHaveLength(1);
+    expect(members[0]).toMatchObject({ userId: 'sec-victim', status: 'ACTIVE', role: 'EDIT' });
+
+    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
+    expect(board?.memberRoles).toEqual({ 'sec-victim': 'EDIT' });
+  });
+
+  it('activates a pending invite on the request where the caller first appears verified', async () => {
+    // Same uid throughout: the record is created unverified, then the address is confirmed.
+    const token = registerTestUser(ctx, 'sec-late', 'late@finlex.de', null, false);
+    await authenticate(token);
+
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    await authenticate(ownerToken);
+    await inviteFromOwner(ownerToken, 'late@finlex.de', 'VIEW');
+
+    ctx.tokens.set(token, {
+      uid: 'sec-late',
+      email: 'late@finlex.de',
+      emailVerified: true,
+      name: null,
+    });
+    await authenticate(token);
+
+    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
+    // emailVerified flipping is one of only two moments the gated sweep still runs, so it
+    // has to count as a provisioning write — otherwise the invite is stranded for good.
+    expect(board?.memberRoles).toEqual({ 'sec-late': 'VIEW' });
+  });
+
+  it('stops rewriting the user record once the caller is in steady state', async () => {
+    const token = registerTestUser(ctx, 'sec-steady', 'steady@finlex.de');
+    await authenticate(token);
+    const first = withId(await ctx.db.collection('users').doc('sec-steady').get());
+
+    await authenticate(token);
+    const second = withId(await ctx.db.collection('users').doc('sec-steady').get());
+
+    // An unchanged updatedAt proves the fast path engaged, which is what gates the
+    // collection-group sweep away from every steady-state request.
+    expect(second?.updatedAt.toMillis()).toBe(first?.updatedAt.toMillis());
+  });
+});

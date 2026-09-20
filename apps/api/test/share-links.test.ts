@@ -1,19 +1,22 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { membersCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+
+const PROJECT_ID = 'wally-test-share-links';
 
 describe('share-link routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp();
+    ctx = await buildTestApp(PROJECT_ID);
   });
 
   afterEach(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
   });
 
   afterAll(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
     await ctx.app.close();
   });
 
@@ -60,6 +63,14 @@ describe('share-link routes', () => {
     });
     expect(rotated.statusCode).toBe(200);
     expect(rotated.json().token).not.toBe(originalToken);
+
+    // The token is the document's id, so rotation must leave the old URL dead.
+    const staleRedeem = await ctx.app.inject({
+      method: 'POST',
+      url: `/share-links/${originalToken}/redeem`,
+      headers: ctx.authHeader(fx.outsiderToken),
+    });
+    expect(staleRedeem.statusCode).toBe(404);
 
     const deleted = await ctx.app.inject({
       method: 'DELETE',
@@ -116,8 +127,8 @@ describe('share-link routes', () => {
       });
       expect(redeemed.statusCode).toBe(200);
 
-      const members = await ctx.prisma.whiteboardMember.count({ where: { whiteboardId: fx.boardId } });
-      expect(members).toBe(2); // unchanged: still just the fixture's editor + viewer
+      const members = await membersCol(ctx.db, fx.boardId).count().get();
+      expect(members.data().count).toBe(2); // unchanged: still just the fixture's editor + viewer
     });
   });
 });

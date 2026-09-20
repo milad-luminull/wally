@@ -1,56 +1,32 @@
-import type { Prisma, PrismaClient } from './prisma-client.js';
 import type { NoteHorizon, NoteMoveInput, NotePriority } from '@wally/shared';
+import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
 import { AppError } from './errors.js';
 
-/** Shared `include` for a note plus everything `toNoteDto` needs. */
-export const noteInclude = {
-  assignee: true,
-  createdBy: true,
-  subtasks: true,
-} as const;
-
-/** Shared `include` for a note plus everything `toNoteDetailDto` needs. */
-export const noteDetailInclude = {
-  assignee: true,
-  createdBy: true,
-  subtasks: true,
-  history: { include: { actor: true } },
-} as const;
-
 /**
- * Throws a 422 INVALID_ASSIGNEE unless `assigneeId` is null or belongs to the board
- * owner or an ACTIVE member of THIS whiteboard. Shared by note creation, PATCH /notes/:id
- * assignment fields, and POST /notes/:id/assign.
+ * Throws a 422 INVALID_ASSIGNEE unless `assigneeId` is null or belongs to the board owner
+ * or an ACTIVE member of THIS whiteboard. Shared by note creation and POST /notes/:id/assign.
+ *
+ * Takes the board `requireWhiteboardAccess` already loaded into
+ * `request.whiteboardContext.board` rather than reading it a second time — `memberRoles`
+ * holds ACTIVE members only, which is exactly the check.
  */
-export async function assertValidAssignee(
-  prisma: PrismaClient,
-  whiteboardId: string,
+export function assertValidAssignee(
+  board: WithId<WhiteboardDoc>,
   assigneeId: string | null,
-): Promise<void> {
+): void {
   if (assigneeId === null) return;
+  if (board.ownerId === assigneeId || board.memberRoles[assigneeId]) return;
 
-  const whiteboard = await prisma.whiteboard.findUnique({
-    where: { id: whiteboardId },
-    select: { ownerId: true },
-  });
-  if (whiteboard?.ownerId === assigneeId) return;
-
-  const member = await prisma.whiteboardMember.findFirst({
-    where: { whiteboardId, userId: assigneeId, status: 'ACTIVE' },
-    select: { id: true },
-  });
-  if (!member) {
-    throw new AppError(
-      422,
-      'INVALID_ASSIGNEE',
-      'Assignee must be the board owner or an active member of this whiteboard',
-    );
-  }
+  throw new AppError(
+    422,
+    'INVALID_ASSIGNEE',
+    'Assignee must be the board owner or an active member of this whiteboard',
+  );
 }
 
 export interface MoveComputation {
-  data: Pick<Prisma.NoteUpdateInput, 'horizon' | 'priority' | 'freeX' | 'freeY'>;
-  metadata: Prisma.InputJsonObject;
+  data: Partial<Pick<NoteDoc, 'horizon' | 'priority' | 'freeX' | 'freeY'>>;
+  metadata: Record<string, unknown>;
 }
 
 interface MovableNoteFields {

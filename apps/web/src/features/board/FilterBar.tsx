@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { PRIORITY_LABELS, notePriorityValues, type NotePriority } from '@wally/shared';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
+import { cn } from '@/lib/cn';
 import { priorityToneClass } from './util/noteDerived';
 import type { BoardViewState } from './hooks/useBoardViewState';
 
@@ -16,7 +17,72 @@ interface FilterBarProps {
   setPriority: (priority: NotePriority[]) => void;
   setMine: (mine: boolean) => void;
   setDone: (done: boolean) => void;
+  setFieldKey: (key: string | null) => void;
+  setFieldValue: (value: string | null) => void;
+  /** Every custom-property key/value in use on this board — see collectFieldKeys. */
+  fieldKeys: string[];
+  fieldValues: string[];
   isBelowTablet: boolean;
+}
+
+const ANY_VALUE = '__any__';
+
+/** Filter by a user-defined note property: pick the property, then optionally one of the
+ * values actually recorded for it on this board. */
+function FieldFilter({
+  view,
+  fieldKeys,
+  fieldValues,
+  setFieldKey,
+  setFieldValue,
+}: Pick<FilterBarProps, 'view' | 'fieldKeys' | 'fieldValues' | 'setFieldKey' | 'setFieldValue'>) {
+  if (!fieldKeys.length) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <Select
+        value={view.fieldKey ?? ANY_VALUE}
+        onValueChange={(v) => setFieldKey(v === ANY_VALUE ? null : v)}
+      >
+        <SelectTrigger
+          aria-label="Eigenschaft"
+          className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
+        >
+          <SelectValue placeholder="Eigenschaft" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY_VALUE}>Alle Eigenschaften</SelectItem>
+          {fieldKeys.map((key) => (
+            <SelectItem key={key} value={key}>
+              {key}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {view.fieldKey && (
+        <Select
+          value={view.fieldValue ?? ANY_VALUE}
+          onValueChange={(v) => setFieldValue(v === ANY_VALUE ? null : v)}
+        >
+          <SelectTrigger
+            aria-label="Wert"
+            className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY_VALUE}>Alle Werte</SelectItem>
+            {fieldValues.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
 }
 
 function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void }) {
@@ -30,25 +96,51 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
   }, [debounced]);
 
   return (
-    <div className="flex min-w-[180px] max-w-[320px] flex-1 items-center gap-2">
-      <Search className="h-3.5 w-3.5 shrink-0 text-fg-3" strokeWidth={1.6} />
-      <Input
+    <div
+      className={cn(
+        'group flex h-8 min-w-[190px] max-w-[300px] flex-1 items-center gap-2 rounded-full border border-border bg-card px-3',
+        '[@media(pointer:coarse)]:h-11',
+        'transition-[border-color,box-shadow] duration-150 ease-ds',
+        'focus-within:border-primary focus-within:ring-2 focus-within:ring-[color:var(--ring-alpha)]',
+      )}
+    >
+      <Search className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.8} />
+      <input
         value={local}
         onChange={(e) => setLocal(e.target.value)}
         placeholder="Suchen"
         aria-label="Notizen durchsuchen"
-        className="h-7 border-0 border-b border-transparent p-0 text-13 focus-visible:border-border-input focus-visible:ring-0"
+        /* h-full, so the field's own box is the full pill height rather than the 18px the
+           text line occupies — the shell was already the visible target, but the input was
+           what a pointer had to land on. */
+        className="h-full min-w-0 flex-1 bg-transparent text-13 text-fg-1 outline-none placeholder:text-fg-faint"
       />
+      {local && (
+        <button
+          type="button"
+          aria-label="Suche zurücksetzen"
+          onClick={() => setLocal('')}
+          className="-mr-1 shrink-0 rounded-full p-1.5 text-fg-faint transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:p-2.5"
+        >
+          <X className="h-3 w-3" strokeWidth={2.4} />
+        </button>
+      )}
     </div>
   );
 }
 
-function PriorityChips({ priority, setPriority }: { priority: NotePriority[]; setPriority: (p: NotePriority[]) => void }) {
+function PriorityChips({
+  priority,
+  setPriority,
+}: {
+  priority: NotePriority[];
+  setPriority: (p: NotePriority[]) => void;
+}) {
   return (
     <ToggleGroup type="multiple" variant="chip" value={priority} onValueChange={(v) => setPriority(v as NotePriority[])}>
       {notePriorityValues.map((p) => (
         <ToggleGroupItem key={p} value={p} aria-label={`Nach Priorität ${PRIORITY_LABELS[p]} filtern`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${priorityToneClass[p]}`} />
+          <span className={cn('h-1.5 w-1.5 rounded-full', priorityToneClass[p])} />
           {PRIORITY_LABELS[p]}
         </ToggleGroupItem>
       ))}
@@ -56,14 +148,23 @@ function PriorityChips({ priority, setPriority }: { priority: NotePriority[]; se
   );
 }
 
-function BooleanToggles({ mine, setMine, done, setDone }: { mine: boolean; setMine: (v: boolean) => void; done: boolean; setDone: (v: boolean) => void }) {
+function BooleanToggles({
+  mine,
+  setMine,
+  done,
+  setDone,
+}: {
+  mine: boolean;
+  setMine: (v: boolean) => void;
+  done: boolean;
+  setDone: (v: boolean) => void;
+}) {
   return (
     <>
-      <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-      <Toggle variant="chip" size="sm" pressed={mine} onPressedChange={setMine} className="h-[26px] border border-transparent">
+      <Toggle variant="chip" pressed={mine} onPressedChange={setMine}>
         Nur meine
       </Toggle>
-      <Toggle variant="chip" size="sm" pressed={done} onPressedChange={setDone} className="h-[26px] border border-transparent">
+      <Toggle variant="chip" pressed={done} onPressedChange={setDone}>
         Erledigte
       </Toggle>
     </>
@@ -72,30 +173,77 @@ function BooleanToggles({ mine, setMine, done, setDone }: { mine: boolean; setMi
 
 /** Below 720px only (the one place mobile and tablet legitimately differ — tablet still
  * has room for the inline row per the plan's responsive table). */
-export function FilterBar({ view, setQuery, setPriority, setMine, setDone, isBelowTablet }: FilterBarProps) {
-  const activeFilterCount = view.priority.length + (view.mine ? 1 : 0) + (view.done ? 0 : 1);
+export function FilterBar({
+  view,
+  setQuery,
+  setPriority,
+  setMine,
+  setDone,
+  setFieldKey,
+  setFieldValue,
+  fieldKeys,
+  fieldValues,
+  isBelowTablet,
+}: FilterBarProps) {
+  const activeFilterCount =
+    view.priority.length + (view.mine ? 1 : 0) + (view.done ? 0 : 1) + (view.fieldKey ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0;
+
+  function resetFilters() {
+    setPriority([]);
+    setMine(false);
+    setDone(true);
+    setFieldKey(null);
+  }
 
   if (isBelowTablet) {
     return (
-      <div className="flex items-center gap-3 px-6 pb-3.5">
+      <div className="flex shrink-0 items-center gap-2.5 border-b border-border bg-surface px-5 py-2.5">
         <SearchInput q={view.q} setQuery={setQuery} />
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="shrink-0 gap-1.5 rounded-full">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Filter
-              {activeFilterCount > 0 && <span className="tabular-nums">({activeFilterCount})</span>}
+              {hasActiveFilters && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-11 font-semibold tabular-nums text-primary-foreground">
+                  {activeFilterCount}
+                </span>
+              )}
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom">
-            <SheetHeader className="border-0 p-0 pb-4">
+          <SheetContent side="bottom" className="px-5 pb-6">
+            <SheetHeader className="border-0 px-0 pb-4 pt-3">
               <SheetTitle>Filter</SheetTitle>
             </SheetHeader>
-            <div className="flex flex-col gap-4 pb-4">
-              <PriorityChips priority={view.priority} setPriority={setPriority} />
-              <div className="flex items-center gap-2">
-                <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2.5">
+                <span className="text-12 font-semibold text-fg-muted">Priorität</span>
+                <PriorityChips priority={view.priority} setPriority={setPriority} />
               </div>
+              {fieldKeys.length > 0 && (
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-12 font-semibold text-fg-muted">Eigenschaft</span>
+                  <FieldFilter
+                    view={view}
+                    fieldKeys={fieldKeys}
+                    fieldValues={fieldValues}
+                    setFieldKey={setFieldKey}
+                    setFieldValue={setFieldValue}
+                  />
+                </div>
+              )}
+              <div className="flex flex-col gap-2.5">
+                <span className="text-12 font-semibold text-fg-muted">Anzeigen</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
+                </div>
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={resetFilters} className="self-start">
+                  Filter zurücksetzen
+                </Button>
+              )}
             </div>
           </SheetContent>
         </Sheet>
@@ -104,12 +252,29 @@ export function FilterBar({ view, setQuery, setPriority, setMine, setDone, isBel
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 px-6 pb-3.5">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-border bg-surface px-5 py-2.5 lg:px-7">
       <SearchInput q={view.q} setQuery={setQuery} />
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
         <PriorityChips priority={view.priority} setPriority={setPriority} />
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden />
         <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
+        <FieldFilter
+          view={view}
+          fieldKeys={fieldKeys}
+          fieldValues={fieldValues}
+          setFieldKey={setFieldKey}
+          setFieldValue={setFieldValue}
+        />
       </div>
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="rounded-md px-1.5 py-1.5 text-12 font-medium text-fg-muted transition-colors duration-150 hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-3"
+        >
+          Zurücksetzen
+        </button>
+      )}
     </div>
   );
 }

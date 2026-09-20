@@ -1,19 +1,27 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+import { notesCol, withId } from '../src/lib/db/collections.js';
+import {
+  buildTestApp,
+  createBoardFixture,
+  resetDatabase,
+  type TestContext,
+} from './helpers.js';
+
+const PROJECT_ID = 'wally-test-members-routes';
 
 describe('member/invite routes (owner-only)', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp();
+    ctx = await buildTestApp(PROJECT_ID);
   });
 
   afterEach(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
   });
 
   afterAll(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
     await ctx.app.close();
   });
 
@@ -59,39 +67,41 @@ describe('member/invite routes (owner-only)', () => {
   describe('PATCH/DELETE /whiteboards/:id/members/:memberId', () => {
     it('owner can change role; deleting a member nulls out their assigned notes', async () => {
       const fx = await createBoardFixture(ctx);
-      const member = await ctx.prisma.whiteboardMember.findFirstOrThrow({
-        where: { whiteboardId: fx.boardId, userId: fx.editorId },
-      });
 
       const patched = await ctx.app.inject({
         method: 'PATCH',
-        url: `/whiteboards/${fx.boardId}/members/${member.id}`,
+        url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.ownerToken),
         payload: { role: 'VIEW' },
       });
       expect(patched.statusCode).toBe(200);
       expect(patched.json().role).toBe('VIEW');
 
-      const note = await ctx.prisma.note.create({
-        data: { whiteboardId: fx.boardId, title: 'Zugewiesen', assigneeId: fx.editorId },
+      const created = await ctx.app.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'Zugewiesen', assigneeId: fx.editorId },
       });
+      expect(created.statusCode).toBe(201);
+      const noteId = created.json().id;
 
       const forbidden = await ctx.app.inject({
         method: 'DELETE',
-        url: `/whiteboards/${fx.boardId}/members/${member.id}`,
+        url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.editToken),
       });
       expect(forbidden.statusCode).toBe(403);
 
       const deleted = await ctx.app.inject({
         method: 'DELETE',
-        url: `/whiteboards/${fx.boardId}/members/${member.id}`,
+        url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(deleted.statusCode).toBe(204);
 
-      const refreshedNote = await ctx.prisma.note.findUniqueOrThrow({ where: { id: note.id } });
-      expect(refreshedNote.assigneeId).toBeNull();
+      const refreshedNote = withId(await notesCol(ctx.db).doc(noteId).get());
+      expect(refreshedNote?.assigneeId).toBeNull();
     });
   });
 });

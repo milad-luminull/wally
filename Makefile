@@ -1,14 +1,15 @@
 COMPOSE := docker compose
 
-.PHONY: up down logs test lint typecheck migrate migrate-dev seed e2e
+.PHONY: up down logs test lint typecheck seed e2e
 
-## Build and start the whole stack (db, api, web).
+## Build and start the whole stack (firestore emulator, api, web).
 up:
 	$(COMPOSE) up --build -d
 	@echo ""
-	@echo "Web:  http://localhost:5174"
-	@echo "API:  http://localhost:4000"
-	@echo "Run 'make logs' to follow output, 'make migrate' + 'make seed' on first run."
+	@echo "Web:            http://localhost:5174"
+	@echo "API:            http://localhost:4000"
+	@echo "Firestore UI:   http://localhost:4001"
+	@echo "Run 'make logs' to follow output, 'make seed' on first run."
 
 ## Stop and remove containers.
 down:
@@ -28,14 +29,6 @@ lint:
 
 typecheck:
 	$(COMPOSE) run --rm api pnpm turbo run typecheck
-
-## Apply already-committed database migrations (safe to re-run).
-migrate:
-	$(COMPOSE) run --rm api pnpm --filter @wally/api migrate
-
-## Create a new migration from schema changes during development.
-migrate-dev:
-	$(COMPOSE) run --rm api pnpm --filter @wally/api migrate:dev
 
 ## Load development seed data (idempotent).
 seed:

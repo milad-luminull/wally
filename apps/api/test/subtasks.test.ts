@@ -1,29 +1,44 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { subtasksCol, withId } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+
+const PROJECT_ID = 'wally-test-subtasks';
 
 describe('subtask routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp();
+    ctx = await buildTestApp(PROJECT_ID);
   });
 
   afterEach(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
   });
 
   afterAll(async () => {
-    await resetDatabase(ctx.prisma);
+    await resetDatabase(PROJECT_ID);
     await ctx.app.close();
   });
 
   async function setup() {
     const fx = await createBoardFixture(ctx);
-    const note = await ctx.prisma.note.create({
-      data: { whiteboardId: fx.boardId, title: 'Mit Subtasks' },
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/notes`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { title: 'Mit Subtasks' },
     });
-    return { fx, noteId: note.id };
+    return { fx, noteId: created.json().id as string };
   }
+
+  const summaryOf = async (fx: { boardId: string; ownerToken: string }, noteId: string) => {
+    const detail = await ctx.app.inject({
+      method: 'GET',
+      url: `/notes/${noteId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+    });
+    return detail.json().subtaskSummary;
+  };
 
   it('POST creates a subtask for EDIT/OWNER, 403 for VIEW, 404 for non-member', async () => {
     const { fx, noteId } = await setup();
@@ -80,7 +95,47 @@ describe('subtask routes', () => {
     });
     expect(deleted.statusCode).toBe(204);
 
-    const gone = await ctx.prisma.subtask.findUnique({ where: { id: subtaskId } });
+    const gone = withId(await subtasksCol(ctx.db, noteId).doc(subtaskId).get());
     expect(gone).toBeNull();
+  });
+
+  it("keeps the note's subtask counter correct, including repeated done:true", async () => {
+    // The counter on the note is denormalized and moved by increments, so a PATCH that
+    // does not actually change `done` must not move it — the schema allows done:true on
+    // an already-done subtask.
+    const { fx, noteId } = await setup();
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: `/notes/${noteId}/subtasks`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { text: 'Einmal abhaken' },
+    });
+    const subtaskId = created.json().id;
+    expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 0 });
+
+    for (let i = 0; i < 3; i += 1) {
+      await ctx.app.inject({
+        method: 'PATCH',
+        url: `/notes/${noteId}/subtasks/${subtaskId}`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { done: true },
+      });
+    }
+    expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 1 });
+
+    await ctx.app.inject({
+      method: 'PATCH',
+      url: `/notes/${noteId}/subtasks/${subtaskId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { done: false },
+    });
+    expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 0 });
+
+    await ctx.app.inject({
+      method: 'DELETE',
+      url: `/notes/${noteId}/subtasks/${subtaskId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+    });
+    expect(await summaryOf(fx, noteId)).toEqual({ total: 0, done: 0 });
   });
 });

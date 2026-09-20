@@ -19,8 +19,7 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
     freeY: input.freeY ?? 0,
     dueDate: input.dueDate ?? null,
     assignee: null,
-    referenceType: input.referenceType ?? null,
-    referenceLabel: input.referenceLabel ?? null,
+    customFields: input.customFields ?? {},
     tags: input.tags ?? [],
     colour: input.colour ?? 'WEISS',
     subtaskSummary: { done: 0, total: 0 },
@@ -52,7 +51,11 @@ export function useCreateNote(boardId: string) {
       queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) =>
         prev?.map((n) => (n.id === context?.tempId ? created : n)),
       );
-      queryClient.setQueryData(['notes', created.id], created);
+      // Deliberately NOT seeding the detail cache (['notes', created.id]) with `created`.
+      // POST /notes answers with the LIGHT list DTO, which has no subtasks[]/history[],
+      // while everything reading that key (useNoteDetail -> SubtaskChecklist, HistoryTrail)
+      // indexes those arrays directly. Seeding it crashed the panel on the first open of a
+      // freshly created note. Leaving the key empty lets useNoteDetail fetch real detail.
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notes(boardId) });

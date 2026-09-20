@@ -14,6 +14,10 @@
  *     doesn't give neutral/grey explicit hex steps the way it does success/warning/
  *     danger/info; borderStrong (#D3D9D9) is reused here as the neutral "bold" dot colour
  *     since it already serves as the system's structural grey.
+ *   --apricot-deep: a step below --apricot-dark, needed once --apricot-dark became the
+ *     resting fill of the accent button (see below) and the old resting value was no
+ *     longer available as its hover. Derived by the same lightness step the table uses
+ *     between --apricot and --apricot-dark.
  */
 :root {
   /* Brand anchors */
@@ -23,6 +27,7 @@
   --petrol-edge: #05555f;
   --apricot: #fd6f52;
   --apricot-dark: #e8603f;
+  --apricot-deep: #d4542f;
   --iceblue: #c6dddd;
 
   /* Surfaces & borders */
@@ -37,7 +42,12 @@
   --border-strong: #d3d9d9;
   --border-input: #dde4e4;
 
-  /* Text ramp */
+  /* Text ramp.
+   * --fg-3 is carried for parity with the design system's table, but it is NOT a text
+   * colour here: against --inset (the lightest surface it ever backs onto) it measures
+   * 3.75:1, and every place it was used — band counts, the board subtitle, history rows,
+   * tag chips — is 11-12px, so the 3:1 large-text allowance never applies. Those all use
+   * --fg-muted (4.9:1) instead. Reach for --fg-3 only for non-text marks. */
   --fg-1: #02474f;
   --fg-2: #42585b;
   --fg-3: #6d7e81;
@@ -57,12 +67,25 @@
   --status-neutral: #6d7e81;
   --status-neutral-bold: #d3d9d9;
   --on-status-warning: var(--petrol);
+  /* White, not petrol: petrol on the success fill measures 2.1:1, white 4.95:1. */
+  --on-status-success: var(--white);
 
-  /* Note-colour swatches (5 — Apricot intentionally excluded, functional-only) */
+  /* Note-colour swatches (14 — Apricot intentionally excluded, functional-only). The first
+   * four alias existing design tokens; the rest are literal, since the DS has no token for
+   * those hues. All read ≥1.8:1 against white, enough for a 24px dot with a border. */
   --note-eis: var(--iceblue);
   --note-sand: var(--status-warning-bold);
   --note-minze: var(--status-success-bold);
   --note-himmel: var(--status-info-bold);
+  --note-nebel: #b9b1a4;
+  --note-butter: #d9c14e;
+  --note-lehm: #cf9277;
+  --note-rose: #d98a97;
+  --note-malve: #b98bb4;
+  --note-flieder: #8e8ccb;
+  --note-seegruen: #3f9e97;
+  --note-salbei: #7fa870;
+  --note-oliv: #9aab4e;
 
   /* shadcn-style contract — plain hex, see tailwind.config.ts header comment */
   --background: var(--canvas);
@@ -91,6 +114,49 @@
   --ring-alpha: rgba(232, 96, 63, 0.22);
   --input: var(--border-input);
   --radius: 10px;
+
+  /* Board surface. The canvas is a physical pinboard, not a blank page: a faint petrol
+   * dot-grid gives the eye a sense of plane and scale, and the zone bands sit on it as
+   * recessed panels. Both are derived from existing brand tokens, no new hues. */
+  --board-dot: rgba(2, 71, 79, 0.07);
+  --board-grid-size: 22px;
+  --zone-surface: rgba(255, 255, 255, 0.5);
+  --zone-surface-over: rgba(253, 111, 82, 0.07);
+
+  /* Selected filter chips are tinted rather than solid-filled — a solid petrol pill read
+   * as a primary action sitting in the middle of a filter row. */
+  --chip-on: rgba(2, 71, 79, 0.08);
+  --chip-on-border: rgba(2, 71, 79, 0.22);
+
+  /* Note-colour card fills. The swatch tokens above are saturated accent values meant for
+   * dots and spines; filling a card with them would wreck text contrast. These are the
+   * paper-weight tints of the same hues. Measured against the text ramp they carry
+   * 9.4:1–10.4:1 for --fg-1 (AAA) and 5.0:1–5.6:1 for --fg-muted (AA); --fg-3 lands at
+   * ~3.9:1, so it is not used for text on a note card — see dueToneClass.
+   *
+   * Any tint added here must stay inside that band — a card is a text surface first and a
+   * colour second. Keep them desaturated enough to read as tinted paper. */
+  --note-tint-weiss: #ffffff;
+  --note-tint-eis: #f1f8f8;
+  --note-tint-sand: #fdf6ea;
+  --note-tint-minze: #eef7f2;
+  --note-tint-himmel: #eff4fc;
+  --note-tint-nebel: #f7f4ef;
+  --note-tint-butter: #faf6e2;
+  --note-tint-lehm: #fdf2ec;
+  --note-tint-rose: #fdf2f4;
+  --note-tint-malve: #faf2f9;
+  --note-tint-flieder: #f5f3fd;
+  --note-tint-seegruen: #eaf7f5;
+  --note-tint-salbei: #eff6ea;
+  --note-tint-oliv: #f4f7e6;
+}
+
+.board-surface {
+  background-color: var(--canvas);
+  background-image: radial-gradient(var(--board-dot) 1px, transparent 1px);
+  background-size: var(--board-grid-size) var(--board-grid-size);
+  background-position: -1px -1px;
 }
 
 html,
@@ -111,6 +177,17 @@ h2,
 h3,
 .font-head {
   font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Headings and short prose both suffer from orphans at these narrow measures. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 * {
@@ -139,14 +216,34 @@ h3,
   }
 }
 
+.wally-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
 .wally-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 .wally-scroll::-webkit-scrollbar-thumb {
   background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
   border-radius: 999px;
+}
+.wally-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-faint);
+  background-clip: content-box;
 }
 .wally-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Skeletons sweep a highlight across the inset fill rather than pulsing the whole block,
+   which reads as "content arriving" instead of "element misbehaving". */
+.wally-skeleton {
+  background-color: var(--inset);
+  background-image: linear-gradient(90deg, transparent 20%, rgba(255, 255, 255, 0.85) 50%, transparent 80%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+}
+

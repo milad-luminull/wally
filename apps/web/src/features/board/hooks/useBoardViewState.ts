@@ -12,6 +12,10 @@ export interface BoardViewState {
   priority: NotePriority[];
   mine: boolean;
   done: boolean;
+  /** Custom-property filter. A key alone matches any note carrying it; with a value it
+   *  matches that exact value. */
+  fieldKey: string | null;
+  fieldValue: string | null;
   noteId: string | null;
 }
 
@@ -39,6 +43,8 @@ export function useBoardViewState() {
       ) ?? []) as NotePriority[],
       mine: searchParams.get('mine') === '1',
       done: searchParams.get('done') !== '0',
+      fieldKey: searchParams.get('field'),
+      fieldValue: searchParams.get('fieldValue'),
       noteId: searchParams.get('note'),
     };
   }, [searchParams]);
@@ -66,6 +72,13 @@ export function useBoardViewState() {
     setPriority: (priority: NotePriority[]) => setParam('priority', priority.length ? priority.join(',') : null, 'push'),
     setMine: (mine: boolean) => setParam('mine', mine ? '1' : null, 'push'),
     setDone: (done: boolean) => setParam('done', done ? null : '0', 'push'),
+    setFieldKey: (key: string | null) => {
+      // Clearing the key must clear the value too, or a stale value silently narrows the
+      // next property the user picks.
+      setParam('fieldValue', null, 'push');
+      setParam('field', key, 'push');
+    },
+    setFieldValue: (value: string | null) => setParam('fieldValue', value, 'push'),
     openNote: (noteId: string | null) => setParam('note', noteId, 'push'),
   };
 }

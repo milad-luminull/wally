@@ -31,18 +31,21 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
   }
 
   return (
+    /* Stacked rather than squeezed onto one line: at the popover's width an input, a role
+       select and a button side by side left the email field too narrow to read a typed
+       address in. */
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <Input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="name@finlex.de"
+        aria-label="E-Mail-Adresse einladen"
+        aria-invalid={Boolean(error)}
+        className="h-9 text-13"
+      />
       <div className="flex items-center gap-2">
-        <Input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@finlex.de einladen"
-          aria-label="E-Mail-Adresse einladen"
-          aria-invalid={Boolean(error)}
-          className="h-8 flex-1 border-0 border-b border-border-subtle p-0 text-13 focus-visible:ring-0"
-        />
         <Select value={role} onValueChange={(v) => setRole(v as WhiteboardRole)}>
-          <SelectTrigger aria-label="Rolle" className="h-8 w-28 border-0 border-b border-border-subtle p-0 text-13">
+          <SelectTrigger aria-label="Rolle" className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -53,8 +56,8 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
             ))}
           </SelectContent>
         </Select>
-        <Button type="submit" variant="accent" size="sm" disabled={createInvite.isPending}>
-          Einladen
+        <Button type="submit" variant="accent" disabled={createInvite.isPending} className="shrink-0">
+          {createInvite.isPending ? 'Lädt ein…' : 'Einladen'}
         </Button>
       </div>
       {error && (

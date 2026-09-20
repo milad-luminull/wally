@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 import { TAG_MAX_LENGTH } from '@wally/shared';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from './Field';
 
 interface TagEditorProps {
   tags: string[];
@@ -33,7 +34,7 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-12 font-semibold text-fg-muted">Schlagworte</span>
+      <FieldLabel>Schlagworte</FieldLabel>
       <div className="flex flex-wrap items-center gap-1.5">
         {tags.map((tag) => (
           <span
@@ -46,7 +47,7 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
                 type="button"
                 onClick={() => onRemove(tag)}
                 aria-label={`${tag} entfernen`}
-                className="text-fg-3 transition-colors hover:text-fg-1"
+                className="text-fg-muted transition-colors hover:text-fg-1"
               >
                 <X className="h-2.5 w-2.5" strokeWidth={2.4} />
               </button>

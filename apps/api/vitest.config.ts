@@ -7,13 +7,9 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     testTimeout: 20000,
     hookTimeout: 20000,
-    // The integration suites (test/**) share ONE real Postgres database and fixed fixture
-    // ids (see test/helpers.ts's createBoardFixture), with `afterEach` truncating between
-    // tests *within* a file. Vitest's default parallel-file execution ran multiple test
-    // files against that same database at once, so one file's reset/insert raced another
-    // file's in-flight test (unique-constraint violations, "record not found"). Disabling
-    // file parallelism serializes all test files — the unit suites (src/**) don't need
-    // this, but the correctness fix matters more than that slice of speed here.
-    fileParallelism: false,
+    // Files run in parallel again: the suites that touch the datastore each declare their
+    // own emulator project id, and the emulator keeps projects separate — so one file's
+    // reset can no longer wipe another file's fixtures mid-test. (Under Postgres they all
+    // shared one database and had to be serialized.)
   },
 });

@@ -7,10 +7,9 @@ import { makeNoteDetail } from '@/test/fixtures';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
 vi.mock('@/lib/resources', () => ({
-  notesApi: { get: vi.fn(), update: vi.fn(), move: vi.fn(), assign: vi.fn(), complete: vi.fn(), reopen: vi.fn(), remove: vi.fn() },
+  notesApi: { get: vi.fn(), list: vi.fn(), update: vi.fn(), move: vi.fn(), assign: vi.fn(), complete: vi.fn(), reopen: vi.fn(), remove: vi.fn() },
   subtasksApi: { create: vi.fn(), update: vi.fn(), remove: vi.fn() },
   membersApi: { list: vi.fn() },
-  referenceOptionsApi: { list: vi.fn() },
 }));
 
 import { membersApi, notesApi } from '@/lib/resources';
@@ -19,6 +18,7 @@ beforeEach(() => {
   vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE' }));
   vi.mocked(notesApi.move).mockResolvedValue(makeNoteDetail({ priority: 'HOCH', horizon: 'SPAETER' }));
   vi.mocked(notesApi.remove).mockResolvedValue(undefined);
+  vi.mocked(notesApi.list).mockResolvedValue([]);
   vi.mocked(membersApi.list).mockResolvedValue([]);
 });
 
@@ -85,14 +85,14 @@ describe('NoteDetailPanel', () => {
     });
   });
 
-  it('offers exactly the 5 shared note-colour swatches, with no Apricot option', async () => {
+  it('offers exactly the 14 shared note-colour swatches, with no Apricot option', async () => {
     renderPanel();
     await screen.findByLabelText('Titel');
 
     for (const label of Object.values(COLOUR_LABELS)) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
-    expect(Object.values(COLOUR_LABELS)).toHaveLength(5);
+    expect(Object.values(COLOUR_LABELS)).toHaveLength(14);
     expect(screen.queryByRole('button', { name: 'Apricot' })).not.toBeInTheDocument();
   });
 

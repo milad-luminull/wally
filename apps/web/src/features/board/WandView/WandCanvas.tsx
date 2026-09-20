@@ -1,5 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { useRef, type MouseEvent } from 'react';
+import { MousePointerClick } from 'lucide-react';
 import {
   FREE_CANVAS_HEIGHT,
   FREE_CANVAS_WIDTH,
@@ -7,6 +8,7 @@ import {
   NOTE_CARD_WIDTH,
   type NoteDto,
 } from '@wally/shared';
+import { cn } from '@/lib/cn';
 import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
@@ -18,6 +20,9 @@ interface WandCanvasProps {
   onOpenNote: (id: string) => void;
   onCreateAt: (x: number, y: number) => void;
   canEdit: boolean;
+  /** True when the board has notes but the active filter hides all of them. */
+  filtered: boolean;
+  activeDragId: string | null;
 }
 
 /**
@@ -26,7 +31,16 @@ interface WandCanvasProps {
  * notes are placed on via {freeX, freeY}. One useDroppable region covers the whole
  * canvas; WandView's onDragEnd computes the new position from the drag delta.
  */
-export function WandCanvas({ notes, currentUserId, selectedNoteId, onOpenNote, onCreateAt, canEdit }: WandCanvasProps) {
+export function WandCanvas({
+  notes,
+  currentUserId,
+  selectedNoteId,
+  onOpenNote,
+  onCreateAt,
+  canEdit,
+  filtered,
+  activeDragId,
+}: WandCanvasProps) {
   const { setNodeRef, isOver } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,32 +58,50 @@ export function WandCanvas({ notes, currentUserId, selectedNoteId, onOpenNote, o
   }
 
   return (
-    <div ref={scrollRef} className="wally-scroll h-full min-w-0 flex-1 overflow-auto" onDoubleClick={handleDoubleClick}>
-      <div
-        ref={setNodeRef}
-        className="relative"
-        style={{
-          width: FREE_CANVAS_WIDTH,
-          height: FREE_CANVAS_HEIGHT,
-          background: isOver ? 'rgba(253,111,82,0.03)' : undefined,
-        }}
-      >
-        {notes.map((note) => (
-          <NoteCard
-            key={note.id}
-            note={note}
-            currentUserId={currentUserId}
-            selected={selectedNoteId === note.id}
-            onOpen={() => onOpenNote(note.id)}
-            style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
-          />
-        ))}
-        {notes.length === 0 && (
-          <p className="absolute left-1/2 top-[38%] -translate-x-1/2 text-13 text-fg-muted">
-            Keine Notiz passt zum Filter. Doppelklick legt eine neue an.
-          </p>
-        )}
+    <div className="relative h-full min-w-0 flex-1">
+      <div ref={scrollRef} className="wally-scroll h-full w-full overflow-auto" onDoubleClick={handleDoubleClick}>
+        <div
+          ref={setNodeRef}
+          className={cn(
+            'board-surface relative transition-[background-color] duration-200 ease-ds',
+            isOver && 'bg-[color:var(--zone-surface-over)]',
+          )}
+          style={{ width: FREE_CANVAS_WIDTH, height: FREE_CANVAS_HEIGHT }}
+        >
+          {notes.map((note) => (
+            <NoteCard
+              key={note.id}
+              note={note}
+              currentUserId={currentUserId}
+              selected={selectedNoteId === note.id}
+              dragging={activeDragId === note.id}
+              onOpen={() => onOpenNote(note.id)}
+              style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
+            />
+          ))}
+        </div>
       </div>
+
+      {/* Sits outside the scroll container so the prompt stays centred in the visible
+          panel instead of drifting off with the 2400px canvas. `pointer-events-none` keeps
+          the double-click-to-create gesture working straight through it. */}
+      {notes.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <div className="flex max-w-xs flex-col items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-[color:var(--zone-surface)] px-7 py-8 text-center backdrop-blur-[1px]">
+            <MousePointerClick className="h-5 w-5 text-fg-faint" strokeWidth={1.7} />
+            <p className="font-head text-15 font-semibold text-fg-1">
+              {filtered ? 'Keine Notiz passt zum Filter' : 'Freie Wand'}
+            </p>
+            <p className="text-12 text-fg-muted">
+              {filtered
+                ? 'Passe Suche oder Filter an, um wieder Notizen zu sehen.'
+                : canEdit
+                  ? 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.'
+                  : 'Auf dieser Wand liegt noch nichts.'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

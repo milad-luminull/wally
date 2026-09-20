@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UserSummary } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
 
 export function useAssignNote(boardId: string) {
   const queryClient = useQueryClient();
@@ -9,8 +9,8 @@ export function useAssignNote(boardId: string) {
   return useMutation({
     mutationFn: ({ noteId, assigneeId }: { noteId: string; assigneeId: string | null; optimisticAssignee?: UserSummary | null }) =>
       notesApi.assign(noteId, assigneeId),
-    onMutate: async ({ noteId, optimisticAssignee }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, optimisticAssignee }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
       patchNoteCaches(queryClient, boardId, noteId, { assignee: optimisticAssignee ?? null });
       return snapshot;

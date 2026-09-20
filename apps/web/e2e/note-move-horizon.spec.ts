@@ -17,12 +17,14 @@ test('moving a note to a different Horizon zone persists after reload', async ({
   await titleField.fill(title);
   await titleField.blur();
 
-  await page.getByRole('button', { name: 'Später' }).click();
+  // The Spalte control is a Radix single-select ToggleGroup, so its items expose
+  // role="radio" (inside a radiogroup) — not role="button".
+  await page.getByRole('radio', { name: 'Später' }).click();
   await page.getByRole('button', { name: 'Schließen' }).click();
 
   await page.reload();
   await page.getByLabel('Notizen durchsuchen').fill(title);
   await page.getByText(title).click();
 
-  await expect(page.getByRole('button', { name: 'Später' })).toHaveAttribute('data-state', 'on');
+  await expect(page.getByRole('radio', { name: 'Später' })).toHaveAttribute('data-state', 'on');
 });

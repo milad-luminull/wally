@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Trash2, X } from 'lucide-react';
 import {
   HORIZON_LABELS,
   PRIORITY_LABELS,
@@ -9,7 +9,6 @@ import {
   type NotePriority,
 } from '@wally/shared';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -38,12 +37,15 @@ import { useAssignNote } from '../hooks/mutations/useAssignNote';
 import { useDeleteNote } from '../hooks/mutations/useDeleteNote';
 import { useAddSubtask, useRemoveSubtask, useToggleSubtask } from '../hooks/mutations/useSubtaskMutations';
 import { useAddTag, useRemoveTag } from '../hooks/mutations/useTagMutations';
-import { priorityToneClass } from '../util/noteDerived';
+import { useSetCustomField, useRemoveCustomField } from '../hooks/mutations/useCustomFieldMutations';
+import { collectFieldKeys, priorityToneClass } from '../util/noteDerived';
+import { useNotes } from '../hooks/useNotes';
+import { Field, FieldLabel, PanelSection } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
 import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
-import { ReferenceCombobox } from './ReferenceCombobox';
+import { CustomFieldEditor } from './CustomFieldEditor';
 
 const NO_ASSIGNEE = '__none__';
 
@@ -82,7 +84,11 @@ export function NoteDetailPanel({ noteId, boardId, canEdit, axis, isBelowDesktop
     <aside
       role="complementary"
       aria-label="Notizdetails"
-      className="wally-scroll flex h-full w-[380px] shrink-0 flex-col overflow-y-auto border-l border-border bg-card"
+      /* The desktop panel used to pop into the flex row with no transition, snapping the
+         board narrower in one frame. Keying the animation on the note id replays the
+         slide whenever a different note is opened. */
+      key={noteId}
+      className="flex h-full w-[384px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-card shadow-[-8px_0_24px_-12px_rgba(2,71,79,0.18)]"
     >
       <NoteDetailContent
         noteId={noteId}
@@ -108,6 +114,9 @@ interface ContentProps {
 function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusTitle }: ContentProps) {
   const { data: note, isLoading } = useNoteDetail(noteId);
   const { activeMembers } = useActiveMembers(boardId);
+  // Same cached query the board renders from — no extra fetch.
+  const { data: boardNotes } = useNotes(boardId);
+  const fieldKeySuggestions = useMemo(() => collectFieldKeys(boardNotes ?? []), [boardNotes]);
 
   const updateNote = useUpdateNote(boardId);
   const moveNote = useMoveNote(boardId);
@@ -119,13 +128,28 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
   const removeSubtask = useRemoveSubtask(boardId);
   const addTag = useAddTag(boardId);
   const removeTag = useRemoveTag(boardId);
+  const setCustomField = useSetCustomField(boardId);
+  const removeCustomField = useRemoveCustomField(boardId);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState(note?.title ?? '');
 
+  /** Grows the field to fit its content. The title is the one piece of text on the panel
+   * that must never be clipped or scrolled. */
+  const resizeTitle = useCallback(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
   useEffect(() => {
     setTitle(note?.title ?? '');
   }, [note?.id, note?.title]);
+
+  useEffect(() => {
+    resizeTitle();
+  }, [title, resizeTitle]);
 
   const noteReady = Boolean(note);
   useEffect(() => {
@@ -140,14 +164,20 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
 
   if (isLoading || !note) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6 p-5" role="status" aria-label="Lädt…">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-6 w-6 rounded-full" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-7 w-7 rounded-md" />
         </div>
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-7 w-3/4" />
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-8 w-full" />
+        </div>
       </div>
     );
   }
@@ -155,6 +185,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
   const disabled = !canEdit;
   const zoneLabel = axis === 'priority' ? 'Zeile' : 'Spalte';
   const showZone = axis !== 'free';
+  const isDone = note.status === 'DONE';
 
   function commitTitle() {
     const trimmed = title.trim();
@@ -173,7 +204,10 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
   function handleZoneChange(value: string) {
     if (!value || !note) return;
     if (axis === 'horizon') {
-      moveNote.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: value as (typeof noteHorizonValues)[number] } });
+      moveNote.mutate({
+        noteId: note.id,
+        input: { mode: 'HORIZON', horizon: value as (typeof noteHorizonValues)[number] },
+      });
     } else if (axis === 'priority') {
       moveNote.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: value as NotePriority } });
     }
@@ -194,18 +228,18 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5 px-6 pt-5">
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
         <span
           role="img"
-          aria-label={note.status === 'DONE' ? 'Erledigt' : `Priorität: ${PRIORITY_LABELS[note.priority]}`}
+          aria-label={isDone ? 'Erledigt' : `Priorität: ${PRIORITY_LABELS[note.priority]}`}
           className={cn(
             'h-2 w-2 shrink-0 rounded-full',
-            note.status === 'DONE' ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
+            isDone ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
           )}
         />
-        <span className="flex-1 text-12 font-semibold text-fg-muted">
-          {note.status === 'DONE'
+        <span className="flex-1 truncate text-12 font-semibold text-fg-muted">
+          {isDone
             ? 'Erledigt'
             : `${axis === 'priority' ? PRIORITY_LABELS[note.priority] : HORIZON_LABELS[note.horizon]} · ${PRIORITY_LABELS[note.priority]}`}
         </span>
@@ -214,135 +248,161 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             type="button"
             onClick={onClose}
             aria-label="Schließen"
-            className="rounded-sm p-1 text-fg-muted transition-colors hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
           >
             <X className="h-4 w-4" />
           </button>
         </IconTooltip>
-      </div>
+      </header>
 
-      <div className="wally-scroll flex flex-1 flex-col gap-7 overflow-y-auto px-6 py-5">
-        <Textarea
-          ref={titleRef}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={commitTitle}
-          disabled={disabled}
-          rows={2}
-          placeholder="Was ist zu tun?"
-          aria-label="Titel"
-          className="font-head text-22 font-semibold leading-tight tracking-[-0.02em] text-fg-1"
-        />
-
-        <div className="flex flex-col gap-2">
-          <span className="text-12 font-semibold text-fg-muted">Priorität</span>
-          <ToggleGroup type="single" value={note.priority} onValueChange={handlePriorityChange} disabled={disabled}>
-            {notePriorityValues.map((p) => (
-              <ToggleGroupItem key={p} value={p} aria-label={PRIORITY_LABELS[p]}>
-                <span className={cn('h-[7px] w-[7px] rounded-full', priorityToneClass[p])} />
-                {PRIORITY_LABELS[p]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+      <div className="wally-scroll min-h-0 flex-1 overflow-y-auto">
+        <div className="px-5 pb-1 pt-4">
+          <textarea
+            ref={titleRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={commitTitle}
+            onInput={resizeTitle}
+            disabled={disabled}
+            rows={1}
+            placeholder="Was ist zu tun?"
+            aria-label="Titel"
+            /* Explicit `block` + `resize-none` and an auto-grown height: as a shrinkable
+               flex child inside the old overflowing column this field collapsed to a few
+               pixels tall. It is no longer a flex item. */
+            className={cn(
+              'font-head block w-full resize-none overflow-hidden rounded-md bg-transparent text-22 font-bold text-fg-1 outline-none',
+              'placeholder:font-semibold placeholder:text-fg-faint',
+              'disabled:cursor-not-allowed disabled:opacity-70',
+              isDone && 'text-fg-muted line-through decoration-fg-faint',
+            )}
+          />
         </div>
 
-        {showZone && (
-          <div className="flex flex-col gap-2">
-            <span className="text-12 font-semibold text-fg-muted">{zoneLabel}</span>
-            <ToggleGroup
-              type="single"
-              value={axis === 'priority' ? note.priority : note.horizon}
-              onValueChange={handleZoneChange}
-              disabled={disabled}
-            >
-              {(axis === 'priority' ? notePriorityValues : noteHorizonValues).map((key) => (
-                <ToggleGroupItem key={key} value={key}>
-                  {axis === 'priority' ? PRIORITY_LABELS[key as NotePriority] : HORIZON_LABELS[key as keyof typeof HORIZON_LABELS]}
+        <PanelSection>
+          <Field>
+            <FieldLabel>Priorität</FieldLabel>
+            <ToggleGroup type="single" value={note.priority} onValueChange={handlePriorityChange} disabled={disabled}>
+              {notePriorityValues.map((p) => (
+                <ToggleGroupItem key={p} variant="chip" value={p} aria-label={PRIORITY_LABELS[p]}>
+                  <span className={cn('h-[7px] w-[7px] rounded-full', priorityToneClass[p])} />
+                  {PRIORITY_LABELS[p]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-          </div>
-        )}
+          </Field>
 
-        <div className="grid grid-cols-2 gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="note-due" className="text-12 font-semibold text-fg-muted">
-              Fällig
-            </label>
-            <Input
-              id="note-due"
-              type="date"
-              value={note.dueDate ?? ''}
-              disabled={disabled}
-              onChange={(e) => updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })}
-              className="h-[30px] border-0 border-b border-border-subtle p-0 focus-visible:ring-0"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-12 font-semibold text-fg-muted">Zuständig</span>
-            <Select value={note.assignee?.id ?? NO_ASSIGNEE} onValueChange={handleAssigneeChange} disabled={disabled}>
-              <SelectTrigger aria-label="Zuständig">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_ASSIGNEE}>Niemand</SelectItem>
-                {activeMembers.map((member) => (
-                  <SelectItem key={member.id} value={member.userId ?? member.id}>
-                    {member.displayName ?? member.email}
-                  </SelectItem>
+          {showZone && (
+            <Field>
+              <FieldLabel>{zoneLabel}</FieldLabel>
+              <ToggleGroup
+                type="single"
+                value={axis === 'priority' ? note.priority : note.horizon}
+                onValueChange={handleZoneChange}
+                disabled={disabled}
+              >
+                {(axis === 'priority' ? notePriorityValues : noteHorizonValues).map((key) => (
+                  <ToggleGroupItem key={key} variant="chip" value={key}>
+                    {axis === 'priority'
+                      ? PRIORITY_LABELS[key as NotePriority]
+                      : HORIZON_LABELS[key as keyof typeof HORIZON_LABELS]}
+                  </ToggleGroupItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </ToggleGroup>
+            </Field>
+          )}
+        </PanelSection>
+
+        <PanelSection>
+          <div className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="note-due">Fällig</FieldLabel>
+              <Input
+                id="note-due"
+                type="date"
+                value={note.dueDate ?? ''}
+                disabled={disabled}
+                onChange={(e) => updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })}
+                className="h-9 text-13"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Zuständig</FieldLabel>
+              <Select value={note.assignee?.id ?? NO_ASSIGNEE} onValueChange={handleAssigneeChange} disabled={disabled}>
+                <SelectTrigger
+                  aria-label="Zuständig"
+                  className="h-9 rounded-md border border-input bg-card px-3 text-13"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ASSIGNEE}>Niemand</SelectItem>
+                  {activeMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.userId ?? member.id}>
+                      {member.displayName ?? member.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
-        </div>
+        </PanelSection>
 
-        <ReferenceCombobox
-          referenceType={note.referenceType}
-          referenceLabel={note.referenceLabel}
-          disabled={disabled}
-          onChange={(type, label) =>
-            updateNote.mutate({ noteId: note.id, input: { referenceType: type, referenceLabel: label } })
-          }
-        />
+        <PanelSection>
+          <CustomFieldEditor
+            fields={note.customFields}
+            keySuggestions={fieldKeySuggestions}
+            disabled={disabled}
+            onSet={(key, value) => setCustomField.mutate({ noteId: note.id, key, value })}
+            onRemove={(key) => removeCustomField.mutate({ noteId: note.id, key })}
+          />
 
-        <TagEditor
-          tags={note.tags}
-          disabled={disabled}
-          onAdd={(tag) => addTag.mutate({ noteId: note.id, tag })}
-          onRemove={(tag) => removeTag.mutate({ noteId: note.id, tag })}
-        />
+          <TagEditor
+            tags={note.tags}
+            disabled={disabled}
+            onAdd={(tag) => addTag.mutate({ noteId: note.id, tag })}
+            onRemove={(tag) => removeTag.mutate({ noteId: note.id, tag })}
+          />
+        </PanelSection>
 
-        <SubtaskChecklist
-          subtasks={note.subtasks}
-          disabled={disabled}
-          onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
-          onToggle={(subtaskId, done) => toggleSubtask.mutate({ noteId: note.id, subtaskId, done })}
-          onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
-        />
+        <PanelSection>
+          <SubtaskChecklist
+            subtasks={note.subtasks}
+            disabled={disabled}
+            onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
+            onToggle={(subtaskId, done) => toggleSubtask.mutate({ noteId: note.id, subtaskId, done })}
+            onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
+          />
+        </PanelSection>
 
-        <ColorSwatchPicker
-          value={note.colour}
-          disabled={disabled}
-          onChange={(colour: NoteColour) => updateNote.mutate({ noteId: note.id, input: { colour } })}
-        />
+        <PanelSection>
+          <ColorSwatchPicker
+            value={note.colour}
+            disabled={disabled}
+            onChange={(colour: NoteColour) => updateNote.mutate({ noteId: note.id, input: { colour } })}
+          />
+        </PanelSection>
 
-        <HistoryTrail history={note.history} />
+        <PanelSection>
+          <HistoryTrail history={note.history} />
+        </PanelSection>
       </div>
 
-      <div className="flex items-center gap-5 border-t border-border px-6 py-4">
+      <footer className="flex shrink-0 items-center gap-3 border-t border-border px-5 py-3.5">
         <Button
-          variant={note.status === 'DONE' ? 'outline' : 'default'}
+          variant={isDone ? 'outline' : 'default'}
           disabled={disabled}
           onClick={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
+          className="flex-1"
         >
-          {note.status === 'DONE' ? 'Wieder offen' : 'Erledigt'}
+          {isDone ? 'Wieder offen' : 'Erledigt'}
         </Button>
 
         {!disabled && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="text">
-                Löschen
+              <Button variant="destructive" size="icon" aria-label="Löschen">
+                <Trash2 className="h-4 w-4" strokeWidth={1.9} />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -367,7 +427,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             </AlertDialogContent>
           </AlertDialog>
         )}
-      </div>
+      </footer>
     </div>
   );
 }

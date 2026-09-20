@@ -104,7 +104,7 @@ describe('ListView', () => {
         isBelowDesktop={false}
       />,
     );
-    expect(screen.getByText('Noch keine Notizen auf dieser Wand.')).toBeInTheDocument();
+    expect(screen.getByText('Deine Wand ist noch leer')).toBeInTheDocument();
   });
 
   it('shows the filter-mismatch message when notes exist but the filter hides all of them', () => {
@@ -120,7 +120,7 @@ describe('ListView', () => {
         isBelowDesktop={false}
       />,
     );
-    expect(screen.getByText('Keine Notiz passt zum Filter.')).toBeInTheDocument();
+    expect(screen.getByText('Keine Notiz passt zum Filter')).toBeInTheDocument();
   });
 
   it('shows the mobile drag hint below desktop width', () => {

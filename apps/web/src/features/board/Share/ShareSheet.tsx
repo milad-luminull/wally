@@ -4,7 +4,7 @@ import { WHITEBOARD_ROLE_LABELS, whiteboardRoleValues, type WhiteboardRole } fro
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Segmented } from '@/components/ui/segmented';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMembers } from '../hooks/useMembers';
 import { useShareLink } from '../hooks/useShareLink';
@@ -47,43 +47,40 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="font-head text-15 font-semibold text-fg-1">Wand teilen</p>
+    <div className="flex flex-col gap-5">
+      <p className="font-head text-15 font-bold text-fg-1">Wand teilen</p>
 
       {isOwner && (
-        <>
-          <div className="flex items-center gap-3 border-b border-border-subtle pb-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-inset px-3 py-2">
             {shareLinkQuery.data ? (
-              <span className="min-w-0 flex-1 truncate text-13 text-fg-muted">{shareLinkQuery.data.url}</span>
+              <span className="min-w-0 flex-1 truncate text-12 text-fg-2">{shareLinkQuery.data.url}</span>
             ) : (
               <Skeleton className="h-4 flex-1" />
             )}
-            <Button variant="link" size="text" onClick={handleCopy} disabled={!shareLinkQuery.data}>
+            <Button variant="link" size="text" onClick={handleCopy} disabled={!shareLinkQuery.data} className="shrink-0 text-12 font-semibold">
               {copied ? 'Kopiert' : 'Kopieren'}
             </Button>
           </div>
 
-          <Tabs
+          <Segmented
+            aria-label="Rolle für den Link"
+            className="w-full"
             value={shareLinkQuery.data?.role ?? 'VIEW'}
-            onValueChange={(role) => createOrUpdateShareLink.mutate(role as WhiteboardRole)}
-          >
-            <TabsList>
-              {whiteboardRoleValues.map((role) => (
-                <TabsTrigger key={role} value={role}>
-                  {WHITEBOARD_ROLE_LABELS[role]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+            onChange={(role) => createOrUpdateShareLink.mutate(role as WhiteboardRole)}
+            options={whiteboardRoleValues.map((role) => ({ value: role, label: WHITEBOARD_ROLE_LABELS[role] }))}
+          />
+
           <p className="text-12 leading-relaxed text-fg-muted">
             {shareLinkQuery.data?.role === 'EDIT'
               ? 'Jeder mit dem Link kann Notizen anlegen und verschieben.'
               : 'Jeder mit dem Link kann die Wand ansehen.'}
           </p>
-        </>
+        </div>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-border-subtle pt-3">
+      <div className="flex flex-col gap-3 border-t border-border-subtle pt-4">
+        <p className="text-12 font-medium text-fg-muted">Mitglieder</p>
         {membersLoading ? (
           <Skeleton className="h-16 w-full" />
         ) : (
@@ -92,7 +89,9 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
       </div>
 
       {isOwner ? (
-        <InviteByEmailForm boardId={boardId} />
+        <div className="border-t border-border-subtle pt-4">
+          <InviteByEmailForm boardId={boardId} />
+        </div>
       ) : (
         <p className="text-12 text-fg-muted">Nur der Eigentümer kann Freigaben verwalten.</p>
       )}
@@ -129,7 +128,7 @@ export function ShareSheet({ boardId, ownerId, isOwner, isBelowTablet }: ShareSh
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="w-[340px]">
+      <PopoverContent className="w-[372px]">
         <ShareBody boardId={boardId} ownerId={ownerId} isOwner={isOwner} />
       </PopoverContent>
     </Popover>

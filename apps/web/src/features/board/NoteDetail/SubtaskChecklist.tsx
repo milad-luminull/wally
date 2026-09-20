@@ -4,6 +4,7 @@ import type { SubtaskDto } from '@wally/shared';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/cn';
+import { FieldLabel } from './Field';
 
 interface SubtaskChecklistProps {
   subtasks: SubtaskDto[];
@@ -34,9 +35,9 @@ export function SubtaskChecklist({ subtasks, onAdd, onToggle, onRemove, disabled
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-12 font-semibold text-fg-muted">Teilschritte</span>
+        <FieldLabel>Unteraufgaben</FieldLabel>
         {subtasks.length > 0 && (
-          <span className="text-11 text-fg-3 tabular-nums">
+          <span className="text-11 text-fg-muted tabular-nums">
             {done} von {subtasks.length}
           </span>
         )}
@@ -71,8 +72,8 @@ export function SubtaskChecklist({ subtasks, onAdd, onToggle, onRemove, disabled
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={commit}
-            placeholder="Teilschritt hinzufügen"
-            aria-label="Teilschritt hinzufügen"
+            placeholder="Unteraufgabe hinzufügen"
+            aria-label="Unteraufgabe hinzufügen"
             className="mt-1 h-[30px] border-0 border-b border-border-subtle p-0 text-13 focus-visible:ring-0"
           />
         )}

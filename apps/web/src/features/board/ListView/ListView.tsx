@@ -1,8 +1,41 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Info, StickyNote, X } from 'lucide-react';
 import type { NoteDto, NoteStatus } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
+import { cn } from '@/lib/cn';
 import { groupByAxis } from '../util/noteDerived';
 import { NoteRow } from './NoteRow';
+
+const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
+
+/**
+ * A hint the reader only needs once, remembered per browser.
+ *
+ * This one sat undismissable at the top of the list on every load, in the most valuable
+ * strip of a phone screen, to explain a capability that isn't reachable from a phone at
+ * all. Storage can throw (private mode, blocked site data), in which case the hint simply
+ * returns on the next load rather than the view failing to render.
+ */
+function useDismissibleHint(storageKey: string) {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem(storageKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  function dismiss() {
+    setDismissed(true);
+    try {
+      window.localStorage.setItem(storageKey, '1');
+    } catch {
+      /* Not persistable here; the dismissal still holds for this session. */
+    }
+  }
+
+  return [dismissed, dismiss] as const;
+}
 
 interface ListViewProps {
   notes: NoteDto[];
@@ -33,45 +66,76 @@ export function ListView({
   isBelowDesktop,
 }: ListViewProps) {
   const groups = useMemo(() => groupByAxis(notes, axis).filter((g) => g.notes.length > 0), [notes, axis]);
+  const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
   if (notes.length === 0) {
+    const boardIsEmpty = totalNoteCount === 0;
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 py-16 text-center">
-        <p className="text-14 font-medium text-fg-1">
-          {totalNoteCount === 0 ? 'Noch keine Notizen auf dieser Wand.' : 'Keine Notiz passt zum Filter.'}
-        </p>
-        <p className="text-13 text-fg-muted">
-          {totalNoteCount === 0
-            ? 'Lege über „Neue Notiz“ deine erste Notiz an.'
-            : 'Passe Suche oder Filter an, um wieder Notizen zu sehen.'}
-        </p>
+      <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
+        <div className="flex max-w-sm flex-col items-center gap-2.5 text-center">
+          <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-inset text-fg-faint">
+            <StickyNote className="h-5 w-5" strokeWidth={1.7} />
+          </span>
+          <p className="font-head text-18 font-semibold text-fg-1">
+            {boardIsEmpty ? 'Deine Wand ist noch leer' : 'Keine Notiz passt zum Filter'}
+          </p>
+          <p className="text-13 text-fg-muted">
+            {boardIsEmpty
+              ? canEdit
+                ? 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.'
+                : 'Sobald jemand eine Notiz anlegt, erscheint sie hier.'
+              : 'Passe Suche oder Filter an, um wieder Notizen zu sehen.'}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="wally-scroll flex-1 overflow-auto px-6 pb-8">
-      <div className="mx-auto flex max-w-[760px] flex-col gap-8">
-        {isBelowDesktop && (
-          <p className="text-12 text-fg-muted">Notizen frei verschieben geht am Rechner (ab 1080px Breite).</p>
-        )}
-        {groups.map((group) => (
-          <div key={group.key}>
-            <div className="flex items-center gap-2 border-b border-border pb-2.5">
-              <span className="text-11 font-semibold uppercase tracking-[0.08em] text-fg-muted">{group.label}</span>
-              <span className="text-11 font-semibold text-fg-3 tabular-nums">{group.notes.length}</span>
-            </div>
-            {group.notes.map((note) => (
-              <NoteRow
-                key={note.id}
-                note={note}
-                currentUserId={currentUserId}
-                onOpen={() => onOpenNote(note.id)}
-                onToggleDone={() => onToggleDone(note.id, note.status)}
-                canEdit={canEdit}
-              />
-            ))}
+    <div className="board-surface wally-scroll flex-1 overflow-auto px-5 pb-10 pt-5 lg:px-6 lg:pt-6">
+      <div className="mx-auto flex w-full max-w-[780px] flex-col gap-7">
+        {isBelowDesktop && !hintDismissed && (
+          <div className="flex items-start gap-2 rounded-xl border border-border-subtle bg-[color:var(--zone-surface)] px-3.5 py-2.5 text-12 text-fg-muted">
+            <Info className="mt-px h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.9} />
+            <p className="min-w-0 flex-1">Notizen frei verschieben geht am Rechner (ab 1080px Breite).</p>
+            <button
+              type="button"
+              onClick={dismissHint}
+              aria-label="Hinweis ausblenden"
+              className={cn(
+                '-my-1 -mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-faint',
+                'transition-colors duration-150 ease-ds hover:bg-inset hover:text-fg-1',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+                '[@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9',
+              )}
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
           </div>
+        )}
+
+        {groups.map((group) => (
+          <section key={group.key} className="overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-e1">
+            <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-alt px-4 py-2.5">
+              <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">{group.label}</h2>
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-11 font-semibold tabular-nums text-fg-muted">
+                {group.notes.length}
+              </span>
+            </header>
+
+            <div>
+              {group.notes.map((note) => (
+                <NoteRow
+                  key={note.id}
+                  note={note}
+                  currentUserId={currentUserId}
+                  onOpen={() => onOpenNote(note.id)}
+                  onToggleDone={() => onToggleDone(note.id, note.status)}
+                  canEdit={canEdit}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </div>

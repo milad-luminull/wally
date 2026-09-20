@@ -22,15 +22,19 @@ export default {
         head: ['Manrope', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
+      /* Keep the key list in sync with FONT_SIZES in src/lib/cn.ts — tailwind-merge has to
+       * be told about every one of them or it treats the class as a text *colour*. */
       fontSize: {
-        11: ['11px', { lineHeight: '1.3' }],
+        11: ['11px', { lineHeight: '1.3', letterSpacing: '0.01em' }],
         12: ['12px', { lineHeight: '1.35' }],
         13: ['13px', { lineHeight: '1.4' }],
-        14: ['14px', { lineHeight: '1.4' }],
+        14: ['14px', { lineHeight: '1.45' }],
         15: ['15px', { lineHeight: '1.35' }],
-        18: ['18px', { lineHeight: '1.3' }],
-        22: ['22px', { lineHeight: '1.2' }],
-        32: ['32px', { lineHeight: '1.15' }],
+        18: ['18px', { lineHeight: '1.3', letterSpacing: '-0.011em' }],
+        22: ['22px', { lineHeight: '1.22', letterSpacing: '-0.018em' }],
+        26: ['26px', { lineHeight: '1.18', letterSpacing: '-0.022em' }],
+        32: ['32px', { lineHeight: '1.12', letterSpacing: '-0.026em' }],
+        40: ['40px', { lineHeight: '1.05', letterSpacing: '-0.032em' }],
       },
       colors: {
         background: 'var(--background)',
@@ -72,12 +76,9 @@ export default {
           neutral: 'var(--status-neutral)',
           'neutral-bold': 'var(--status-neutral-bold)',
         },
-        note: {
-          eis: 'var(--note-eis)',
-          sand: 'var(--note-sand)',
-          minze: 'var(--note-minze)',
-          himmel: 'var(--note-himmel)',
-        },
+        /* Note colours deliberately have no entry here. Every consumer reads the CSS
+           variable directly (`bg-[color:var(--note-…)]`, see util/noteDerived.ts), so a
+           parallel Tailwind group would be a second list to keep in sync for no gain. */
       },
       borderRadius: {
         sm: '6px',
@@ -87,16 +88,60 @@ export default {
         xl: '12px',
         '2xl': '16px',
       },
+      /* Elevation is tinted with the petrol brand hue rather than neutral black, so cards
+       * read as sitting on the iceblue canvas instead of on a grey sheet. */
       boxShadow: {
+        e1: '0 1px 2px rgba(2, 71, 79, 0.06), 0 1px 1px rgba(2, 71, 79, 0.04)',
         e2: '0 8px 24px rgba(2, 71, 79, 0.12)',
+        e3: '0 18px 40px -8px rgba(2, 71, 79, 0.22), 0 4px 10px rgba(2, 71, 79, 0.08)',
+        pin: '0 2px 4px rgba(2, 71, 79, 0.08), 0 8px 18px -10px rgba(2, 71, 79, 0.28)',
       },
       transitionDuration: {
+        120: '120ms',
         150: '150ms',
         240: '240ms',
         420: '420ms',
       },
       transitionTimingFunction: {
         ds: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
+        /* Slight overshoot for tactile press/release feedback only. */
+        tactile: 'cubic-bezier(0.34, 1.4, 0.64, 1)',
+      },
+      /* Radix's Presence unmounts a node as soon as it stops detecting a running CSS
+       * *animation* — it does not observe transitions. Exit motion therefore has to be
+       * keyframed, which is why every overlay below ships an `-out` pair. */
+      keyframes: {
+        'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+        'fade-out': { from: { opacity: '1' }, to: { opacity: '0' } },
+        'dialog-in': {
+          from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
+          to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+        },
+        'dialog-out': {
+          from: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
+          to: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
+        },
+        'slide-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'translateX(0)' } },
+        'slide-out-right': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(100%)' } },
+        'slide-in-bottom': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
+        'slide-out-bottom': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(100%)' } },
+        'pop-in': { from: { opacity: '0', transform: 'scale(0.94)' }, to: { opacity: '1', transform: 'scale(1)' } },
+        'pop-out': { from: { opacity: '1', transform: 'scale(1)' }, to: { opacity: '0', transform: 'scale(0.94)' } },
+        /* Skeletons sweep instead of pulsing — reads as loading, not as a broken element. */
+        shimmer: { from: { backgroundPosition: '200% 0' }, to: { backgroundPosition: '-200% 0' } },
+      },
+      animation: {
+        'fade-in': 'fade-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'fade-out': 'fade-out 180ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'dialog-in': 'dialog-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'dialog-out': 'dialog-out 160ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'slide-in-right': 'slide-in-right 300ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'slide-out-right': 'slide-out-right 200ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'slide-in-bottom': 'slide-in-bottom 300ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'slide-out-bottom': 'slide-out-bottom 200ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'pop-in': 'pop-in 150ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'pop-out': 'pop-out 110ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        shimmer: 'shimmer 1.6s linear infinite',
       },
       zIndex: {
         dropdown: '20',

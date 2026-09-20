@@ -5,6 +5,7 @@ import { SignupPage } from '@/routes/SignupPage';
 import { RootRedirect } from '@/routes/RootRedirect';
 import { BoardPage } from '@/routes/BoardPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
+import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
 
 export function App() {
   return (
@@ -25,6 +26,14 @@ export function App() {
           element={
             <ProtectedRoute>
               <BoardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/share/:token"
+          element={
+            <ProtectedRoute>
+              <ShareRedeemPage />
             </ProtectedRoute>
           }
         />

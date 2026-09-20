@@ -1,5 +1,11 @@
 import { X } from 'lucide-react';
-import { EFFECTIVE_ROLE_LABELS, WHITEBOARD_ROLE_LABELS, whiteboardRoleValues, type MemberDto } from '@wally/shared';
+import {
+  EFFECTIVE_ROLE_LABELS,
+  WHITEBOARD_ROLE_LABELS,
+  whiteboardRoleValues,
+  type MemberDto,
+  type WhiteboardRole,
+} from '@wally/shared';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
@@ -37,8 +43,13 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
             </div>
             {isOwner && !isBoardOwner ? (
               <>
-                <Select value={member.role} onValueChange={(role) => updateRole.mutate({ memberId: member.id, role: role as typeof member.role })}>
-                  <SelectTrigger aria-label={`Rolle von ${name}`} className="h-7 w-24 border-0 p-0 text-12">
+                {/* Only reachable for non-owner rows, so member.role is VIEW|EDIT here even
+                    though MemberDto.role also admits the synthetic owner's OWNER. */}
+                <Select value={member.role} onValueChange={(role) => updateRole.mutate({ memberId: member.id, role: role as WhiteboardRole })}>
+                  <SelectTrigger
+                    aria-label={`Rolle von ${name}`}
+                    className="h-8 w-[104px] shrink-0 rounded-md border border-border bg-card px-2.5 text-12"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -62,7 +73,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
               </>
             ) : (
               <span className="whitespace-nowrap text-12 text-fg-muted">
-                {isBoardOwner ? EFFECTIVE_ROLE_LABELS.OWNER : WHITEBOARD_ROLE_LABELS[member.role]}
+                {EFFECTIVE_ROLE_LABELS[member.role]}
               </span>
             )}
           </div>

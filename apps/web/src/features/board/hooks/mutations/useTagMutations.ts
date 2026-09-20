@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { queryKeys } from '../queryKeys';
-import { patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
+import { cancelNoteCaches, patchNoteCaches, restoreNoteCaches, settleNoteCaches, snapshotNoteCaches } from './shared';
 
 /** No dedicated add/remove-tag route — PATCH /notes/:id's `tags` field is a full-array
  * replace (see packages/shared/src/schemas/note.ts), so both hooks read the current
@@ -19,8 +19,8 @@ export function useAddTag(boardId: string) {
       const next = Array.from(new Set([...currentTags(queryClient, boardId, noteId), tag]));
       return notesApi.update(noteId, { tags: next });
     },
-    onMutate: async ({ noteId, tag }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, tag }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
       const next = Array.from(new Set([...currentTags(queryClient, boardId, noteId), tag]));
       patchNoteCaches(queryClient, boardId, noteId, { tags: next });
@@ -40,8 +40,8 @@ export function useRemoveTag(boardId: string) {
       const next = currentTags(queryClient, boardId, noteId).filter((t) => t !== tag);
       return notesApi.update(noteId, { tags: next });
     },
-    onMutate: async ({ noteId, tag }) => {
-      await queryClient.cancelQueries({ queryKey: ['notes', noteId] });
+    onMutate: ({ noteId, tag }) => {
+      cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
       const next = currentTags(queryClient, boardId, noteId).filter((t) => t !== tag);
       patchNoteCaches(queryClient, boardId, noteId, { tags: next });

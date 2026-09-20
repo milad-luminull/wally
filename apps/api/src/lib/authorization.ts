@@ -1,39 +1,53 @@
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
-import type { PrismaClient } from './prisma-client.js';
+import type { Firestore } from 'firebase-admin/firestore';
 import type { EffectiveRole } from '@wally/shared';
+import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
+import { notesCol, whiteboardsCol, withId } from './db/collections.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     whiteboardContext?: {
       whiteboardId: string;
       role: EffectiveRole;
+      /** The board document, already loaded while resolving access. */
+      board: WithId<WhiteboardDoc>;
     };
+    /**
+     * The note a `noteParam` route is about, already loaded while resolving access.
+     * Handlers reuse it instead of reading the same document a second time.
+     */
+    noteContext?: WithId<NoteDoc>;
   }
 }
 
 /**
- * Resolves the caller's effective role on a whiteboard: OWNER if they own it, else the
- * role of their ACTIVE WhiteboardMember row, else null (no access at all — including
- * "whiteboard doesn't exist", which the caller must not be able to distinguish from
- * "exists but I'm not a member").
+ * The caller's role on an already-loaded board: OWNER if they own it, else the role of
+ * their ACTIVE membership, else null.
+ *
+ * Answered by the board document alone, via its `memberRoles` map. This runs on nearly
+ * every request, which is why active memberships are mirrored onto the board rather than
+ * costing a second query here.
+ */
+export function resolveRole(
+  board: WithId<WhiteboardDoc>,
+  userId: string,
+): EffectiveRole | null {
+  if (board.ownerId === userId) return 'OWNER';
+  return board.memberRoles[userId] ?? null;
+}
+
+/**
+ * Resolves the caller's effective role on a whiteboard, or null for no access at all —
+ * including "whiteboard doesn't exist", which the caller must not be able to distinguish
+ * from "exists but I'm not a member".
  */
 export async function getEffectiveRole(
-  prisma: PrismaClient,
+  db: Firestore,
   userId: string,
   whiteboardId: string,
 ): Promise<EffectiveRole | null> {
-  const whiteboard = await prisma.whiteboard.findUnique({
-    where: { id: whiteboardId },
-    select: { ownerId: true },
-  });
-  if (!whiteboard) return null;
-  if (whiteboard.ownerId === userId) return 'OWNER';
-
-  const member = await prisma.whiteboardMember.findFirst({
-    where: { whiteboardId, userId, status: 'ACTIVE' },
-    select: { role: true },
-  });
-  return member ? member.role : null;
+  const board = withId(await whiteboardsCol(db).doc(whiteboardId).get());
+  return board ? resolveRole(board, userId) : null;
 }
 
 type WhiteboardSource =
@@ -53,16 +67,18 @@ export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHoo
     const paramName = source.paramName ?? 'id';
     const params = request.params as Record<string, string>;
     const paramValue = params[paramName];
-    const prisma = request.server.prisma;
+    const db = request.server.db;
+
+    if (!paramValue) {
+      return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
+    }
 
     let whiteboardId: string | undefined;
     if (source.kind === 'whiteboardParam') {
       whiteboardId = paramValue;
     } else {
-      const note = await prisma.note.findUnique({
-        where: { id: paramValue },
-        select: { whiteboardId: true },
-      });
+      const note = withId(await notesCol(db).doc(paramValue).get());
+      if (note) request.noteContext = note;
       whiteboardId = note?.whiteboardId;
     }
 
@@ -70,12 +86,13 @@ export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHoo
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
     }
 
-    const role = await getEffectiveRole(prisma, request.user.id, whiteboardId);
-    if (!role) {
+    const board = withId(await whiteboardsCol(db).doc(whiteboardId).get());
+    const role = board ? resolveRole(board, request.user.id) : null;
+    if (!board || !role) {
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
     }
 
-    request.whiteboardContext = { whiteboardId, role };
+    request.whiteboardContext = { whiteboardId, role, board };
   };
 }
 

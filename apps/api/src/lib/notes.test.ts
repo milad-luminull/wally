@@ -1,5 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { getTestPrisma, resetDatabase } from '../../test/helpers.js';
+import { describe, expect, it } from 'vitest';
+import { INITIAL_BOARD_NAME } from '@wally/shared';
+import type { WhiteboardRole } from '@wally/shared';
+import type { WhiteboardDoc, WithId } from './db/types.js';
+import { now } from './db/collections.js';
 import { assertValidAssignee, computeMoveUpdate } from './notes.js';
 import { AppError } from './errors.js';
 
@@ -38,62 +41,41 @@ describe('computeMoveUpdate', () => {
 });
 
 describe('assertValidAssignee', () => {
-  const prisma = getTestPrisma();
-
-  beforeEach(async () => {
-    await resetDatabase(prisma);
-  });
-
-  afterAll(async () => {
-    await resetDatabase(prisma);
-    await prisma.$disconnect();
-  });
-
-  async function makeBoardWithMembers() {
-    const owner = await prisma.user.create({
-      data: { id: 'u-owner', email: 'owner@finlex.de' },
-    });
-    const activeEditor = await prisma.user.create({
-      data: { id: 'u-editor', email: 'editor@finlex.de' },
-    });
-    const pendingUser = await prisma.user.create({
-      data: { id: 'u-pending', email: 'pending@finlex.de' },
-    });
-    const outsider = await prisma.user.create({
-      data: { id: 'u-outsider', email: 'outsider@finlex.de' },
-    });
-    const board = await prisma.whiteboard.create({ data: { ownerId: owner.id } });
-    await prisma.whiteboardMember.create({
-      data: { whiteboardId: board.id, userId: activeEditor.id, role: 'EDIT', status: 'ACTIVE' },
-    });
-    await prisma.whiteboardMember.create({
-      data: { whiteboardId: board.id, userId: pendingUser.id, role: 'VIEW', status: 'PENDING' },
-    });
-    return { owner, activeEditor, pendingUser, outsider, board };
+  // A plain document literal, no emulator: the check is now a pure function over the board
+  // that requireWhiteboardAccess has already loaded, rather than a second read of its own.
+  function makeBoard(memberRoles: Record<string, WhiteboardRole>): WithId<WhiteboardDoc> {
+    const timestamp = now();
+    return {
+      id: 'board-1',
+      name: INITIAL_BOARD_NAME.de,
+      ownerId: 'u-owner',
+      memberRoles,
+      shareLinkToken: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
   }
 
-  it('allows null (unassign)', async () => {
-    const { board } = await makeBoardWithMembers();
-    await expect(assertValidAssignee(prisma, board.id, null)).resolves.toBeUndefined();
+  // memberRoles mirrors ACTIVE members only, so a PENDING invite simply is not in it.
+  const board = makeBoard({ 'u-editor': 'EDIT' });
+
+  it('allows null (unassign)', () => {
+    expect(() => assertValidAssignee(board, null)).not.toThrow();
   });
 
-  it('allows the board owner', async () => {
-    const { board, owner } = await makeBoardWithMembers();
-    await expect(assertValidAssignee(prisma, board.id, owner.id)).resolves.toBeUndefined();
+  it('allows the board owner', () => {
+    expect(() => assertValidAssignee(board, 'u-owner')).not.toThrow();
   });
 
-  it('allows an ACTIVE member', async () => {
-    const { board, activeEditor } = await makeBoardWithMembers();
-    await expect(assertValidAssignee(prisma, board.id, activeEditor.id)).resolves.toBeUndefined();
+  it('allows an ACTIVE member', () => {
+    expect(() => assertValidAssignee(board, 'u-editor')).not.toThrow();
   });
 
-  it('rejects a PENDING member', async () => {
-    const { board, pendingUser } = await makeBoardWithMembers();
-    await expect(assertValidAssignee(prisma, board.id, pendingUser.id)).rejects.toThrow(AppError);
+  it('rejects a PENDING member', () => {
+    expect(() => assertValidAssignee(board, 'u-pending')).toThrow(AppError);
   });
 
-  it('rejects a non-member', async () => {
-    const { board, outsider } = await makeBoardWithMembers();
-    await expect(assertValidAssignee(prisma, board.id, outsider.id)).rejects.toThrow(AppError);
+  it('rejects a non-member', () => {
+    expect(() => assertValidAssignee(board, 'u-outsider')).toThrow(AppError);
   });
 });

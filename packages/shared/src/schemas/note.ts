@@ -4,15 +4,16 @@ import {
   noteHorizonSchema,
   notePrioritySchema,
   noteStatusSchema,
-  referenceTypeSchema,
   noteHistoryEventTypeSchema,
 } from '../enums.js';
 import { userSummarySchema } from './user.js';
 import { subtaskDtoSchema, subtaskSummarySchema } from './subtask.js';
+import { customFieldsSchema } from './customField.js';
 import {
+  FIELD_KEY_MAX_LENGTH,
+  FIELD_VALUE_MAX_LENGTH,
   MAX_TAGS_PER_NOTE,
   NOTE_TITLE_MAX_LENGTH,
-  REFERENCE_LABEL_MAX_LENGTH,
   TAG_MAX_LENGTH,
 } from '../constants.js';
 import { booleanQueryParam, csvEnum } from '../utils/query.js';
@@ -45,9 +46,9 @@ export const noteCreateSchema = z.object({
   freeY: z.number().default(0),
   dueDate: z.string().date().nullable().optional(),
   assigneeId: z.string().nullable().optional(),
-  referenceType: referenceTypeSchema.nullable().optional(),
-  referenceLabel: z.string().trim().max(REFERENCE_LABEL_MAX_LENGTH).nullable().optional(),
   tags: tagsSchema,
+  /** Bare, not `.optional()`, for the same reason as `tags` above. */
+  customFields: customFieldsSchema,
   colour: noteColourSchema.default('WEISS'),
 });
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
@@ -68,9 +69,9 @@ export const noteUpdateSchema = z
   .object({
     title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
     dueDate: z.string().date().nullable().optional(),
-    referenceType: referenceTypeSchema.nullable().optional(),
-    referenceLabel: z.string().trim().max(REFERENCE_LABEL_MAX_LENGTH).nullable().optional(),
     tags: tagsSchema.optional(),
+    /** Same three-state semantics as `tags`: omitted = don't touch, `{}` = clear all. */
+    customFields: customFieldsSchema.optional(),
     colour: noteColourSchema.optional(),
   })
   .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' });
@@ -100,6 +101,16 @@ export const noteListQuerySchema = z.object({
   horizon: csvEnum(noteHorizonValues),
   assignedToMe: booleanQueryParam,
   status: z.enum(['OPEN', 'DONE', 'ALL']).optional().default('ALL'),
+  /**
+   * Custom-property filter, either `"Kunde"` (note has that property at all) or
+   * `"Kunde:Müller GmbH"` (property equals that value). Split on the FIRST colon, so
+   * values may contain colons.
+   */
+  field: z
+    .string()
+    .trim()
+    .max(FIELD_KEY_MAX_LENGTH + FIELD_VALUE_MAX_LENGTH + 1)
+    .optional(),
 });
 export type NoteListQuery = z.infer<typeof noteListQuerySchema>;
 
@@ -125,9 +136,9 @@ export const noteDtoSchema = z.object({
   freeY: z.number(),
   dueDate: z.string().date().nullable(),
   assignee: userSummarySchema.nullable(),
-  referenceType: referenceTypeSchema.nullable(),
-  referenceLabel: z.string().nullable(),
   tags: z.array(z.string()),
+  /** Permissive on the way out — the write schemas are what enforce the rules. */
+  customFields: z.record(z.string(), z.string()),
   colour: noteColourSchema,
   subtaskSummary: subtaskSummarySchema,
   createdBy: userSummarySchema.nullable(),

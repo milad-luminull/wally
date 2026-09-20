@@ -1,19 +1,21 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildTestApp, resetDatabase, type TestContext } from './helpers.js';
 
-describe('GET /healthz', () => {
+const PROJECT_ID = 'wally-test-health';
+
+describe('GET /health', () => {
   let ctx: TestContext;
 
   it('returns 200 with no auth header at all', async () => {
-    ctx = await buildTestApp();
-    const res = await ctx.app.inject({ method: 'GET', url: '/healthz' });
+    ctx = await buildTestApp(PROJECT_ID);
+    const res = await ctx.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
   });
 
   afterAll(async () => {
     if (ctx) {
-      await resetDatabase(ctx.prisma);
+      await resetDatabase(PROJECT_ID);
       await ctx.app.close();
     }
   });

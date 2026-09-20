@@ -12,7 +12,6 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "migrate": "pnpm --filter @wally/api migrate",
     "seed": "pnpm --filter @wally/api seed"
   },
   "devDependencies": {

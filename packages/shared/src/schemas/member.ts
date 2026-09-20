@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { membershipStatusSchema, whiteboardRoleSchema } from '../enums.js';
+import { effectiveRoleSchema, membershipStatusSchema, whiteboardRoleSchema } from '../enums.js';
 
 export const inviteCreateSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -17,7 +17,12 @@ export const memberDtoSchema = z.object({
   userId: z.string().nullable(),
   email: z.string().email(),
   displayName: z.string().nullable(),
-  role: whiteboardRoleSchema,
+  /**
+   * Wider than the persisted `MemberDoc.role`, which is only ever VIEW|EDIT. The owner has
+   * no member document at all — the members route synthesizes their row (see
+   * `ownerMemberDto`), and OWNER only ever reaches a client that way.
+   */
+  role: effectiveRoleSchema,
   status: membershipStatusSchema,
 });
 export type MemberDto = z.infer<typeof memberDtoSchema>;

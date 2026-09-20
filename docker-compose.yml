@@ -1,44 +1,64 @@
 services:
-  db:
-    # postgres:17-alpine (not the full postgres:17 SETUP.md names) — already cached on
-    # this host from another project and functionally identical; the full image's pull
-    # was extremely slow here. Swap back to postgres:17 if that ever matters.
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-wally}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wally}
-      POSTGRES_DB: ${POSTGRES_DB:-wally}
-    # No host port published: api/web reach it over the compose network as `db:5432`.
-    # This machine runs several other projects' Postgres containers on 5432/5433 — publish
-    # nothing here to avoid colliding with them. For an ad-hoc host-side psql session, run
-    # `docker compose exec db psql -U wally` instead.
+  firestore:
+    build:
+      context: .
+      dockerfile: infra/firebase-emulator.Dockerfile
+    # Run under the same project id the API writes with, so the Emulator UI opens on the
+    # data this app actually stores. (The emulator still serves any project id — that's
+    # what lets each test file use its own.)
+    command:
+      - firebase
+      - emulators:start
+      - --only
+      - firestore
+      - --project
+      - ${FIREBASE_PROJECT_ID:-wally-local}
+    # The emulator reads firebase.json for its port/host config and picks up the rules and
+    # index definitions next to it. Read-only: nothing in the container should edit them.
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - ./firebase.json:/workspace/firebase.json:ro
+      - ./firestore.rules:/workspace/firestore.rules:ro
+      - ./firestore.indexes.json:/workspace/firestore.indexes.json:ro
+    ports:
+      # All three are for the Emulator UI, which runs in YOUR browser and therefore reaches
+      # the emulator over the host, not the compose network: 4001 serves the UI itself,
+      # 8080 is the Firestore data API it reads, and 9150 the websocket behind its request
+      # monitor. Publishing only 4001 gets you a blank page and a "Failed to fetch".
+      # The API container still reaches the data port as `firestore:8080`.
+      - "4001:4001"
+      - "8080:8080"
+      - "9150:9150"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wally}"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 20s
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
       target: dev
-    # On a fresh checkout the Prisma Client isn't generated yet (see the masked volume
-    # below) — the dev server exits until `make migrate` runs once. Restart so it comes
-    # up on its own right after, instead of needing a second `make up`.
-    restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-wally}:${POSTGRES_PASSWORD:-wally}@db:5432/${POSTGRES_DB:-wally}
+      # The Admin SDK reads this itself and routes all Firestore traffic to the emulator.
+      # Firebase Auth is NOT redirected — ID tokens are still verified against the real
+      # project, which is why the FIREBASE_* credentials in .env still matter.
+      FIRESTORE_EMULATOR_HOST: firestore:8080
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
     ports:
       - "4000:4000"
     depends_on:
-      db:
+      firestore:
         condition: service_healthy
     volumes:
       - .:/app
@@ -47,18 +67,13 @@ services:
       - /app/apps/web/node_modules
       - /app/packages/shared/node_modules
       - /app/packages/config/node_modules
-      # Masked for the same reason as node_modules above: the bind mount would otherwise
-      # overlay whatever a host-run `prisma generate` produced (host-platform engine
-      # binaries) over the container's own linux-built client, breaking Prisma Client at
-      # runtime. Generate inside the container (`make migrate`/`make seed` do this).
-      - /app/apps/api/prisma/generated
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 5s
@@ -87,6 +102,3 @@ services:
       - /repo/apps/web/node_modules
       - /repo/packages/shared/node_modules
       - /repo/packages/config/node_modules
-
-volumes:
-  db-data:

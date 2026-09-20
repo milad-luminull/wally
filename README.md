@@ -7,13 +7,13 @@ A personal digital whiteboard for managing to-dos as movable notes — built for
 pnpm workspaces + Turborepo monorepo:
 
 ```
-apps/api          Fastify + Prisma + PostgreSQL — REST API, Firebase-token auth
+apps/api          Fastify + Cloud Firestore — REST API, Firebase-token auth
 apps/web          Vite + React 19 + TanStack Query + shadcn/ui + dnd-kit
 packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-Auth is Firebase Authentication (email/password + Google). Everything runs in Docker locally; the intended deploy target is Google Cloud Run + Cloud SQL. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows and [`docs/RULE.md`](docs/RULE.md) for working rules.
+Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows and [`docs/RULE.md`](docs/RULE.md) for working rules.
 
 ## Prerequisites
 
@@ -29,19 +29,28 @@ Nothing else needs to be installed on the host; all commands run inside Docker.
 cp .env.example .env
 # fill in the Firebase values in .env — see "Firebase setup" below
 
-make up        # builds and starts db, api, web
-make migrate   # applies the database schema
+make up        # builds and starts the Firestore emulator, api, web
 make seed      # loads demo data (a sample board, notes, and members)
 ```
 
 - Web: http://localhost:5174 *(not 5173 — see [Ports](#ports))*
 - API: http://localhost:4000
+- Firestore emulator UI: http://localhost:4001 — browse the local data
+
+There is no migration step: Firestore is schemaless. Document shapes live in
+[`apps/api/src/lib/db/types.ts`](apps/api/src/lib/db/types.ts) and composite indexes in
+[`firestore.indexes.json`](firestore.indexes.json).
+
+The emulator keeps its data in memory, so anything you created locally is gone once its
+container is recreated (`make down`, or a rebuild). Run `make seed` again to get the demo
+board back — it's idempotent, and it keeps the same share-link token across runs.
 
 ## Firebase setup
 
 The backend verifies Firebase ID tokens; the frontend signs users in with the Firebase Web SDK. You need one Firebase project supplying both:
 
 1. **Enable sign-in methods**: Firebase console → Authentication → Sign-in method → enable Email/Password and Google.
+1. **Create the Firestore database**: Firebase console → Firestore Database → Create database. Only needed for a real deployment — local development uses the emulator and never touches it.
 2. **Web app config** (`VITE_FIREBASE_*` in `.env`): Project Settings → General → Your apps → Web app → copy `apiKey`, `authDomain`, `projectId`, `appId`.
 3. **Service account** (`FIREBASE_*` in `.env`): Project Settings → Service accounts → Generate new private key → copy `project_id`, `client_email`, `private_key` (keep the `\n` escapes as-is).
 
@@ -51,32 +60,41 @@ If your Google Cloud org blocks service-account key creation (`iam.disableServic
 
 | Command | Purpose |
 | --- | --- |
-| `make up` | Build and start db, api, web |
+| `make up` | Build and start the Firestore emulator, api, web |
 | `make down` | Stop and remove containers |
 | `make logs` | Follow logs of all services |
 | `make test` | Run all tests (backend + frontend, via Turbo) |
 | `make lint` | Run lint across the workspace |
 | `make typecheck` | Type-check across the workspace |
-| `make migrate` | Apply database migrations |
-| `make migrate-dev` | Create a new migration from schema changes |
 | `make seed` | Load development seed data (idempotent) |
 | `make e2e` | Run Playwright end-to-end tests (needs `make up` first) |
 
 ## Ports
 
-Host port `5173` and `5432` were already in use by other local projects when this was built, so:
+Host port `5173` was already in use by another local project when this was built, so:
 - Web is published on **`5174`** (container still runs Vite on 5173 internally).
-- Postgres publishes no host port at all — reach it via `docker compose exec db psql -U wally` if needed.
+- The Firestore emulator publishes **`4001`** (Emulator UI), **`8080`** (Firestore data) and **`9150`** (the UI's request-monitor websocket). All three are needed: the Emulator UI runs in your browser, so it reaches the emulator over the host rather than the compose network — publishing only 4001 gets you a blank page. The API container talks to it as `firestore:8080` regardless.
 
 Adjust `docker-compose.yml` if your environment doesn't have that conflict.
 
 ## Testing
 
-- Backend: Vitest — unit tests for business logic, integration tests against the real Postgres in compose.
+- Backend: Vitest — unit tests for business logic, integration tests against the Firestore emulator in compose. Each test file uses its own emulator project id, which keeps them isolated and lets them run in parallel.
 - Frontend: Vitest + React Testing Library for stateful components; Playwright for end-to-end flows (`apps/web/e2e/`, see its `README.md` for what each spec needs).
 
-`make test` runs everything non-interactively. Integration/e2e tests need the db (and for e2e, the full stack) up.
+`make test` runs everything non-interactively and starts the emulator on its own; e2e needs the full stack up.
 
 ## Deploying
 
-Each app's `Dockerfile` has a `prod` target (multi-stage, minimal runtime) intended for Google Cloud Run, with Cloud SQL for PostgreSQL as the managed database. No deploy automation exists yet — that's the next step once this is ready to ship.
+Each app's `Dockerfile` has a `prod` target (multi-stage, minimal runtime) intended for Google Cloud Run. The database is the Firebase project's own Cloud Firestore — there is nothing to provision and nothing billed while the app is idle, which is why it was chosen over a managed Postgres instance.
+
+Two things must be deployed alongside the code, with the Firebase CLI:
+
+```bash
+firebase deploy --only firestore:indexes,firestore:rules
+```
+
+- **`firestore.indexes.json`** — the emulator never enforces indexes and creates them on the fly, so a missing one only shows up in production as a `FAILED_PRECONDITION` error.
+- **`firestore.rules`** — denies all direct client access by design. Every legitimate read goes through the API's Admin SDK, which bypasses rules.
+
+The Cloud Run service reaches Firestore through its runtime service account — there is no connection string to configure. Deployment is documented step by step in [`docs/DEPLOY.md`](docs/DEPLOY.md); it is still manual, with no CI pipeline yet.

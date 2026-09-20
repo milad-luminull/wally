@@ -15,7 +15,8 @@ export const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-overlay bg-[rgba(2,71,79,0.32)] opacity-0 transition-opacity duration-240 ease-ds data-[state=open]:opacity-100 motion-reduce:transition-none',
+      'fixed inset-0 z-overlay bg-[rgba(2,71,79,0.28)] backdrop-blur-[2px]',
+      'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
       className,
     )}
     {...props}
@@ -32,8 +33,8 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-overlay w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-6 shadow-e2',
-        'scale-95 opacity-0 transition duration-240 ease-ds data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none motion-reduce:scale-100',
+        'fixed left-1/2 top-1/2 z-overlay w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-e3',
+        'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out',
         className,
       )}
       {...props}
@@ -42,7 +43,7 @@ export const DialogContent = React.forwardRef<
       {!hideClose && (
         <DialogPrimitive.Close
           aria-label="Schließen"
-          className="absolute right-4 top-4 rounded-sm text-fg-muted transition-colors hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+          className="absolute right-3.5 top-3.5 flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
         >
           <X className="h-4 w-4" />
         </DialogPrimitive.Close>

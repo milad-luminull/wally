@@ -82,7 +82,7 @@ A note has:
 * Horizon / grid position
 * Due date
 * Assignee
-* Reference
+* Properties (user-defined key/value pairs)
 * Tags
 * Subtasks
 * Colour
@@ -91,13 +91,18 @@ A note has:
 * Creation history
 * Movement history
 
-A reference can link the note to a relevant business object such as:
+Properties are free-form key/value pairs the user defines per note — for example
+`Kunde: Müller GmbH` or `Vertragsnr: 4711`. Keys are not drawn from a fixed list: any label
+the user types is allowed, and keys already used elsewhere on the board are offered as
+autocomplete so the same property does not fragment across spellings.
 
-* Client
-* Contract
-* Claim
+The board can be filtered by a property, either by key alone (every note carrying it) or by
+key and value.
 
-The exact supported reference types may depend on the surrounding platform capabilities.
+This replaces an earlier fixed "reference" field that offered only Client / Contract / Claim.
+That design assumed an integration with the surrounding Finlex platform which does not
+exist; in practice it was a single free-text field with a suggestion list, and it could not
+record anything outside those three categories.
 
 ---
 
@@ -207,7 +212,6 @@ The application should integrate with the existing Finlex platform where relevan
 
 * Users
 * Authentication and permissions
-* Supported business references such as clients, contracts, and claims
 
 The exact integration mechanism is outside the scope of these requirements.
 

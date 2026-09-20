@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import type { Prisma } from '../lib/prisma-client.js';
+import type { Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import {
   noteAssignSchema,
@@ -10,14 +10,45 @@ import {
   noteListQuerySchema,
   noteMoveSchema,
   noteUpdateSchema,
+  normalizeFieldKey,
 } from '@wally/shared';
+import type { NoteDoc, WithId } from '../lib/db/types.js';
+import {
+  docsWithId,
+  historyCol,
+  loadUsers,
+  notesCol,
+  now,
+  subtasksCol,
+} from '../lib/db/collections.js';
 import { requireRole, requireWhiteboardAccess } from '../lib/authorization.js';
 import { toNoteDetailDto, toNoteDto } from '../lib/dto.js';
-import { assertValidAssignee, computeMoveUpdate, noteDetailInclude, noteInclude } from '../lib/notes.js';
-import { AppError } from '../lib/errors.js';
+import { assertValidAssignee, computeMoveUpdate } from '../lib/notes.js';
 
 const whiteboardIdParams = z.object({ id: z.string() });
 const noteIdParams = z.object({ id: z.string() });
+
+/**
+ * Due date first, then creation order — with undated notes LAST.
+ *
+ * This ordering is applied in memory rather than by Firestore, deliberately. Firestore
+ * sorts null before everything else (the opposite of Postgres's NULLS LAST default) and,
+ * worse, omits documents missing the orderBy field entirely — an undated note would
+ * silently vanish from the board instead of merely sorting early.
+ */
+function byDueDateThenCreated(a: WithId<NoteDoc>, b: WithId<NoteDoc>): number {
+  if (a.dueDate !== b.dueDate) {
+    if (a.dueDate === null) return 1;
+    if (b.dueDate === null) return -1;
+    return a.dueDate < b.dueDate ? -1 : 1;
+  }
+  return a.createdAt.toMillis() - b.createdAt.toMillis();
+}
+
+/** The assignee and creator a single note's DTO needs. */
+function usersForNote(db: Firestore, note: WithId<NoteDoc>) {
+  return loadUsers(db, [note.assigneeId, note.createdById]);
+}
 
 export default async function noteRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -38,30 +69,62 @@ export default async function noteRoutes(fastify: FastifyInstance) {
     async (request) => {
       const ctx = request.whiteboardContext!;
       const query = request.query;
+      const db = request.server.db;
 
-      const where: Prisma.NoteWhereInput = { whiteboardId: ctx.whiteboardId };
-      if (query.status !== 'ALL') where.status = query.status;
-      if (query.priority?.length) where.priority = { in: query.priority };
-      if (query.horizon?.length) where.horizon = { in: query.horizon };
-      if (query.assignedToMe) where.assigneeId = request.user.id;
+      // The board's notes are read whole and narrowed here: every filter below is
+      // optional and independent, so pushing them into Firestore would mean a composite
+      // index per combination for no gain at a single board's scale.
+      let notes = docsWithId(
+        await notesCol(db).where('whiteboardId', '==', ctx.whiteboardId).get(),
+      );
 
-      let notes = await request.server.prisma.note.findMany({
-        where,
-        include: noteInclude,
-        orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
-      });
+      if (query.status !== 'ALL') notes = notes.filter((n) => n.status === query.status);
+      if (query.priority?.length) {
+        notes = notes.filter((n) => query.priority!.includes(n.priority));
+      }
+      if (query.horizon?.length) {
+        notes = notes.filter((n) => query.horizon!.includes(n.horizon));
+      }
+      if (query.assignedToMe) notes = notes.filter((n) => n.assigneeId === request.user.id);
 
       if (query.q) {
         const needle = query.q.toLowerCase();
         notes = notes.filter(
           (n) =>
             n.title.toLowerCase().includes(needle) ||
-            (n.referenceLabel?.toLowerCase().includes(needle) ?? false) ||
-            n.tags.some((t) => t.toLowerCase().includes(needle)),
+            n.tags.some((t) => t.toLowerCase().includes(needle)) ||
+            Object.entries(n.customFields ?? {}).some(
+              ([key, value]) =>
+                key.toLowerCase().includes(needle) || value.toLowerCase().includes(needle),
+            ),
         );
       }
 
-      return notes.map(toNoteDto);
+      // `field` is "Kunde" (has the property) or "Kunde:Müller GmbH" (equals that value).
+      // Split on the first colon only, so a value may itself contain one.
+      if (query.field) {
+        const separator = query.field.indexOf(':');
+        const rawKey = separator === -1 ? query.field : query.field.slice(0, separator);
+        const rawValue = separator === -1 ? undefined : query.field.slice(separator + 1);
+        const wantedKey = normalizeFieldKey(rawKey).toLocaleLowerCase('de');
+        const wantedValue = rawValue?.trim().toLocaleLowerCase('de');
+
+        notes = notes.filter((n) =>
+          Object.entries(n.customFields ?? {}).some(
+            ([key, value]) =>
+              normalizeFieldKey(key).toLocaleLowerCase('de') === wantedKey &&
+              (wantedValue === undefined || value.toLocaleLowerCase('de') === wantedValue),
+          ),
+        );
+      }
+
+      notes.sort(byDueDateThenCreated);
+
+      const users = await loadUsers(
+        db,
+        notes.flatMap((n) => [n.assigneeId, n.createdById]),
+      );
+      return notes.map((note) => toNoteDto(note, users));
     },
   );
 
@@ -81,33 +144,46 @@ export default async function noteRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const ctx = request.whiteboardContext!;
       const body = request.body;
+      const db = request.server.db;
       const assigneeId = body.assigneeId ?? null;
-      await assertValidAssignee(request.server.prisma, ctx.whiteboardId, assigneeId);
+      assertValidAssignee(ctx.board, assigneeId);
 
-      const note = await request.server.prisma.note.create({
-        data: {
-          whiteboardId: ctx.whiteboardId,
-          title: body.title,
-          priority: body.priority,
-          horizon: body.horizon,
-          freeX: body.freeX,
-          freeY: body.freeY,
-          dueDate: body.dueDate ? new Date(body.dueDate) : null,
-          assigneeId,
-          referenceType: body.referenceType ?? null,
-          referenceLabel: body.referenceLabel ?? null,
-          tags: body.tags ?? [],
-          colour: body.colour,
-          createdById: request.user.id,
-          history: {
-            create: { type: 'CREATED', actorId: request.user.id },
-          },
-        },
-        include: noteInclude,
+      const ref = notesCol(db).doc();
+      const timestamp = now();
+      const note: NoteDoc = {
+        whiteboardId: ctx.whiteboardId,
+        title: body.title,
+        status: 'OPEN',
+        completedAt: null,
+        priority: body.priority,
+        horizon: body.horizon,
+        freeX: body.freeX,
+        freeY: body.freeY,
+        dueDate: body.dueDate ?? null,
+        assigneeId,
+        tags: body.tags ?? [],
+        customFields: body.customFields ?? {},
+        colour: body.colour,
+        createdById: request.user.id,
+        subtaskSummary: { total: 0, done: 0 },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      const batch = db.batch();
+      batch.set(ref, note);
+      batch.set(historyCol(db, ref.id).doc(), {
+        noteId: ref.id,
+        type: 'CREATED',
+        occurredAt: timestamp,
+        actorId: request.user.id,
+        metadata: null,
       });
+      await batch.commit();
 
+      const created = { ...note, id: ref.id };
       reply.code(201);
-      return toNoteDto(note);
+      return toNoteDto(created, await usersForNote(db, created));
     },
   );
 
@@ -121,12 +197,22 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams, response: { 200: noteDetailDtoSchema } },
     },
     async (request) => {
-      const note = await request.server.prisma.note.findUnique({
-        where: { id: request.params.id },
-        include: noteDetailInclude,
-      });
-      if (!note) throw new AppError(404, 'NOT_FOUND', 'Not found');
-      return toNoteDetailDto(note);
+      const note = request.noteContext!;
+      const db = request.server.db;
+
+      const [subtaskSnapshot, historySnapshot] = await Promise.all([
+        subtasksCol(db, note.id).get(),
+        historyCol(db, note.id).get(),
+      ]);
+      const subtasks = docsWithId(subtaskSnapshot);
+      const history = docsWithId(historySnapshot);
+
+      const users = await loadUsers(db, [
+        note.assigneeId,
+        note.createdById,
+        ...history.map((event) => event.actorId),
+      ]);
+      return toNoteDetailDto(note, subtasks, history, users);
     },
   );
 
@@ -137,22 +223,22 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams, body: noteUpdateSchema, response: { 200: noteDtoSchema } },
     },
     async (request) => {
+      const note = request.noteContext!;
       const body = request.body;
-      const note = await request.server.prisma.note.update({
-        where: { id: request.params.id },
-        data: {
-          ...(body.title !== undefined ? { title: body.title } : {}),
-          ...(body.dueDate !== undefined
-            ? { dueDate: body.dueDate ? new Date(body.dueDate) : null }
-            : {}),
-          ...(body.referenceType !== undefined ? { referenceType: body.referenceType } : {}),
-          ...(body.referenceLabel !== undefined ? { referenceLabel: body.referenceLabel } : {}),
-          ...(body.tags !== undefined ? { tags: body.tags } : {}),
-          ...(body.colour !== undefined ? { colour: body.colour } : {}),
-        },
-        include: noteInclude,
-      });
-      return toNoteDto(note);
+      const db = request.server.db;
+
+      const changes: Partial<NoteDoc> = {
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.dueDate !== undefined ? { dueDate: body.dueDate } : {}),
+        ...(body.customFields !== undefined ? { customFields: body.customFields } : {}),
+        ...(body.tags !== undefined ? { tags: body.tags } : {}),
+        ...(body.colour !== undefined ? { colour: body.colour } : {}),
+      };
+      const updatedAt = now();
+      await notesCol(db).doc(note.id).update({ ...changes, updatedAt });
+
+      const updated = { ...note, ...changes, updatedAt };
+      return toNoteDto(updated, await usersForNote(db, updated));
     },
   );
 
@@ -163,22 +249,24 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams, body: noteMoveSchema, response: { 200: noteDtoSchema } },
     },
     async (request) => {
-      const existing = await request.server.prisma.note.findUnique({
-        where: { id: request.params.id },
-      });
-      if (!existing) throw new AppError(404, 'NOT_FOUND', 'Not found');
+      const note = request.noteContext!;
+      const db = request.server.db;
+      const { data, metadata } = computeMoveUpdate(note, request.body);
+      const timestamp = now();
 
-      const { data, metadata } = computeMoveUpdate(existing, request.body);
-
-      const note = await request.server.prisma.note.update({
-        where: { id: request.params.id },
-        data: {
-          ...data,
-          history: { create: { type: 'MOVED', actorId: request.user.id, metadata } },
-        },
-        include: noteInclude,
+      const batch = db.batch();
+      batch.update(notesCol(db).doc(note.id), { ...data, updatedAt: timestamp });
+      batch.set(historyCol(db, note.id).doc(), {
+        noteId: note.id,
+        type: 'MOVED',
+        occurredAt: timestamp,
+        actorId: request.user.id,
+        metadata,
       });
-      return toNoteDto(note);
+      await batch.commit();
+
+      const updated = { ...note, ...data, updatedAt: timestamp };
+      return toNoteDto(updated, await usersForNote(db, updated));
     },
   );
 
@@ -190,13 +278,16 @@ export default async function noteRoutes(fastify: FastifyInstance) {
     },
     async (request) => {
       const ctx = request.whiteboardContext!;
-      await assertValidAssignee(request.server.prisma, ctx.whiteboardId, request.body.assigneeId);
-      const note = await request.server.prisma.note.update({
-        where: { id: request.params.id },
-        data: { assigneeId: request.body.assigneeId },
-        include: noteInclude,
-      });
-      return toNoteDto(note);
+      const note = request.noteContext!;
+      const db = request.server.db;
+      const assigneeId = request.body.assigneeId;
+      assertValidAssignee(ctx.board, assigneeId);
+
+      const updatedAt = now();
+      await notesCol(db).doc(note.id).update({ assigneeId, updatedAt });
+
+      const updated = { ...note, assigneeId, updatedAt };
+      return toNoteDto(updated, await usersForNote(db, updated));
     },
   );
 
@@ -207,12 +298,20 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams, response: { 200: noteDtoSchema } },
     },
     async (request) => {
-      const note = await request.server.prisma.note.update({
-        where: { id: request.params.id },
-        data: { status: 'DONE', completedAt: new Date() },
-        include: noteInclude,
-      });
-      return toNoteDto(note);
+      const note = request.noteContext!;
+      const db = request.server.db;
+      const timestamp = now();
+      await notesCol(db)
+        .doc(note.id)
+        .update({ status: 'DONE', completedAt: timestamp, updatedAt: timestamp });
+
+      const updated: WithId<NoteDoc> = {
+        ...note,
+        status: 'DONE',
+        completedAt: timestamp,
+        updatedAt: timestamp,
+      };
+      return toNoteDto(updated, await usersForNote(db, updated));
     },
   );
 
@@ -223,12 +322,20 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams, response: { 200: noteDtoSchema } },
     },
     async (request) => {
-      const note = await request.server.prisma.note.update({
-        where: { id: request.params.id },
-        data: { status: 'OPEN', completedAt: null },
-        include: noteInclude,
-      });
-      return toNoteDto(note);
+      const note = request.noteContext!;
+      const db = request.server.db;
+      const updatedAt = now();
+      await notesCol(db)
+        .doc(note.id)
+        .update({ status: 'OPEN', completedAt: null, updatedAt });
+
+      const updated: WithId<NoteDoc> = {
+        ...note,
+        status: 'OPEN',
+        completedAt: null,
+        updatedAt,
+      };
+      return toNoteDto(updated, await usersForNote(db, updated));
     },
   );
 
@@ -239,7 +346,10 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       schema: { params: noteIdParams },
     },
     async (request, reply) => {
-      await request.server.prisma.note.delete({ where: { id: request.params.id } });
+      const db = request.server.db;
+      // Takes the subtasks and history subcollections with it — the cascade that the
+      // foreign keys used to provide.
+      await db.recursiveDelete(notesCol(db).doc(request.noteContext!.id));
       return reply.code(204).send();
     },
   );
