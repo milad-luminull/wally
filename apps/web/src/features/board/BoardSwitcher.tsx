@@ -2,13 +2,9 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/cn';
+import { useTranslation } from 'react-i18next';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { useBoards } from './hooks/useBoards';
-
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: 'Deine Wand',
-  EDIT: 'Bearbeiten',
-  VIEW: 'Ansehen',
-};
 
 /**
  * Lets a member reach a board they do not own. Until this existed, `useBoards` was consumed
@@ -20,6 +16,8 @@ const ROLE_LABEL: Record<string, string> = {
  * plain title it has now.
  */
 export function BoardSwitcher({ boardId }: { boardId: string }) {
+  const { t } = useTranslation();
+  const { effectiveRole } = useEnumLabels();
   const { data: boards } = useBoards();
   const location = useLocation();
 
@@ -66,7 +64,11 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
                   />
                   <span className="min-w-0 flex-1 truncate">{board.name}</span>
                   <span className="shrink-0 text-11 text-fg-muted">
-                    {ROLE_LABEL[board.currentUserRole] ?? board.currentUserRole}
+                    {/* OWNER gets its own key rather than enums.effectiveRole.OWNER: in a
+                        list of boards "your board" reads better than "owner". */}
+                    {board.currentUserRole === 'OWNER'
+                      ? t('board.switcher.ownRole')
+                      : effectiveRole[board.currentUserRole]}
                   </span>
                 </Link>
               </li>

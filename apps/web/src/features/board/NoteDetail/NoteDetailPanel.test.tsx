@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { COLOUR_LABELS } from '@wally/shared';
+import { enumLabels } from '@/i18n/enumLabels';
+import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNoteDetail } from '@/test/fixtures';
 import { NoteDetailPanel } from './NoteDetailPanel';
@@ -89,10 +90,10 @@ describe('NoteDetailPanel', () => {
     renderPanel();
     await screen.findByLabelText('Titel');
 
-    for (const label of Object.values(COLOUR_LABELS)) {
+    for (const label of Object.values(enumLabels(i18n.t).colour)) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
-    expect(Object.values(COLOUR_LABELS)).toHaveLength(14);
+    expect(Object.values(enumLabels(i18n.t).colour)).toHaveLength(14);
     expect(screen.queryByRole('button', { name: 'Apricot' })).not.toBeInTheDocument();
   });
 
@@ -102,7 +103,7 @@ describe('NoteDetailPanel', () => {
 
     expect(screen.getByLabelText('Titel')).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Hoch' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: COLOUR_LABELS.WEISS })).toBeDisabled();
+    expect(screen.getByRole('button', { name: enumLabels(i18n.t).colour.WEISS })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument();
   });
 

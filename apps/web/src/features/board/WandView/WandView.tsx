@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { flushSync } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -72,6 +73,7 @@ export function WandView({
   canEdit,
 }: WandViewProps) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const moveNote = useMoveNote(boardId);
   const createNote = useCreateNote(boardId);
 
@@ -124,9 +126,10 @@ export function WandView({
     if (settled) setPendingMove(null);
   }, [notes, pendingMove]);
 
+  // `t` belongs in these deps — see the note on ListView's identical memo.
   const groups = useMemo(
-    () => (axis === 'free' ? [] : groupByAxis(shownNotes, axis)),
-    [shownNotes, axis],
+    () => (axis === 'free' ? [] : groupByAxis(shownNotes, axis, t)),
+    [shownNotes, axis, t],
   );
 
   const announcements: Announcements = {

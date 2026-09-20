@@ -1,6 +1,4 @@
 import {
-  HORIZON_LABELS,
-  PRIORITY_LABELS,
   notePriorityValues,
   type NoteColour,
   type NoteDto,
@@ -8,6 +6,8 @@ import {
   type NotePriority,
 } from '@wally/shared';
 import type { BoardAxis, BoardViewState } from '../hooks/useBoardViewState';
+import { enumLabels, type T } from '@/i18n/enumLabels';
+import { parseIsoDate } from '@/i18n/dates';
 
 export type DueTone = 'success' | 'danger' | 'warning' | 'neutral';
 
@@ -17,11 +17,6 @@ export interface DueInfo {
   weight: 400 | 500 | 600;
 }
 
-function formatDate(iso: string): string {
-  const [, month, day] = iso.split('-');
-  return `${day}.${month}.`;
-}
-
 function dayDiff(iso: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -29,17 +24,25 @@ function dayDiff(iso: string): number {
   return Math.round((due.getTime() - today.getTime()) / 86_400_000);
 }
 
-/** Mirrors the mockup's urgency ladder, but expressed as design-system status tones
+/**
+ * `t` is threaded in rather than read off the i18n singleton, and that is deliberate: a
+ * singleton read is invisible to useMemo, so ListView's `groups` memo would not recompute on a
+ * language change and the board would sit there half-translated. react-i18next hands back a
+ * NEW `t` reference after languageChanged, so callers that put `t` in their deps array are
+ * self-correcting.
+ *
+ * Mirrors the mockup's urgency ladder, but expressed as design-system status tones
  * (see globals.css) instead of raw hex, so it stays theme-able and consistent with the
  * priority-dot recolouring the plan calls for. */
-export function dueInfo(note: Pick<NoteDto, 'status' | 'dueDate'>): DueInfo {
-  if (note.status === 'DONE') return { label: 'Erledigt', tone: 'success', weight: 500 };
-  if (!note.dueDate) return { label: 'Ohne Datum', tone: 'neutral', weight: 400 };
+export function dueInfo(note: Pick<NoteDto, 'status' | 'dueDate'>, t: T): DueInfo {
+  if (note.status === 'DONE') return { label: t('board.due.done'), tone: 'success', weight: 500 };
+  if (!note.dueDate) return { label: t('board.due.none'), tone: 'neutral', weight: 400 };
+  const date = parseIsoDate(note.dueDate);
   const diff = dayDiff(note.dueDate);
-  if (diff < 0) return { label: `Überfällig ${formatDate(note.dueDate)}`, tone: 'danger', weight: 600 };
-  if (diff === 0) return { label: 'Heute', tone: 'warning', weight: 600 };
-  if (diff === 1) return { label: 'Morgen', tone: 'warning', weight: 500 };
-  return { label: formatDate(note.dueDate), tone: 'neutral', weight: 400 };
+  if (diff < 0) return { label: t('board.due.overdue', { date }), tone: 'danger', weight: 600 };
+  if (diff === 0) return { label: t('board.due.today'), tone: 'warning', weight: 600 };
+  if (diff === 1) return { label: t('board.due.tomorrow'), tone: 'warning', weight: 500 };
+  return { label: t('common.shortDate', { date }), tone: 'neutral', weight: 400 };
 }
 
 export const dueToneClass: Record<DueTone, string> = {
@@ -161,20 +164,21 @@ const PRIORITY_ORDER: NotePriority[] = [...notePriorityValues];
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even
  * empty) so callers that need every band rendered (WandView's ZoneBands) don't have to
  * special-case it; ListView filters out empty groups itself per its own empty-state rule. */
-export function groupByAxis(notes: NoteDto[], axis: BoardAxis): NoteGroup<string>[] {
+export function groupByAxis(notes: NoteDto[], axis: BoardAxis, t: T): NoteGroup<string>[] {
   if (axis === 'free') {
-    return [{ key: 'ALLE', label: 'Alle Notizen', notes: sortNotes(notes) }];
+    return [{ key: 'ALLE', label: t('board.group.all'), notes: sortNotes(notes) }];
   }
+  const labels = enumLabels(t);
   if (axis === 'priority') {
     return PRIORITY_ORDER.map((key) => ({
       key,
-      label: PRIORITY_LABELS[key],
+      label: labels.priority[key],
       notes: sortNotes(notes.filter((n) => n.priority === key)),
     }));
   }
   return HORIZON_ORDER.map((key) => ({
     key,
-    label: HORIZON_LABELS[key],
+    label: labels.horizon[key],
     notes: sortNotes(notes.filter((n) => n.horizon === key)),
   }));
 }

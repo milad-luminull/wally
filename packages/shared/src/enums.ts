@@ -33,7 +33,8 @@ export type NoteHorizon = z.infer<typeof noteHorizonSchema>;
 // functional accents only (primary CTA, active-state, focus ring), never decoration.
 //
 // Order is append-only: the original five come first so no persisted value shifts meaning.
-// Every entry needs a COLOUR_LABELS label, a --note-* swatch and a --note-tint-* card tint
+// Every entry needs an enums.colour.* label in BOTH message catalogues (see
+// apps/web/src/i18n/), an entry in enumLabels.ts, a --note-* swatch and a --note-tint-* card tint
 // (see apps/web/src/styles/globals.css, where the tints' contrast floors are documented),
 // and an entry in each of the four maps in apps/web/.../util/noteDerived.ts.
 export const noteColourValues = [

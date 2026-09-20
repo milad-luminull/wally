@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Share2 } from 'lucide-react';
-import { WHITEBOARD_ROLE_LABELS, whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
+import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -21,6 +22,7 @@ interface ShareSheetProps {
 
 function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: string; isOwner: boolean }) {
   const { data: members = [], isLoading: membersLoading } = useMembers(boardId);
+  const { whiteboardRole } = useEnumLabels();
   const shareLinkQuery = useShareLink(boardId, isOwner);
   const createOrUpdateShareLink = useCreateOrUpdateShareLink(boardId);
   const [copied, setCopied] = useState(false);
@@ -68,7 +70,7 @@ function ShareBody({ boardId, ownerId, isOwner }: { boardId: string; ownerId: st
             className="w-full"
             value={shareLinkQuery.data?.role ?? 'VIEW'}
             onChange={(role) => createOrUpdateShareLink.mutate(role as WhiteboardRole)}
-            options={whiteboardRoleValues.map((role) => ({ value: role, label: WHITEBOARD_ROLE_LABELS[role] }))}
+            options={whiteboardRoleValues.map((role) => ({ value: role, label: whiteboardRole[role] }))}
           />
 
           <p className="text-12 leading-relaxed text-fg-muted">

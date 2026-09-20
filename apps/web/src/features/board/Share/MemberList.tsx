@@ -1,11 +1,10 @@
 import { X } from 'lucide-react';
 import {
-  EFFECTIVE_ROLE_LABELS,
-  WHITEBOARD_ROLE_LABELS,
   whiteboardRoleValues,
   type MemberDto,
   type WhiteboardRole,
 } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
@@ -24,6 +23,7 @@ interface MemberListProps {
  * both statuses live in the one members list). Owner-only role/remove controls per
  * SPEC §9. */
 export function MemberList({ boardId, members, ownerId, isOwner }: MemberListProps) {
+  const { effectiveRole, whiteboardRole } = useEnumLabels();
   const updateRole = useUpdateMemberRole(boardId);
   const removeMember = useRemoveMember(boardId);
 
@@ -55,7 +55,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
                   <SelectContent>
                     {whiteboardRoleValues.map((r) => (
                       <SelectItem key={r} value={r}>
-                        {WHITEBOARD_ROLE_LABELS[r]}
+                        {whiteboardRole[r]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -73,7 +73,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
               </>
             ) : (
               <span className="whitespace-nowrap text-12 text-fg-muted">
-                {EFFECTIVE_ROLE_LABELS[member.role]}
+                {effectiveRole[member.role]}
               </span>
             )}
           </div>

@@ -1,11 +1,4 @@
-import type {
-  Language,
-  NoteColour,
-  NoteHorizon,
-  NotePriority,
-  WhiteboardRole,
-  EffectiveRole,
-} from './enums.js';
+import type { Language } from './enums.js';
 
 /** Fallback when no language is stored on the profile and none can be read off Accept-Language. */
 export const DEFAULT_LANGUAGE: Language = 'de';
@@ -20,49 +13,6 @@ export const DEFAULT_LANGUAGE: Language = 'de';
 export const INITIAL_BOARD_NAME: Record<Language, string> = {
   de: 'Meine Wand',
   en: 'My Board',
-};
-
-/** Shared German copy for enum values — one source of truth for API and UI. */
-
-export const PRIORITY_LABELS: Record<NotePriority, string> = {
-  HOCH: 'Hoch',
-  MITTEL: 'Mittel',
-  NIEDRIG: 'Niedrig',
-};
-
-export const HORIZON_LABELS: Record<NoteHorizon, string> = {
-  HEUTE: 'Heute',
-  DIESE_WOCHE: 'Diese Woche',
-  SPAETER: 'Später',
-};
-
-export const COLOUR_LABELS: Record<NoteColour, string> = {
-  WEISS: 'Ohne',
-  EIS: 'Eisblau',
-  SAND: 'Sand',
-  MINZE: 'Minze',
-  HIMMEL: 'Himmel',
-  NEBEL: 'Nebel',
-  BUTTER: 'Butter',
-  LEHM: 'Lehm',
-  ROSE: 'Rosé',
-  MALVE: 'Malve',
-  FLIEDER: 'Flieder',
-  SEEGRUEN: 'Seegrün',
-  SALBEI: 'Salbei',
-  OLIV: 'Oliv',
-};
-
-
-export const WHITEBOARD_ROLE_LABELS: Record<WhiteboardRole, string> = {
-  VIEW: 'Ansehen',
-  EDIT: 'Bearbeiten',
-};
-
-export const EFFECTIVE_ROLE_LABELS: Record<EffectiveRole, string> = {
-  OWNER: 'Eigentümer',
-  EDIT: 'Bearbeiten',
-  VIEW: 'Ansehen',
 };
 
 export const NOTE_TITLE_MAX_LENGTH = 200;

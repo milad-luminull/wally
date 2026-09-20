@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import type { NoteDto } from '@wally/shared';
-import { PRIORITY_LABELS } from '@wally/shared';
+import { useTranslation } from 'react-i18next';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
 import {
@@ -20,7 +21,9 @@ interface NoteRowProps {
 }
 
 export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: NoteRowProps) {
-  const due = dueInfo(note);
+  const { t } = useTranslation();
+  const { priority: priorityLabels } = useEnumLabels();
+  const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const isDone = note.status === 'DONE';
 
@@ -106,7 +109,7 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         {note.priority === 'HOCH' && !isDone && (
           <span
             role="img"
-            aria-label={`Priorität: ${PRIORITY_LABELS.HOCH}`}
+            aria-label={`Priorität: ${priorityLabels.HOCH}`}
             className={cn('mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass.HOCH)}
           />
         )}

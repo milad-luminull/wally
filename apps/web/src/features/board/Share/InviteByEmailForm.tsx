@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
-import { WHITEBOARD_ROLE_LABELS, whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
+import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { useCreateInvite } from '../hooks/mutations/useCreateInvite';
 const emailSchema = z.string().trim().toLowerCase().email('Ungültige E-Mail-Adresse');
 
 export function InviteByEmailForm({ boardId }: { boardId: string }) {
+  const { whiteboardRole } = useEnumLabels();
   const createInvite = useCreateInvite(boardId);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<WhiteboardRole>('EDIT');
@@ -51,7 +53,7 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
           <SelectContent>
             {whiteboardRoleValues.map((r) => (
               <SelectItem key={r} value={r}>
-                {WHITEBOARD_ROLE_LABELS[r]}
+                {whiteboardRole[r]}
               </SelectItem>
             ))}
           </SelectContent>

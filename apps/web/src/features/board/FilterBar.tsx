@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { PRIORITY_LABELS, notePriorityValues, type NotePriority } from '@wally/shared';
+import { notePriorityValues, type NotePriority } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -136,12 +137,14 @@ function PriorityChips({
   priority: NotePriority[];
   setPriority: (p: NotePriority[]) => void;
 }) {
+  const { priority: priorityLabels } = useEnumLabels();
+
   return (
     <ToggleGroup type="multiple" variant="chip" value={priority} onValueChange={(v) => setPriority(v as NotePriority[])}>
       {notePriorityValues.map((p) => (
-        <ToggleGroupItem key={p} value={p} aria-label={`Nach Priorität ${PRIORITY_LABELS[p]} filtern`}>
+        <ToggleGroupItem key={p} value={p} aria-label={`Nach Priorität ${priorityLabels[p]} filtern`}>
           <span className={cn('h-1.5 w-1.5 rounded-full', priorityToneClass[p])} />
-          {PRIORITY_LABELS[p]}
+          {priorityLabels[p]}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

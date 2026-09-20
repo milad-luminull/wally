@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import {
-  HORIZON_LABELS,
-  PRIORITY_LABELS,
   notePriorityValues,
   noteHorizonValues,
   type NoteColour,
+  type NoteHorizon,
   type NotePriority,
 } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -112,6 +112,7 @@ interface ContentProps {
 }
 
 function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusTitle }: ContentProps) {
+  const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const { data: note, isLoading } = useNoteDetail(noteId);
   const { activeMembers } = useActiveMembers(boardId);
   // Same cached query the board renders from — no extra fetch.
@@ -232,7 +233,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
       <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
         <span
           role="img"
-          aria-label={isDone ? 'Erledigt' : `Priorität: ${PRIORITY_LABELS[note.priority]}`}
+          aria-label={isDone ? 'Erledigt' : `Priorität: ${priorityLabels[note.priority]}`}
           className={cn(
             'h-2 w-2 shrink-0 rounded-full',
             isDone ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
@@ -241,7 +242,7 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         <span className="flex-1 truncate text-12 font-semibold text-fg-muted">
           {isDone
             ? 'Erledigt'
-            : `${axis === 'priority' ? PRIORITY_LABELS[note.priority] : HORIZON_LABELS[note.horizon]} · ${PRIORITY_LABELS[note.priority]}`}
+            : `${axis === 'priority' ? priorityLabels[note.priority] : horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`}
         </span>
         <IconTooltip label="Schließen">
           <button
@@ -284,9 +285,9 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
             <FieldLabel>Priorität</FieldLabel>
             <ToggleGroup type="single" value={note.priority} onValueChange={handlePriorityChange} disabled={disabled}>
               {notePriorityValues.map((p) => (
-                <ToggleGroupItem key={p} variant="chip" value={p} aria-label={PRIORITY_LABELS[p]}>
+                <ToggleGroupItem key={p} variant="chip" value={p} aria-label={priorityLabels[p]}>
                   <span className={cn('h-[7px] w-[7px] rounded-full', priorityToneClass[p])} />
-                  {PRIORITY_LABELS[p]}
+                  {priorityLabels[p]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -304,8 +305,8 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
                 {(axis === 'priority' ? notePriorityValues : noteHorizonValues).map((key) => (
                   <ToggleGroupItem key={key} variant="chip" value={key}>
                     {axis === 'priority'
-                      ? PRIORITY_LABELS[key as NotePriority]
-                      : HORIZON_LABELS[key as keyof typeof HORIZON_LABELS]}
+                      ? priorityLabels[key as NotePriority]
+                      : horizonLabels[key as NoteHorizon]}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>

@@ -2,7 +2,8 @@ import { useDraggable } from '@dnd-kit/core';
 import { CheckCircle2, ListChecks } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
-import { PRIORITY_LABELS } from '@wally/shared';
+import { useTranslation } from 'react-i18next';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
 import {
   dueInfo,
@@ -45,7 +46,9 @@ interface NoteCardProps {
  * would replay on every move.
  */
 export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay = false, dragging = false }: NoteCardProps) {
-  const due = dueInfo(note);
+  const { t } = useTranslation();
+  const { priority: priorityLabels } = useEnumLabels();
+  const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const showAssignee = note.assignee && note.assignee.id !== currentUserId;
   const isDone = note.status === 'DONE';
@@ -87,7 +90,7 @@ export function NoteCard({ note, currentUserId, selected, onOpen, style, overlay
         {showPriorityDot && (
           <span
             role="img"
-            aria-label={`Priorität: ${PRIORITY_LABELS[note.priority]}`}
+            aria-label={`Priorität: ${priorityLabels[note.priority]}`}
             className={cn('h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass[note.priority])}
           />
         )}

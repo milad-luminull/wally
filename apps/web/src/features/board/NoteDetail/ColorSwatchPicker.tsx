@@ -1,4 +1,5 @@
-import { COLOUR_LABELS, noteColourValues, type NoteColour } from '@wally/shared';
+import { noteColourValues, type NoteColour } from '@wally/shared';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
 import { noteColourSwatchClass } from '../util/noteDerived';
 import { FieldLabel } from './Field';
@@ -16,6 +17,8 @@ interface ColorSwatchPickerProps {
  * note-colour choice, so there is no "Apricot" option here, unlike the reference mockup.
  */
 export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPickerProps) {
+  const { colour: colourLabels } = useEnumLabels();
+
   return (
     <div className="flex flex-col gap-2">
       <FieldLabel>Farbe</FieldLabel>
@@ -25,8 +28,8 @@ export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPick
             key={colour}
             type="button"
             disabled={disabled}
-            title={COLOUR_LABELS[colour]}
-            aria-label={COLOUR_LABELS[colour]}
+            title={colourLabels[colour]}
+            aria-label={colourLabels[colour]}
             aria-pressed={value === colour}
             onClick={() => onChange(colour)}
             className={cn(

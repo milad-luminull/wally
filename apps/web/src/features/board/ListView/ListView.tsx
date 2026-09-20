@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Info, StickyNote, X } from 'lucide-react';
 import type { NoteDto, NoteStatus } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
@@ -65,7 +66,13 @@ export function ListView({
   canEdit,
   isBelowDesktop,
 }: ListViewProps) {
-  const groups = useMemo(() => groupByAxis(notes, axis).filter((g) => g.notes.length > 0), [notes, axis]);
+  const { t } = useTranslation();
+  // `t` belongs in these deps: react-i18next returns a new reference after languageChanged, so
+  // including it is what makes the group labels re-derive when the language changes.
+  const groups = useMemo(
+    () => groupByAxis(notes, axis, t).filter((g) => g.notes.length > 0),
+    [notes, axis, t],
+  );
   const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
   if (notes.length === 0) {
