@@ -24,6 +24,78 @@ export const de = {
     switcher: {
       ownRole: 'Deine Wand',
     },
+    topBar: {
+      axis: {
+        ariaLabel: 'Organisation',
+        horizon: { label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
+        priority: { label: 'Priorität', hint: 'Nach Dringlichkeit ordnen' },
+        free: { label: 'Frei', hint: 'Notizen frei auf der Wand platzieren' },
+      },
+      view: {
+        ariaLabel: 'Ansicht',
+        wand: 'Wand',
+        list: 'Liste',
+      },
+      boardNameAria: 'Name der Wand',
+      renameTitle: 'Name bearbeiten',
+      open_one: '{{count}} offen',
+      open_other: '{{count}} offen',
+      overdue_one: '{{count}} überfällig',
+      overdue_other: '{{count}} überfällig',
+      membersAria_one: '{{count}} Mitglied',
+      membersAria_other: '{{count}} Mitglieder',
+      // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
+      newNote: 'Neue Notiz',
+    },
+    filter: {
+      title: 'Filter',
+      searchPlaceholder: 'Suchen',
+      searchAria: 'Notizen durchsuchen',
+      clearSearch: 'Suche zurücksetzen',
+      priorityHeading: 'Priorität',
+      priorityAria: 'Nach Priorität {{label}} filtern',
+      fieldHeading: 'Eigenschaft',
+      fieldAria: 'Eigenschaft',
+      fieldPlaceholder: 'Eigenschaft',
+      anyField: 'Alle Eigenschaften',
+      valueAria: 'Wert',
+      anyValue: 'Alle Werte',
+      showHeading: 'Anzeigen',
+      mine: 'Nur meine',
+      done: 'Erledigte',
+      reset: 'Zurücksetzen',
+      resetLong: 'Filter zurücksetzen',
+    },
+    empty: {
+      board: {
+        title: 'Deine Wand ist noch leer',
+        // Quotes the top bar's own button label — keep in step with board.topBar.newNote.
+        canEdit: 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.',
+        readOnly: 'Sobald jemand eine Notiz anlegt, erscheint sie hier.',
+      },
+      filtered: {
+        title: 'Keine Notiz passt zum Filter',
+        body: 'Passe Suche oder Filter an, um wieder Notizen zu sehen.',
+      },
+      free: {
+        title: 'Freie Wand',
+        canEdit: 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.',
+        readOnly: 'Auf dieser Wand liegt noch nichts.',
+      },
+    },
+    hint: {
+      freeMove: 'Notizen frei verschieben geht am Rechner (ab 1080px Breite).',
+      dismiss: 'Hinweis ausblenden',
+    },
+    zone: {
+      aria_one: '{{label}}, {{count}} Notiz',
+      aria_other: '{{label}}, {{count}} Notizen',
+      // Deliberately NOT "Neue Notiz …": that phrase is the top bar's add button, and the
+      // suites match accessible names by substring. The English must keep them distinct too.
+      addNote: 'Notiz in „{{label}}“ anlegen',
+      empty: 'Leer',
+      emptyHint: 'Notiz hierher ziehen oder doppelklicken',
+    },
     group: {
       all: 'Alle Notizen',
     },
@@ -33,6 +105,41 @@ export const de = {
       today: 'Heute',
       tomorrow: 'Morgen',
       overdue: 'Überfällig {{date, datetime(day: 2-digit; month: 2-digit)}}',
+    },
+  },
+  note: {
+    fields: {
+      label: 'Eigenschaften',
+      keyPlaceholder: 'Feld',
+      keyAria: 'Feldname',
+      valuePlaceholder: 'Wert',
+      valueAria: 'Feldwert',
+      remove: '{{key}} entfernen',
+    },
+    history: {
+      label: 'Verlauf',
+      created: 'Angelegt',
+      moved: 'Verschoben',
+      someone: 'Jemand',
+      // Accusative singular: "1 weitere anzeigen" is ungrammatical, which is precisely the
+      // bug a `${n} weitere` template can never express.
+      showMore_one: '{{count}} weiteren anzeigen',
+      showMore_other: '{{count}} weitere anzeigen',
+    },
+    subtasks: {
+      label: 'Unteraufgaben',
+      /** A ratio, not a plural — no count suffix. */
+      progress: '{{done}} von {{total}}',
+      add: 'Unteraufgabe hinzufügen',
+      markDone: '{{text}} als erledigt markieren',
+      markOpen: '{{text}} als offen markieren',
+      remove: '{{text}} entfernen',
+    },
+    tags: {
+      label: 'Schlagworte',
+      add: 'Schlagwort hinzufügen',
+      addPlaceholder: 'Hinzufügen',
+      remove: '{{tag}} entfernen',
     },
   },
   enums: {

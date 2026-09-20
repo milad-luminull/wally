@@ -56,6 +56,17 @@ interface ListViewProps {
  * call) — grouping/sorting is pure derived computation, so edits made here or in WandView
  * show up in both instantly without a second fetch.
  */
+/** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */
+function emptyStateKeys(boardIsEmpty: boolean, canEdit: boolean) {
+  if (!boardIsEmpty) {
+    return { title: 'board.empty.filtered.title', body: 'board.empty.filtered.body' } as const;
+  }
+  return {
+    title: 'board.empty.board.title',
+    body: canEdit ? 'board.empty.board.canEdit' : 'board.empty.board.readOnly',
+  } as const;
+}
+
 export function ListView({
   notes,
   totalNoteCount,
@@ -76,23 +87,15 @@ export function ListView({
   const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
   if (notes.length === 0) {
-    const boardIsEmpty = totalNoteCount === 0;
+    const keys = emptyStateKeys(totalNoteCount === 0, canEdit);
     return (
       <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
         <div className="flex max-w-sm flex-col items-center gap-2.5 text-center">
           <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-inset text-fg-faint">
             <StickyNote className="h-5 w-5" strokeWidth={1.7} />
           </span>
-          <p className="font-head text-18 font-semibold text-fg-1">
-            {boardIsEmpty ? 'Deine Wand ist noch leer' : 'Keine Notiz passt zum Filter'}
-          </p>
-          <p className="text-13 text-fg-muted">
-            {boardIsEmpty
-              ? canEdit
-                ? 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.'
-                : 'Sobald jemand eine Notiz anlegt, erscheint sie hier.'
-              : 'Passe Suche oder Filter an, um wieder Notizen zu sehen.'}
-          </p>
+          <p className="font-head text-18 font-semibold text-fg-1">{t(keys.title)}</p>
+          <p className="text-13 text-fg-muted">{t(keys.body)}</p>
         </div>
       </div>
     );
@@ -104,11 +107,11 @@ export function ListView({
         {isBelowDesktop && !hintDismissed && (
           <div className="flex items-start gap-2 rounded-xl border border-border-subtle bg-[color:var(--zone-surface)] px-3.5 py-2.5 text-12 text-fg-muted">
             <Info className="mt-px h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.9} />
-            <p className="min-w-0 flex-1">Notizen frei verschieben geht am Rechner (ab 1080px Breite).</p>
+            <p className="min-w-0 flex-1">{t('board.hint.freeMove')}</p>
             <button
               type="button"
               onClick={dismissHint}
-              aria-label="Hinweis ausblenden"
+              aria-label={t('board.hint.dismiss')}
               className={cn(
                 '-my-1 -mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-faint',
                 'transition-colors duration-150 ease-ds hover:bg-inset hover:text-fg-1',

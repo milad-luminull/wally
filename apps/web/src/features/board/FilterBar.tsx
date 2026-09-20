@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { notePriorityValues, type NotePriority } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -37,6 +38,7 @@ function FieldFilter({
   setFieldKey,
   setFieldValue,
 }: Pick<FilterBarProps, 'view' | 'fieldKeys' | 'fieldValues' | 'setFieldKey' | 'setFieldValue'>) {
+  const { t } = useTranslation();
   if (!fieldKeys.length) return null;
 
   return (
@@ -46,13 +48,13 @@ function FieldFilter({
         onValueChange={(v) => setFieldKey(v === ANY_VALUE ? null : v)}
       >
         <SelectTrigger
-          aria-label="Eigenschaft"
+          aria-label={t('board.filter.fieldAria')}
           className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
         >
-          <SelectValue placeholder="Eigenschaft" />
+          <SelectValue placeholder={t('board.filter.fieldPlaceholder')} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ANY_VALUE}>Alle Eigenschaften</SelectItem>
+          <SelectItem value={ANY_VALUE}>{t('board.filter.anyField')}</SelectItem>
           {fieldKeys.map((key) => (
             <SelectItem key={key} value={key}>
               {key}
@@ -67,13 +69,13 @@ function FieldFilter({
           onValueChange={(v) => setFieldValue(v === ANY_VALUE ? null : v)}
         >
           <SelectTrigger
-            aria-label="Wert"
+            aria-label={t('board.filter.valueAria')}
             className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ANY_VALUE}>Alle Werte</SelectItem>
+            <SelectItem value={ANY_VALUE}>{t('board.filter.anyValue')}</SelectItem>
             {fieldValues.map((value) => (
               <SelectItem key={value} value={value}>
                 {value}
@@ -87,6 +89,7 @@ function FieldFilter({
 }
 
 function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void }) {
+  const { t } = useTranslation();
   const [local, setLocal] = useState(q);
   const debounced = useDebouncedValue(local, 250);
 
@@ -109,8 +112,8 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
       <input
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        placeholder="Suchen"
-        aria-label="Notizen durchsuchen"
+        placeholder={t('board.filter.searchPlaceholder')}
+        aria-label={t('board.filter.searchAria')}
         /* h-full, so the field's own box is the full pill height rather than the 18px the
            text line occupies — the shell was already the visible target, but the input was
            what a pointer had to land on. */
@@ -119,7 +122,7 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
       {local && (
         <button
           type="button"
-          aria-label="Suche zurücksetzen"
+          aria-label={t('board.filter.clearSearch')}
           onClick={() => setLocal('')}
           className="-mr-1 shrink-0 rounded-full p-1.5 text-fg-faint transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:p-2.5"
         >
@@ -137,12 +140,13 @@ function PriorityChips({
   priority: NotePriority[];
   setPriority: (p: NotePriority[]) => void;
 }) {
+  const { t } = useTranslation();
   const { priority: priorityLabels } = useEnumLabels();
 
   return (
     <ToggleGroup type="multiple" variant="chip" value={priority} onValueChange={(v) => setPriority(v as NotePriority[])}>
       {notePriorityValues.map((p) => (
-        <ToggleGroupItem key={p} value={p} aria-label={`Nach Priorität ${priorityLabels[p]} filtern`}>
+        <ToggleGroupItem key={p} value={p} aria-label={t('board.filter.priorityAria', { label: priorityLabels[p] })}>
           <span className={cn('h-1.5 w-1.5 rounded-full', priorityToneClass[p])} />
           {priorityLabels[p]}
         </ToggleGroupItem>
@@ -162,13 +166,15 @@ function BooleanToggles({
   done: boolean;
   setDone: (v: boolean) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <>
       <Toggle variant="chip" pressed={mine} onPressedChange={setMine}>
-        Nur meine
+        {t('board.filter.mine')}
       </Toggle>
       <Toggle variant="chip" pressed={done} onPressedChange={setDone}>
-        Erledigte
+        {t('board.filter.done')}
       </Toggle>
     </>
   );
@@ -188,6 +194,7 @@ export function FilterBar({
   fieldValues,
   isBelowTablet,
 }: FilterBarProps) {
+  const { t } = useTranslation();
   const activeFilterCount =
     view.priority.length + (view.mine ? 1 : 0) + (view.done ? 0 : 1) + (view.fieldKey ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
@@ -207,7 +214,7 @@ export function FilterBar({
           <SheetTrigger asChild>
             <Button variant="outline" size="sm" className="shrink-0 gap-1.5 rounded-full">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filter
+              {t('board.filter.title')}
               {hasActiveFilters && (
                 <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-11 font-semibold tabular-nums text-primary-foreground">
                   {activeFilterCount}
@@ -217,16 +224,16 @@ export function FilterBar({
           </SheetTrigger>
           <SheetContent side="bottom" className="px-5 pb-6">
             <SheetHeader className="border-0 px-0 pb-4 pt-3">
-              <SheetTitle>Filter</SheetTitle>
+              <SheetTitle>{t('board.filter.title')}</SheetTitle>
             </SheetHeader>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">Priorität</span>
+                <span className="text-12 font-semibold text-fg-muted">{t('board.filter.priorityHeading')}</span>
                 <PriorityChips priority={view.priority} setPriority={setPriority} />
               </div>
               {fieldKeys.length > 0 && (
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-12 font-semibold text-fg-muted">Eigenschaft</span>
+                  <span className="text-12 font-semibold text-fg-muted">{t('board.filter.fieldHeading')}</span>
                   <FieldFilter
                     view={view}
                     fieldKeys={fieldKeys}
@@ -237,14 +244,14 @@ export function FilterBar({
                 </div>
               )}
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">Anzeigen</span>
+                <span className="text-12 font-semibold text-fg-muted">{t('board.filter.showHeading')}</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
                 </div>
               </div>
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={resetFilters} className="self-start">
-                  Filter zurücksetzen
+                  {t('board.filter.resetLong')}
                 </Button>
               )}
             </div>
@@ -275,7 +282,7 @@ export function FilterBar({
           onClick={resetFilters}
           className="rounded-md px-1.5 py-1.5 text-12 font-medium text-fg-muted transition-colors duration-150 hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-3"
         >
-          Zurücksetzen
+          {t('board.filter.reset')}
         </button>
       )}
     </div>

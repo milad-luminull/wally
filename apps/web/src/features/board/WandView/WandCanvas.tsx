@@ -1,6 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { useRef, type MouseEvent } from 'react';
 import { MousePointerClick } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   FREE_CANVAS_HEIGHT,
   FREE_CANVAS_WIDTH,
@@ -31,6 +32,17 @@ interface WandCanvasProps {
  * notes are placed on via {freeX, freeY}. One useDroppable region covers the whole
  * canvas; WandView's onDragEnd computes the new position from the drag delta.
  */
+/** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */
+function emptyStateKeys(filtered: boolean, canEdit: boolean) {
+  if (filtered) {
+    return { title: 'board.empty.filtered.title', body: 'board.empty.filtered.body' } as const;
+  }
+  return {
+    title: 'board.empty.free.title',
+    body: canEdit ? 'board.empty.free.canEdit' : 'board.empty.free.readOnly',
+  } as const;
+}
+
 export function WandCanvas({
   notes,
   currentUserId,
@@ -41,8 +53,10 @@ export function WandCanvas({
   filtered,
   activeDragId,
 }: WandCanvasProps) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
+  const keys = emptyStateKeys(filtered, canEdit);
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
     if (!canEdit) return;
@@ -89,16 +103,8 @@ export function WandCanvas({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <div className="flex max-w-xs flex-col items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-[color:var(--zone-surface)] px-7 py-8 text-center backdrop-blur-[1px]">
             <MousePointerClick className="h-5 w-5 text-fg-faint" strokeWidth={1.7} />
-            <p className="font-head text-15 font-semibold text-fg-1">
-              {filtered ? 'Keine Notiz passt zum Filter' : 'Freie Wand'}
-            </p>
-            <p className="text-12 text-fg-muted">
-              {filtered
-                ? 'Passe Suche oder Filter an, um wieder Notizen zu sehen.'
-                : canEdit
-                  ? 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.'
-                  : 'Auf dieser Wand liegt noch nichts.'}
-            </p>
+            <p className="font-head text-15 font-semibold text-fg-1">{t(keys.title)}</p>
+            <p className="text-12 text-fg-muted">{t(keys.body)}</p>
           </div>
         </div>
       )}

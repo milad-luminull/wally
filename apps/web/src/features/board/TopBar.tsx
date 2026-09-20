@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
+import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
@@ -17,16 +19,24 @@ import { ShareSheet } from './Share/ShareSheet';
 import { AccountMenu } from './AccountMenu';
 import { BoardSwitcher } from './BoardSwitcher';
 
-const AXES: SegmentedOption<BoardAxis>[] = [
-  { value: 'horizon', label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
-  { value: 'priority', label: 'Priorität', hint: 'Nach Dringlichkeit ordnen' },
-  { value: 'free', label: 'Frei', hint: 'Notizen frei auf der Wand platzieren' },
-];
+/**
+ * Built from `t` rather than declared at module scope: a module-level array would capture the
+ * German labels once, at import time, and never re-evaluate on a language change.
+ */
+function buildAxisOptions(t: T): SegmentedOption<BoardAxis>[] {
+  return [
+    { value: 'horizon', label: t('board.topBar.axis.horizon.label'), hint: t('board.topBar.axis.horizon.hint') },
+    { value: 'priority', label: t('board.topBar.axis.priority.label'), hint: t('board.topBar.axis.priority.hint') },
+    { value: 'free', label: t('board.topBar.axis.free.label'), hint: t('board.topBar.axis.free.hint') },
+  ];
+}
 
-const VIEWS: SegmentedOption<BoardView>[] = [
-  { value: 'wand', label: 'Wand' },
-  { value: 'list', label: 'Liste' },
-];
+function buildViewOptions(t: T): SegmentedOption<BoardView>[] {
+  return [
+    { value: 'wand', label: t('board.topBar.view.wand') },
+    { value: 'list', label: t('board.topBar.view.list') },
+  ];
+}
 
 interface TopBarProps {
   board: WhiteboardDto;
@@ -57,6 +67,9 @@ export function TopBar({
   onSetAxis,
   onOpenNote,
 }: TopBarProps) {
+  const { t } = useTranslation();
+  const AXES = useMemo(() => buildAxisOptions(t), [t]);
+  const VIEWS = useMemo(() => buildViewOptions(t), [t]);
   const { activeMembers } = useActiveMembers(boardId);
   const renameBoard = useBoardRename(boardId);
   const createNote = useCreateNote(boardId);
@@ -115,7 +128,7 @@ export function TopBar({
                     setEditingName(false);
                   }
                 }}
-                aria-label="Name der Wand"
+                aria-label={t('board.topBar.boardNameAria')}
                 className="font-head min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-18 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
               />
             ) : (
@@ -126,7 +139,7 @@ export function TopBar({
                     'cursor-text rounded-sm transition-colors duration-150 hover:text-[color:var(--petrol-mid)]',
                 )}
                 onClick={() => isOwner && setEditingName(true)}
-                title={isOwner ? 'Name bearbeiten' : undefined}
+                title={isOwner ? t('board.topBar.renameTitle') : undefined}
               >
                 {board.name}
               </h1>
@@ -135,13 +148,15 @@ export function TopBar({
           </div>
 
           <p className="flex items-center gap-1.5 text-12 text-fg-muted">
-            <span className="tabular-nums">{openCount} offen</span>
+            <span className="tabular-nums">{t('board.topBar.open', { count: openCount })}</span>
             {overdueCount > 0 && (
               <>
                 <span aria-hidden className="text-faint">
                   ·
                 </span>
-                <span className="font-semibold tabular-nums text-status-danger">{overdueCount} überfällig</span>
+                <span className="font-semibold tabular-nums text-status-danger">
+                  {t('board.topBar.overdue', { count: overdueCount })}
+                </span>
               </>
             )}
           </p>
@@ -152,7 +167,7 @@ export function TopBar({
 
       <div className="flex flex-wrap items-center gap-2.5">
         {viewOptions.length > 1 && (
-          <Segmented options={viewOptions} value={view} onChange={onSetView} aria-label="Ansicht" />
+          <Segmented options={viewOptions} value={view} onChange={onSetView} aria-label={t('board.topBar.view.ariaLabel')} />
         )}
 
         {/* The axis groups notes in BOTH Wand and Liste, so it stays visible regardless of
@@ -164,7 +179,7 @@ export function TopBar({
             bar now reads the same on a phone as on a desktop. */}
         <Select value={axis} onValueChange={(v) => onSetAxis(v as BoardAxis)}>
           <SelectTrigger
-            aria-label="Organisation"
+            aria-label={t('board.topBar.axis.ariaLabel')}
             className="h-9 w-[132px] rounded-lg border border-border bg-card px-3 text-13 [@media(pointer:coarse)]:h-11"
           >
             <SelectValue />
@@ -183,7 +198,7 @@ export function TopBar({
         {activeMembers.length > 0 && (
           <div
             className="hidden items-center sm:flex"
-            aria-label={`${activeMembers.length} Mitglieder`}
+            aria-label={t('board.topBar.membersAria', { count: activeMembers.length })}
           >
             {visibleMembers.map((m) => (
               <Avatar
@@ -206,11 +221,11 @@ export function TopBar({
         <ShareSheet boardId={boardId} ownerId={board.ownerId} isOwner={isOwner} isBelowTablet={isBelowTablet} />
 
         {canEdit && (
-          <IconTooltip label="Neue Notiz">
+          <IconTooltip label={t('board.topBar.newNote')}>
             <Button
               variant="accent"
               size="icon"
-              aria-label="Neue Notiz"
+              aria-label={t('board.topBar.newNote')}
               onClick={() =>
                 createNote.mutate(nextFreeNotePosition(notes), {
                   onSuccess: (n) => onOpenNote(n.id),

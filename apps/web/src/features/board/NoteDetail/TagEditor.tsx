@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import { TAG_MAX_LENGTH } from '@wally/shared';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ interface TagEditorProps {
 }
 
 export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState('');
 
   function commit() {
@@ -34,7 +36,7 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <FieldLabel>Schlagworte</FieldLabel>
+      <FieldLabel>{t('note.tags.label')}</FieldLabel>
       <div className="flex flex-wrap items-center gap-1.5">
         {tags.map((tag) => (
           <span
@@ -46,7 +48,7 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
               <button
                 type="button"
                 onClick={() => onRemove(tag)}
-                aria-label={`${tag} entfernen`}
+                aria-label={t('note.tags.remove', { tag })}
                 className="text-fg-muted transition-colors hover:text-fg-1"
               >
                 <X className="h-2.5 w-2.5" strokeWidth={2.4} />
@@ -60,8 +62,8 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={commit}
-            placeholder="Hinzufügen"
-            aria-label="Schlagwort hinzufügen"
+            placeholder={t('note.tags.addPlaceholder')}
+            aria-label={t('note.tags.add')}
             className="h-6 w-24 border-0 border-b border-border-subtle p-0 text-12 focus-visible:ring-0"
           />
         )}

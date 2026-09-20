@@ -1,5 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { NoteDto } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
@@ -32,6 +33,7 @@ function ZoneBand({
   canEdit,
   activeDragId,
 }: ZoneBandProps) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
   const isEmpty = group.notes.length === 0;
 
@@ -39,7 +41,7 @@ function ZoneBand({
     <section
       ref={setNodeRef}
       onDoubleClick={() => canEdit && onCreateInZone(group.key)}
-      aria-label={`${group.label}, ${group.notes.length} Notizen`}
+      aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
       className={cn(
         'group/zone flex min-w-0 flex-col rounded-2xl border transition-[background-color,border-color,box-shadow] duration-200 ease-ds',
         axis === 'horizon' ? 'h-full w-[288px] shrink-0' : 'min-h-[172px] w-full',
@@ -59,9 +61,7 @@ function ZoneBand({
         {canEdit && (
           <button
             type="button"
-            /* Deliberately not "Neue Notiz …": that phrase is the top bar's add button,
-               and the suites match accessible names by substring. */
-            aria-label={`Notiz in „${group.label}“ anlegen`}
+            aria-label={t('board.zone.addNote', { label: group.label })}
             onClick={() => onCreateInZone(group.key)}
             className={cn(
               'flex h-6 w-6 items-center justify-center rounded-md text-fg-faint',
@@ -105,8 +105,8 @@ function ZoneBand({
               isOver && 'border-accent',
             )}
           >
-            <p className="text-12 font-medium text-fg-2">Leer</p>
-            {canEdit && <p className="text-11 text-fg-muted">Notiz hierher ziehen oder doppelklicken</p>}
+            <p className="text-12 font-medium text-fg-2">{t('board.zone.empty')}</p>
+            {canEdit && <p className="text-11 text-fg-muted">{t('board.zone.emptyHint')}</p>}
           </div>
         )}
       </div>

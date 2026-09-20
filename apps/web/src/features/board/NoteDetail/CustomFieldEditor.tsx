@@ -1,4 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import {
   FIELD_KEY_MAX_LENGTH,
@@ -33,6 +34,7 @@ export function CustomFieldEditor({
   keySuggestions = [],
   disabled,
 }: CustomFieldEditorProps) {
+  const { t } = useTranslation();
   const [keyDraft, setKeyDraft] = useState('');
   const [valueDraft, setValueDraft] = useState('');
   const datalistId = useId();
@@ -62,7 +64,7 @@ export function CustomFieldEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <FieldLabel>Eigenschaften</FieldLabel>
+      <FieldLabel>{t('note.fields.label')}</FieldLabel>
       <div className="flex flex-col gap-1">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-baseline gap-2 text-12">
@@ -72,7 +74,7 @@ export function CustomFieldEditor({
               <button
                 type="button"
                 onClick={() => onRemove(key)}
-                aria-label={`${key} entfernen`}
+                aria-label={t('note.fields.remove', { key })}
                 className="shrink-0 p-0.5 text-border-strong transition-colors hover:text-fg-muted"
               >
                 <X className="h-[11px] w-[11px]" strokeWidth={2.2} />
@@ -88,8 +90,8 @@ export function CustomFieldEditor({
               onChange={(e) => setKeyDraft(e.target.value)}
               onKeyDown={handleKeyDown}
               list={datalistId}
-              placeholder="Feld"
-              aria-label="Feldname"
+              placeholder={t('note.fields.keyPlaceholder')}
+              aria-label={t('note.fields.keyAria')}
               className="h-[30px] w-[38%] border-0 border-b border-border-subtle p-0 text-12 focus-visible:ring-0"
             />
             <datalist id={datalistId}>
@@ -102,8 +104,8 @@ export function CustomFieldEditor({
               onChange={(e) => setValueDraft(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={commit}
-              placeholder="Wert"
-              aria-label="Feldwert"
+              placeholder={t('note.fields.valuePlaceholder')}
+              aria-label={t('note.fields.valueAria')}
               className="h-[30px] min-w-0 flex-1 border-0 border-b border-border-subtle p-0 text-12 focus-visible:ring-0"
             />
           </div>
