@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  meDtoSchema,
+  meUpdateSchema,
   whiteboardDtoSchema,
   whiteboardSummaryDtoSchema,
   noteDtoSchema,
@@ -17,6 +19,8 @@ import {
   subtaskDtoSchema,
   subtaskCreateSchema,
   subtaskUpdateSchema,
+  type Language,
+  type MeDto,
   type WhiteboardDto,
   type WhiteboardSummaryDto,
   type NoteDto,
@@ -40,6 +44,12 @@ import { api } from './apiClient';
 const noteListSchema = z.array(noteDtoSchema);
 const memberListSchema = z.array(memberDtoSchema);
 const whiteboardListSchema = z.array(whiteboardSummaryDtoSchema);
+
+export const meApi = {
+  get: (): Promise<MeDto> => api.get('/me', meDtoSchema),
+  updateLanguage: (language: Language): Promise<MeDto> =>
+    api.patch('/me', meUpdateSchema.parse({ language }), meDtoSchema),
+};
 
 export const boardsApi = {
   list: (): Promise<WhiteboardSummaryDto[]> => api.get('/whiteboards', whiteboardListSchema),

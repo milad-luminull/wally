@@ -5,6 +5,7 @@ import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initI18n } from '@/i18n';
+import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { App } from './App';
 import './styles/globals.css';
 
@@ -19,9 +20,14 @@ createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <App />
-        </TooltipProvider>
+        {/* Inside AuthProvider (it gates the /me query on auth status) and inside
+            QueryClientProvider (it runs that query), but outside the router — it is
+            route-independent. */}
+        <LanguageProvider>
+          <TooltipProvider>
+            <App />
+          </TooltipProvider>
+        </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,

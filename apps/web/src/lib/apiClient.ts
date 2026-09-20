@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { i18n } from '@/i18n';
 import { getFreshIdToken } from '@/features/auth/AuthProvider';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -53,7 +54,14 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 async function request<T>(path: string, options: RequestOptions = {}, schema?: z.ZodType<T>): Promise<T> {
   const doFetch = async (forceRefresh: boolean) => {
     const token = await getFreshIdToken(forceRefresh);
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    // Read off the i18next instance rather than React state — apiClient lives outside React
+    // by design (see getFreshIdToken). The value is already BCP-47, so it goes on the wire as
+    // is. The API consults this ONLY when provisioning a brand-new profile, to seed the
+    // stored language and the initial board name; afterwards the profile wins.
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Accept-Language': i18n.language,
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
