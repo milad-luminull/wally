@@ -202,7 +202,17 @@ Dragging and free positioning are desktop capabilities.
 
 ## 12. Language
 
-The application UI uses German copy.
+The application UI is available in German and English.
+
+German is the default: it is what a new visitor sees unless their browser asks for English,
+and it is the fallback whenever a language cannot be determined.
+
+Each user chooses their language, and the choice is stored on their profile, so it follows
+them to any device and survives signing out. It can be changed at any time from the account
+menu. Before anyone is signed in, the browser's own preference decides.
+
+Only interface copy is translated. Content a user typed — board names, note titles, tags and
+property keys — is shown as entered, in whatever language it was written.
 
 ---
 

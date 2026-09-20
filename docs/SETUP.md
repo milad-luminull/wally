@@ -27,6 +27,12 @@
 - Vite, React 19, TypeScript, React Router, TanStack Query.
 - UI: shadcn/ui on Tailwind CSS. Use its components as the base for every screen. Do not hand-write components that shadcn already provides.
 - Change trigger: switch to MUI only if the client requires Material Design.
+- i18n: react-i18next. Message catalogues live in `apps/web/src/i18n/` (`de.ts` is the key
+  authority, `en.ts` is held to its key set by `resources.test.ts`). Keys are English and name
+  the string's role (`.label`, `.aria`, `.body`), never its content. No user-facing string
+  belongs in a component — `noHardcodedCopy.test.ts` fails the build if one does. Anything
+  held in React state is stored as a KEY and translated at render, or it goes stale on a
+  language switch. `packages/shared` keeps the enum VALUES; their labels are web-only.
 
 ## Commands
 

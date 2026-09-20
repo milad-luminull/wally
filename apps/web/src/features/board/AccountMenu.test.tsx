@@ -53,16 +53,26 @@ describe('AccountMenu', () => {
     expect(screen.getByLabelText('Sprache')).toHaveTextContent('Deutsch');
   });
 
-  it('switches language from the keyboard', async () => {
-    const user = await openMenu();
+  /**
+   * Given a longer timeout than the 20s default: this drives two nested Radix layers (the
+   * popover, then the select), and Radix in jsdom costs ~8s per layer in this repo — see the
+   * runtimes on the ShareSheet and BoardSwitcher popover suites. It fits on a dev machine but
+   * tipped over the default inside the container.
+   */
+  it(
+    'switches language from the keyboard',
+    async () => {
+      const user = await openMenu();
 
-    await user.click(screen.getByLabelText('Sprache'));
-    // Endonyms are never translated, so a user stranded in the wrong language can still
-    // recognise their own.
-    await user.click(await screen.findByRole('option', { name: 'English' }));
+      await user.click(screen.getByLabelText('Sprache'));
+      // Endonyms are never translated, so a user stranded in the wrong language can still
+      // recognise their own.
+      await user.click(await screen.findByRole('option', { name: 'English' }));
 
-    expect(setLanguage).toHaveBeenCalledWith('en');
-  });
+      expect(setLanguage).toHaveBeenCalledWith('en');
+    },
+    60_000,
+  );
 
   it('announces a failed save rather than silently reverting', async () => {
     mockUseLanguage.mockReturnValue({
