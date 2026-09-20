@@ -183,8 +183,6 @@ export const en = {
     assigneeLabel: 'Assignee',
     noAssignee: 'Nobody',
     doneStatus: 'Done',
-    reopen: 'Reopen',
-    complete: 'Done',
     zone: {
       row: 'Row',
       column: 'Column',

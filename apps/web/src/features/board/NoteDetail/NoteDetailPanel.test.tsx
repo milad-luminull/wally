@@ -40,6 +40,79 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
 }
 
 describe('NoteDetailPanel', () => {
+
+  /**
+   * Completion used to be a filled, full-width button in the footer labelled "Erledigt".
+   * That is the slot — and the word — every sheet uses for "dismiss", so people pressing it
+   * to close the panel silently marked their to-do done instead. It is a checkbox now, which
+   * is also how the list view has always completed a note.
+   */
+  describe('completing a note', () => {
+    it('completes the note from a checkbox rather than a footer button', async () => {
+      vi.mocked(notesApi.complete).mockResolvedValue(makeNoteDetail({ status: 'DONE' }));
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      const done = screen.getByRole('checkbox', { name: 'Erledigt' });
+      expect(done).not.toBeChecked();
+      await userEvent.click(done);
+
+      await waitFor(() => expect(notesApi.complete).toHaveBeenCalledWith('note-1'));
+    });
+
+    it('reopens a completed note from the same checkbox', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ status: 'DONE' }));
+      vi.mocked(notesApi.reopen).mockResolvedValue(makeNoteDetail({ status: 'OPEN' }));
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      const done = screen.getByRole('checkbox', { name: 'Erledigt' });
+      expect(done).toBeChecked();
+      await userEvent.click(done);
+
+      await waitFor(() => expect(notesApi.reopen).toHaveBeenCalledWith('note-1'));
+    });
+
+    it('leaves no button that could be mistaken for a way out of the panel', async () => {
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      // The only footer control is delete; closing is the header X (and Escape).
+      expect(screen.queryByRole('button', { name: 'Erledigt' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Wieder offen' })).not.toBeInTheDocument();
+    });
+
+    it('does not offer the checkbox to a member who cannot edit', async () => {
+      renderPanel({ canEdit: false });
+      await screen.findByLabelText('Titel');
+
+      expect(screen.getByRole('checkbox', { name: 'Erledigt' })).toBeDisabled();
+    });
+  });
+
+  describe('closing the panel', () => {
+    it('closes on Escape', async () => {
+      const { onClose } = renderPanel();
+      await screen.findByLabelText('Titel');
+
+      await userEvent.keyboard('{Escape}');
+
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    // Escape has to reach the topmost layer first, or confirming a delete becomes impossible
+    // to back out of without also losing the panel.
+    it('leaves Escape to the delete dialog while it is open', async () => {
+      const { onClose } = renderPanel();
+      await screen.findByLabelText('Titel');
+      await userEvent.click(screen.getByRole('button', { name: 'Löschen' }));
+      await screen.findByRole('alertdialog');
+
+      await userEvent.keyboard('{Escape}');
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
   it('moves the note via the Priority control (POST /notes/:id/move, mode PRIORITY)', async () => {
     renderPanel();
     await screen.findByLabelText('Titel');

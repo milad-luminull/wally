@@ -19,11 +19,16 @@ test('full note lifecycle: create, add a subtask, complete, reopen, delete', asy
   await page.getByRole('checkbox', { name: /als erledigt markieren/i }).click();
   await expect(page.getByText('1 von 1')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Erledigt' }).click();
-  await expect(page.getByRole('button', { name: 'Wieder offen' })).toBeVisible();
+  // Completing a note is a checkbox, not a footer button — a filled button in the bottom
+  // confirm slot labelled "Erledigt" read as "close the panel". `exact` matters: name
+  // matching is substring by default, and the subtask checkbox above is called
+  // "… als erledigt markieren".
+  const noteDone = page.getByRole('checkbox', { name: 'Erledigt', exact: true });
+  await noteDone.click();
+  await expect(noteDone).toBeChecked();
 
-  await page.getByRole('button', { name: 'Wieder offen' }).click();
-  await expect(page.getByRole('button', { name: 'Erledigt' })).toBeVisible();
+  await noteDone.click();
+  await expect(noteDone).not.toBeChecked();
 
   await page.getByRole('button', { name: 'Löschen' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Löschen' }).click();

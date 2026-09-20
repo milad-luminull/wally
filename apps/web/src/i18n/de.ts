@@ -199,8 +199,6 @@ export const de = {
     assigneeLabel: 'Zuständig',
     noAssignee: 'Niemand',
     doneStatus: 'Erledigt',
-    reopen: 'Wieder offen',
-    complete: 'Erledigt',
     zone: {
       row: 'Zeile',
       column: 'Spalte',

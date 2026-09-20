@@ -10,6 +10,7 @@ import {
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -59,8 +60,39 @@ interface NoteDetailPanelProps {
   onClose: () => void;
 }
 
+/**
+ * Escape closes the desktop panel.
+ *
+ * The mobile sheet gets this free from Radix; the desktop `<aside>` is a plain element, so
+ * until now the panel had exactly one exit — a 28px X in the corner. That is half of why
+ * people reached for the footer button instead.
+ *
+ * It defers to any layer above it: Radix renders selects and popovers into a popper wrapper
+ * and the delete confirmation as an alertdialog, and each closes itself on Escape. Without
+ * this guard, dismissing the assignee dropdown — or backing out of the delete dialog — would
+ * take the whole panel with it.
+ */
+function useEscapeToClose(onClose: () => void, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const layerAbove = document.querySelector(
+        '[data-radix-popper-content-wrapper], [role="alertdialog"], [role="dialog"]',
+      );
+      if (layerAbove) return;
+      onClose();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [enabled, onClose]);
+}
+
 export function NoteDetailPanel({ noteId, boardId, canEdit, axis, isBelowDesktop, onClose }: NoteDetailPanelProps) {
   const { t } = useTranslation();
+  useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
 
   if (isBelowDesktop) {
     return (
@@ -261,7 +293,33 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
       </header>
 
       <div className="wally-scroll min-h-0 flex-1 overflow-y-auto">
-        <div className="px-5 pb-1 pt-4">
+        {/* Completion is a checkbox, not a footer button. A filled button in the bottom
+            confirm slot labelled "Erledigt" reads as "dismiss this panel" — which is what
+            people pressed it for, silently completing their to-do instead of closing. The
+            panel auto-saves every field, so it has nothing to confirm and needs no such
+            button. This also matches how the list view has always completed a note. */}
+        <div className="flex items-center gap-2.5 px-5 pb-0.5 pt-4">
+          <Checkbox
+            id="note-done"
+            checked={isDone}
+            disabled={disabled}
+            onCheckedChange={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
+          />
+          {/* Quieter than the title, but deliberately not as quiet as a field label: this is
+              the note's one state control, and it has to read as interactive. The generous
+              vertical padding is the touch target — the box itself is 16px. */}
+          <label
+            htmlFor="note-done"
+            className={cn(
+              '-my-1.5 py-1.5 text-13 font-medium text-fg-2 select-none',
+              !disabled && 'cursor-pointer hover:text-fg-1',
+            )}
+          >
+            {t('note.doneStatus')}
+          </label>
+        </div>
+
+        <div className="px-5 pb-1 pt-3">
           <textarea
             ref={titleRef}
             value={title}
@@ -393,21 +451,15 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
         </PanelSection>
       </div>
 
-      <footer className="flex shrink-0 items-center gap-3 border-t border-border px-5 py-3.5">
-        <Button
-          variant={isDone ? 'outline' : 'default'}
-          disabled={disabled}
-          onClick={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
-          className="flex-1"
-        >
-          {isDone ? t('note.reopen') : t('note.complete')}
-        </Button>
-
-        {!disabled && (
+      {/* Delete is the only footer action now. Ghost rather than filled destructive: it is
+          the sole control down here, and a lone filled red button shouts. */}
+      {!disabled && (
+        <footer className="flex shrink-0 items-center justify-end border-t border-border px-5 py-3.5">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon" aria-label={t('common.delete')}>
+              <Button variant="ghost" className="gap-2 text-status-danger hover:bg-inset">
                 <Trash2 className="h-4 w-4" strokeWidth={1.9} />
+                {t('common.delete')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -431,8 +483,8 @@ function NoteDetailContent({ noteId, boardId, canEdit, axis, onClose, autoFocusT
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        )}
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
