@@ -1,0 +1,13 @@
+# Default owner for everything.
+*                       @milad-luminull
+
+# Paths where a mistake is expensive or hard to notice in a diff.
+/.github/               @milad-luminull
+/scripts/               @milad-luminull
+/infra/                 @milad-luminull
+/firestore.rules        @milad-luminull
+/firestore.indexes.json @milad-luminull
+/firebase.json          @milad-luminull
+/cloudbuild.yaml        @milad-luminull
+/docker-compose.yml     @milad-luminull
+/docker-compose.ci.yml  @milad-luminull

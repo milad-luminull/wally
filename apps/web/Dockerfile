@@ -3,7 +3,9 @@
 # workspace needs to be in the build context, not just apps/web.
 
 FROM node:22-slim AS base
-RUN corepack enable
+# Pin pnpm exactly as apps/api/Dockerfile does; bare `corepack enable` resolves the version
+# from the packageManager field at build time, which is a network dependency and can drift.
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /repo
 
 # ---------------------------------------------------------------------------

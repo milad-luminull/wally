@@ -12,7 +12,9 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "seed": "pnpm --filter @wally/api seed"
+    "seed": "pnpm --filter @wally/api seed",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "turbo": "^2.3.3",

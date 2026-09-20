@@ -8,7 +8,13 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**"],
+      // envMode is "loose", so environment variables reach tasks but do NOT enter the task
+      // hash unless they are listed here. Vite inlines VITE_* into the bundle at build
+      // time, so without this a cache entry produced by a CI run (VITE_API_BASE_URL unset,
+      // or http://localhost:4000) is a valid cache hit for a production release build —
+      // turbo would print FULL TURBO while shipping a bundle pointing at localhost.
+      "env": ["VITE_*", "NODE_ENV"]
     },
     "test": {
       "cache": false,
@@ -21,5 +27,6 @@
       "dependsOn": ["^build"],
       "outputs": []
     }
-  }
+  },
+  "globalDependencies": ["pnpm-lock.yaml", ".nvmrc"]
 }

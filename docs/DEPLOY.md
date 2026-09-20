@@ -11,11 +11,11 @@ Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
 Wally is three separate things, and they go to three different places:
 
-| Piece | What it is | Where it goes |
-| --- | --- | --- |
-| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files | **Firebase Hosting** (a CDN for static files) |
-| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you) |
-| Your data | Notes, boards, members | **Cloud Firestore** (already the database, nothing to install) |
+| Piece      | What it is                                                 | Where it goes                                                  |
+| ---------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                  |
+| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                       |
+| Your data  | Notes, boards, members                                     | **Cloud Firestore** (already the database, nothing to install) |
 
 Plus two things that are configuration rather than code: **Firebase Authentication**
 (already used for sign-in) and your **Firestore security rules and indexes**.
@@ -68,11 +68,11 @@ These are already decided and deployed, and every command below has them filled 
 listed here so you recognise them when you see them, and so you know what to change if you
 ever stand up a second environment.
 
-| Name | Meaning | Value |
-| --- | --- | --- |
-| Project ID | The Firebase project ID (not the display name) | `luminull-wally` |
-| Region | The Google Cloud region everything is deployed to | `europe-west1` |
-| Repo | Artifact Registry repository holding the API image | `wally` |
+| Name       | Meaning                                            | Value            |
+| ---------- | -------------------------------------------------- | ---------------- |
+| Project ID | The Firebase project ID (not the display name)     | `luminull-wally` |
+| Region     | The Google Cloud region everything is deployed to  | `europe-west1`   |
+| Repo       | Artifact Registry repository holding the API image | `wally`          |
 
 **One region, everywhere.** Mixing regions is the single most common cause of confusing
 failures. `europe-west1` (Belgium) is a sensible default for a German company and is
@@ -98,7 +98,7 @@ budget**. Set something small like €10/month so you find out early if somethin
 
 ## 4. Step 2 — Create the Firestore database
 
-Your local development uses the Firestore *emulator*, which is a fake. The real database
+Your local development uses the Firestore _emulator_, which is a fake. The real database
 does not exist yet until you create it.
 
 1. Firebase console → **Build → Firestore Database** → **Create database**.
@@ -112,10 +112,10 @@ does not exist yet until you create it.
 
 There are two, and this matters more than it looks:
 
-| Database | Location | Used |
-| --- | --- | --- |
-| `wally` | `europe-west3` (Frankfurt) | **yes — this is the real one** |
-| `(default)` | `nam5` (United States) | no — auto-created, left empty |
+| Database    | Location                   | Used                           |
+| ----------- | -------------------------- | ------------------------------ |
+| `wally`     | `europe-west3` (Frankfurt) | **yes — this is the real one** |
+| `(default)` | `nam5` (United States)     | no — auto-created, left empty  |
 
 Google creates a `(default)` database in the US on its own if something asks for one before
 you have made your choice. The Admin SDK's `getFirestore(app)` resolves to `(default)`
@@ -151,7 +151,18 @@ This is already handled in the code — no edits needed before you deploy:
   configured or the process is running on Google Cloud. Cloud Run starts fine with no key,
   while local dev still fails fast if the key is missing.
 
-If you ever touch either file, keep that split intact. To double-check it still compiles:
+There is now a third arm, added so CI can run the full stack without a key at all:
+
+- **`apps/api/src/plugins/firebase.ts`** also accepts a credential-less start when
+  `FIRESTORE_EMULATOR_HOST` is set. Verifying an ID token needs no credential — firebase-admin
+  checks the signature against Google's public certificates and compares `aud`/`iss` to the
+  project id. A credential is required for _Firestore_, so the emulator case is genuinely safe.
+- **`apps/api/src/env.ts`** makes `NODE_ENV=production` together with `FIRESTORE_EMULATOR_HOST`
+  a fatal startup error, so that relaxation can never apply to production. This also turns the
+  "emulator host leaked into production" failure in section 15 from a per-request 500 into a
+  refusal to boot.
+
+If you ever touch these files, keep all three arms intact. To double-check it still compiles:
 
 ```bash
 docker compose run --rm api pnpm turbo run typecheck test
@@ -291,7 +302,7 @@ look.
 - **The production build failed on a `rootDir` TypeScript error.** `apps/api/tsconfig.build.json`
   only lists `"include": ["src"]`, but `src/**/*.test.ts` files import helpers from
   `test/helpers.ts`, which lives outside `src` — that trips `rootDir` under `tsc -p
-  tsconfig.build.json` even though `pnpm typecheck` (a different tsconfig, no `rootDir`)
+tsconfig.build.json` even though `pnpm typecheck` (a different tsconfig, no `rootDir`)
   was clean. Fixed by excluding test files from the production build, since they were never
   meant to ship anyway:
 
@@ -315,7 +326,7 @@ look.
 
 ### 9a. Create a service account for the API
 
-Cloud Run will run your container *as* this identity, and this is what gives it Firestore
+Cloud Run will run your container _as_ this identity, and this is what gives it Firestore
 access — no keys involved.
 
 ```bash
@@ -358,7 +369,7 @@ Three things worth understanding:
 
 ### 9c. Make the service publicly reachable
 
-Note what is *missing* from the deploy command above: `--allow-unauthenticated`. Most
+Note what is _missing_ from the deploy command above: `--allow-unauthenticated`. Most
 tutorials include it, and it does not work in this organization.
 
 Cloud Run puts **two independent gates** in front of the container:
@@ -370,7 +381,7 @@ Cloud Run puts **two independent gates** in front of the container:
    verifies a Firebase ID token and 401s without one.
 
 Wally deliberately relies on gate 2. Gate 1 exists for service-to-service auth and is
-redundant here — which is why making the service "public" does *not* mean "no security".
+redundant here — which is why making the service "public" does _not_ mean "no security".
 
 The problem: this organization enforces **domain-restricted sharing**
 (`constraints/iam.allowedPolicyMemberDomains`, limited to the Workspace customer ID). That
@@ -424,7 +435,7 @@ curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok
 curl -i https://wally-api-d5xbuta4ya-ew.a.run.app/whiteboards | head -1   # expect HTTP/2 401
 ```
 
-A 401 on the second one is *success*: the API is running and correctly refusing
+A 401 on the second one is _success_: the API is running and correctly refusing
 unauthenticated access.
 
 > **The health endpoint is `/health`, not `/healthz`, and that is deliberate.** Google Front
@@ -441,7 +452,7 @@ unauthenticated access.
 ### 10a. Give the build its environment variables
 
 This trips people up: Vite bakes `VITE_*` values into the JavaScript **at build time**, and
-it reads them from `apps/web/.env*` — *not* from the repo-root `.env` that docker-compose
+it reads them from `apps/web/.env*` — _not_ from the repo-root `.env` that docker-compose
 uses. Build without them and you get a white screen and `auth/invalid-api-key` in the
 console.
 
@@ -462,11 +473,14 @@ Auth and by the API, not by hiding them.
 
 `VITE_API_BASE_URL` is the Cloud Run URL from the previous step, **with no trailing slash**.
 
-This file contains no secrets, but it is environment-specific and **is not currently
-gitignored** (`.gitignore` covers `.env` and `.env.*.local`, neither of which matches
-`.env.production`). Decide deliberately whether to commit it. Committing is defensible here
-— the values are public identifiers and it makes the build reproducible — but it should be a
-choice, not an accident.
+This file contains no secrets, but it is environment-specific — and it **is** gitignored:
+`.gitignore` covers `.env.*`, which matches `.env.production`. (`.dockerignore` excludes it
+too, so the `apps/web` Docker `prod` stage cannot see it either.)
+
+Do not commit it. CI does not use it at all: the release workflow supplies the same five
+values from GitHub repository _variables_ — they are public identifiers baked into a public
+bundle, so they are variables rather than secrets — and asserts afterwards that the built
+bundle really does contain the production API URL and not `localhost:4000`.
 
 ### 10b. The Hosting block in `firebase.json`
 
@@ -565,9 +579,66 @@ If step 8 errors, it is almost certainly indexes still building — check
 
 ## 13. Deploying again later
 
-You do not repeat the setup. Day-to-day it is:
+**Normally you do not run any of this.** Push a `v*` tag and
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) performs every step
+below, in the same order, then smoke-tests the result:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The run pauses on the `production` GitHub Environment until someone approves it. It
+authenticates with Workload Identity Federation, so there is no key to manage — which is
+just as well, since the organization blocks service-account key creation entirely.
+
+What it does differently from the manual commands, and why:
+
+- **Deploys by image digest, not by tag.** `:latest` is a mutable pointer; a digest is the
+  artifact. Images are also tagged with the commit SHA and the semver.
+- **Ships the API with `--no-traffic --tag=rel-<sha>` first**, smoke-tests that revision's
+  own URL, and only then shifts traffic. A failed smoke test therefore needs no rollback —
+  production never served the bad revision.
+- **Asserts the environment back** after deploying. `--set-env-vars` replaces the whole set,
+  so the workflow re-reads the service and fails the release if `FIRESTORE_DATABASE_ID` is
+  not `wally` (see section 4 for why that is the worst thing that can silently go wrong).
+- **Waits for composite indexes to reach READY** instead of returning while they build.
+- **Checks the deployed bundle** actually contains the production API URL and not
+  `localhost:4000`.
+
+### Rolling back
+
+Automatic, if a smoke test fails after traffic moved. By hand:
+
+```bash
+# API — pick the previous revision
+gcloud run services update-traffic wally-api --region=europe-west1 \
+  --to-revisions=<previous-revision>=100
+```
+
+For Hosting there is **no `firebase hosting:rollback` command** — that is worth knowing
+before you go looking for it under pressure. Either use the Firebase console
+(**Hosting → Release history → Rollback**), or re-release a previous version directly:
+
+```bash
+TOKEN=$(gcloud auth print-access-token)
+# newest first; [1] is the release before the current one
+PREV=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+  "https://firebasehosting.googleapis.com/v1beta1/sites/luminull-wally/releases?pageSize=2" \
+  | jq -r '.releases[1].version.name')
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Length: 0" \
+  "https://firebasehosting.googleapis.com/v1beta1/sites/luminull-wally/releases?versionName=$PREV"
+```
+
+Firestore rules and indexes have no inverse operation. Reverting means re-deploying the
+previous `firestore.rules` from git, which is why rules changes are worth releasing on their
+own.
+
+### The manual path (break-glass)
+
+Still correct, and still what to reach for if Actions is down:
 
 **Backend changed:**
+
 ```bash
 gcloud builds submit --config cloudbuild.yaml .
 gcloud run deploy wally-api \
@@ -576,12 +647,14 @@ gcloud run deploy wally-api \
 ```
 
 **Frontend changed:**
+
 ```bash
 pnpm --filter @wally/web build
 firebase deploy --only hosting
 ```
 
 **Rules or indexes changed:**
+
 ```bash
 firebase deploy --only firestore
 ```
@@ -647,6 +720,7 @@ them character by character, including `https://` and the absence of a trailing 
 `gcloud run services update wally-api --region=europe-west1 --remove-env-vars=FIRESTORE_EMULATOR_HOST`
 
 **Reading the actual logs** — this is the thing to reach for before guessing:
+
 ```bash
 gcloud run services logs read wally-api --region=europe-west1 --limit=50
 ```
@@ -657,7 +731,7 @@ context is the whole monorepo: `gcloud builds submit --config cloudbuild.yaml .`
 
 **A generic Google "Error 404 (Not Found)" HTML page instead of your app's response**
 This is never your app's 404 — your app answers in JSON. It means the request was stopped
-before it reached the container. Two different causes, and you tell them apart by *how many*
+before it reached the container. Two different causes, and you tell them apart by _how many_
 paths are affected:
 
 - **Every path 404s** — the caller has no `roles/run.invoker`, so Cloud Run's front end
@@ -691,11 +765,80 @@ Deliberately out of scope, in rough order of when you will want them:
 
 - **A custom domain.** Firebase console → Hosting → Add custom domain. Remember to update
   `CORS_ORIGIN` and Auth authorized domains afterwards.
-- **Automated deploys from GitHub.** Everything above is manual. A CI pipeline would run the
-  same commands on push.
+- ~~**Automated deploys from GitHub.**~~ Done — see section 13 and
+  [`.github/workflows/`](../.github/workflows/). Everything above remains valid as the
+  manual break-glass path.
 - **A separate staging project.** The usual approach is a second Firebase project with the
   same setup, selected via `firebase use`.
 - **Seed data in production.** `make seed` targets the emulator and writes fixture users
   that do not exist in real Firebase Auth. Do not point it at production.
 - **Backups.** Firestore supports scheduled exports; worth setting up before the data
   matters to anyone.
+
+---
+
+## 17. Continuous integration
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on
+pushes to `main`, in four parallel jobs:
+
+| Job                          | What it proves                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Lint & format**            | `prettier --check` and `eslint` across the workspace.                                                                                                              |
+| **Typecheck & build**        | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
+| **Unit & integration tests** | The Vitest suites, with a Firestore emulator started by `firebase emulators:exec` so CI reads this repo's own `firebase.json`.                                     |
+| **E2E (full stack)**         | Playwright against a real `docker compose` stack.                                                                                                                  |
+
+### Two things about the E2E job that are easy to get wrong
+
+**It runs against the emulator, not production.** Every spec writes real data, and
+`share.spec.ts` creates an invite on each run. Against production those records would
+accumulate in the live `wally` database forever. Compose routes Firestore to the emulator
+while sign-in still goes through real Firebase Auth, so the coverage is genuine and the data
+is disposable. Production only ever gets read-only smoke checks.
+
+**A green E2E job is not automatically a meaningful one.** Every spec opens with
+`test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
+nothing. The workflow parses Playwright's JSON report and fails if any test reported
+`skipped`, if fewer than six executed, or if fewer than two projects produced results.
+
+### Pull requests from forks
+
+The repository is public, so anyone can open a pull request. GitHub withholds secrets from
+fork PRs, which is the desired behaviour — but it means the E2E job cannot run. It is
+therefore skipped there, and a separate **`E2E gate`** job fails with an explanation.
+
+Make `E2E gate` the required status check, **not** `E2E (full stack)`: a skipped required
+check counts as passing, which would let exactly the least-trusted pull requests merge with
+no end-to-end coverage at all.
+
+### Configuration
+
+Set once, by [`scripts/bootstrap-gcp-cicd.sh`](../scripts/bootstrap-gcp-cicd.sh) and by hand.
+
+**Repository variables** — public identifiers, not secrets. They are compiled into a bundle
+that anyone can download, so hiding them would buy nothing:
+
+`GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`, `API_BASE_URL`,
+`WEB_ORIGIN`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+`VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`.
+
+**Repository secrets** — only two, and they belong to a throwaway Firebase Auth account that
+owns no data worth protecting:
+
+`E2E_USER_EMAIL`, `E2E_USER_PASSWORD`. Mirror both into Dependabot secrets as well, or
+Dependabot's pull requests will trip the vacuous-E2E guard.
+
+> There is deliberately **no service-account key anywhere.** The organization enforces
+> `iam.disableServiceAccountKeyCreation`, and the API no longer needs one outside Google
+> Cloud when it is pointed at an emulator (section 5).
+
+### Why traces are disabled in CI
+
+A Playwright trace records every action's input value verbatim, including
+`getByLabel('Passwort').fill(PASSWORD)` in `e2e/support.ts`, plus full request bodies and
+`Authorization` headers. Actions artifacts on a public repository are downloadable by anyone
+with the run URL, and GitHub's log masking does not apply to artifact contents. So
+`playwright.config.ts` sets `trace: 'off'` and `video: 'off'` under CI, and the workflow
+uploads only `playwright-report/` — never `test-results/`. If you ever turn traces back on,
+rotate the E2E password afterwards.

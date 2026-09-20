@@ -31,6 +31,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
+  // A production process must never be pointed at an emulator. plugins/firebase.ts allows a
+  // credential-less boot when FIRESTORE_EMULATOR_HOST is set, so without this a
+  // misconfigured production deploy would start happily and quietly try to reach an
+  // emulator that does not exist. docs/DEPLOY.md section 15 records that exact leak as a
+  // real incident class ("API returns 500s and the logs mention connecting to
+  // firestore:8080"); make it fatal at boot instead of a 500 on every request.
+  if (parsed.data.NODE_ENV === 'production' && parsed.data.FIRESTORE_EMULATOR_HOST) {
+    throw new Error(
+      'FIRESTORE_EMULATOR_HOST must never be set when NODE_ENV=production — it would send ' +
+        'all Firestore traffic to a non-existent emulator instead of the real database.',
+    );
+  }
+
   cached = parsed.data;
   return cached;
 }

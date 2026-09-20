@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ['*'] }
+
+  # Dependabot does not discover composite actions from "/" — it needs the directory.
+  - package-ecosystem: github-actions
+    directory: '/.github/actions/setup'
+    schedule: { interval: weekly }
+
+  # The npm ecosystem understands pnpm workspaces via the root lockfile.
+  - package-ecosystem: npm
+    directory: '/'
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      dev-minor-patch:
+        dependency-type: development
+        update-types: [minor, patch]
+      prod-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+    ignore:
+      # Playwright browser binaries are cached by version and a major bump can change
+      # device descriptors; land those deliberately rather than on a Monday morning.
+      - dependency-name: '@playwright/test'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker
+    directories: ['/apps/api', '/apps/web', '/infra']
+    schedule: { interval: weekly }

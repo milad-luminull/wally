@@ -1,0 +1,29 @@
+name: Setup pnpm workspace
+description: corepack -> Node -> pnpm store cache -> frozen install, in the only order that works.
+
+runs:
+  using: composite
+  steps:
+    # Corepack MUST come before setup-node: `cache: pnpm` resolves the store directory by
+    # running `pnpm store path`, which fails if pnpm is not yet on PATH.
+    # `npm i -g corepack@latest` first because the corepack bundled with older Node images
+    # fails signature verification against recent pnpm releases.
+    - shell: bash
+      run: |
+        npm install --global corepack@latest
+        corepack enable
+        corepack prepare pnpm@9.15.0 --activate
+        pnpm --version
+
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        # .nvmrc pins an exact patch on purpose. A bare "22" resolves to whatever the runner
+        # image has cached, and Node 22.23.0 / 24.17.0 shipped an http.Agent keep-alive
+        # regression that breaks the STS token exchange in google-github-actions/auth and
+        # the Firebase CLI ("Premature close" against sts.googleapis.com).
+        node-version-file: .nvmrc
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+
+    - shell: bash
+      run: pnpm install --frozen-lockfile

@@ -19,7 +19,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install --frozen-lockfile
 COPY . .
 EXPOSE 4000
 CMD ["pnpm", "--filter", "@wally/api", "dev"]
@@ -36,7 +36,7 @@ COPY packages/config packages/config
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 COPY apps/web/package.json apps/web/package.json
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @wally/shared build
 RUN pnpm --filter @wally/api build
 RUN pnpm deploy --filter=@wally/api --prod /app/deploy/api

@@ -1,6 +1,6 @@
 COMPOSE := docker compose
 
-.PHONY: up down logs test lint typecheck seed e2e
+.PHONY: up down logs test lint typecheck format seed e2e
 
 ## Build and start the whole stack (firestore emulator, api, web).
 up:
@@ -29,6 +29,10 @@ lint:
 
 typecheck:
 	$(COMPOSE) run --rm api pnpm turbo run typecheck
+
+## Format the whole workspace with Prettier (CI checks this; see .prettierignore).
+format:
+	pnpm run format
 
 ## Load development seed data (idempotent).
 seed:

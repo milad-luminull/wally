@@ -1,0 +1,19 @@
+# pnpm owns this file's formatting. Reformatting it makes pnpm rewrite it on the next
+# install, which then fails `pnpm install --frozen-lockfile` in CI — the two would fight
+# forever. Never format it.
+pnpm-lock.yaml
+
+# Generated, vendored or machine-owned — not ours to format.
+.pnpm-store/
+skills-lock.json
+.firebase/
+.turbo/
+**/dist/
+**/build/
+coverage/
+playwright-report/
+test-results/
+
+# Vendored agent skills — third-party content that happens to live in this repo. Not ours
+# to restyle, and reformatting them produces noisy diffs against upstream.
+.agents/

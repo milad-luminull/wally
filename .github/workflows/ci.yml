@@ -1,0 +1,290 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # release.yml re-runs this exact gate at the tagged commit before deploying.
+  workflow_call:
+
+# Read-only by default. No job here needs more; the release workflow elevates on its own.
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel superseded runs on a PR, but group pushes to main by SHA so they never cancel
+  # each other (a cancelled run on main leaves a misleading red check on a merged commit).
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  static:
+    name: Lint & format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/setup
+      - run: pnpm run format:check
+      - run: pnpm turbo run lint
+
+  typecheck-build:
+    name: Typecheck & build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/setup
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-
+
+      # One invocation, not two jobs: typecheck's `dependsOn: ["^build"]` and build's own
+      # graph share @wally/shared#build, so turbo executes it exactly once.
+      #
+      # Both are needed. `typecheck` and `build` use DIFFERENT tsconfigs — build runs
+      # `tsc -p tsconfig.build.json`, which adds rootDir and excludes tests. docs/DEPLOY.md
+      # records a real incident where typecheck was clean and the production build failed.
+      - run: pnpm turbo run typecheck build --cache-dir=.turbo/cache
+
+  unit-tests:
+    name: Unit & integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # 13 of 15 API test files import apps/api/test/helpers.ts, which THROWS (does not
+      # skip) unless this is set. 127.0.0.1 rather than localhost: the emulator binds IPv4
+      # and Node 22 resolves localhost to ::1 first.
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+      # env.ts declares FIREBASE_PROJECT_ID as z.string().min(1) with no default. Any value
+      # works: the API suites inject a fake AuthVerifier and never verify a real token, and
+      # each test file namespaces itself with its own emulator project id.
+      FIREBASE_PROJECT_ID: wally-ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/setup
+
+      - name: Cache the Firestore emulator jar
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-firestore-v13
+
+      # emulators:exec (rather than docker compose) for the unit job: ubuntu-24.04 already
+      # ships a JDK, it reads the repo's own firebase.json — so CI exercises the real
+      # emulator config, including "singleProjectMode": false, which the per-file project-id
+      # isolation depends on — and it guarantees teardown while propagating the exit code.
+      - name: Run tests against the Firestore emulator
+        run: |
+          npx --yes firebase-tools@13 emulators:exec \
+            --only firestore \
+            --project wally-ci \
+            'pnpm turbo run test'
+
+  e2e:
+    name: E2E (full stack)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Only run where the secrets actually exist. `github.event.pull_request` is null for
+    # push and workflow_call, so the first clause short-circuits and the job runs on main
+    # and during release verification. Comparing full_name (rather than `.fork`) also
+    # covers a PR opened from a fork of a fork.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/setup
+
+      - name: Resolve the Playwright version
+        id: pw
+        working-directory: apps/web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          # Exact match only — a partial hit restores the wrong browser build.
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # chromium AND webkit: the mobile-list-only project uses devices['iPhone 13'], whose
+      # defaultBrowserType is 'webkit'. Installing only chromium silently breaks it.
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @wally/web exec playwright install --with-deps chromium webkit
+      # The cache holds browser binaries, not the apt libraries they link against.
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @wally/web exec playwright install-deps chromium webkit
+
+      # docker-compose.yml declares `env_file: .env` non-optionally, so compose aborts if
+      # the file is missing.
+      #
+      # FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY are OMITTED, not blanked: env.ts
+      # declares them z.string().min(1).optional(), and .optional() accepts an absent key
+      # but rejects an empty string — while env_file turns `KEY=` into an empty string. So
+      # copying .env.example verbatim would make the api container throw at boot.
+      #
+      # No service-account key is needed at all: Firestore is emulated, and verifying a real
+      # Firebase ID token needs only the project id (firebase-admin checks the signature
+      # against Google's public certificates). See apps/api/src/plugins/firebase.ts.
+      - name: Generate .env for the compose stack
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in FIREBASE_PROJECT_ID VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN \
+                   VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
+            if [ -z "${!v:-}" ]; then echo "::error::repository variable $v is not set"; missing=1; fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          cat > .env <<EOF
+          PORT=4000
+          CORS_ORIGIN=http://localhost:5174
+          FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+          VITE_API_BASE_URL=http://localhost:4000
+          VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+          VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+          VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+          VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
+          EOF
+
+      # NOT `make up`: that is `docker compose up -d` with no wait, so a container that dies
+      # at boot surfaces as an opaque Playwright timeout instead of a readable error.
+      - name: Start the stack
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --build --wait --wait-timeout 300 firestore api web
+
+      # --wait honours the compose healthchecks, but those run INSIDE the containers and say
+      # nothing about the published ports; `web` has no healthcheck at all. Assert from the
+      # host before handing over to Playwright.
+      - name: Wait for the published ports
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            api=$(curl -fsS http://localhost:4000/health 2>/dev/null || true)
+            web=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:5174/ 2>/dev/null || true)
+            if [ "$api" = '{"status":"ok"}' ] && [ "$web" = "200" ]; then
+              echo "stack ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::stack did not become ready"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=200
+          exit 1
+
+      - name: Seed
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            run --rm api pnpm --filter @wally/api seed
+
+      - name: Run Playwright
+        env:
+          # compose publishes web on 5174; playwright.config.ts defaults to 5173.
+          PLAYWRIGHT_BASE_URL: http://localhost:5174
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+        run: pnpm --filter @wally/web exec playwright test
+
+      # Every spec opens with test.skip(!hasE2eCredentials, ...), so a missing secret
+      # produces a PASSING run that tested nothing. test.skip() inside a test body still
+      # emits a result object, so counting tests is not enough — count by OUTCOME.
+      - name: Fail if the suite was vacuously green
+        if: always()
+        env:
+          MIN_EXECUTED: '6' # 5 under chromium-desktop + 1 under mobile-list-only
+        run: |
+          set -euo pipefail
+          REPORT=apps/web/playwright-results.json
+          [ -f "$REPORT" ] || { echo "::error::no JSON report at $REPORT — Playwright never ran"; exit 1; }
+
+          Q='[.. | objects | select(has("projectName") and has("results"))]'
+          jq -r "$Q | group_by(.projectName)
+            | map({p:.[0].projectName, total:length,
+                   executed:(map(select(.status!=\"skipped\"))|length),
+                   passed:(map(select(.status==\"expected\"))|length),
+                   flaky:(map(select(.status==\"flaky\"))|length)})
+            | .[] | \"\(.p): total=\(.total) executed=\(.executed) passed=\(.passed) flaky=\(.flaky)\"" \
+            "$REPORT" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          EXECUTED=$(jq "$Q | map(select(.status!=\"skipped\")) | length" "$REPORT")
+          SKIPPED=$(jq  "$Q | map(select(.status==\"skipped\"))  | length" "$REPORT")
+          PROJECTS=$(jq "$Q | map(.projectName) | unique | length" "$REPORT")
+
+          if [ "$SKIPPED" -ne 0 ]; then
+            echo "::error title=Vacuous E2E run::$SKIPPED test(s) reported 'skipped'. Every spec starts with test.skip(!hasE2eCredentials, ...), so E2E_USER_EMAIL / E2E_USER_PASSWORD almost certainly did not reach the runner."
+            exit 1
+          fi
+          if [ "$EXECUTED" -lt "$MIN_EXECUTED" ]; then
+            echo "::error title=Vacuous E2E run::only $EXECUTED test(s) executed, expected at least $MIN_EXECUTED"
+            exit 1
+          fi
+          if [ "$PROJECTS" -lt 2 ]; then
+            echo "::error title=Vacuous E2E run::only $PROJECTS Playwright project(s) produced results; expected chromium-desktop and mobile-list-only"
+            exit 1
+          fi
+          echo "E2E: $EXECUTED executed, 0 skipped, across $PROJECTS projects."
+
+      # playwright-report/ ONLY. test-results/ holds raw attachments; traces and video are
+      # disabled in CI (see playwright.config.ts) because this repository is public and a
+      # trace records the E2E account's password verbatim. Keeping test-results/ out means a
+      # future `trace: 'on'` cannot silently publish credentials.
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=400
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
+
+  # THIS is the required status check, not `e2e`. A fork PR cannot reach the secrets, so
+  # `e2e` is skipped there — and a skipped required check counts as passing, which would let
+  # exactly the least-trusted PRs merge with no E2E at all.
+  e2e-gate:
+    name: E2E gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [e2e]
+    if: always()
+    steps:
+      - name: Require E2E to have actually passed
+        env:
+          RESULT: ${{ needs.e2e.result }}
+          IS_FORK: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$RESULT" = "success" ]; then echo "E2E passed."; exit 0; fi
+          if [ "$IS_FORK" = "true" ] && [ "$RESULT" = "skipped" ]; then
+            echo "::error title=E2E not run::This PR is from a fork, so it cannot access the E2E credentials. A maintainer must push the branch to this repository (gh pr checkout N && git push origin HEAD:pr-N) and merge from there."
+            exit 1
+          fi
+          echo "::error title=E2E failed::needs.e2e.result=$RESULT"
+          exit 1

@@ -16,3 +16,4 @@ playwright-report
 test-results
 apps/api/prisma/generated
 .vite
+.pnpm-store

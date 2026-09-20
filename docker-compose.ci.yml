@@ -1,0 +1,30 @@
+# CI overrides for the E2E job. Used as:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait
+#
+# The base file stays the source of truth for how the stack is wired; this only strips the
+# parts that exist for a human at a laptop. `!reset` needs Compose >= 2.24 (the GitHub
+# runners ship far newer).
+services:
+  firestore:
+    # `!override`, not a plain list: compose MERGES sequences by default, so a plain list
+    # would append to the base file's ports rather than replace them.
+    # 4001 (Emulator UI) and 9150 (its websocket) exist for a browser on the host. CI has
+    # none, and publishing fewer ports means fewer things to race on.
+    ports: !override
+      - '8080:8080'
+
+  api:
+    # The source bind mounts exist so a laptop gets hot reload; in CI they only slow the
+    # container start, and the anonymous node_modules volumes exist purely to shadow them.
+    volumes: !reset []
+    environment:
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:5174
+      # Deliberately NOT production: env.ts now treats NODE_ENV=production together with
+      # FIRESTORE_EMULATOR_HOST as a fatal misconfiguration, which is exactly the protection
+      # we want to keep working.
+      NODE_ENV: development
+
+  web:
+    volumes: !reset []
