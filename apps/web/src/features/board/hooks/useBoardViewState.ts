@@ -152,6 +152,9 @@ export function useBoardViewState(boardId: string) {
     // property the user picks. One navigation, so both land together.
     setFieldKey: (key: string | null) => setParams({ field: key, fieldValue: null }, 'push'),
     setFieldValue: (value: string | null) => setParams({ fieldValue: value }, 'push'),
-    openNote: (noteId: string | null) => setParams({ note: noteId }, 'push'),
+    // Opening and closing the panel are steps worth a Back; hopping from one open note to
+    // the next is not, or Back would replay every card the user glanced at.
+    openNote: (noteId: string | null) =>
+      setParams({ note: noteId }, noteId && state.noteId ? 'replace' : 'push'),
   };
 }

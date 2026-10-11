@@ -132,13 +132,14 @@ export function NoteDetailPanel({
     <aside
       role="complementary"
       aria-label={t('note.panelAria')}
-      /* The desktop panel used to pop into the flex row with no transition, snapping the
-         board narrower in one frame. Keying the animation on the note id replays the
-         slide whenever a different note is opened. */
-      key={noteId}
-      className="flex h-full w-[400px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-surface"
+      /* Floats over the board's right edge instead of taking a slot in the row. As a flex
+         child it narrowed the board, so the centred columns jumped sideways every time a
+         note opened or closed. It slides in once, on open; switching to another note swaps
+         the content in place (the key is on the content, not on this element). */
+      className="absolute inset-y-0 right-0 z-drawer flex w-[400px] max-w-full animate-slide-in-right flex-col border-l border-border bg-surface shadow-e3"
     >
       <NoteDetailContent
+        key={noteId}
         noteId={noteId}
         boardId={boardId}
         canEdit={canEdit}
@@ -211,7 +212,8 @@ function NoteDetailContent({
   const noteReady = Boolean(note);
   useEffect(() => {
     if (autoFocusTitle && noteReady && titleRef.current) {
-      titleRef.current.focus();
+      // preventScroll: focusing must never scroll the board behind the panel.
+      titleRef.current.focus({ preventScroll: true });
       titleRef.current.selectionStart = titleRef.current.value.length;
     }
     // Re-run once the note finishes loading (noteReady flips false -> true), but not on

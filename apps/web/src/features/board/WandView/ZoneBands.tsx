@@ -47,7 +47,9 @@ function ZoneBand({
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
       className={cn(
         'group/zone flex min-w-0 flex-col rounded-xl border transition-[background-color,border-color] duration-200 ease-ds',
-        axis === 'horizon' ? 'h-full w-[276px] shrink-0' : 'min-h-[160px] w-full',
+        // Horizon columns share the board's width (never narrower than one card), and like
+        // priority rows they lay cards out side by side once a column is wide enough.
+        axis === 'horizon' ? 'h-full min-w-[276px] flex-1 basis-0' : 'min-h-[160px] w-full',
         // A quiet panel on the wall rather than an invisible hit area, so the structure of
         // the board is legible even when a column is empty. A drag target darkens a shade and
         // firms its border — no colour, which would read as status or selection.
@@ -81,11 +83,13 @@ function ZoneBand({
 
       <div
         className={cn(
-          'wally-scroll min-h-0 flex-1 px-2.5 pb-2.5',
+          // Top padding leaves room for a card's hover lift and shadow, which the scroll
+          // container would otherwise clip along its top edge.
+          'wally-scroll min-h-0 flex-1 px-2.5 pb-3 pt-1',
           axis === 'horizon' ? 'overflow-y-auto' : 'overflow-hidden',
         )}
       >
-        <div className={cn('flex gap-2', axis === 'horizon' ? 'flex-col' : 'flex-row flex-wrap')}>
+        <div className="flex flex-row flex-wrap content-start gap-2">
           {group.notes.map((note: NoteDto) => (
             <NoteCard
               key={note.id}
@@ -139,13 +143,10 @@ export function ZoneBands({ axis, groups, ...rest }: ZoneBandsProps) {
     <div
       className={cn(
         'board-surface wally-scroll min-w-0 flex-1',
-        // `safe center`, not plain `center`: the three bands are fixed-width, so on a wide
-        // screen they were pinned left with a few hundred px of bare board to the right and
-        // the eye ran off into it. Centred, the leftover reads as margin. The `safe` keyword
-        // is what keeps this scrollable — plain `center` puts the overflowing first band out
-        // of reach past the scroll origin.
+        // Horizon columns stretch to fill the width, so there is no leftover to centre; below
+        // three card widths the row scrolls sideways instead of squeezing the columns.
         axis === 'horizon'
-          ? 'flex h-full gap-3 overflow-x-auto p-4 [justify-content:safe_center] lg:p-5'
+          ? 'flex h-full gap-3 overflow-x-auto p-4 lg:p-5'
           : 'flex flex-col gap-3 overflow-y-auto p-4 lg:p-5',
       )}
     >

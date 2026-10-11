@@ -17,13 +17,13 @@ export function BoardSkeleton({
 
   return (
     <div
-      className="board-surface flex min-w-0 flex-1 gap-3 overflow-hidden p-4 [justify-content:safe_center] lg:p-5"
+      className="board-surface flex min-w-0 flex-1 gap-3 overflow-hidden p-4 lg:p-5"
       {...(label ? { role: 'status', 'aria-label': t('common.loading') } : { 'aria-hidden': true })}
     >
       {Array.from({ length: columns }).map((_, column) => (
         <div
           key={column}
-          className="flex h-full w-[276px] shrink-0 flex-col rounded-xl border border-border-subtle bg-[color:var(--zone-surface)]"
+          className="flex h-full min-w-[276px] flex-1 basis-0 flex-col rounded-xl border border-border-subtle bg-[color:var(--zone-surface)]"
         >
           <div className="flex h-11 items-center gap-2 px-3.5">
             <Skeleton className="h-3 w-20" />
@@ -31,7 +31,7 @@ export function BoardSkeleton({
           </div>
           <div className="flex flex-col gap-2 px-2.5 pb-2.5">
             {Array.from({ length: 3 - column }).map((__, card) => (
-              <Skeleton key={card} className="h-[76px] w-full rounded-lg" />
+              <Skeleton key={card} className="h-[76px] w-[248px] max-w-full rounded-lg" />
             ))}
           </div>
         </div>

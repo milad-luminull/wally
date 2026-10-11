@@ -197,14 +197,14 @@ function RestingNoteCard({
           // Hover/press easing only — never a transition on `opacity`, so picking a card
           // up hides it on the same frame the overlay appears instead of cross-fading.
           'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          // Keyboard focus is an outline, so it never fights the selection ring below.
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ring-alpha)]',
           noteColourFillClass[note.colour],
-          // Selection is a 2px ink outline and nothing else — no fill, no tint, so the
-          // note keeps its own colour underneath (docs/BRAND.md). `outline` rather than a
-          // border so the card's box does not shift by a pixel when it is selected.
-          'outline-offset-0',
+          // Selection is a 2px ink ring drawn INSIDE the card — no fill, no tint, so the note
+          // keeps its own colour (docs/BRAND.md). Inset, because the zones are scroll
+          // containers: an outline outside the card was clipped along the column's top edge.
           selected
-            ? 'border-transparent shadow-e2 outline outline-2 outline-[color:var(--note-selected)]'
+            ? 'border-transparent shadow-e2 ring-2 ring-inset ring-[color:var(--note-selected)]'
             : 'border-[color:var(--note-border)] shadow-pin',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column

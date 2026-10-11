@@ -95,7 +95,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         isBelowTablet={isBelowTablet}
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {notesQuery.isLoading ? (
           <BoardSkeleton columns={isDesktop ? 3 : 1} />
         ) : effectiveView === 'wand' ? (
