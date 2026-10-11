@@ -39,7 +39,7 @@ RUN pnpm --filter @wally/web build
 # try_files SPA-fallback + immutable-asset caching are both one-line config instead of
 # hand-rolled Node routing.
 # ---------------------------------------------------------------------------
-FROM nginx:1.27-alpine AS prod
+FROM nginx:1.31-alpine AS prod
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
