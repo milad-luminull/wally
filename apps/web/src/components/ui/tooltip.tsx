@@ -27,11 +27,31 @@ export const TooltipContent = React.forwardRef<
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
 /** Convenience wrapper: icon-only buttons always need both a tooltip and an aria-label. */
-export function IconTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+export function IconTooltip({
+  label,
+  shortcut,
+  children,
+}: {
+  label: string;
+  /** Keys shown after the label, e.g. `['N']` or `['⌘', 'K']`. */
+  shortcut?: string[];
+  children: React.ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent className="flex items-center gap-2">
+        {label}
+        {shortcut && (
+          <span className="flex gap-0.5 opacity-70" aria-hidden>
+            {shortcut.map((key) => (
+              <kbd key={key} className="font-mono text-[11px]">
+                {key}
+              </kbd>
+            ))}
+          </span>
+        )}
+      </TooltipContent>
     </Tooltip>
   );
 }

@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { fieldClassName } from './field-styles';
 
 export const Select = SelectPrimitive.Root;
 export const SelectGroup = SelectPrimitive.Group;
@@ -14,16 +15,15 @@ export const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-9 w-full items-center justify-between gap-2 rounded-md border-b border-border-input bg-transparent px-0 text-14 text-fg-1 outline-none transition-colors duration-150',
-      'placeholder:text-fg-muted disabled:cursor-not-allowed disabled:opacity-55',
-      'focus-visible:border-primary focus-visible:ring-0',
+      fieldClassName,
+      'items-center justify-between gap-2 text-left data-[placeholder]:text-fg-faint [&>span]:truncate',
       className,
     )}
     {...props}
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 text-fg-muted" />
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.75} />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -38,7 +38,7 @@ export const SelectContent = React.forwardRef<
       ref={ref}
       position={position}
       className={cn(
-        'relative z-dropdown max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-card text-fg-1 shadow-e3',
+        'relative z-overlay max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-border bg-popover text-fg-1 shadow-e3',
         'origin-[var(--radix-select-content-transform-origin)]',
         'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
         position === 'popper' && 'translate-y-1',
@@ -59,15 +59,16 @@ export const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-7 pr-2 text-14 outline-none',
-      'focus:bg-secondary data-[disabled]:pointer-events-none data-[disabled]:opacity-55',
+      'relative flex h-8 w-full cursor-pointer select-none items-center rounded-[5px] pl-7 pr-2 text-13 outline-none',
+      'focus:bg-inset data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      '[@media(pointer:coarse)]:h-11',
       className,
     )}
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-3.5 w-3.5" />
+        <Check className="h-3.5 w-3.5" strokeWidth={2} />
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

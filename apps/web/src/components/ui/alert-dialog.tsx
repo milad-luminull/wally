@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 import { cn } from '@/lib/cn';
-import { buttonVariantsForAlertAction } from './alert-dialog-variants';
+import { buttonVariants } from './button-variants';
 
 export const AlertDialog = AlertDialogPrimitive.Root;
 export const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
@@ -14,7 +14,7 @@ export const AlertDialogOverlay = React.forwardRef<
   <AlertDialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-overlay bg-[color:var(--scrim)] backdrop-blur-[2px]',
+      'fixed inset-0 z-overlay bg-[color:var(--scrim)]',
       'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
       className,
     )}
@@ -32,7 +32,7 @@ export const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-overlay w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-e3',
+        'fixed left-1/2 top-1/2 z-overlay w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-popover p-5 shadow-e3',
         'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out',
         className,
       )}
@@ -43,7 +43,7 @@ export const AlertDialogContent = React.forwardRef<
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
 export function AlertDialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('mb-2 flex flex-col gap-2', className)} {...props} />;
+  return <div className={cn('mb-1 flex flex-col gap-1.5', className)} {...props} />;
 }
 
 export const AlertDialogTitle = React.forwardRef<
@@ -52,7 +52,7 @@ export const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn('text-20 font-semibold text-fg-1', className)}
+    className={cn('text-16 font-semibold text-fg-1', className)}
     {...props}
   />
 ));
@@ -64,14 +64,14 @@ export const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn('text-14 text-fg-muted', className)}
+    className={cn('text-13 text-fg-3', className)}
     {...props}
   />
 ));
 AlertDialogDescription.displayName = AlertDialogPrimitive.Description.displayName;
 
 export function AlertDialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('mt-6 flex items-center justify-end gap-3', className)} {...props} />;
+  return <div className={cn('mt-5 flex items-center justify-end gap-2', className)} {...props} />;
 }
 
 export const AlertDialogAction = React.forwardRef<
@@ -82,7 +82,7 @@ export const AlertDialogAction = React.forwardRef<
 >(({ className, variant = 'default', ...props }, ref) => (
   <AlertDialogPrimitive.Action
     ref={ref}
-    className={cn(buttonVariantsForAlertAction(variant), className)}
+    className={cn(buttonVariants({ variant }), className)}
     {...props}
   />
 ));
@@ -94,10 +94,7 @@ export const AlertDialogCancel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Cancel
     ref={ref}
-    className={cn(
-      'inline-flex h-9 items-center justify-center rounded-md border border-border bg-card px-4 text-14 font-medium text-fg-1 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-      className,
-    )}
+    className={cn(buttonVariants({ variant: 'outline' }), className)}
     {...props}
   />
 ));

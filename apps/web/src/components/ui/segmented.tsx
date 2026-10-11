@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { cn } from '@/lib/cn';
 
 /**
@@ -14,6 +15,7 @@ import { cn } from '@/lib/cn';
 export interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+  icon?: React.ReactNode;
   /** Optional longer description for assistive tech when the label alone is terse. */
   hint?: string;
 }
@@ -37,7 +39,7 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className={cn('inline-flex items-center gap-0.5 rounded-lg bg-inset p-0.5', className)}
+      className={cn('inline-flex items-center gap-0.5 rounded-md bg-inset p-0.5', className)}
     >
       {options.map((option) => {
         const selected = option.value === value;
@@ -49,14 +51,13 @@ export function Segmented<T extends string>({
             title={option.hint}
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative rounded-[7px] px-3 py-1.5 text-14 font-medium',
+              'relative flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-13 font-medium [&_svg]:size-3.5',
               'transition-[background-color,color,box-shadow] duration-150 ease-ds',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-              selected
-                ? 'bg-card font-semibold text-fg-1 shadow-e1'
-                : 'text-fg-muted hover:text-fg-1',
+              selected ? 'bg-surface text-fg-1 shadow-e1' : 'text-fg-3 hover:text-fg-1',
             )}
           >
+            {option.icon}
             {option.label}
           </button>
         );
