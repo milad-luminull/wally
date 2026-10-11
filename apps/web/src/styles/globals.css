@@ -112,6 +112,11 @@
   /* The wall: a faint dot grid gives the eye a sense of plane and scale. */
   --board-dot: rgba(16, 16, 20, 0.09);
   --board-grid-size: 20px;
+  /* The free canvas's backdrop (user preference). Sparser than the zone wall: dots every
+   * 28px, lines every 32px — enough to give a sense of plane, never enough to read as a
+   * pattern. */
+  --canvas-mark: rgba(16, 16, 20, 0.16);
+  --canvas-line: rgba(16, 16, 20, 0.045);
   --zone-surface: rgba(255, 255, 255, 0.55);
   --zone-surface-over: rgba(255, 178, 36, 0.1);
 
@@ -185,6 +190,8 @@
   --shadow-pin: 0 1px 2px rgba(0, 0, 0, 0.5);
 
   --board-dot: rgba(255, 255, 255, 0.07);
+  --canvas-mark: rgba(255, 255, 255, 0.12);
+  --canvas-line: rgba(255, 255, 255, 0.04);
   --zone-surface: rgba(255, 255, 255, 0.015);
   --zone-surface-over: rgba(255, 178, 36, 0.08);
 
@@ -212,6 +219,28 @@
   background-image: radial-gradient(var(--board-dot) 1px, transparent 1px);
   background-size: var(--board-grid-size) var(--board-grid-size);
   background-position: -1px -1px;
+}
+
+/* Free-canvas backdrops. In the components layer so a utility `bg-*` (the drop-target wash)
+   still wins over the base colour while the pattern stays. */
+@layer components {
+  .canvas-dots {
+    background-color: var(--canvas);
+    background-image: radial-gradient(circle, var(--canvas-mark) 1px, transparent 1.5px);
+    background-size: 28px 28px;
+    background-position: 14px 14px;
+  }
+  .canvas-grid {
+    background-color: var(--canvas);
+    background-image:
+      linear-gradient(var(--canvas-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--canvas-line) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+  }
+  .canvas-none {
+    background-color: var(--canvas);
+  }
 }
 
 .auth-backdrop {

@@ -1,4 +1,4 @@
-import { Keyboard, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { Grid3x3, Grip, Keyboard, LogOut, Monitor, Moon, Square, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MenuItem, MenuSeparator } from '@/components/ui/menu';
 import { Segmented } from '@/components/ui/segmented';
 import { useTheme } from '@/lib/theme';
+import { useCanvasPattern } from '@/lib/preferences';
 import { openShortcutsHelp } from '@/lib/shortcuts';
 import { initialsOf } from './util/noteDerived';
 
@@ -38,6 +39,7 @@ export function AccountMenu() {
   const { user, signOut } = useAuth();
   const { language, setLanguage, isSaving, saveFailed } = useLanguage();
   const { theme, setTheme } = useTheme();
+  const [canvasPattern, setCanvasPattern] = useCanvasPattern();
   if (!user) return null;
   const onShowShortcuts = openShortcutsHelp;
 
@@ -88,6 +90,33 @@ export function AccountMenu() {
                 value: 'dark',
                 label: t('account.theme.dark'),
                 icon: <Moon strokeWidth={1.75} aria-hidden />,
+              },
+            ]}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1">
+          <p className="text-12 font-medium text-fg-3">{t('account.canvas.label')}</p>
+          <Segmented
+            aria-label={t('account.canvas.label')}
+            value={canvasPattern}
+            onChange={setCanvasPattern}
+            className="grid w-full grid-cols-3 [&>button]:justify-center"
+            options={[
+              {
+                value: 'dots',
+                label: t('account.canvas.dots'),
+                icon: <Grip strokeWidth={1.75} aria-hidden />,
+              },
+              {
+                value: 'grid',
+                label: t('account.canvas.grid'),
+                icon: <Grid3x3 strokeWidth={1.75} aria-hidden />,
+              },
+              {
+                value: 'none',
+                label: t('account.canvas.none'),
+                icon: <Square strokeWidth={1.75} aria-hidden />,
               },
             ]}
           />

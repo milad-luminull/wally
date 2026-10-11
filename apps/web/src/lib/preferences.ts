@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   DEFAULT_PREFERENCES,
+  type CanvasPattern,
   type MeDto,
   type Preferences,
   type PreferencesUpdate,
@@ -31,6 +32,7 @@ export function applyPreferencesUpdate(
   }
   return {
     theme: update.theme ?? current.theme,
+    canvas: update.canvas ?? current.canvas,
     lastBoardId: update.lastBoardId ?? current.lastBoardId,
     boards,
   };
@@ -110,6 +112,14 @@ export function flushPreferences(queryClient: QueryClient) {
   const entry = pending.get(queryClient);
   if (entry) clearTimeout(entry.timer);
   flush(queryClient);
+}
+
+/** The free canvas's backdrop, read from and saved to the profile. */
+export function useCanvasPattern() {
+  const pattern = usePreferences().canvas;
+  const save = useSavePreferences();
+  const setPattern = useCallback((canvas: CanvasPattern) => save({ canvas }), [save]);
+  return [pattern, setPattern] as const;
 }
 
 /** Records the open board as the one `/` returns to. A no-op once it already is. */

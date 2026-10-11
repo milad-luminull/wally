@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_LANGUAGE,
   boardPreferencesSchema,
+  canvasPatternSchema,
   languageValues,
   preferenceBoardIdSchema,
   themePreferenceSchema,
@@ -110,6 +111,7 @@ export function userPreferences(
 ): Preferences {
   const stored = user?.preferences;
   const theme = themePreferenceSchema.safeParse(stored?.theme);
+  const canvas = canvasPatternSchema.safeParse(stored?.canvas);
   const lastBoardId = preferenceBoardIdSchema.safeParse(stored?.lastBoardId);
   const boards: Preferences['boards'] = {};
   for (const [id, value] of Object.entries(stored?.boards ?? {})) {
@@ -118,6 +120,7 @@ export function userPreferences(
   }
   return {
     theme: theme.success ? theme.data : 'system',
+    canvas: canvas.success ? canvas.data : 'dots',
     lastBoardId: lastBoardId.success ? lastBoardId.data : null,
     boards,
   };

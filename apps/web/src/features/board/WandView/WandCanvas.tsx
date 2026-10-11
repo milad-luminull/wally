@@ -7,10 +7,12 @@ import {
   FREE_CANVAS_WIDTH,
   NOTE_CARD_HEIGHT,
   NOTE_CARD_WIDTH,
+  type CanvasPattern,
   type NoteDto,
 } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useCanvasPattern } from '@/lib/preferences';
 import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
@@ -34,6 +36,13 @@ interface WandCanvasProps {
  * canvas; WandView's onDragEnd computes the new position from the drag delta.
  */
 /** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */
+/* Literal class names, so Tailwind's content scan and the stylesheet agree on them. */
+const CANVAS_PATTERN_CLASS: Record<CanvasPattern, string> = {
+  dots: 'canvas-dots',
+  grid: 'canvas-grid',
+  none: 'canvas-none',
+};
+
 function emptyStateKeys(filtered: boolean, canEdit: boolean) {
   if (filtered) {
     return { title: 'board.empty.filtered.title', body: 'board.empty.filtered.body' } as const;
@@ -58,6 +67,7 @@ export function WandCanvas({
   const { setNodeRef, isOver } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
   const keys = emptyStateKeys(filtered, canEdit);
+  const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
     if (!canEdit) return;
@@ -82,7 +92,8 @@ export function WandCanvas({
         <div
           ref={setNodeRef}
           className={cn(
-            'board-surface relative transition-[background-color] duration-200 ease-ds',
+            CANVAS_PATTERN_CLASS[pattern],
+            'relative transition-[background-color] duration-200 ease-ds',
             isOver && 'bg-[color:var(--zone-surface-over)]',
           )}
           style={{ width: FREE_CANVAS_WIDTH, height: FREE_CANVAS_HEIGHT }}

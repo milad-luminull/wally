@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   boardAxisSchema,
   boardViewSchema,
+  canvasPatternSchema,
   languageSchema,
   notePrioritySchema,
   notePriorityValues,
@@ -34,6 +35,7 @@ export type BoardPreferences = z.infer<typeof boardPreferencesSchema>;
 
 export const preferencesSchema = z.object({
   theme: themePreferenceSchema,
+  canvas: canvasPatternSchema,
   /** The board `/` opens. Not access-checked here — the client only honours it if the id is
    *  still among the caller's boards. */
   lastBoardId: preferenceBoardIdSchema.nullable(),
@@ -41,7 +43,12 @@ export const preferencesSchema = z.object({
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 
-export const DEFAULT_PREFERENCES: Preferences = { theme: 'system', lastBoardId: null, boards: {} };
+export const DEFAULT_PREFERENCES: Preferences = {
+  theme: 'system',
+  canvas: 'dots',
+  lastBoardId: null,
+  boards: {},
+};
 
 /**
  * A partial update. Each named board is replaced whole, `null` forgets it ("reset view"), and
@@ -51,6 +58,7 @@ export const DEFAULT_PREFERENCES: Preferences = { theme: 'system', lastBoardId: 
 export const preferencesUpdateSchema = z
   .object({
     theme: themePreferenceSchema.optional(),
+    canvas: canvasPatternSchema.optional(),
     lastBoardId: preferenceBoardIdSchema.optional(),
     boards: z
       .record(preferenceBoardIdSchema, boardPreferencesSchema.nullable())

@@ -18,6 +18,7 @@ export const en = {
     signOut: 'Sign out',
     shortcuts: 'Keyboard shortcuts',
     theme: { label: 'Appearance', system: 'System', light: 'Light', dark: 'Dark' },
+    canvas: { label: 'Free canvas background', dots: 'Dots', grid: 'Grid', none: 'Plain' },
     language: {
       label: 'Language',
       saving: 'Saving…',
@@ -113,6 +114,7 @@ export const en = {
     resetView: 'Reset view',
     switchBoard: 'Switch to {{name}}',
     theme: 'Appearance: {{label}}',
+    canvas: 'Free canvas: {{label}}',
     language: 'Language: {{label}}',
   },
   shortcuts: {

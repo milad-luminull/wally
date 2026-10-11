@@ -88,6 +88,14 @@ Numbers are always tabular. Adding or removing a step means editing `theme.exten
 **and** `FONT_SIZES` in `src/lib/cn.ts` together — tailwind-merge otherwise reads the size
 class as a text colour and silently drops it.
 
+## The wall
+
+The zone views sit on a faint 20px dot grid. The free canvas — where notes are placed by hand —
+takes the user's choice from the account menu or ⌘K, saved to `preferences.canvas`: **dots**
+(the default, one dot every 28px), a **grid** of hairlines every 32px, or **plain**. Both
+patterns stay under ~16% (dots) and ~5% (lines) opacity, so they give a sense of plane without
+reading as a pattern; `--canvas-mark` and `--canvas-line` carry the per-theme values.
+
 ## Shape, depth and motion
 
 - Radius: 6 for controls, 8 for notes and cards, 12 for panels and popovers.

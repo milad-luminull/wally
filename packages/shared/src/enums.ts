@@ -100,3 +100,8 @@ export type BoardAxis = z.infer<typeof boardAxisSchema>;
 export const themePreferenceValues = ['system', 'light', 'dark'] as const;
 export const themePreferenceSchema = z.enum(themePreferenceValues);
 export type ThemePreference = z.infer<typeof themePreferenceSchema>;
+
+/** The free canvas's backdrop: a sparse dot grid, a faint line grid, or nothing. */
+export const canvasPatternValues = ['dots', 'grid', 'none'] as const;
+export const canvasPatternSchema = z.enum(canvasPatternValues);
+export type CanvasPattern = z.infer<typeof canvasPatternSchema>;

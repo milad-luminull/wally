@@ -6,6 +6,8 @@ import {
   Columns3,
   Eye,
   EyeOff,
+  Grid3x3,
+  Grip,
   Keyboard,
   Languages,
   LayoutGrid,
@@ -16,6 +18,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Square,
   StickyNote,
   Sun,
   User,
@@ -35,6 +38,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
 import { useTheme } from '@/lib/theme';
+import { useCanvasPattern } from '@/lib/preferences';
 import {
   MOD_KEY,
   requestOpen,
@@ -146,6 +150,7 @@ function CommandPalette({
   const navigate = useNavigate();
   const { data: boards = [] } = useBoards();
   const { theme, setTheme } = useTheme();
+  const [canvasPattern, setCanvasPattern] = useCanvasPattern();
   const { language, setLanguage } = useLanguage();
   const { signOut } = useAuth();
   const [query, setQuery] = useState('');
@@ -312,6 +317,25 @@ function CommandPalette({
                     {t('palette.theme', { label: t(`account.theme.${value}`) })}
                   </span>
                   {theme === value && <Check strokeWidth={2} />}
+                </CommandItem>
+              ))}
+              {(['dots', 'grid', 'none'] as const).map((value) => (
+                <CommandItem
+                  key={value}
+                  value={`canvas background ${value}`}
+                  onSelect={() => run(() => setCanvasPattern(value))}
+                >
+                  {value === 'grid' ? (
+                    <Grid3x3 strokeWidth={1.75} />
+                  ) : value === 'dots' ? (
+                    <Grip strokeWidth={1.75} />
+                  ) : (
+                    <Square strokeWidth={1.75} />
+                  )}
+                  <span className="flex-1">
+                    {t('palette.canvas', { label: t(`account.canvas.${value}`) })}
+                  </span>
+                  {canvasPattern === value && <Check strokeWidth={2} />}
                 </CommandItem>
               ))}
               {SUPPORTED_LOCALES.map((locale) => (

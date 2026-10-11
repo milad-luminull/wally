@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import type {
   BoardPreferences,
+  CanvasPattern,
   Language,
   MembershipStatus,
   NoteColour,
@@ -58,6 +59,7 @@ export type UserDoc = {
 
 export type StoredPreferences = {
   theme?: ThemePreference;
+  canvas?: CanvasPattern;
   lastBoardId?: string | null;
   /** `touchedAt` (epoch ms) orders the pruning past MAX_REMEMBERED_BOARDS; never sent out. */
   boards?: Record<string, BoardPreferences & { touchedAt: number }>;

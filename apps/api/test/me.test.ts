@@ -51,7 +51,7 @@ describe('/me', () => {
       email: 'mika.brandt@example.com',
       displayName: 'Mika Brandt',
       language: 'de',
-      preferences: { theme: 'system', lastBoardId: null, boards: {} },
+      preferences: { theme: 'system', canvas: 'dots', lastBoardId: null, boards: {} },
     });
   });
 
@@ -271,6 +271,16 @@ describe('/me', () => {
       expect(response.json().preferences.boards).toEqual({ b2: WALL_FREE });
     });
 
+    it('saves the free-canvas pattern without touching the theme', async () => {
+      const token = registerTestUser(ctx, 'pref-canvas', 'pref-canvas@example.com');
+      await patch(token, { preferences: { theme: 'dark' } });
+
+      const response = await patch(token, { preferences: { canvas: 'grid' } });
+
+      expect(response.json().preferences).toMatchObject({ theme: 'dark', canvas: 'grid' });
+      expect((await patch(token, { preferences: { canvas: 'lines' } })).statusCode).toBe(400);
+    });
+
     it('round-trips the last opened board', async () => {
       const token = registerTestUser(ctx, 'pref-last', 'pref-last@example.com');
 
@@ -339,7 +349,9 @@ describe('/me', () => {
       await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
       await usersCol(ctx.db)
         .doc('pref-junk')
-        .update({ preferences: { theme: 'sepia', boards: { b1: { view: 'kanban' } } } } as never);
+        .update({
+          preferences: { theme: 'sepia', canvas: 'lines', boards: { b1: { view: 'kanban' } } },
+        } as never);
 
       const response = await ctx.app.inject({
         method: 'GET',
@@ -350,6 +362,7 @@ describe('/me', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json().preferences).toEqual({
         theme: 'system',
+        canvas: 'dots',
         lastBoardId: null,
         boards: {},
       });

@@ -25,6 +25,7 @@ export const de = {
     signOut: 'Abmelden',
     shortcuts: 'Tastenkürzel',
     theme: { label: 'Darstellung', system: 'System', light: 'Hell', dark: 'Dunkel' },
+    canvas: { label: 'Hintergrund der freien Wand', dots: 'Punkte', grid: 'Raster', none: 'Leer' },
     language: {
       label: 'Sprache',
       saving: 'Wird gespeichert…',
@@ -123,6 +124,7 @@ export const de = {
     resetView: 'Ansicht zurücksetzen',
     switchBoard: 'Wechseln zu {{name}}',
     theme: 'Darstellung: {{label}}',
+    canvas: 'Freie Wand: {{label}}',
     language: 'Sprache: {{label}}',
   },
   shortcuts: {
