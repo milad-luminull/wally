@@ -6,7 +6,7 @@
 # bundle both vary in which of the two they actually include.
 # syntax=docker/dockerfile:1
 
-FROM node:22-slim
+FROM node:25-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends default-jre-headless \
