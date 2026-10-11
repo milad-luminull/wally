@@ -8,7 +8,15 @@ import {
   type Query,
   type QuerySnapshot,
 } from 'firebase-admin/firestore';
-import { DEFAULT_LANGUAGE, languageValues, type Language } from '@wally/shared';
+import {
+  DEFAULT_LANGUAGE,
+  boardPreferencesSchema,
+  languageValues,
+  preferenceBoardIdSchema,
+  themePreferenceSchema,
+  type Language,
+  type Preferences,
+} from '@wally/shared';
 import type {
   HistoryEventDoc,
   MemberDoc,
@@ -90,6 +98,29 @@ export function userLanguage(user: Pick<UserDoc, 'language'> | null | undefined)
   return value !== undefined && (languageValues as readonly string[]).includes(value)
     ? value
     : DEFAULT_LANGUAGE;
+}
+
+/**
+ * A profile's preferences, with every field defaulted and anything that no longer parses
+ * dropped — a stored value written by an older schema must degrade to the default, never 500
+ * GET /me.
+ */
+export function userPreferences(
+  user: Pick<UserDoc, 'preferences'> | null | undefined,
+): Preferences {
+  const stored = user?.preferences;
+  const theme = themePreferenceSchema.safeParse(stored?.theme);
+  const lastBoardId = preferenceBoardIdSchema.safeParse(stored?.lastBoardId);
+  const boards: Preferences['boards'] = {};
+  for (const [id, value] of Object.entries(stored?.boards ?? {})) {
+    const parsed = boardPreferencesSchema.safeParse(value);
+    if (parsed.success && preferenceBoardIdSchema.safeParse(id).success) boards[id] = parsed.data;
+  }
+  return {
+    theme: theme.success ? theme.data : 'system',
+    lastBoardId: lastBoardId.success ? lastBoardId.data : null,
+    boards,
+  };
 }
 
 export const now = (): Timestamp => Timestamp.now();

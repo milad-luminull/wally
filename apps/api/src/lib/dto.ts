@@ -6,6 +6,7 @@ import type {
   MemberDto,
   NoteDetailDto,
   NoteDto,
+  Preferences,
   ShareLinkDto,
   SubtaskDto,
   SubtaskSummary,
@@ -49,12 +50,14 @@ export function toMeDto(user: {
   email: string;
   displayName: string | null;
   language: Language;
+  preferences: Preferences;
 }): MeDto {
   return {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
     language: user.language,
+    preferences: user.preferences,
   };
 }
 

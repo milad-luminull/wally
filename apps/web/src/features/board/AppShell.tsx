@@ -7,6 +7,7 @@ import { useBreakpoint } from '@/lib/useBreakpoint';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
+import { useRememberLastBoard } from '@/lib/preferences';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { canEdit as canEditRole, isOwner as isOwnerRole } from './util/permissions';
 import { collectFieldKeys, collectFieldValues, filterNotes } from './util/noteDerived';
@@ -55,7 +56,8 @@ function BoardSkeleton({ columns }: { columns: number }) {
 export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: string }) {
   const { user } = useAuth();
   const { isDesktop, isBelowDesktop, isBelowTablet } = useBreakpoint();
-  const viewState = useBoardViewState();
+  const viewState = useBoardViewState(boardId);
+  useRememberLastBoard(boardId);
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
 

@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import type {
+  BoardPreferences,
   Language,
   MembershipStatus,
   NoteColour,
@@ -7,6 +8,7 @@ import type {
   NoteHorizon,
   NotePriority,
   NoteStatus,
+  ThemePreference,
   WhiteboardRole,
 } from '@wally/shared';
 
@@ -44,8 +46,21 @@ export type UserDoc = {
    * userLanguage(), never directly.
    */
   language: Language;
+  /**
+   * UI preferences: theme, the board `/` opens, and per-board view settings. Absent on every
+   * record until the user first changes one, and only ever written by PATCH /me with dotted
+   * field paths — read it through userPreferences(), which also drops anything malformed.
+   */
+  preferences?: StoredPreferences;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+};
+
+export type StoredPreferences = {
+  theme?: ThemePreference;
+  lastBoardId?: string | null;
+  /** `touchedAt` (epoch ms) orders the pruning past MAX_REMEMBERED_BOARDS; never sent out. */
+  boards?: Record<string, BoardPreferences & { touchedAt: number }>;
 };
 
 export type WhiteboardDoc = {

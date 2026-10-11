@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { meDtoSchema, meUpdateSchema } from '@wally/shared';
-import { now, usersCol } from '../lib/db/collections.js';
+import { FieldValue, type UpdateData } from 'firebase-admin/firestore';
+import { MAX_REMEMBERED_BOARDS, meDtoSchema, meUpdateSchema } from '@wally/shared';
+import { now, userLanguage, userPreferences, usersCol } from '../lib/db/collections.js';
+import type { UserDoc } from '../lib/db/types.js';
 import { toMeDto } from '../lib/dto.js';
 
 /**
@@ -26,12 +28,63 @@ export default async function meRoutes(fastify: FastifyInstance) {
     '/me',
     { schema: { body: meUpdateSchema, response: { 200: meDtoSchema } } },
     async (request) => {
-      const { language } = request.body;
-      // update(), not set(): email/displayName/emailVerified are Firebase's to own and
-      // provisioning writes them. A profile deleted between the preHandler and here raises
-      // gRPC NOT_FOUND, which app.ts's error handler already turns into a 404.
-      await usersCol(request.server.db).doc(request.user.id).update({ language, updatedAt: now() });
-      return toMeDto({ ...request.user, language });
+      const { language, preferences } = request.body;
+      const userRef = usersCol(request.server.db).doc(request.user.id);
+
+      // A transaction rather than a blind update(): pruning remembered boards needs their
+      // stored touchedAt, which request.user deliberately doesn't carry.
+      const stored = await request.server.db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(userRef);
+        const current = snapshot.data();
+        // update(), not set(): email/displayName/emailVerified are Firebase's to own and
+        // provisioning writes them. A profile deleted between the preHandler and here raises
+        // gRPC NOT_FOUND, which app.ts's error handler already turns into a 404.
+        //
+        // Every preference is written by its own dotted path, so a per-board write leaves the
+        // other boards, the theme and the language exactly as they were.
+        const update: Record<string, unknown> = { updatedAt: now() };
+        if (language !== undefined) update.language = language;
+        if (preferences?.theme !== undefined) update['preferences.theme'] = preferences.theme;
+        if (preferences?.lastBoardId !== undefined) {
+          update['preferences.lastBoardId'] = preferences.lastBoardId;
+        }
+
+        const boards = { ...(current?.preferences?.boards ?? {}) };
+        const touchedAt = Date.now();
+        for (const [boardId, value] of Object.entries(preferences?.boards ?? {})) {
+          if (value === null) {
+            update[`preferences.boards.${boardId}`] = FieldValue.delete();
+            delete boards[boardId];
+          } else {
+            update[`preferences.boards.${boardId}`] = { ...value, touchedAt };
+            boards[boardId] = { ...value, touchedAt };
+          }
+        }
+        const overflow = Object.entries(boards)
+          .sort(([, a], [, b]) => (a.touchedAt ?? 0) - (b.touchedAt ?? 0))
+          .slice(0, Math.max(0, Object.keys(boards).length - MAX_REMEMBERED_BOARDS));
+        for (const [boardId] of overflow) {
+          update[`preferences.boards.${boardId}`] = FieldValue.delete();
+          delete boards[boardId];
+        }
+
+        tx.update(userRef, update as UpdateData<UserDoc>);
+        return {
+          language: language ?? userLanguage(current),
+          preferences: userPreferences({
+            preferences: {
+              ...current?.preferences,
+              ...(preferences?.theme !== undefined && { theme: preferences.theme }),
+              ...(preferences?.lastBoardId !== undefined && {
+                lastBoardId: preferences.lastBoardId,
+              }),
+              boards,
+            },
+          }),
+        };
+      });
+
+      return toMeDto({ ...request.user, ...stored });
     },
   );
 }

@@ -1,9 +1,16 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
-import type { NotePriority } from '@wally/shared';
+import {
+  boardAxisValues,
+  notePriorityValues,
+  type BoardAxis,
+  type BoardPreferences,
+  type BoardView,
+  type NotePriority,
+} from '@wally/shared';
+import { usePreferences, useSavePreferences } from '@/lib/preferences';
 
-export type BoardView = 'wand' | 'list';
-export type BoardAxis = 'horizon' | 'priority' | 'free';
+export type { BoardAxis, BoardView };
 
 export interface BoardViewState {
   view: BoardView;
@@ -19,44 +26,75 @@ export interface BoardViewState {
   noteId: string | null;
 }
 
-const VALID_PRIORITIES: readonly NotePriority[] = ['HOCH', 'MITTEL', 'NIEDRIG'];
+export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
+  view: 'wand',
+  axis: 'horizon',
+  done: true,
+  mine: false,
+  priority: [],
+};
+
+/** The URL params that carry a remembered setting — dropped once it is saved. */
+const REMEMBERED_PARAMS = ['view', 'axis', 'done', 'mine', 'priority'] as const;
+
+type Params = Record<string, string | null>;
 
 /**
- * Single owner of the board's URL-bound state. Everything here is genuinely bookmarkable
- * — `q` updates use `replace` (so typing a search doesn't spam browser history with one
- * entry per keystroke), every other setter uses `push` (so back/forward moves through
- * filter/view/selection changes a user actually intended as steps).
+ * Single owner of the board's view state, read in this order:
+ *
+ *   1. the URL — a shared or bookmarked link always shows what its author saw;
+ *   2. what this user last chose on this board, saved to their profile;
+ *   3. the built-in defaults.
+ *
+ * Changing a remembered setting (view, grouping, done, mine, priority) saves it to the
+ * profile and clears those params from the URL, so the next visit — from any entry point, on
+ * any device — opens the board the way it was left. Search, the property filter and the open
+ * note stay URL-only: they are transient, and `q` uses `replace` so typing doesn't push one
+ * history entry per keystroke.
  */
-export function useBoardViewState() {
+export function useBoardViewState(boardId: string) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const saved = usePreferences().boards[boardId];
+  const savePreferences = useSavePreferences();
 
   const state: BoardViewState = useMemo(() => {
+    const base = saved ?? DEFAULT_BOARD_PREFERENCES;
     const viewParam = searchParams.get('view');
     const axisParam = searchParams.get('axis');
     const priorityParam = searchParams.get('priority');
+    const mineParam = searchParams.get('mine');
+    const doneParam = searchParams.get('done');
     return {
-      view: viewParam === 'list' ? 'list' : 'wand',
-      axis: axisParam === 'priority' || axisParam === 'free' ? axisParam : 'horizon',
+      view: viewParam === 'list' || viewParam === 'wand' ? viewParam : base.view,
+      axis: (boardAxisValues as readonly string[]).includes(axisParam ?? '')
+        ? (axisParam as BoardAxis)
+        : base.axis,
       q: searchParams.get('q') ?? '',
-      priority: (priorityParam
-        ?.split(',')
-        .filter((p): p is NotePriority => VALID_PRIORITIES.includes(p as NotePriority)) ??
-        []) as NotePriority[],
-      mine: searchParams.get('mine') === '1',
-      done: searchParams.get('done') !== '0',
+      priority:
+        priorityParam === null
+          ? base.priority
+          : priorityParam
+              .split(',')
+              .filter((p): p is NotePriority =>
+                (notePriorityValues as readonly string[]).includes(p),
+              ),
+      mine: mineParam === null ? base.mine : mineParam === '1',
+      done: doneParam === null ? base.done : doneParam !== '0',
       fieldKey: searchParams.get('field'),
       fieldValue: searchParams.get('fieldValue'),
       noteId: searchParams.get('note'),
     };
-  }, [searchParams]);
+  }, [searchParams, saved]);
 
-  const setParam = useCallback(
-    (key: string, value: string | null, mode: 'push' | 'replace') => {
+  const setParams = useCallback(
+    (updates: Params, mode: 'push' | 'replace') => {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          if (value === null || value === '') next.delete(key);
-          else next.set(key, value);
+          for (const [key, value] of Object.entries(updates)) {
+            if (value === null || value === '') next.delete(key);
+            else next.set(key, value);
+          }
           return next;
         },
         { replace: mode === 'replace' },
@@ -65,22 +103,55 @@ export function useBoardViewState() {
     [setSearchParams],
   );
 
+  const remember = useCallback(
+    (change: Partial<BoardPreferences>) => {
+      const next: BoardPreferences = {
+        view: state.view,
+        axis: state.axis,
+        done: state.done,
+        mine: state.mine,
+        priority: state.priority,
+        ...change,
+      };
+      savePreferences({ boards: { [boardId]: next } });
+      // Only touch the URL if it actually carries a remembered param; otherwise a no-op
+      // navigation would still re-render every route consumer.
+      if (REMEMBERED_PARAMS.some((key) => searchParams.has(key))) {
+        setParams(Object.fromEntries(REMEMBERED_PARAMS.map((key) => [key, null])), 'replace');
+      }
+    },
+    [boardId, savePreferences, searchParams, setParams, state],
+  );
+
   return {
     ...state,
-    setView: (view: BoardView) => setParam('view', view === 'wand' ? null : view, 'push'),
-    setAxis: (axis: BoardAxis) => setParam('axis', axis === 'horizon' ? null : axis, 'push'),
-    setQuery: (q: string) => setParam('q', q || null, 'replace'),
-    setPriority: (priority: NotePriority[]) =>
-      setParam('priority', priority.length ? priority.join(',') : null, 'push'),
-    setMine: (mine: boolean) => setParam('mine', mine ? '1' : null, 'push'),
-    setDone: (done: boolean) => setParam('done', done ? null : '0', 'push'),
-    setFieldKey: (key: string | null) => {
-      // Clearing the key must clear the value too, or a stale value silently narrows the
-      // next property the user picks.
-      setParam('fieldValue', null, 'push');
-      setParam('field', key, 'push');
+    /** True when the board shows something other than the defaults' view settings. */
+    isCustomized:
+      state.view !== DEFAULT_BOARD_PREFERENCES.view ||
+      state.axis !== DEFAULT_BOARD_PREFERENCES.axis ||
+      state.done !== DEFAULT_BOARD_PREFERENCES.done ||
+      state.mine !== DEFAULT_BOARD_PREFERENCES.mine ||
+      state.priority.length > 0,
+    setView: (view: BoardView) => remember({ view }),
+    setAxis: (axis: BoardAxis) => remember({ axis }),
+    setPriority: (priority: NotePriority[]) => remember({ priority }),
+    setMine: (mine: boolean) => remember({ mine }),
+    setDone: (done: boolean) => remember({ done }),
+    /** Forgets this board's saved settings and clears every filter. */
+    resetView: () => {
+      savePreferences({ boards: { [boardId]: null } });
+      setParams(
+        Object.fromEntries(
+          [...REMEMBERED_PARAMS, 'q', 'field', 'fieldValue'].map((key) => [key, null]),
+        ),
+        'push',
+      );
     },
-    setFieldValue: (value: string | null) => setParam('fieldValue', value, 'push'),
-    openNote: (noteId: string | null) => setParam('note', noteId, 'push'),
+    setQuery: (q: string) => setParams({ q: q || null }, 'replace'),
+    // Clearing the key must clear the value too, or a stale value silently narrows the next
+    // property the user picks. One navigation, so both land together.
+    setFieldKey: (key: string | null) => setParams({ field: key, fieldValue: null }, 'push'),
+    setFieldValue: (value: string | null) => setParams({ fieldValue: value }, 'push'),
+    openNote: (noteId: string | null) => setParams({ note: noteId }, 'push'),
   };
 }

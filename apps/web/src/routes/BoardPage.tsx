@@ -1,6 +1,7 @@
 import { useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useBoard } from '@/features/board/hooks/useBoard';
+import { useMe } from '@/i18n/useProfileLanguage';
 import { AppShell } from '@/features/board/AppShell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotFoundPage } from './NotFoundPage';
@@ -9,8 +10,11 @@ export function BoardPage() {
   const { t } = useTranslation();
   const { boardId } = useParams<{ boardId: string }>();
   const { data: board, isLoading, isError, error } = useBoard(boardId);
+  // The saved view settings live on the profile; rendering before it lands would flash the
+  // defaults and then jump to the user's view.
+  const me = useMe();
 
-  if (isLoading) {
+  if (isLoading || me.isLoading) {
     return (
       <div className="flex h-screen flex-col gap-4 bg-background p-6">
         <Skeleton className="h-8 w-64" />

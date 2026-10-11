@@ -71,6 +71,18 @@ Changes made in either the whiteboard or list must be reflected in the other.
 
 ---
 
+## 4a. Remembered view settings
+
+Wally remembers, per user and per board, the view (wall or list), the grouping, and the
+done / mine / priority filters. They are saved to the user's profile, so the board opens the
+same way on every device. Opening the app returns to the board the user last had open.
+
+A link that carries view settings in its query string shows those settings without saving
+them; they are saved only once the user changes something. Search text, the property filter
+and the open note are never remembered. "Reset view" forgets a board's saved settings.
+
+---
+
 ## 5. Notes
 
 Each note represents one to-do item.

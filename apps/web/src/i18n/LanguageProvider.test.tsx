@@ -14,7 +14,7 @@ vi.mock('@/features/auth/AuthProvider', async () => {
   return { ...actual, useAuth: () => mockUseAuth() };
 });
 
-import type { MeDto } from '@wally/shared';
+import { DEFAULT_PREFERENCES, type MeDto } from '@wally/shared';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { i18n } from './index';
 import { LanguageProvider, useLanguage } from './LanguageProvider';
@@ -37,7 +37,13 @@ function Probe() {
   );
 }
 
-const PROFILE: MeDto = { id: 'u1', email: 'max@example.com', displayName: 'Max', language: 'de' };
+const PROFILE: MeDto = {
+  id: 'u1',
+  email: 'max@example.com',
+  displayName: 'Max',
+  language: 'de',
+  preferences: DEFAULT_PREFERENCES,
+};
 
 /**
  * The fake is stateful because the real endpoint is: PATCH /me persists, so the refetch that

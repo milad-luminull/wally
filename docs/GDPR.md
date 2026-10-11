@@ -49,14 +49,15 @@ file must be kept in step — a new personal-data field is a change to both.
 
 ### Identity — `users/{uid}`
 
-| Field                     | Personal data                                               | Source                                               | Deleted when       |
-| ------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- | ------------------ |
-| `email`                   | Yes — direct identifier                                     | Firebase ID token, lowercased                        | **Never** (GAP-01) |
-| `displayName`             | Yes                                                         | Firebase ID token                                    | **Never** (GAP-01) |
-| `emailVerified`           | Yes, indirectly                                             | Firebase ID token                                    | **Never** (GAP-01) |
-| `language`                | Yes — a preference tied to a person                         | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
-| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change | Server                                               | **Never** (GAP-01) |
-| document id (`uid`)       | Yes — pseudonymous identifier, referenced everywhere        | Firebase Auth                                        | **Never** (GAP-01) |
+| Field                     | Personal data                                                                                                                                          | Source                                               | Deleted when       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ------------------ |
+| `email`                   | Yes — direct identifier                                                                                                                                | Firebase ID token, lowercased                        | **Never** (GAP-01) |
+| `displayName`             | Yes                                                                                                                                                    | Firebase ID token                                    | **Never** (GAP-01) |
+| `emailVerified`           | Yes, indirectly                                                                                                                                        | Firebase ID token                                    | **Never** (GAP-01) |
+| `language`                | Yes — a preference tied to a person                                                                                                                    | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
+| `preferences`             | Yes — UI choices tied to a person: theme, last opened board, and per-board view settings (view, grouping, done/mine/priority filters). No search text. | `PATCH /me`                                          | **Never** (GAP-01) |
+| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                            | Server                                               | **Never** (GAP-01) |
+| document id (`uid`)       | Yes — pseudonymous identifier, referenced everywhere                                                                                                   | Firebase Auth                                        | **Never** (GAP-01) |
 
 ### Membership — `whiteboards/{id}/members/{id}`
 

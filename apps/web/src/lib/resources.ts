@@ -29,6 +29,7 @@ import {
   type NoteUpdateInput,
   type NoteMoveInput,
   type NoteListQuery,
+  type PreferencesUpdate,
   type MemberDto,
   type InviteCreateInput,
   type MemberRoleUpdateInput,
@@ -49,6 +50,8 @@ export const meApi = {
   get: (): Promise<MeDto> => api.get('/me', meDtoSchema),
   updateLanguage: (language: Language): Promise<MeDto> =>
     api.patch('/me', meUpdateSchema.parse({ language }), meDtoSchema),
+  updatePreferences: (preferences: PreferencesUpdate): Promise<MeDto> =>
+    api.patch('/me', meUpdateSchema.parse({ preferences }), meDtoSchema),
 };
 
 export const boardsApi = {

@@ -1,5 +1,5 @@
 import { Check, ChevronsUpDown } from 'lucide-react';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/cn';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,6 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
   const { t } = useTranslation();
   const { effectiveRole } = useEnumLabels();
   const { data: boards } = useBoards();
-  const location = useLocation();
 
   if (!boards || boards.length < 2) return null;
 
@@ -47,10 +46,9 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
             return (
               <li key={board.id}>
                 <Link
+                  // A bare path: each board restores its own saved view settings, so
+                  // carrying this board's query string over would be wrong.
                   to={`/boards/${board.id}`}
-                  // Preserved so switching boards does not silently drop the view/axis the
-                  // user picked, which lives in the query string.
-                  state={location.state}
                   aria-current={current ? 'page' : undefined}
                   className={cn(
                     'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-14 transition-colors duration-150 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',

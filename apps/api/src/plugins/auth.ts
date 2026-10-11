@@ -1,12 +1,13 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
-import { INITIAL_BOARD_NAME, type Language } from '@wally/shared';
+import { INITIAL_BOARD_NAME, type Language, type Preferences } from '@wally/shared';
 import type { UserDoc, WithId } from '../lib/db/types.js';
 import {
   normalizeEmail,
   now,
   userLanguage,
+  userPreferences,
   usersCol,
   whiteboardsCol,
   withId,
@@ -32,6 +33,8 @@ export interface AuthenticatedUser {
    * lib/language.ts.
    */
   language: Language;
+  /** Read through userPreferences(), for the same reason as `language`. */
+  preferences: Preferences;
 }
 
 declare module 'fastify' {
@@ -241,6 +244,7 @@ export default fp(
         // document, whose language is absent for any account created before this field
         // existed. Reading it directly would decorate undefined and 500 GET /me.
         language: userLanguage(user),
+        preferences: userPreferences(user),
       };
     });
   },

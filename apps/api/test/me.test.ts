@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { INITIAL_BOARD_NAME } from '@wally/shared';
+import { INITIAL_BOARD_NAME, MAX_REMEMBERED_BOARDS } from '@wally/shared';
 import { usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
 import {
   buildTestApp,
@@ -51,6 +51,7 @@ describe('/me', () => {
       email: 'mika.brandt@example.com',
       displayName: 'Mika Brandt',
       language: 'de',
+      preferences: { theme: 'system', lastBoardId: null, boards: {} },
     });
   });
 
@@ -210,5 +211,148 @@ describe('/me', () => {
 
     const board = await whiteboardsCol(ctx.db).doc('me-rebuild').get();
     expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
+  });
+
+  describe('preferences', () => {
+    const LIST_BY_PRIORITY = {
+      view: 'list',
+      axis: 'priority',
+      done: false,
+      mine: true,
+      priority: ['HOCH'],
+    } as const;
+    const WALL_FREE = { view: 'wand', axis: 'free', done: true, mine: false, priority: [] };
+
+    function patch(token: string, payload: unknown) {
+      return ctx.app.inject({
+        method: 'PATCH',
+        url: '/me',
+        headers: ctx.authHeader(token),
+        payload: payload as Record<string, unknown>,
+      });
+    }
+
+    it('remembers a board view and returns it on the next GET', async () => {
+      const token = registerTestUser(ctx, 'pref-save', 'pref-save@example.com');
+
+      const response = await patch(token, { preferences: { boards: { b1: LIST_BY_PRIORITY } } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().preferences.boards).toEqual({ b1: LIST_BY_PRIORITY });
+
+      const again = await ctx.app.inject({
+        method: 'GET',
+        url: '/me',
+        headers: ctx.authHeader(token),
+      });
+      expect(again.json().preferences.boards).toEqual({ b1: LIST_BY_PRIORITY });
+    });
+
+    it('saving one board leaves the other boards, the theme and the language alone', async () => {
+      const token = registerTestUser(ctx, 'pref-merge', 'pref-merge@example.com');
+      await patch(token, { language: 'en', preferences: { theme: 'dark' } });
+      await patch(token, { preferences: { boards: { b1: LIST_BY_PRIORITY } } });
+
+      const response = await patch(token, { preferences: { boards: { b2: WALL_FREE } } });
+
+      expect(response.json()).toMatchObject({
+        language: 'en',
+        preferences: { theme: 'dark', boards: { b1: LIST_BY_PRIORITY, b2: WALL_FREE } },
+      });
+      const stored = await usersCol(ctx.db).doc('pref-merge').get();
+      expect(Object.keys(stored.data()?.preferences?.boards ?? {}).sort()).toEqual(['b1', 'b2']);
+    });
+
+    it('forgets a board when it is sent as null', async () => {
+      const token = registerTestUser(ctx, 'pref-reset', 'pref-reset@example.com');
+      await patch(token, { preferences: { boards: { b1: LIST_BY_PRIORITY, b2: WALL_FREE } } });
+
+      const response = await patch(token, { preferences: { boards: { b1: null } } });
+
+      expect(response.json().preferences.boards).toEqual({ b2: WALL_FREE });
+    });
+
+    it('round-trips the last opened board', async () => {
+      const token = registerTestUser(ctx, 'pref-last', 'pref-last@example.com');
+
+      const response = await patch(token, { preferences: { lastBoardId: 'board_42' } });
+
+      expect(response.json().preferences.lastBoardId).toBe('board_42');
+    });
+
+    it('rejects unknown keys and board ids that could escape a field path', async () => {
+      const token = registerTestUser(ctx, 'pref-bad', 'pref-bad@example.com');
+
+      for (const payload of [
+        { preferences: { sortBy: 'name' } },
+        { preferences: { boards: { 'a.b': LIST_BY_PRIORITY } } },
+        { preferences: { boards: { b1: { ...LIST_BY_PRIORITY, view: 'kanban' } } } },
+        { preferences: { theme: 'sepia' } },
+      ]) {
+        const response = await patch(token, payload);
+        expect(response.statusCode).toBe(400);
+      }
+    });
+
+    it('prunes the least recently saved boards past the cap', async () => {
+      const token = registerTestUser(ctx, 'pref-prune', 'pref-prune@example.com');
+      await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      const boards = Object.fromEntries(
+        Array.from({ length: MAX_REMEMBERED_BOARDS }, (_, i) => [
+          `old${i}`,
+          { ...WALL_FREE, touchedAt: i },
+        ]),
+      );
+      await usersCol(ctx.db).doc('pref-prune').update({ preferences: { boards } });
+
+      const response = await patch(token, { preferences: { boards: { fresh: WALL_FREE } } });
+
+      const kept = Object.keys(response.json().preferences.boards);
+      expect(kept).toHaveLength(MAX_REMEMBERED_BOARDS);
+      expect(kept).toContain('fresh');
+      expect(kept).not.toContain('old0');
+    });
+
+    it('survives a Firebase profile change', async () => {
+      const token = registerTestUser(ctx, 'pref-keep', 'pref-keep@example.com', 'Before');
+      await patch(token, { preferences: { theme: 'light', boards: { b1: WALL_FREE } } });
+
+      ctx.tokens.set(token, {
+        uid: 'pref-keep',
+        email: 'pref-keep@example.com',
+        emailVerified: true,
+        name: 'After',
+      });
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: '/me',
+        headers: ctx.authHeader(token),
+      });
+
+      expect(response.json()).toMatchObject({
+        displayName: 'After',
+        preferences: { theme: 'light', boards: { b1: WALL_FREE } },
+      });
+    });
+
+    it('reads a malformed stored value as the default instead of failing', async () => {
+      const token = registerTestUser(ctx, 'pref-junk', 'pref-junk@example.com');
+      await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      await usersCol(ctx.db)
+        .doc('pref-junk')
+        .update({ preferences: { theme: 'sepia', boards: { b1: { view: 'kanban' } } } } as never);
+
+      const response = await ctx.app.inject({
+        method: 'GET',
+        url: '/me',
+        headers: ctx.authHeader(token),
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().preferences).toEqual({
+        theme: 'system',
+        lastBoardId: null,
+        boards: {},
+      });
+    });
   });
 });

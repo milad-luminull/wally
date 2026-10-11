@@ -85,3 +85,18 @@ export type NoteHistoryEventType = z.infer<typeof noteHistoryEventTypeSchema>;
 export const noteMoveModeValues = ['HORIZON', 'PRIORITY', 'FREE'] as const;
 export const noteMoveModeSchema = z.enum(noteMoveModeValues);
 export type NoteMoveMode = z.infer<typeof noteMoveModeSchema>;
+
+/** How the board renders: the spatial wall, or the dense list. `wand` is German for wall. */
+export const boardViewValues = ['wand', 'list'] as const;
+export const boardViewSchema = z.enum(boardViewValues);
+export type BoardView = z.infer<typeof boardViewSchema>;
+
+/** What the wall is grouped by. */
+export const boardAxisValues = ['horizon', 'priority', 'free'] as const;
+export const boardAxisSchema = z.enum(boardAxisValues);
+export type BoardAxis = z.infer<typeof boardAxisSchema>;
+
+/** `system` follows the OS's prefers-color-scheme. */
+export const themePreferenceValues = ['system', 'light', 'dark'] as const;
+export const themePreferenceSchema = z.enum(themePreferenceValues);
+export type ThemePreference = z.infer<typeof themePreferenceSchema>;
