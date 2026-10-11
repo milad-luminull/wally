@@ -11,6 +11,7 @@ import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { MOD_KEY, openCommandPalette } from '@/lib/shortcuts';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { useActiveMembers } from './hooks/useMembers';
 import { useBoardRename } from './hooks/mutations/useBoardRename';
 import { initialsOf } from './util/noteDerived';
@@ -159,6 +160,7 @@ export function TopBar({
 }: TopBarProps) {
   const { t } = useTranslation();
   const { activeMembers } = useActiveMembers(boardId);
+  const { user } = useAuth();
   const renameBoard = useBoardRename(boardId);
 
   const openCount = notes.filter((n) => n.status === 'OPEN').length;
@@ -182,8 +184,11 @@ export function TopBar({
     else setNameDraft(board.name);
   }
 
-  const visibleMembers = activeMembers.slice(0, 3);
-  const overflowCount = activeMembers.length - visibleMembers.length;
+  // Everyone else on the board. You are already the account avatar at the end of the bar,
+  // so including yourself here showed your initials twice.
+  const otherMembers = activeMembers.filter((m) => m.userId !== user?.uid);
+  const visibleMembers = otherMembers.slice(0, 3);
+  const overflowCount = otherMembers.length - visibleMembers.length;
 
   return (
     <header className="z-header flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
@@ -274,10 +279,10 @@ export function TopBar({
         onResetView={onResetView}
       />
 
-      {activeMembers.length > 0 && (
+      {otherMembers.length > 0 && (
         <div
           className="ml-1 hidden items-center sm:flex"
-          aria-label={t('board.topBar.membersAria', { count: activeMembers.length })}
+          aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
         >
           {visibleMembers.map((m) => (
             <Avatar
