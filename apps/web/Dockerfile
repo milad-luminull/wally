@@ -2,7 +2,7 @@
 # apps/web depends on packages/shared (workspace:*) and packages/config, so the whole
 # workspace needs to be in the build context, not just apps/web.
 
-FROM node:22-slim AS base
+FROM node:25-slim AS base
 # Pin pnpm exactly as apps/api/Dockerfile does; bare `corepack enable` resolves the version
 # from the packageManager field at build time, which is a network dependency and can drift.
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
