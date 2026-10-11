@@ -95,7 +95,7 @@ export const en = {
     aria: 'Commands',
     placeholder: 'Type a command or search notes…',
     empty: 'No results.',
-    trigger: 'Search',
+    trigger: 'Commands',
     groups: {
       actions: 'Actions',
       notes: 'Notes',

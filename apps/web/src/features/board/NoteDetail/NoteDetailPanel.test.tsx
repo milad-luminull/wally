@@ -104,6 +104,45 @@ describe('NoteDetailPanel', () => {
     });
   });
 
+  describe('editing the title', () => {
+    // Stateful, like the API: once the title is saved, the refetch that follows returns it.
+    beforeEach(() => {
+      vi.mocked(notesApi.update).mockImplementation(async (_id, input) => {
+        vi.mocked(notesApi.get).mockResolvedValue(
+          makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE', ...input }),
+        );
+        return makeNote({ ...input });
+      });
+    });
+
+    it('saves while typing, without needing to leave the field', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+      const field = await screen.findByLabelText('Titel');
+
+      await user.clear(field);
+      await user.type(field, 'Angebot prüfen');
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { title: 'Angebot prüfen' }),
+      );
+      expect(field).toHaveFocus();
+    });
+
+    it('finishes on Enter instead of adding a line break', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+      const field = await screen.findByLabelText('Titel');
+
+      await user.clear(field);
+      await user.type(field, 'Angebot prüfen{Enter}');
+
+      expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { title: 'Angebot prüfen' });
+      expect(field).toHaveValue('Angebot prüfen');
+      expect(field).not.toHaveFocus();
+    });
+  });
+
   describe('closing the panel', () => {
     it('closes on Escape', async () => {
       const { onClose } = renderPanel();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Trash2, X } from 'lucide-react';
+import { Circle, CircleCheck, Trash2, X } from 'lucide-react';
 import {
   notePriorityValues,
   noteHorizonValues,
@@ -10,7 +11,6 @@ import {
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -42,7 +42,8 @@ import {
   useSetCustomField,
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
-import { collectFieldKeys, noteColourFillClass } from '../util/noteDerived';
+import { collectFieldKeys } from '../util/noteDerived';
+import { patchNoteCaches } from '../hooks/mutations/shared';
 import { PriorityIcon } from '../PriorityIcon';
 import { useNotes } from '../hooks/useNotes';
 import { PanelSection, PropertyRow } from './Field';
@@ -53,6 +54,9 @@ import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 
 const NO_ASSIGNEE = '__none__';
+
+/** How long typing pauses before the title is sent. The board updates on every keystroke. */
+const TITLE_SAVE_DELAY_MS = 500;
 
 /** A ToggleGroup rendered as a compact segmented control, for the properties grid. */
 const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0.5';
@@ -201,9 +205,55 @@ function NoteDetailContent({
     el.style.height = `${el.scrollHeight}px`;
   }, []);
 
+  // Server copy -> field, but never while the user is typing in it: a refetch landing
+  // mid-word would otherwise put back an older title and jump the caret.
   useEffect(() => {
-    setTitle(note?.title ?? '');
+    if (document.activeElement !== titleRef.current) setTitle(note?.title ?? '');
   }, [note?.id, note?.title]);
+
+  /*
+   * The title saves as you type. Every keystroke patches the cached note so the card on the
+   * board changes instantly; the request itself is debounced, and flushed on blur, Enter,
+   * and when the panel closes or switches note.
+   */
+  const queryClient = useQueryClient();
+  const { mutate: mutateNote } = updateNote;
+  const lastSavedTitle = useRef(note?.title ?? '');
+  const pendingTitle = useRef<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (note && pendingTitle.current === null) lastSavedTitle.current = note.title;
+  }, [note]);
+
+  const flushTitle = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const value = pendingTitle.current;
+    pendingTitle.current = null;
+    if (value === null || value === lastSavedTitle.current) return;
+    lastSavedTitle.current = value;
+    mutateNote({ noteId, input: { title: value } });
+  }, [mutateNote, noteId]);
+
+  // Closing the panel or switching note unmounts this content: send what was typed.
+  useEffect(() => flushTitle, [flushTitle]);
+
+  function handleTitleChange(value: string) {
+    setTitle(value);
+    const trimmed = value.trim();
+    // An empty title is never saved; leaving the field puts the last one back.
+    if (!trimmed) return;
+    patchNoteCaches(queryClient, boardId, noteId, { title: trimmed });
+    pendingTitle.current = trimmed;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushTitle, TITLE_SAVE_DELAY_MS);
+  }
+
+  function handleTitleBlur() {
+    flushTitle();
+    if (!title.trim()) setTitle(lastSavedTitle.current);
+  }
 
   useEffect(() => {
     resizeTitle();
@@ -247,15 +297,6 @@ function NoteDetailContent({
   const showZone = axis === 'horizon';
   const isDone = note.status === 'DONE';
 
-  function commitTitle() {
-    const trimmed = title.trim();
-    if (!note || trimmed === note.title || !trimmed) {
-      setTitle(note?.title ?? '');
-      return;
-    }
-    updateNote.mutate({ noteId: note.id, input: { title: trimmed } });
-  }
-
   function handlePriorityChange(value: string) {
     if (!value) return;
     moveNote.mutate({
@@ -287,23 +328,32 @@ function NoteDetailContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle pl-5 pr-2.5">
-        {/* Decorative only: the breadcrumb beside it already names the zone, the priority
-            and the done state in words, so marking the swatch too would announce them twice. */}
-        <span
-          aria-hidden
+      {/* Completion leads the panel, as a toggle that says what it does. It is a checkbox
+          (role and state), never a footer button: a filled "Done" in the bottom confirm
+          slot read as "dismiss this panel", and people completed to-dos trying to close. */}
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle pl-3.5 pr-2.5">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isDone}
+          aria-label={t('note.doneStatus')}
+          disabled={disabled}
+          onClick={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
           className={cn(
-            'h-3 w-3 shrink-0 rounded-[3px] border border-[color:var(--note-border)]',
-            noteColourFillClass[note.colour],
+            'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-12 font-medium',
+            'transition-[background-color,border-color,color] duration-150 ease-ds',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+            'disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:h-10',
+            '[&_svg]:size-4',
+            isDone
+              ? 'border-primary bg-primary text-primary-foreground hover:bg-primary-hover'
+              : 'border-border bg-surface text-fg-2 hover:border-border-strong hover:text-fg-1',
           )}
-        />
-        <span className="flex-1 truncate text-12 font-medium text-fg-3">
-          {isDone
-            ? t('note.doneStatus')
-            : axis === 'horizon'
-              ? `${horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`
-              : priorityLabels[note.priority]}
-        </span>
+        >
+          {isDone ? <CircleCheck strokeWidth={2} /> : <Circle strokeWidth={1.75} />}
+          <span aria-hidden>{isDone ? t('note.doneStatus') : t('board.rowStatus.markDone')}</span>
+        </button>
+        <span className="flex-1" />
         <IconTooltip label={t('common.close')} shortcut={['Esc']}>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('common.close')}>
             <X strokeWidth={1.75} />
@@ -312,40 +362,19 @@ function NoteDetailContent({
       </header>
 
       <div className="wally-scroll min-h-0 flex-1 overflow-y-auto">
-        {/* Completion is a checkbox, not a footer button. A filled button in the bottom
-            confirm slot labelled "Erledigt" reads as "dismiss this panel" — which is what
-            people pressed it for, silently completing their to-do instead of closing. The
-            panel auto-saves every field, so it has nothing to confirm and needs no such
-            button. This also matches how the list view has always completed a note. */}
-        <div className="flex items-center gap-2.5 px-5 pb-0.5 pt-5">
-          <Checkbox
-            id="note-done"
-            checked={isDone}
-            disabled={disabled}
-            onCheckedChange={() =>
-              toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })
-            }
-          />
-          {/* Quieter than the title, but deliberately not as quiet as a field label: this is
-              the note's one state control, and it has to read as interactive. The generous
-              vertical padding is the touch target — the box itself is 16px. */}
-          <label
-            htmlFor="note-done"
-            className={cn(
-              '-my-1.5 py-1.5 text-13 font-medium text-fg-2 select-none',
-              !disabled && 'cursor-pointer hover:text-fg-1',
-            )}
-          >
-            {t('note.doneStatus')}
-          </label>
-        </div>
-
-        <div className="px-5 pb-3 pt-2">
+        <div className="px-5 pb-4 pt-5">
           <textarea
             ref={titleRef}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={commitTitle}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => {
+              // One line of meaning, even when it wraps: Enter finishes the title.
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
             onInput={resizeTitle}
             disabled={disabled}
             rows={1}
@@ -362,6 +391,18 @@ function NoteDetailContent({
             )}
           />
         </div>
+
+        <PanelSection>
+          <SubtaskChecklist
+            subtasks={note.subtasks}
+            disabled={disabled}
+            onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
+            onToggle={(subtaskId, done) =>
+              toggleSubtask.mutate({ noteId: note.id, subtaskId, done })
+            }
+            onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
+          />
+        </PanelSection>
 
         <PanelSection>
           <PropertyRow label={t('note.priorityLabel')}>
@@ -464,18 +505,6 @@ function NoteDetailContent({
             disabled={disabled}
             onAdd={(tag) => addTag.mutate({ noteId: note.id, tag })}
             onRemove={(tag) => removeTag.mutate({ noteId: note.id, tag })}
-          />
-        </PanelSection>
-
-        <PanelSection>
-          <SubtaskChecklist
-            subtasks={note.subtasks}
-            disabled={disabled}
-            onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
-            onToggle={(subtaskId, done) =>
-              toggleSubtask.mutate({ noteId: note.id, subtaskId, done })
-            }
-            onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
           />
         </PanelSection>
 

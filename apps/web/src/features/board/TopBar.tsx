@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Columns3, List, Plus, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
+import { Columns3, List, Plus, Command, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
@@ -248,18 +248,21 @@ export function TopBar({
 
       <div className="flex-1" />
 
-      <Button
-        variant="ghost"
-        onClick={openCommandPalette}
-        aria-label={t('palette.aria')}
-        className="text-fg-3"
-      >
-        <Search strokeWidth={1.75} />
-        <span className="hidden lg:inline">{t('palette.trigger')}</span>
-        <kbd aria-hidden className="kbd ml-1 hidden lg:inline-flex">
-          {MOD_KEY}K
-        </kbd>
-      </Button>
+      {/* Commands, not search: the filter row's field is the board's one search box. Hidden
+          on small screens, where there is no keyboard to make the palette worth it. */}
+      <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
+        <Button
+          variant="ghost"
+          onClick={openCommandPalette}
+          aria-label={t('palette.trigger')}
+          className="hidden text-fg-3 md:inline-flex"
+        >
+          <Command strokeWidth={1.75} />
+          <kbd aria-hidden className="kbd hidden lg:inline-flex">
+            {MOD_KEY}K
+          </kbd>
+        </Button>
+      </IconTooltip>
 
       <DisplayMenu
         view={view}

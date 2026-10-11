@@ -105,7 +105,7 @@ export const de = {
     aria: 'Befehle',
     placeholder: 'Befehl oder Notiz suchen…',
     empty: 'Nichts gefunden.',
-    trigger: 'Suchen',
+    trigger: 'Befehle',
     groups: {
       actions: 'Aktionen',
       notes: 'Notizen',
