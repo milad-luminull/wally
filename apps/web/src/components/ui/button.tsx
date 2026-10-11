@@ -24,11 +24,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-e1 hover:bg-[color:var(--slate-hover)] hover:shadow-e2',
+          'bg-primary text-primary-foreground shadow-e1 hover:bg-primary-hover hover:shadow-e2',
         /* White on dusty blue measures 5.08:1 — the 5.1:1 the guideline quotes, and well
            clear of the 3:1 SC 1.4.11 asks of an icon that carries the button's meaning. */
-        accent:
-          'bg-[color:var(--blue)] text-accent-foreground shadow-e1 hover:bg-[color:var(--blue-hover)] hover:shadow-e2',
+        accent: 'bg-accent text-accent-foreground shadow-e1 hover:bg-accent-hover hover:shadow-e2',
         outline:
           'border border-border bg-card text-fg-1 hover:border-border-strong hover:bg-secondary',
         ghost: 'text-fg-muted hover:bg-inset hover:text-fg-1',

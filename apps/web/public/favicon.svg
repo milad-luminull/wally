@@ -1,7 +1,11 @@
-<!-- The Wally mark: a square note, corner radius 22% of the side, one round pin at top
-     centre whose diameter is 21% of the side, centred 28% down. Keep in step with
+<!-- The Wally mark: an ink note overlapping a marigold one. Keep in step with
      src/components/BrandMark.tsx. Hex rather than var() — an icon has no stylesheet. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7.04" fill="#22303F"/>
-  <circle cx="16" cy="8.96" r="3.36" fill="#4F7196"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>.ink{fill:#18181B}@media (prefers-color-scheme:dark){.ink{fill:#EDEDEF}}</style>
+  <mask id="gap">
+    <rect width="24" height="24" fill="#fff"/>
+    <rect x="0.5" y="6.5" width="17" height="17" rx="5" fill="#000"/>
+  </mask>
+  <rect x="7" y="0" width="17" height="17" rx="4.5" fill="#FFB224" mask="url(#gap)"/>
+  <rect class="ink" x="2" y="8" width="14" height="14" rx="3.5"/>
 </svg>

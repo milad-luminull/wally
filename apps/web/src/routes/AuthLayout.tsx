@@ -23,12 +23,12 @@ export function AuthLayout({
             text. A letter in a box is on the guideline's don't list; this is the mark. */}
         <div className="flex items-center gap-[7.56px]">
           <BrandMark size={36} />
-          <span className="text-22 font-bold tracking-[-0.045em] text-fg-1">wally</span>
+          <span className="text-20 font-bold tracking-[-0.045em] text-fg-1">wally</span>
         </div>
 
         <div className="rounded-2xl border border-border-subtle bg-card p-7 shadow-e2">
           <div className="mb-6 flex flex-col gap-1.5">
-            <h1 className="font-head text-22 font-bold text-fg-1">{title}</h1>
+            <h1 className="text-20 font-bold text-fg-1">{title}</h1>
             <p className="text-14 text-fg-muted">{subtitle}</p>
           </div>
           {children}

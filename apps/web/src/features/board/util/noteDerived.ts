@@ -67,8 +67,8 @@ export const dueToneClass: Record<DueTone, string> = {
  * nothing at all, not a faint dot.
  */
 export const priorityDotClass: Record<NotePriority, string | null> = {
-  HOCH: 'bg-[color:var(--slate)]',
-  MITTEL: 'border-[1.5px] border-[color:var(--slate)] bg-transparent',
+  HOCH: 'bg-[color:var(--fg-1)]',
+  MITTEL: 'border-[1.5px] border-[color:var(--fg-1)] bg-transparent',
   NIEDRIG: null,
 };
 

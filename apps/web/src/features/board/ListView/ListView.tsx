@@ -94,7 +94,7 @@ export function ListView({
           <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-inset text-fg-faint">
             <StickyNote className="h-5 w-5" strokeWidth={1.7} />
           </span>
-          <p className="font-head text-22 font-semibold text-fg-1">{t(keys.title)}</p>
+          <p className="text-20 font-semibold text-fg-1">{t(keys.title)}</p>
           <p className="text-14 text-fg-muted">{t(keys.body)}</p>
         </div>
       </div>

@@ -60,7 +60,7 @@ function ShareBody({
 
   return (
     <div className="flex flex-col gap-5">
-      <p className="font-head text-15 font-bold text-fg-1">{t('share.title')}</p>
+      <p className="text-14 font-bold text-fg-1">{t('share.title')}</p>
 
       {isOwner && (
         <div className="flex flex-col gap-3">

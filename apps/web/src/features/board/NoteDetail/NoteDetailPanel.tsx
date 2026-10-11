@@ -368,7 +368,7 @@ function NoteDetailContent({
                flex child inside the old overflowing column this field collapsed to a few
                pixels tall. It is no longer a flex item. */
             className={cn(
-              'font-head block w-full resize-none overflow-hidden rounded-md bg-transparent text-22 font-bold text-fg-1 outline-none',
+              'block w-full resize-none overflow-hidden rounded-md bg-transparent text-20 font-bold text-fg-1 outline-none',
               'placeholder:font-semibold placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
               isDone && 'text-fg-muted line-through decoration-fg-faint',

@@ -45,7 +45,7 @@ export function AccountMenu() {
         className="flex items-center justify-center rounded-full transition-transform duration-150 ease-ds hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt motion-reduce:hover:translate-y-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
       >
         <Avatar className="h-8 w-8 ring-2 ring-border-subtle">
-          <AvatarFallback className="bg-[color:var(--slate)] text-12">
+          <AvatarFallback className="bg-primary text-12 text-primary-foreground">
             {initialsOf(name)}
           </AvatarFallback>
         </Avatar>

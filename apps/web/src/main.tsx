@@ -6,6 +6,7 @@ import { AuthProvider } from '@/features/auth/AuthProvider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initI18n } from '@/i18n';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
+import { ThemeProvider } from '@/lib/theme';
 import { App } from './App';
 import './styles/globals.css';
 
@@ -24,9 +25,11 @@ createRoot(rootEl).render(
             QueryClientProvider (it runs that query), but outside the router — it is
             route-independent. */}
         <LanguageProvider>
-          <TooltipProvider>
-            <App />
-          </TooltipProvider>
+          <ThemeProvider>
+            <TooltipProvider>
+              <App />
+            </TooltipProvider>
+          </ThemeProvider>
         </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>

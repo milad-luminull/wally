@@ -107,7 +107,7 @@ export function WandCanvas({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <div className="flex max-w-xs flex-col items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-[color:var(--zone-surface)] px-7 py-8 text-center backdrop-blur-[1px]">
             <MousePointerClick className="h-5 w-5 text-fg-faint" strokeWidth={1.7} />
-            <p className="font-head text-15 font-semibold text-fg-1">{t(keys.title)}</p>
+            <p className="text-14 font-semibold text-fg-1">{t(keys.title)}</p>
             <p className="text-12 text-fg-muted">{t(keys.body)}</p>
           </div>
         </div>

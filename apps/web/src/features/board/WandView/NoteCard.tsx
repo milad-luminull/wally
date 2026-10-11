@@ -64,7 +64,7 @@ export function NoteCard({
     <>
       <span
         className={cn(
-          'font-head line-clamp-3 text-14 font-semibold leading-snug text-fg-1',
+          'line-clamp-3 text-14 font-semibold leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
         )}
       >
@@ -204,7 +204,7 @@ function RestingNoteCard({
           // border so the card's box does not shift by a pixel when it is selected.
           'outline-offset-0',
           selected
-            ? 'border-transparent shadow-e2 outline outline-2 outline-[color:var(--slate)]'
+            ? 'border-transparent shadow-e2 outline outline-2 outline-[color:var(--note-selected)]'
             : 'border-border-subtle shadow-pin',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column

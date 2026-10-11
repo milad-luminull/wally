@@ -6,5 +6,5 @@ export function buttonVariantsForAlertAction(variant: 'default' | 'destructive')
   if (variant === 'destructive') {
     return `${base} bg-destructive text-destructive-foreground hover:bg-[color:var(--destructive-hover)]`;
   }
-  return `${base} bg-primary text-primary-foreground hover:bg-[color:var(--slate-hover)]`;
+  return `${base} bg-primary text-primary-foreground hover:bg-primary-hover`;
 }

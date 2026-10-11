@@ -41,7 +41,7 @@ export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPick
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
               noteColourFillClass[colour],
               value === colour
-                ? 'border-[color:var(--slate)] ring-2 ring-white ring-inset'
+                ? 'border-[color:var(--fg-1)] ring-2 ring-[color:var(--surface)] ring-inset'
                 : 'border-border',
             )}
           />

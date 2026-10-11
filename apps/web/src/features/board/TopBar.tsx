@@ -127,7 +127,7 @@ export function TopBar({
             letter in it would read as the Wally mark, which the guideline lists as a don't. */}
         <span
           aria-hidden
-          className="font-head hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-14 font-bold text-primary-foreground sm:flex"
+          className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-14 font-bold text-primary-foreground sm:flex"
         >
           {(board.name.trim()[0] ?? 'W').toUpperCase()}
         </span>
@@ -148,14 +148,14 @@ export function TopBar({
                   }
                 }}
                 aria-label={t('board.topBar.boardNameAria')}
-                className="font-head min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-22 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
+                className="min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-20 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
               />
             ) : (
               <h1
                 className={cn(
-                  'font-head min-w-0 truncate text-22 font-bold text-fg-1',
+                  'min-w-0 truncate text-20 font-bold text-fg-1',
                   isOwner &&
-                    'cursor-text rounded-sm transition-colors duration-150 hover:text-[color:var(--slate-hover)]',
+                    'cursor-text rounded-sm transition-colors duration-150 hover:text-fg-2',
                 )}
                 onClick={() => isOwner && setEditingName(true)}
                 title={isOwner ? t('board.topBar.renameTitle') : undefined}

@@ -73,7 +73,7 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            'font-head text-14 font-semibold leading-snug text-fg-1',
+            'text-14 font-semibold leading-snug text-fg-1',
             isDone && 'line-through decoration-fg-faint',
           )}
         >

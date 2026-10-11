@@ -1,55 +1,63 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Wally brand tokens — "wally - branding.pdf" v1, see docs/BRAND.md.
- *
- * Dusty blue is strictly functional: the pin in the mark, the one primary action on a
- * screen, and the selection state. It is never a note colour and never a priority marker —
- * see globals.css, ColorSwatchPicker and noteDerived.ts for where that boundary is
- * enforced in code.
+ * Wally design tokens — Graphite + Marigold, see docs/BRAND.md.
  *
  * Colours are wired as CSS custom properties (see src/styles/globals.css) holding plain
- * hex values — not the hsl()-triplet convention shadcn's docs default to. shadcn's
- * components only ever reference the Tailwind utility (e.g. `bg-background`), never
- * `hsl()` directly, so a var can hold any valid CSS colour; going hex-for-hex keeps every
- * token numerically identical to the design system's documented values instead of
- * introducing manual-conversion drift.
+ * colour values — not the hsl()-triplet convention shadcn's docs default to. Components
+ * only ever reference the Tailwind utility (e.g. `bg-background`), so a var can hold any
+ * valid CSS colour, and the `.dark` class re-points every one of them in one place.
  */
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      /* One typeface. `head` is kept as an alias of `sans` so the 20 existing `font-head`
-       * usages keep compiling; it resolves to the same stack and can be swept away later. */
+      /* One family for reading, its mono sibling for keyboard hints and figures. */
       fontFamily: {
-        head: ['Sora', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['Sora', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       /* Six steps, nothing between them, nothing below 12. Tracking is baked into the
        * tuple rather than declared as a letterSpacing scale, so a size and its tracking can
-       * never drift apart. 15 is the note title on the wall; 22 the panel title; 40 display.
+       * never drift apart. 13 is the control size (buttons, menus, inputs); 14 body and the
+       * note title; 16 the panel title; 20 page titles; 28 display.
        *
        * Keep the key list in sync with FONT_SIZES in src/lib/cn.ts — tailwind-merge has to
        * be told about every one of them or it treats the class as a text *colour*. */
       fontSize: {
-        12: ['12px', { lineHeight: '1.35' }],
-        14: ['14px', { lineHeight: '1.55' }],
-        15: ['15px', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
-        22: ['22px', { lineHeight: '1.22', letterSpacing: '-0.03em' }],
-        32: ['32px', { lineHeight: '1.12', letterSpacing: '-0.036em' }],
-        40: ['40px', { lineHeight: '1.05', letterSpacing: '-0.045em' }],
+        12: ['12px', { lineHeight: '1.4' }],
+        13: ['13px', { lineHeight: '1.45', letterSpacing: '-0.003em' }],
+        14: ['14px', { lineHeight: '1.5', letterSpacing: '-0.006em' }],
+        16: ['16px', { lineHeight: '1.4', letterSpacing: '-0.012em' }],
+        20: ['20px', { lineHeight: '1.3', letterSpacing: '-0.02em' }],
+        28: ['28px', { lineHeight: '1.15', letterSpacing: '-0.03em' }],
       },
       colors: {
         background: 'var(--background)',
         foreground: 'var(--foreground)',
         card: { DEFAULT: 'var(--card)', foreground: 'var(--card-foreground)' },
         popover: { DEFAULT: 'var(--popover)', foreground: 'var(--popover-foreground)' },
-        primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+        primary: {
+          DEFAULT: 'var(--primary)',
+          hover: 'var(--primary-hover)',
+          foreground: 'var(--primary-foreground)',
+        },
         secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
         muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
-        accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
-        destructive: { DEFAULT: 'var(--destructive)', foreground: 'var(--destructive-foreground)' },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
+          soft: 'var(--accent-soft)',
+          foreground: 'var(--accent-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+          hover: 'var(--destructive-hover)',
+          soft: 'var(--destructive-soft)',
+          foreground: 'var(--destructive-foreground)',
+        },
+        tooltip: { DEFAULT: 'var(--tooltip)', foreground: 'var(--tooltip-foreground)' },
         border: {
           DEFAULT: 'var(--border)',
           subtle: 'var(--border-subtle)',
@@ -80,22 +88,21 @@ export default {
            variable directly (`bg-[color:var(--note-…)]`, see util/noteDerived.ts), so a
            parallel Tailwind group would be a second list to keep in sync for no gain. */
       },
+      /* 6 for controls, 8 for notes and cards, 12 for panels and popovers. */
       borderRadius: {
-        sm: '6px',
-        DEFAULT: '8px',
-        md: '8px',
-        lg: '10px',
+        sm: '4px',
+        DEFAULT: '6px',
+        md: '6px',
+        lg: '8px',
         xl: '12px',
         '2xl': '16px',
       },
-      /* Elevation is tinted with slate rather than neutral black, so cards read as sitting
-       * on the linen wall instead of on a grey sheet. `pin` is the resting note shadow —
-       * shallow, because a note is paper pinned flat, not a floating card. */
+      /* Elevation lives in globals.css so dark mode can swap shadows for hairlines. */
       boxShadow: {
-        e1: '0 1px 2px rgba(34, 48, 63, 0.06), 0 1px 1px rgba(34, 48, 63, 0.04)',
-        e2: '0 8px 24px rgba(34, 48, 63, 0.12)',
-        e3: '0 18px 40px -8px rgba(34, 48, 63, 0.22), 0 4px 10px rgba(34, 48, 63, 0.08)',
-        pin: '0 2px 4px rgba(34, 48, 63, 0.08), 0 8px 18px -10px rgba(34, 48, 63, 0.28)',
+        e1: 'var(--shadow-e1)',
+        e2: 'var(--shadow-e2)',
+        e3: 'var(--shadow-e3)',
+        pin: 'var(--shadow-pin)',
       },
       transitionDuration: {
         120: '120ms',

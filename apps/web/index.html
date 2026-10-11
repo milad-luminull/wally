@@ -4,16 +4,40 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
-    <!-- Linen: the wall colour, so the browser chrome meets the board rather than the page. -->
-    <meta name="theme-color" content="#EDE8DF" />
+    <!-- The wall colour, so the browser chrome meets the board. ThemeProvider keeps it in
+         step with the active theme. -->
+    <meta name="theme-color" content="#F6F6F7" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!-- Brand only, so the tab is never in the wrong language while the bundle loads.
          LanguageProvider sets the full localized title from the catalogue. -->
     <title>Wally</title>
-    <!-- Sora is self-hosted (public/fonts, @font-face in globals.css), so there is no
-         third-party font request to preconnect to. Preloading the latin subset keeps the
-         first paint from flashing the fallback; latin-ext loads on demand. -->
-    <link rel="preload" href="/fonts/sora-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Geist is self-hosted (public/fonts, @font-face in globals.css), so there is no
+         third-party font request to preconnect to. Preloaded so the first paint doesn't
+         flash the fallback. -->
+    <link
+      rel="preload"
+      href="/fonts/geist-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <!-- Applies the theme before first paint so dark mode never flashes white. Mirrors
+         readStoredTheme in src/lib/theme.tsx; the key is THEME_STORAGE_KEY. -->
+    <script>
+      (function () {
+        var theme = 'system';
+        try {
+          theme = localStorage.getItem('wally.theme') || 'system';
+        } catch (e) {}
+        var dark =
+          theme === 'dark' ||
+          (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.classList.add('dark');
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0A0A0B');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

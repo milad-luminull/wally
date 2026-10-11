@@ -1,40 +1,46 @@
 interface BrandMarkProps {
-  /** Rendered size in px. The guideline's floor is 16; below that use the wordmark alone. */
+  /** Rendered size in px. Below 16 use the wordmark alone. */
   size?: number;
-  /**
-   * `onLight` is the primary pair — a slate note with a blue pin. On a slate field the pair
-   * inverts. On blue the note stays slate and the pin stays blue, so the pin reads as a hole.
-   */
-  tone?: 'onLight' | 'onSlate';
   className?: string;
   title?: string;
 }
 
 /**
- * The Wally mark, built to the guideline's proportions rather than drawn once at one size:
- * a square note with a corner radius 22% of its side, and one round pin at top centre whose
- * diameter is 21% of the side, its centre 28% down from the top edge. Nothing else — no
- * letter in it, no tilt, no shadow, no gradient.
+ * The Wally mark: two notes on a wall. A marigold note sits behind and to the upper right;
+ * an ink note overlaps it from the lower left, cut out from it by a gap the colour of
+ * whatever is behind the mark. Ink is `--fg-1`, so the front note flips with the theme while
+ * marigold stays put.
  *
- * Because every measurement is a ratio of the side, a single 24-unit viewBox scales cleanly
- * from a 16px favicon to a wall. Keep public/favicon.svg in step with these numbers.
+ * Every measurement is in one 24-unit viewBox, so it scales cleanly from a 16px favicon up.
+ * Keep public/favicon.svg in step with these numbers.
  */
-export function BrandMark({ size = 24, tone = 'onLight', className, title }: BrandMarkProps) {
-  const note = tone === 'onSlate' ? 'var(--linen)' : 'var(--slate)';
-  const pin = 'var(--blue)';
-  const S = 24;
+export function BrandMark({ size = 24, className, title }: BrandMarkProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox={`0 0 ${S} ${S}`}
+      viewBox="0 0 24 24"
       className={className}
       role={title ? 'img' : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
     >
-      <rect width={S} height={S} rx={S * 0.22} fill={note} />
-      <circle cx={S / 2} cy={S * 0.28} r={S * 0.105} fill={pin} />
+      <defs>
+        <mask id="wally-mark-gap">
+          <rect width="24" height="24" fill="white" />
+          <rect x="0.5" y="6.5" width="17" height="17" rx="5" fill="black" />
+        </mask>
+      </defs>
+      <rect
+        x="7"
+        y="0"
+        width="17"
+        height="17"
+        rx="4.5"
+        fill="var(--accent)"
+        mask="url(#wally-mark-gap)"
+      />
+      <rect x="2" y="8" width="14" height="14" rx="3.5" fill="var(--fg-1)" />
     </svg>
   );
 }
