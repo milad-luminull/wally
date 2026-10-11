@@ -57,23 +57,6 @@ export const dueToneClass: Record<DueTone, string> = {
 };
 
 /**
- * Priority is shape, not hue: one ink dot, and the shape carries the level.
- *
- * Red for priority is banned outright — red means late, and only late. Keeping priority on a
- * single colour is also what lets it survive on any of the fourteen note fills, which a hue
- * ladder could not do.
- *
- * `null` for NIEDRIG is the "no mark" case and callers must handle it: low priority renders
- * nothing at all, not a faint dot.
- */
-export const priorityDotClass: Record<NotePriority, string | null> = {
-  /* currentColor, so the dot follows its text: ink on a note, white inside an "on" chip. */
-  HOCH: 'bg-current',
-  MITTEL: 'border-[1.5px] border-current bg-transparent',
-  NIEDRIG: null,
-};
-
-/**
  * A note is coloured all over, like paper — one fill per colour, used for the card, the list
  * row and the picker dot alike. There is no swatch/spine/tint split any more: the guideline
  * calls a stripe out by name ("full fill, not a stripe").

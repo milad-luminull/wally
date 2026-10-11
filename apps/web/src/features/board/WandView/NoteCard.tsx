@@ -12,7 +12,7 @@ import {
   noteColourFillClass,
   subtaskCountLabel,
 } from '../util/noteDerived';
-import { PriorityDot } from '../PriorityDot';
+import { PriorityIcon } from '../PriorityIcon';
 
 interface NoteCardProps {
   note: NoteDto;
@@ -93,7 +93,7 @@ export function NoteCard({
         <span className="flex-1" />
 
         {!isDone && (
-          <PriorityDot
+          <PriorityIcon
             priority={note.priority}
             label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
           />

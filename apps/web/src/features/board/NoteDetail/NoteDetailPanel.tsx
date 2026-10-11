@@ -43,7 +43,7 @@ import {
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
 import { collectFieldKeys, noteColourFillClass } from '../util/noteDerived';
-import { PriorityDot } from '../PriorityDot';
+import { PriorityIcon } from '../PriorityIcon';
 import { useNotes } from '../hooks/useNotes';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
@@ -374,7 +374,7 @@ function NoteDetailContent({
             >
               {notePriorityValues.map((p) => (
                 <ToggleGroupItem key={p} value={p} aria-label={priorityLabels[p]}>
-                  <PriorityDot priority={p} />
+                  <PriorityIcon priority={p} size={12} />
                   {priorityLabels[p]}
                 </ToggleGroupItem>
               ))}

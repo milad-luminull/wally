@@ -5,7 +5,7 @@ import { useEnumLabels } from '@/i18n/enumLabels';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
 import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
-import { PriorityDot } from '../PriorityDot';
+import { PriorityIcon } from '../PriorityIcon';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -114,7 +114,7 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
           {due.label}
         </span>
         {!isDone && (
-          <PriorityDot
+          <PriorityIcon
             priority={note.priority}
             label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
           />

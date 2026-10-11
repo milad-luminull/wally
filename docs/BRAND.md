@@ -52,8 +52,11 @@ action — an action is not a status.
 
 ### Priority is shape, not hue
 
-One dot in the current text colour. High is filled, medium is hollow, **low has no mark at
-all**. Red for priority is banned: red means late, and only late. See `PriorityDot.tsx`.
+A signal meter: three rising bars in the current text colour, the level read off how many are
+filled — three for high, two for medium, one for low — with the rest left as a faint track so
+every level shows the whole scale. Red for priority is banned: red means late, and only late.
+One colour is also what lets the icon survive on all fourteen note fills. See
+`PriorityIcon.tsx`.
 
 ### Note colour belongs to the user
 

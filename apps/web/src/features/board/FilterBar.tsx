@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { cn } from '@/lib/cn';
-import { PriorityDot } from './PriorityDot';
+import { PriorityIcon } from './PriorityIcon';
 import type { BoardViewState } from './hooks/useBoardViewState';
 
 interface FilterBarProps {
@@ -171,7 +171,7 @@ function PriorityChips({
           value={p}
           aria-label={t('board.filter.priorityAria', { label: priorityLabels[p] })}
         >
-          <PriorityDot priority={p} size={6} />
+          <PriorityIcon priority={p} size={12} />
           {priorityLabels[p]}
         </ToggleGroupItem>
       ))}
