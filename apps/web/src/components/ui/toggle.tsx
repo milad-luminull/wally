@@ -16,6 +16,9 @@ export const toggleVariants = cva(
       variant: {
         default:
           'border border-transparent text-fg-3 hover:bg-inset hover:text-fg-1 data-[state=on]:bg-inset data-[state=on]:text-fg-1',
+        /* One option of a compact segmented row (see ToggleGroup's `segmented` look). */
+        segment:
+          'text-fg-3 hover:text-fg-1 data-[state=on]:bg-surface data-[state=on]:text-fg-1 data-[state=on]:shadow-e1',
         /* A chip that is on fills with ink, so "this filter is applied" reads at a glance
            without spending the screen's one marigold. */
         chip: 'border border-border bg-surface text-fg-2 shadow-e1 hover:border-border-strong hover:text-fg-1 data-[state=on]:border-[color:var(--chip-on-border)] data-[state=on]:bg-[color:var(--chip-on)] data-[state=on]:text-[color:var(--chip-on-foreground)]',

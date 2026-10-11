@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { ListFilter, Search, X } from 'lucide-react';
 import { notePriorityValues, type NotePriority } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
+import { RemoveButton } from '@/components/ui/remove-button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -55,7 +56,7 @@ function FieldFilter({
       >
         <SelectTrigger
           aria-label={t('board.filter.fieldAria')}
-          className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
+          className="h-7 w-[140px] text-12 [@media(pointer:coarse)]:h-10"
         >
           <SelectValue placeholder={t('board.filter.fieldPlaceholder')} />
         </SelectTrigger>
@@ -76,7 +77,7 @@ function FieldFilter({
         >
           <SelectTrigger
             aria-label={t('board.filter.valueAria')}
-            className="h-8 w-[132px] rounded-md border border-border bg-card px-2.5 text-12"
+            className="h-7 w-[140px] text-12 [@media(pointer:coarse)]:h-10"
           >
             <SelectValue />
           </SelectTrigger>
@@ -94,6 +95,9 @@ function FieldFilter({
   );
 }
 
+/** Focused from anywhere by the `/` shortcut (see lib/shortcuts). */
+export const SEARCH_INPUT_ID = 'board-search';
+
 function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void }) {
   const { t } = useTranslation();
   const [local, setLocal] = useState(q);
@@ -108,32 +112,37 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
   return (
     <div
       className={cn(
-        'group flex h-8 min-w-[190px] max-w-[300px] flex-1 items-center gap-2 rounded-full border border-border bg-card px-3',
-        '[@media(pointer:coarse)]:h-11',
-        'transition-[border-color,box-shadow] duration-150 ease-ds',
-        'focus-within:border-primary focus-within:ring-2 focus-within:ring-[color:var(--ring-alpha)]',
+        'group flex h-7 min-w-[180px] max-w-[280px] flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 shadow-e1',
+        '[@media(pointer:coarse)]:h-10',
+        'transition-[border-color,box-shadow] duration-150 ease-ds hover:border-border-strong',
+        'focus-within:border-border-strong focus-within:ring-2 focus-within:ring-[color:var(--ring-alpha)]',
       )}
     >
-      <Search className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.8} />
+      <Search className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.75} />
       <input
+        id={SEARCH_INPUT_ID}
         value={local}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') (e.target as HTMLInputElement).blur();
+        }}
         onChange={(e) => setLocal(e.target.value)}
         placeholder={t('board.filter.searchPlaceholder')}
         aria-label={t('board.filter.searchAria')}
         /* h-full, so the field's own box is the full pill height rather than the 18px the
            text line occupies — the shell was already the visible target, but the input was
            what a pointer had to land on. */
-        className="h-full min-w-0 flex-1 bg-transparent text-14 text-fg-1 outline-none placeholder:text-fg-faint"
+        className="h-full min-w-0 flex-1 bg-transparent text-13 text-fg-1 outline-none placeholder:text-fg-faint [@media(pointer:coarse)]:text-16"
       />
-      {local && (
-        <button
-          type="button"
-          aria-label={t('board.filter.clearSearch')}
+      {local ? (
+        <RemoveButton
+          label={t('board.filter.clearSearch')}
           onClick={() => setLocal('')}
-          className="-mr-1 shrink-0 rounded-full p-1.5 text-fg-faint transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:p-2.5"
-        >
-          <X className="h-3 w-3" strokeWidth={2.4} />
-        </button>
+          className="-mr-1.5 h-5 w-5"
+        />
+      ) : (
+        <kbd aria-hidden className="kbd hidden group-focus-within:hidden lg:inline-flex">
+          /
+        </kbd>
       )}
     </div>
   );
@@ -223,15 +232,15 @@ export function FilterBar({
 
   if (isBelowTablet) {
     return (
-      <div className="flex shrink-0 items-center gap-2.5 border-b border-border bg-surface px-5 py-2.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
         <SearchInput q={view.q} setQuery={setQuery} />
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="sm" className="shrink-0 gap-1.5 rounded-full">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" className="shrink-0">
+              <ListFilter strokeWidth={1.75} />
               {t('board.filter.title')}
               {hasActiveFilters && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-12 font-semibold tabular-nums text-primary-foreground">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold tabular-nums text-primary-foreground">
                   {activeFilterCount}
                 </span>
               )}
@@ -243,14 +252,14 @@ export function FilterBar({
             </SheetHeader>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">
+                <span className="text-12 font-medium text-fg-3">
                   {t('board.filter.priorityHeading')}
                 </span>
                 <PriorityChips priority={view.priority} setPriority={setPriority} />
               </div>
               {fieldKeys.length > 0 && (
                 <div className="flex flex-col gap-2.5">
-                  <span className="text-12 font-semibold text-fg-muted">
+                  <span className="text-12 font-medium text-fg-3">
                     {t('board.filter.fieldHeading')}
                   </span>
                   <FieldFilter
@@ -263,7 +272,7 @@ export function FilterBar({
                 </div>
               )}
               <div className="flex flex-col gap-2.5">
-                <span className="text-12 font-semibold text-fg-muted">
+                <span className="text-12 font-medium text-fg-3">
                   {t('board.filter.showHeading')}
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
@@ -288,9 +297,9 @@ export function FilterBar({
   }
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-border bg-surface px-5 py-2.5 lg:px-7">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle bg-surface px-3 py-2 lg:px-4">
       <SearchInput q={view.q} setQuery={setQuery} />
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <PriorityChips priority={view.priority} setPriority={setPriority} />
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
         <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
@@ -303,13 +312,10 @@ export function FilterBar({
         />
       </div>
       {hasActiveFilters && (
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="rounded-md px-1.5 py-1.5 text-12 font-medium text-fg-muted transition-colors duration-150 hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:px-3 [@media(pointer:coarse)]:py-3"
-        >
+        <Button variant="ghost" size="sm" onClick={resetFilters}>
+          <X strokeWidth={1.75} />
           {t('board.filter.reset')}
-        </button>
+        </Button>
       )}
     </div>
   );

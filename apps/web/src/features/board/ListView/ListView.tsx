@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Info, StickyNote, X } from 'lucide-react';
 import type { NoteDto, NoteStatus } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
-import { cn } from '@/lib/cn';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { groupByAxis } from '../util/noteDerived';
 import { NoteRow } from './NoteRow';
 
@@ -90,55 +91,41 @@ export function ListView({
     const keys = emptyStateKeys(totalNoteCount === 0, canEdit);
     return (
       <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
-        <div className="flex max-w-sm flex-col items-center gap-2.5 text-center">
-          <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-inset text-fg-faint">
-            <StickyNote className="h-5 w-5" strokeWidth={1.7} />
-          </span>
-          <p className="text-20 font-semibold text-fg-1">{t(keys.title)}</p>
-          <p className="text-14 text-fg-muted">{t(keys.body)}</p>
-        </div>
+        <EmptyState
+          icon={<StickyNote strokeWidth={1.75} />}
+          title={t(keys.title)}
+          hint={t(keys.body)}
+        />
       </div>
     );
   }
 
   return (
-    <div className="board-surface wally-scroll flex-1 overflow-auto px-5 pb-10 pt-5 lg:px-6 lg:pt-6">
-      <div className="mx-auto flex w-full max-w-[780px] flex-col gap-7">
+    <div className="wally-scroll flex-1 overflow-auto bg-background px-4 pb-10 pt-4 lg:px-6 lg:pt-6">
+      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6">
         {isBelowDesktop && !hintDismissed && (
-          <div className="flex items-start gap-2 rounded-xl border border-border-subtle bg-[color:var(--zone-surface)] px-3.5 py-2.5 text-12 text-fg-muted">
-            <Info className="mt-px h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.9} />
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-surface py-1.5 pl-3 pr-1.5 text-12 text-fg-3 shadow-e1">
+            <Info className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.75} />
             <p className="min-w-0 flex-1">{t('board.hint.freeMove')}</p>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={dismissHint}
               aria-label={t('board.hint.dismiss')}
-              className={cn(
-                '-my-1 -mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-faint',
-                'transition-colors duration-150 ease-ds hover:bg-inset hover:text-fg-1',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-                '[@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9',
-              )}
             >
-              <X className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
+              <X strokeWidth={1.75} />
+            </Button>
           </div>
         )}
 
         {groups.map((group) => (
-          <section
-            key={group.key}
-            className="overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-e1"
-          >
-            <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-alt px-4 py-2.5">
-              <h2 className="text-12 font-bold uppercase tracking-[0.09em] text-fg-muted">
-                {group.label}
-              </h2>
-              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-12 font-semibold tabular-nums text-fg-muted">
-                {group.notes.length}
-              </span>
+          <section key={group.key} className="flex flex-col gap-1.5">
+            <header className="flex items-center gap-2 px-1">
+              <h2 className="text-13 font-medium text-fg-1">{group.label}</h2>
+              <span className="text-12 tabular-nums text-fg-faint">{group.notes.length}</span>
             </header>
 
-            <div>
+            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-e1">
               {group.notes.map((note) => (
                 <NoteRow
                   key={note.id}

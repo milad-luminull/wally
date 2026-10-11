@@ -27,20 +27,20 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
       <PopoverTrigger
         aria-label={t('board.switcherAria')}
         title={t('board.switcherAria')}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface-alt [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9"
+        className="flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors duration-100 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] data-[state=open]:bg-inset data-[state=open]:text-fg-1 [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9"
       >
-        <ChevronsUpDown className="h-3.5 w-3.5" strokeWidth={2} />
+        <ChevronsUpDown className="h-3.5 w-3.5" strokeWidth={1.75} />
       </PopoverTrigger>
 
       {/* Above z-header: the trigger sits inside the header, so the panel opens partly
             behind it at PopoverContent's default z-dropdown and clips its own first row.
             Scoped here rather than raised on the shared primitive, which other callers
             position clear of the chrome. */}
-      <PopoverContent align="start" className="z-overlay w-64 p-0">
-        <p className="border-b border-border-subtle px-4 py-2.5 text-12 font-semibold uppercase tracking-wide text-fg-muted">
+      <PopoverContent align="start" className="z-overlay w-64 p-1">
+        <p className="px-2 pb-1 pt-1.5 text-12 font-medium text-fg-3">
           {t('board.switcherHeading')}
         </p>
-        <ul className="flex flex-col p-1.5">
+        <ul className="flex flex-col">
           {boards.map((board) => {
             const current = board.id === boardId;
             return (
@@ -51,17 +51,17 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
                   to={`/boards/${board.id}`}
                   aria-current={current ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-14 transition-colors duration-150 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-                    current ? 'font-semibold text-fg-1' : 'font-medium text-fg-2 hover:text-fg-1',
+                    'flex h-8 items-center gap-2 rounded-[5px] px-2 text-13 transition-colors duration-100 hover:bg-inset focus-visible:bg-inset focus-visible:outline-none [@media(pointer:coarse)]:h-11',
+                    current ? 'font-medium text-fg-1' : 'text-fg-2 hover:text-fg-1',
                   )}
                 >
                   <Check
                     className={cn('h-3.5 w-3.5 shrink-0', current ? 'text-fg-1' : 'invisible')}
-                    strokeWidth={2.2}
+                    strokeWidth={2}
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1 truncate">{board.name}</span>
-                  <span className="shrink-0 text-12 text-fg-muted">
+                  <span className="shrink-0 text-12 text-fg-faint">
                     {/* OWNER gets its own key rather than enums.effectiveRole.OWNER: in a
                         list of boards "your board" reads better than "owner". */}
                     {board.currentUserRole === 'OWNER'

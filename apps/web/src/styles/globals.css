@@ -214,6 +214,16 @@
   background-position: -1px -1px;
 }
 
+.auth-backdrop {
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(ellipse 60% 40% at 50% -5%, var(--accent-soft), transparent 70%),
+    radial-gradient(var(--board-dot) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    var(--board-grid-size) var(--board-grid-size);
+}
+
 html,
 body {
   background: var(--background);

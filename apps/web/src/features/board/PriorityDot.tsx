@@ -12,11 +12,11 @@ interface PriorityDotProps {
 }
 
 /**
- * Priority as shape on one colour — high is a filled slate dot, medium the same dot hollow,
+ * Priority as shape on one colour — high is a filled ink dot, medium the same dot hollow,
  * low nothing at all. Centralised because the "low has no mark" case is easy to get wrong:
  * every caller has to cope with rendering nothing, and a faint third dot would quietly
  * reintroduce the hue ladder the guideline removed (docs/BRAND.md, "Priority is a single
- * slate dot").
+ * single dot").
  */
 export function PriorityDot({ priority, size = 7, className, label }: PriorityDotProps) {
   const shape = priorityDotClass[priority];

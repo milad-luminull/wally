@@ -1,4 +1,3 @@
-import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { whiteboardRoleValues, type MemberDto, type WhiteboardRole } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -11,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
+import { RemoveButton } from '@/components/ui/remove-button';
 import { initialsOf } from '../util/noteDerived';
 import { useUpdateMemberRole } from '../hooks/mutations/useUpdateMemberRole';
 import { useRemoveMember } from '../hooks/mutations/useRemoveMember';
@@ -29,22 +29,25 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
   const { t } = useTranslation();
   const { effectiveRole, whiteboardRole } = useEnumLabels();
   const updateRole = useUpdateMemberRole(boardId);
-  const removeMember = useRemoveMember(boardId);
+  const { removeMember } = useRemoveMember(boardId);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="-mx-1.5 flex flex-col">
       {members.map((member) => {
         const name = member.displayName ?? member.email;
         const isBoardOwner = member.userId === ownerId;
         return (
-          <div key={member.id} className="flex items-center gap-2.5">
-            <Avatar>
+          <div
+            key={member.id}
+            className="flex min-h-10 items-center gap-2.5 rounded-md px-1.5 hover:bg-surface-alt"
+          >
+            <Avatar className="h-7 w-7">
               <AvatarFallback>{initialsOf(name)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-14 font-medium text-fg-1">{name}</div>
+              <div className="truncate text-13 font-medium text-fg-1">{name}</div>
               {member.status === 'PENDING' && (
-                <div className="text-12 text-fg-muted">{t('share.members.pending')}</div>
+                <div className="text-12 text-fg-3">{t('share.members.pending')}</div>
               )}
             </div>
             {isOwner && !isBoardOwner ? (
@@ -59,7 +62,7 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
                 >
                   <SelectTrigger
                     aria-label={t('share.members.roleAria', { name })}
-                    className="h-8 w-[104px] shrink-0 rounded-md border border-border bg-card px-2.5 text-12"
+                    className="h-7 w-[104px] shrink-0 text-12 shadow-none"
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -72,18 +75,14 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
                   </SelectContent>
                 </Select>
                 <IconTooltip label={t('share.members.remove', { name })}>
-                  <button
-                    type="button"
-                    onClick={() => removeMember.mutate(member.id)}
-                    aria-label={t('share.members.remove', { name })}
-                    className="p-1 text-fg-faint transition-colors hover:text-status-danger"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  <RemoveButton
+                    label={t('share.members.remove', { name })}
+                    onClick={() => removeMember(member)}
+                  />
                 </IconTooltip>
               </>
             ) : (
-              <span className="whitespace-nowrap text-12 text-fg-muted">
+              <span className="whitespace-nowrap pr-1 text-12 text-fg-3">
                 {effectiveRole[member.role]}
               </span>
             )}

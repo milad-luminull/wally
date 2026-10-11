@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router';
 import type { ApiErrorKind } from '@/lib/apiClient';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { useRedeemShareLink } from '@/features/board/hooks/mutations/useRedeemShareLink';
 import { AuthLayout } from './AuthLayout';
 
@@ -44,15 +45,12 @@ export function ShareRedeemPage() {
           subtitle={t('routes.redeem.gone.subtitle')}
         >
           <div className="flex flex-col gap-4">
-            <p role="alert" className="text-14 text-fg-muted">
+            <p role="alert" className="text-center text-14 text-fg-3">
               {t('routes.redeem.gone.body')}
             </p>
-            <Link
-              to="/"
-              className="self-start text-14 font-medium text-fg-1 underline-offset-4 hover:underline"
-            >
-              {t('routes.redeem.toBoard')}
-            </Link>
+            <Button asChild variant="outline" size="lg" className="w-full">
+              <Link to="/">{t('routes.redeem.toBoard')}</Link>
+            </Button>
           </div>
         </AuthLayout>
       );
@@ -64,26 +62,23 @@ export function ShareRedeemPage() {
         subtitle={t('routes.redeem.failed.subtitle')}
       >
         <div className="flex flex-col gap-4">
-          <p role="alert" className="text-14 text-status-danger">
+          <p role="alert" className="text-center text-14 text-status-danger">
             {t('routes.redeem.failed.body')}
           </p>
-          <button
-            type="button"
+          <Button
+            size="lg"
+            className="w-full"
             onClick={() => {
               if (!token) return;
               startedFor.current = token;
               mutate(token);
             }}
-            className="self-start text-14 font-medium text-fg-1 underline-offset-4 hover:underline"
           >
             {t('common.retry')}
-          </button>
-          <Link
-            to="/"
-            className="self-start text-14 text-fg-muted underline-offset-4 hover:underline"
-          >
-            {t('routes.redeem.toBoard')}
-          </Link>
+          </Button>
+          <Button asChild variant="ghost" size="lg" className="w-full">
+            <Link to="/">{t('routes.redeem.toBoard')}</Link>
+          </Button>
         </div>
       </AuthLayout>
     );
@@ -94,9 +89,13 @@ export function ShareRedeemPage() {
       title={t('routes.redeem.pending.title')}
       subtitle={t('routes.redeem.pending.subtitle')}
     >
-      <div className="flex flex-col gap-3" role="status" aria-label={t('common.loading')}>
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-4 w-32" />
+      <div
+        className="flex flex-col items-center gap-3"
+        role="status"
+        aria-label={t('common.loading')}
+      >
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-4 w-40" />
       </div>
     </AuthLayout>
   );

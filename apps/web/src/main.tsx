@@ -7,6 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initI18n } from '@/i18n';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ThemeProvider } from '@/lib/theme';
+import { Toaster } from '@/components/ui/toaster';
 import { App } from './App';
 import './styles/globals.css';
 
@@ -28,6 +29,7 @@ createRoot(rootEl).render(
           <ThemeProvider>
             <TooltipProvider>
               <App />
+              <Toaster />
             </TooltipProvider>
           </ThemeProvider>
         </LanguageProvider>

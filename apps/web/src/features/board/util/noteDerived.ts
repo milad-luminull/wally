@@ -57,7 +57,7 @@ export const dueToneClass: Record<DueTone, string> = {
 };
 
 /**
- * Priority is shape, not hue: one slate dot, and the shape carries the level.
+ * Priority is shape, not hue: one ink dot, and the shape carries the level.
  *
  * Red for priority is banned outright — red means late, and only late. Keeping priority on a
  * single colour is also what lets it survive on any of the fourteen note fills, which a hue
@@ -67,8 +67,9 @@ export const dueToneClass: Record<DueTone, string> = {
  * nothing at all, not a faint dot.
  */
 export const priorityDotClass: Record<NotePriority, string | null> = {
-  HOCH: 'bg-[color:var(--fg-1)]',
-  MITTEL: 'border-[1.5px] border-[color:var(--fg-1)] bg-transparent',
+  /* currentColor, so the dot follows its text: ink on a note, white inside an "on" chip. */
+  HOCH: 'bg-current',
+  MITTEL: 'border-[1.5px] border-current bg-transparent',
   NIEDRIG: null,
 };
 

@@ -30,8 +30,11 @@ test('full note lifecycle: create, add a subtask, complete, reopen, delete', asy
   await noteDone.click();
   await expect(noteDone).not.toBeChecked();
 
+  // Deleting is immediate with an undo toast; closing the toast is what commits it.
   await page.getByRole('button', { name: 'Löschen' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Löschen' }).click();
+  const deletedToast = page.getByRole('status').filter({ hasText: 'gelöscht' });
+  await expect(deletedToast).toBeVisible();
+  await deletedToast.getByRole('button', { name: 'Schließen' }).click();
 
   // The desktop project runs at 1280px, i.e. in the Wand view on the Horizont axis, where
   // an exhausted filter renders per-zone empty states rather than one global message.

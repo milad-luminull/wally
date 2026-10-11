@@ -10,6 +10,7 @@ import {
   type NoteDto,
 } from '@wally/shared';
 import { cn } from '@/lib/cn';
+import { EmptyState } from '@/components/ui/empty-state';
 import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
@@ -105,11 +106,12 @@ export function WandCanvas({
           the double-click-to-create gesture working straight through it. */}
       {notes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-          <div className="flex max-w-xs flex-col items-center gap-2 rounded-2xl border border-dashed border-border-strong bg-[color:var(--zone-surface)] px-7 py-8 text-center backdrop-blur-[1px]">
-            <MousePointerClick className="h-5 w-5 text-fg-faint" strokeWidth={1.7} />
-            <p className="text-14 font-semibold text-fg-1">{t(keys.title)}</p>
-            <p className="text-12 text-fg-muted">{t(keys.body)}</p>
-          </div>
+          <EmptyState
+            icon={<MousePointerClick strokeWidth={1.75} />}
+            title={t(keys.title)}
+            hint={t(keys.body)}
+            className="rounded-xl border border-border bg-surface shadow-e2"
+          />
         </div>
       )}
     </div>

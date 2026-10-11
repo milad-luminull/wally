@@ -86,9 +86,8 @@ export function EmailVerificationBanner() {
       });
       await queryClient.invalidateQueries();
 
-      // There is no board switcher in the app, so a newly activated invite would otherwise
-      // be invisible: the user stays on the board they own with no way to reach the one
-      // they were invited to. Surface it as a link instead of silently disappearing.
+      // A newly activated invite would otherwise be easy to miss: the user stays on the board
+      // they own, and the switcher only gains the new entry quietly. Surface it as a link.
       setUnlocked(boards.find((board) => board.currentUserRole !== 'OWNER') ?? null);
     } catch {
       setFeedback({ tone: 'error', key: 'auth.verify.confirmFailed' });
@@ -102,20 +101,20 @@ export function EmailVerificationBanner() {
   if (emailVerified) {
     if (!unlocked) return null;
     return (
-      <div className="z-header shrink-0 border-b border-border bg-card text-fg-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 lg:px-7">
+      <div className="z-header shrink-0 border-b border-border bg-surface-alt text-fg-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
           <CheckCircle2
             aria-hidden
             className="h-4 w-4 shrink-0 text-status-success"
-            strokeWidth={2.2}
+            strokeWidth={1.75}
           />
-          <p role="status" className="text-14 font-semibold text-status-success">
+          <p role="status" className="text-13 font-medium text-status-success">
             {t('auth.verify.unlocked', { name: unlocked.name })}
           </p>
           <Link
             to={`/boards/${unlocked.id}`}
             onClick={() => setUnlocked(null)}
-            className="text-14 font-medium underline underline-offset-4"
+            className="text-13 font-medium underline underline-offset-4"
           >
             {t('auth.verify.openBoard')}
           </Link>
@@ -127,17 +126,17 @@ export function EmailVerificationBanner() {
   const resendDisabled = busy !== null || cooldown > 0;
 
   return (
-    <div className="z-header shrink-0 border-b border-border bg-card text-fg-1">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 lg:px-7">
+    <div className="z-header shrink-0 border-b border-border bg-surface-alt text-fg-1">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
         <AlertTriangle
           aria-hidden
           className="h-4 w-4 shrink-0 text-status-warning"
-          strokeWidth={2.2}
+          strokeWidth={1.75}
         />
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="text-14 font-semibold text-status-warning">{t('auth.verify.title')}</p>
-          <p className="text-12 text-fg-muted">
+          <p className="text-13 font-medium text-status-warning">{t('auth.verify.title')}</p>
+          <p className="text-12 text-fg-3">
             {/* <Trans>, not interpolation: the <span> sits mid-sentence and moves clause
                 position in English, so the markup has to travel with the words. */}
             <Trans

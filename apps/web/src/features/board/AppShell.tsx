@@ -1,14 +1,15 @@
-import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useMemo } from 'react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { useBreakpoint } from '@/lib/useBreakpoint';
-import { Skeleton } from '@/components/ui/skeleton';
+import { BoardSkeleton } from '@/components/AppSkeleton';
 import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
+import { useCreateNote } from './hooks/mutations/useCreateNote';
+import { nextFreeNotePosition } from './util/notePlacement';
 import { canEdit as canEditRole, isOwner as isOwnerRole } from './util/permissions';
 import { collectFieldKeys, collectFieldValues, filterNotes } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -16,42 +17,12 @@ import { FilterBar } from './FilterBar';
 import { WandView } from './WandView/WandView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
+import { BoardCommands } from './BoardCommands';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
 // time, defeating the useMemo below during that window.
 const EMPTY_NOTES: NoteDto[] = [];
-
-/** Mirrors the real zone/card geometry rather than showing three generic blocks, so the
- * board does not visibly re-flow the moment notes arrive. */
-function BoardSkeleton({ columns }: { columns: number }) {
-  const { t } = useTranslation();
-
-  return (
-    <div
-      className="board-surface flex min-w-0 flex-1 gap-4 overflow-hidden p-5 lg:p-6"
-      role="status"
-      aria-label={t('common.loading')}
-    >
-      {Array.from({ length: columns }).map((_, column) => (
-        <div
-          key={column}
-          className="flex h-full w-[288px] shrink-0 flex-col rounded-2xl border border-border-subtle bg-[color:var(--zone-surface)]"
-        >
-          <div className="flex items-center gap-2 px-4 pb-2 pt-3.5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-[18px] w-[18px] rounded-full" />
-          </div>
-          <div className="flex flex-col gap-3 px-3 pb-3">
-            {Array.from({ length: 3 - column }).map((__, card) => (
-              <Skeleton key={card} className="h-[86px] w-[248px] rounded-xl" />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: string }) {
   const { user } = useAuth();
@@ -82,6 +53,14 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // never mount WandView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
+  const createNote = useCreateNote(boardId);
+  const newNote = useCallback(() => {
+    if (!canEdit) return;
+    createNote.mutate(nextFreeNotePosition(notes), {
+      onSuccess: (n) => viewState.openNote(n.id),
+    });
+  }, [canEdit, createNote, notes, viewState]);
+
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
     // visible viewport, which pushes the board's own scroll containers off-screen.
@@ -97,9 +76,11 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         isBelowTablet={isBelowTablet}
         canEdit={canEdit}
         isOwner={isOwner}
+        isCustomized={viewState.isCustomized}
         onSetView={viewState.setView}
         onSetAxis={viewState.setAxis}
-        onOpenNote={viewState.openNote}
+        onResetView={viewState.resetView}
+        onNewNote={newNote}
       />
       <FilterBar
         view={viewState}
@@ -152,6 +133,26 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           onClose={() => viewState.openNote(null)}
         />
       </div>
+
+      <BoardCommands
+        boardId={boardId}
+        notes={notes}
+        view={effectiveView}
+        axis={viewState.axis}
+        done={viewState.done}
+        mine={viewState.mine}
+        isDesktop={isDesktop}
+        canEdit={canEdit}
+        noteOpen={viewState.noteId !== null}
+        onNewNote={newNote}
+        onOpenNote={viewState.openNote}
+        onCloseNote={() => viewState.openNote(null)}
+        onSetView={viewState.setView}
+        onSetAxis={viewState.setAxis}
+        onSetDone={viewState.setDone}
+        onSetMine={viewState.setMine}
+        onResetView={viewState.resetView}
+      />
     </div>
   );
 }

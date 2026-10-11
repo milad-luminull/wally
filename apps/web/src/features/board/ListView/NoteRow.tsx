@@ -51,55 +51,62 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         }
       }}
       className={cn(
-        'group/row relative flex cursor-pointer items-start gap-3.5 px-4 py-3',
+        'group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
         'border-b border-border-subtle last:border-b-0',
-        // A note is coloured all over in the list too, so the same note is the same object
-        // in both views. Hover darkens the fill rather than replacing it, which a
-        // `hover:bg-*` could not do without painting over the note's own colour.
-        noteColourFillClass[note.colour],
-        'transition-[filter] duration-150 ease-ds hover:brightness-[0.97]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
-        isDone && 'opacity-60',
+        'transition-colors duration-100 hover:bg-surface-alt',
+        'focus-visible:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
+        '[@media(pointer:coarse)]:min-h-12',
       )}
     >
       <Checkbox
         checked={isDone}
         onClick={handleCheckboxClick}
         disabled={!canEdit}
-        aria-label={isDone ? 'Als offen markieren' : 'Als erledigt markieren'}
-        className="mt-0.5 shrink-0"
+        aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
+        className="shrink-0"
       />
 
-      <div className="min-w-0 flex-1">
-        <div
+      {/* The note's colour as a swatch: the same note is the same object in both views,
+          without painting a whole row of the list. White notes need no marker. */}
+      {note.colour !== 'WEISS' && (
+        <span
+          aria-hidden
           className={cn(
-            'text-14 font-semibold leading-snug text-fg-1',
+            'h-2.5 w-2.5 shrink-0 rounded-[3px] border border-[color:var(--note-border)]',
+            noteColourFillClass[note.colour],
+          )}
+        />
+      )}
+
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1',
+          isDone && 'opacity-55',
+        )}
+      >
+        <span
+          className={cn(
+            'min-w-0 truncate text-13 font-medium text-fg-1',
             isDone && 'line-through decoration-fg-faint',
           )}
         >
-          {note.title || 'Ohne Titel'}
-        </div>
+          {note.title || t('common.untitled')}
+        </span>
 
-        {(metaParts.length > 0 || note.tags.length > 0) && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {metaParts.length > 0 && (
-              <span className="truncate text-12 text-fg-meta-on-note">
-                {metaParts.join('  ·  ')}
-              </span>
-            )}
-            {note.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-md bg-[color:var(--chip-on)] px-1.5 py-0.5 text-12 font-medium text-fg-meta-on-note"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+        {metaParts.length > 0 && (
+          <span className="truncate text-12 text-fg-3">{metaParts.join(' · ')}</span>
         )}
+        {note.tags.map((tag) => (
+          <span
+            key={tag}
+            className="rounded-[4px] border border-border bg-surface-alt px-1.5 text-12 leading-5 text-fg-2"
+          >
+            {tag}
+          </span>
+        ))}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2.5 pt-0.5">
+      <div className={cn('flex shrink-0 items-center gap-2.5', isDone && 'opacity-55')}>
         <span
           className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])}
           style={{ fontWeight: due.weight }}
@@ -109,7 +116,6 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         {!isDone && (
           <PriorityDot
             priority={note.priority}
-            className="mt-1.5"
             label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
           />
         )}

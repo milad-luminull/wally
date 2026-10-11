@@ -23,17 +23,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { IconTooltip } from '@/components/ui/tooltip';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import { useNoteDetail } from '../hooks/useNoteDetail';
@@ -53,10 +42,10 @@ import {
   useSetCustomField,
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
-import { collectFieldKeys } from '../util/noteDerived';
+import { collectFieldKeys, noteColourFillClass } from '../util/noteDerived';
 import { PriorityDot } from '../PriorityDot';
 import { useNotes } from '../hooks/useNotes';
-import { Field, FieldLabel, PanelSection } from './Field';
+import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
 import { ColorSwatchPicker } from './ColorSwatchPicker';
@@ -64,6 +53,9 @@ import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 
 const NO_ASSIGNEE = '__none__';
+
+/** A ToggleGroup rendered as a compact segmented control, for the properties grid. */
+const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0.5';
 
 interface NoteDetailPanelProps {
   noteId: string | null;
@@ -144,7 +136,7 @@ export function NoteDetailPanel({
          board narrower in one frame. Keying the animation on the note id replays the
          slide whenever a different note is opened. */
       key={noteId}
-      className="flex h-full w-[384px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-card shadow-[-8px_0_24px_-12px_rgba(34,48,63,0.18)]"
+      className="flex h-full w-[400px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-surface"
     >
       <NoteDetailContent
         noteId={noteId}
@@ -187,7 +179,7 @@ function NoteDetailContent({
   const moveNote = useMoveNote(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
   const assignNote = useAssignNote(boardId);
-  const deleteNote = useDeleteNote(boardId);
+  const { deleteNote } = useDeleteNote(boardId);
   const addSubtask = useAddSubtask(boardId);
   const toggleSubtask = useToggleSubtask(boardId);
   const removeSubtask = useRemoveSubtask(boardId);
@@ -302,25 +294,25 @@ function NoteDetailContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle pl-5 pr-2.5">
         {/* Decorative only: the breadcrumb beside it already names the zone, the priority
-            and the done state in words, so labelling the dot too would announce them twice.
-            Low priority renders no dot at all — see PriorityDot. */}
-        {!isDone && <PriorityDot priority={note.priority} size={8} />}
-        <span className="flex-1 truncate text-12 font-semibold text-fg-muted">
+            and the done state in words, so marking the swatch too would announce them twice. */}
+        <span
+          aria-hidden
+          className={cn(
+            'h-3 w-3 shrink-0 rounded-[3px] border border-[color:var(--note-border)]',
+            noteColourFillClass[note.colour],
+          )}
+        />
+        <span className="flex-1 truncate text-12 font-medium text-fg-3">
           {isDone
             ? t('note.doneStatus')
             : `${axis === 'priority' ? priorityLabels[note.priority] : horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`}
         </span>
-        <IconTooltip label={t('common.close')}>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t('common.close')}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <IconTooltip label={t('common.close')} shortcut={['Esc']}>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('common.close')}>
+            <X strokeWidth={1.75} />
+          </Button>
         </IconTooltip>
       </header>
 
@@ -330,7 +322,7 @@ function NoteDetailContent({
             people pressed it for, silently completing their to-do instead of closing. The
             panel auto-saves every field, so it has nothing to confirm and needs no such
             button. This also matches how the list view has always completed a note. */}
-        <div className="flex items-center gap-2.5 px-5 pb-0.5 pt-4">
+        <div className="flex items-center gap-2.5 px-5 pb-0.5 pt-5">
           <Checkbox
             id="note-done"
             checked={isDone}
@@ -345,7 +337,7 @@ function NoteDetailContent({
           <label
             htmlFor="note-done"
             className={cn(
-              '-my-1.5 py-1.5 text-14 font-medium text-fg-2 select-none',
+              '-my-1.5 py-1.5 text-13 font-medium text-fg-2 select-none',
               !disabled && 'cursor-pointer hover:text-fg-1',
             )}
           >
@@ -353,7 +345,7 @@ function NoteDetailContent({
           </label>
         </div>
 
-        <div className="px-5 pb-1 pt-3">
+        <div className="px-5 pb-3 pt-2">
           <textarea
             ref={titleRef}
             value={title}
@@ -368,92 +360,101 @@ function NoteDetailContent({
                flex child inside the old overflowing column this field collapsed to a few
                pixels tall. It is no longer a flex item. */
             className={cn(
-              'block w-full resize-none overflow-hidden rounded-md bg-transparent text-20 font-bold text-fg-1 outline-none',
-              'placeholder:font-semibold placeholder:text-fg-faint',
+              'block w-full resize-none overflow-hidden rounded-md bg-transparent text-20 font-semibold text-fg-1 outline-none',
+              'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
-              isDone && 'text-fg-muted line-through decoration-fg-faint',
+              isDone && 'text-fg-3 line-through decoration-fg-faint',
             )}
           />
         </div>
 
         <PanelSection>
-          <Field>
-            <FieldLabel>{t('note.priorityLabel')}</FieldLabel>
+          <PropertyRow label={t('note.priorityLabel')}>
             <ToggleGroup
               type="single"
+              variant="segment"
+              size="sm"
               value={note.priority}
               onValueChange={handlePriorityChange}
               disabled={disabled}
+              className={SEGMENTED_GROUP}
             >
               {notePriorityValues.map((p) => (
-                <ToggleGroupItem key={p} variant="chip" value={p} aria-label={priorityLabels[p]}>
+                <ToggleGroupItem key={p} value={p} aria-label={priorityLabels[p]}>
                   <PriorityDot priority={p} />
                   {priorityLabels[p]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-          </Field>
+          </PropertyRow>
 
           {showZone && (
-            <Field>
-              <FieldLabel>{zoneLabel}</FieldLabel>
+            <PropertyRow label={zoneLabel}>
               <ToggleGroup
                 type="single"
+                variant="segment"
+                size="sm"
                 value={axis === 'priority' ? note.priority : note.horizon}
                 onValueChange={handleZoneChange}
                 disabled={disabled}
+                className={SEGMENTED_GROUP}
               >
                 {(axis === 'priority' ? notePriorityValues : noteHorizonValues).map((key) => (
-                  <ToggleGroupItem key={key} variant="chip" value={key}>
+                  <ToggleGroupItem key={key} value={key}>
                     {axis === 'priority'
                       ? priorityLabels[key as NotePriority]
                       : horizonLabels[key as NoteHorizon]}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-            </Field>
+            </PropertyRow>
           )}
-        </PanelSection>
 
-        <PanelSection>
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel htmlFor="note-due">{t('note.dueLabel')}</FieldLabel>
-              <Input
-                id="note-due"
-                type="date"
-                value={note.dueDate ?? ''}
-                disabled={disabled}
-                onChange={(e) =>
-                  updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
-                }
-                className="h-9 text-14"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{t('note.assigneeLabel')}</FieldLabel>
-              <Select
-                value={note.assignee?.id ?? NO_ASSIGNEE}
-                onValueChange={handleAssigneeChange}
-                disabled={disabled}
+          <PropertyRow label={t('note.dueLabel')} htmlFor="note-due">
+            <Input
+              id="note-due"
+              type="date"
+              value={note.dueDate ?? ''}
+              disabled={disabled}
+              onChange={(e) =>
+                updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
+              }
+              className="h-7 w-auto shadow-none [@media(pointer:coarse)]:h-10"
+            />
+          </PropertyRow>
+
+          <PropertyRow label={t('note.assigneeLabel')}>
+            <Select
+              value={note.assignee?.id ?? NO_ASSIGNEE}
+              onValueChange={handleAssigneeChange}
+              disabled={disabled}
+            >
+              <SelectTrigger
+                aria-label={t('note.assigneeLabel')}
+                className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
               >
-                <SelectTrigger
-                  aria-label={t('note.assigneeLabel')}
-                  className="h-9 rounded-md border border-input bg-card px-3 text-14"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
-                  {activeMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.userId ?? member.id}>
-                      {member.displayName ?? member.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
+                {activeMembers.map((member) => (
+                  <SelectItem key={member.id} value={member.userId ?? member.id}>
+                    {member.displayName ?? member.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropertyRow>
+
+          <PropertyRow label={t('note.colourLabel')}>
+            <ColorSwatchPicker
+              value={note.colour}
+              disabled={disabled}
+              onChange={(colour: NoteColour) =>
+                updateNote.mutate({ noteId: note.id, input: { colour } })
+              }
+            />
+          </PropertyRow>
         </PanelSection>
 
         <PanelSection>
@@ -486,52 +487,25 @@ function NoteDetailContent({
         </PanelSection>
 
         <PanelSection>
-          <ColorSwatchPicker
-            value={note.colour}
-            disabled={disabled}
-            onChange={(colour: NoteColour) =>
-              updateNote.mutate({ noteId: note.id, input: { colour } })
-            }
-          />
-        </PanelSection>
-
-        <PanelSection>
           <HistoryTrail history={note.history} />
         </PanelSection>
       </div>
 
-      {/* Delete is the only footer action now. Ghost rather than filled destructive: it is
-          the sole control down here, and a lone filled red button shouts. */}
+      {/* Delete is the only footer action. No confirmation dialog: the note goes at once
+          and a toast offers Undo, which is both faster and safer than "Are you sure?". */}
       {!disabled && (
-        <footer className="flex shrink-0 items-center justify-end border-t border-border px-5 py-3.5">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" className="gap-2 text-status-danger hover:bg-inset">
-                <Trash2 className="h-4 w-4" strokeWidth={1.9} />
-                {t('common.delete')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('note.delete.title')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t('note.delete.body', { title: note.title || t('common.untitled') })}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => {
-                    deleteNote.mutate(note.id);
-                    onClose();
-                  }}
-                >
-                  {t('common.delete')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <footer className="flex shrink-0 items-center border-t border-border-subtle px-3 py-2">
+          <Button
+            variant="destructive-ghost"
+            size="sm"
+            onClick={() => {
+              deleteNote(note.id);
+              onClose();
+            }}
+          >
+            <Trash2 strokeWidth={1.75} />
+            {t('common.delete')}
+          </Button>
         </footer>
       )}
     </div>

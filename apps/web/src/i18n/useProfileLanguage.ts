@@ -37,6 +37,8 @@ export function useUpdateLanguage() {
 
   const mutation = useMutation({
     mutationFn: (language: AppLocale) => meApi.updateLanguage(language),
+    // The account menu says so inline, beside the control that failed.
+    meta: { silentError: true },
     onSettled: () => {
       // The EXACT key: queryKeys.meBoards() shares the ['me'] prefix, and invalidating that
       // would throw away the boards list as collateral.

@@ -23,6 +23,8 @@ export const de = {
   account: {
     menuAria: 'Konto',
     signOut: 'Abmelden',
+    shortcuts: 'Tastenkürzel',
+    theme: { label: 'Darstellung', system: 'System', light: 'Hell', dark: 'Dunkel' },
     language: {
       label: 'Sprache',
       saving: 'Wird gespeichert…',
@@ -89,7 +91,56 @@ export const de = {
       signUpFailed: 'Registrierung fehlgeschlagen. Bitte erneut versuchen.',
     },
   },
+  toast: {
+    saveFailed: 'Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+    prefsFailed: 'Ansicht konnte nicht gespeichert werden.',
+    noteDeleted: '„{{title}}“ gelöscht',
+    noteDeletedUntitled: 'Notiz gelöscht',
+    memberRemoved: '{{name}} entfernt',
+    undo: 'Rückgängig',
+    inviteSent: 'Einladung an {{email}} gesendet',
+  },
+  palette: {
+    aria: 'Befehle',
+    placeholder: 'Befehl oder Notiz suchen…',
+    empty: 'Nichts gefunden.',
+    trigger: 'Suchen',
+    groups: {
+      actions: 'Aktionen',
+      notes: 'Notizen',
+      view: 'Ansicht',
+      boards: 'Wände',
+      settings: 'Einstellungen',
+    },
+    focusSearch: 'Notizen filtern',
+    share: 'Wand teilen',
+    viewWall: 'Zur Wand wechseln',
+    viewList: 'Zur Liste wechseln',
+    groupBy: 'Gruppieren: {{label}}',
+    showDone: 'Erledigte einblenden',
+    hideDone: 'Erledigte ausblenden',
+    onlyMine: 'Nur meine Notizen',
+    allNotes: 'Alle Notizen zeigen',
+    resetView: 'Ansicht zurücksetzen',
+    switchBoard: 'Wechseln zu {{name}}',
+    theme: 'Darstellung: {{label}}',
+    language: 'Sprache: {{label}}',
+  },
+  shortcuts: {
+    title: 'Tastenkürzel',
+    palette: 'Befehle öffnen',
+    newNote: 'Neue Notiz',
+    search: 'Suche fokussieren',
+    toggleView: 'Wand oder Liste',
+    groupHorizon: 'Nach Horizont gruppieren',
+    groupPriority: 'Nach Priorität gruppieren',
+    groupFree: 'Frei anordnen',
+    closePanel: 'Notiz schließen',
+    help: 'Diese Übersicht',
+    then: 'dann',
+  },
   board: {
+    rowStatus: { markOpen: 'Als offen markieren', markDone: 'Als erledigt markieren' },
     switcherHeading: 'Wände',
     switcherAria: 'Wand wechseln',
     priorityPrefix: 'Priorität: {{label}}',
@@ -129,6 +180,11 @@ export const de = {
       membersAria_other: '{{count}} Mitglieder',
       // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
       newNote: 'Neue Notiz',
+      display: {
+        label: 'Anzeige',
+        remembered: 'Wally merkt sich die Ansicht pro Wand.',
+        reset: 'Zurücksetzen',
+      },
     },
     filter: {
       title: 'Filter',
@@ -178,6 +234,7 @@ export const de = {
       addNote: 'Notiz in „{{label}}“ anlegen',
       empty: 'Leer',
       emptyHint: 'Notiz hierher ziehen oder doppelklicken',
+      noMatch: 'Keine Treffer',
     },
     group: {
       all: 'Alle Notizen',
@@ -203,10 +260,6 @@ export const de = {
     zone: {
       row: 'Zeile',
       column: 'Spalte',
-    },
-    delete: {
-      title: 'Notiz löschen?',
-      body: '„{{title}}“ wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
     },
     fields: {
       label: 'Eigenschaften',
@@ -288,6 +341,7 @@ export const de = {
     copy: 'Kopieren',
     copied: 'Kopiert',
     linkRoleAria: 'Rolle für den Link',
+    linkLabel: 'Jeder mit dem Link',
     linkHint: {
       EDIT: 'Jeder mit dem Link kann Notizen anlegen und verschieben.',
       VIEW: 'Jeder mit dem Link kann die Wand ansehen.',

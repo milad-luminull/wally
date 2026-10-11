@@ -1,26 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
+import { Columns3, List, Plus, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { BrandMark } from '@/components/BrandMark';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { IconTooltip } from '@/components/ui/tooltip';
-import { cn } from '@/lib/cn';
+import { MOD_KEY, openCommandPalette } from '@/lib/shortcuts';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
 import { useActiveMembers } from './hooks/useMembers';
 import { useBoardRename } from './hooks/mutations/useBoardRename';
-import { useCreateNote } from './hooks/mutations/useCreateNote';
 import { initialsOf } from './util/noteDerived';
-import { nextFreeNotePosition } from './util/notePlacement';
 import { ShareSheet } from './Share/ShareSheet';
 import { AccountMenu } from './AccountMenu';
 import { BoardSwitcher } from './BoardSwitcher';
@@ -51,8 +44,16 @@ function buildAxisOptions(t: T): SegmentedOption<BoardAxis>[] {
 
 function buildViewOptions(t: T): SegmentedOption<BoardView>[] {
   return [
-    { value: 'wand', label: t('board.topBar.view.wand') },
-    { value: 'list', label: t('board.topBar.view.list') },
+    {
+      value: 'wand',
+      label: t('board.topBar.view.wand'),
+      icon: <Columns3 strokeWidth={1.75} aria-hidden />,
+    },
+    {
+      value: 'list',
+      label: t('board.topBar.view.list'),
+      icon: <List strokeWidth={1.75} aria-hidden />,
+    },
   ];
 }
 
@@ -66,9 +67,78 @@ interface TopBarProps {
   isBelowTablet: boolean;
   canEdit: boolean;
   isOwner: boolean;
+  /** The view differs from the defaults, so "Reset view" has something to do. */
+  isCustomized: boolean;
   onSetView: (view: BoardView) => void;
   onSetAxis: (axis: BoardAxis) => void;
-  onOpenNote: (id: string) => void;
+  onResetView: () => void;
+  onNewNote: () => void;
+}
+
+/**
+ * Layout and grouping, in one place. Both used to sit in the bar side by side — a segmented
+ * control next to a select — and they read as one undifferentiated row of pills. Here they
+ * are named, stacked, and remembered per board (see useBoardViewState).
+ */
+function DisplayMenu({
+  view,
+  axis,
+  isDesktop,
+  isCustomized,
+  onSetView,
+  onSetAxis,
+  onResetView,
+}: Pick<
+  TopBarProps,
+  'view' | 'axis' | 'isDesktop' | 'isCustomized' | 'onSetView' | 'onSetAxis' | 'onResetView'
+>) {
+  const { t } = useTranslation();
+  const AXES = useMemo(() => buildAxisOptions(t), [t]);
+  const VIEWS = useMemo(() => buildViewOptions(t), [t]);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" aria-label={t('board.topBar.display.label')}>
+          <SlidersHorizontal strokeWidth={1.75} />
+          <span className="hidden md:inline">{t('board.topBar.display.label')}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="z-overlay flex w-72 flex-col gap-3 p-3">
+        {/* Only the wall is desktop-gated; grouping reorders both views, so it stays. */}
+        {isDesktop && (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-12 font-medium text-fg-3">{t('board.topBar.view.ariaLabel')}</p>
+            <Segmented
+              options={VIEWS}
+              value={view}
+              onChange={onSetView}
+              aria-label={t('board.topBar.view.ariaLabel')}
+              className="grid w-full grid-cols-2 [&>button]:justify-center"
+            />
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-12 font-medium text-fg-3">{t('board.topBar.axis.ariaLabel')}</p>
+          <Segmented
+            options={AXES}
+            value={axis}
+            onChange={onSetAxis}
+            aria-label={t('board.topBar.axis.ariaLabel')}
+            className="grid w-full grid-cols-3 [&>button]:justify-center"
+          />
+        </div>
+        <div className="-mx-3 h-px bg-border-subtle" />
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 text-12 text-fg-3">{t('board.topBar.display.remembered')}</p>
+          <Button variant="ghost" size="sm" onClick={onResetView} disabled={!isCustomized}>
+            <RotateCcw strokeWidth={1.75} />
+            {t('board.topBar.display.reset')}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function TopBar({
@@ -81,16 +151,15 @@ export function TopBar({
   isBelowTablet,
   canEdit,
   isOwner,
+  isCustomized,
   onSetView,
   onSetAxis,
-  onOpenNote,
+  onResetView,
+  onNewNote,
 }: TopBarProps) {
   const { t } = useTranslation();
-  const AXES = useMemo(() => buildAxisOptions(t), [t]);
-  const VIEWS = useMemo(() => buildViewOptions(t), [t]);
   const { activeMembers } = useActiveMembers(boardId);
   const renameBoard = useBoardRename(boardId);
-  const createNote = useCreateNote(boardId);
 
   const openCount = notes.filter((n) => n.status === 'OPEN').length;
   const overdueCount = notes.filter(
@@ -103,7 +172,7 @@ export function TopBar({
 
   useEffect(() => setNameDraft(board.name), [board.name]);
   useEffect(() => {
-    if (editingName) nameInputRef.current?.focus();
+    if (editingName) nameInputRef.current?.select();
   }, [editingName]);
 
   function commitName() {
@@ -116,163 +185,131 @@ export function TopBar({
   const visibleMembers = activeMembers.slice(0, 3);
   const overflowCount = activeMembers.length - visibleMembers.length;
 
-  // Only the Wand view is desktop-gated; the axis reorders both views, so it stays.
-  const viewOptions = isDesktop ? VIEWS : VIEWS.filter((v) => v.value !== 'wand');
-
   return (
-    <header className="z-header flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border bg-surface-alt px-5 py-3 lg:px-7">
-      <div className="flex min-w-0 shrink-0 items-center gap-3">
-        {/* The BOARD's initial, not the brand's — one of these per board, and it changes
-            when the board is renamed. Deliberately a circle: a slate rounded square with a
-            letter in it would read as the Wally mark, which the guideline lists as a don't. */}
-        <span
-          aria-hidden
-          className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-14 font-bold text-primary-foreground sm:flex"
-        >
-          {(board.name.trim()[0] ?? 'W').toUpperCase()}
+    <header className="z-header flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
+      <div className="flex min-w-0 items-center gap-2">
+        <BrandMark size={20} className="shrink-0" />
+        <span aria-hidden className="text-16 font-light text-fg-faint">
+          /
         </span>
 
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {isOwner && editingName ? (
-              <input
-                ref={nameInputRef}
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitName();
-                  if (e.key === 'Escape') {
-                    setNameDraft(board.name);
-                    setEditingName(false);
-                  }
-                }}
-                aria-label={t('board.topBar.boardNameAria')}
-                className="min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-20 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
-              />
-            ) : (
-              <h1
-                className={cn(
-                  'min-w-0 truncate text-20 font-bold text-fg-1',
-                  isOwner &&
-                    'cursor-text rounded-sm transition-colors duration-150 hover:text-fg-2',
-                )}
-                onClick={() => isOwner && setEditingName(true)}
-                title={isOwner ? t('board.topBar.renameTitle') : undefined}
-              >
-                {board.name}
-              </h1>
-            )}
-            <BoardSwitcher boardId={boardId} />
-          </div>
-
-          <p className="flex items-center gap-1.5 text-12 text-fg-muted">
-            <span className="tabular-nums">{t('board.topBar.open', { count: openCount })}</span>
-            {overdueCount > 0 && (
-              <>
-                <span aria-hidden className="text-faint">
-                  ·
-                </span>
-                {/* Weight, not colour. Status colour lives in a note's due-date line and
-                    nowhere else, so a red count up here would be the "no badges" rule broken
-                    in the one place it is most tempting to break it. */}
-                <span className="font-semibold tabular-nums text-fg-1">
-                  {t('board.topBar.overdue', { count: overdueCount })}
-                </span>
-              </>
-            )}
-          </p>
+        <div className="flex min-w-0 items-center gap-0.5">
+          {isOwner && editingName ? (
+            <input
+              ref={nameInputRef}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitName();
+                if (e.key === 'Escape') {
+                  setNameDraft(board.name);
+                  setEditingName(false);
+                }
+              }}
+              aria-label={t('board.topBar.boardNameAria')}
+              className="h-7 min-w-0 max-w-[260px] rounded-md border border-border-strong bg-surface px-1.5 text-14 font-medium text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
+            />
+          ) : (
+            <h1 className="min-w-0 text-14 font-medium text-fg-1">
+              {isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingName(true)}
+                  title={t('board.topBar.renameTitle')}
+                  className="block h-7 max-w-[260px] truncate rounded-md px-1.5 text-left transition-colors duration-100 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+                >
+                  {board.name}
+                </button>
+              ) : (
+                <span className="block max-w-[260px] truncate px-1.5">{board.name}</span>
+              )}
+            </h1>
+          )}
+          <BoardSwitcher boardId={boardId} />
         </div>
+
+        <p className="ml-1 hidden items-center gap-1.5 whitespace-nowrap text-12 text-fg-3 sm:flex">
+          <span className="tabular-nums">{t('board.topBar.open', { count: openCount })}</span>
+          {overdueCount > 0 && (
+            <>
+              <span aria-hidden className="text-fg-faint">
+                ·
+              </span>
+              {/* Weight, not colour. Status colour lives in a note's due-date line and
+                  nowhere else, so a red count up here would be a badge by another name. */}
+              <span className="font-medium tabular-nums text-fg-1">
+                {t('board.topBar.overdue', { count: overdueCount })}
+              </span>
+            </>
+          )}
+        </p>
       </div>
 
       <div className="flex-1" />
 
-      <div className="flex flex-wrap items-center gap-2.5">
-        {viewOptions.length > 1 && (
-          <Segmented
-            options={viewOptions}
-            value={view}
-            onChange={onSetView}
-            aria-label={t('board.topBar.view.ariaLabel')}
-          />
-        )}
+      <Button
+        variant="ghost"
+        onClick={openCommandPalette}
+        aria-label={t('palette.aria')}
+        className="text-fg-3"
+      >
+        <Search strokeWidth={1.75} />
+        <span className="hidden lg:inline">{t('palette.trigger')}</span>
+        <kbd aria-hidden className="kbd ml-1 hidden lg:inline-flex">
+          {MOD_KEY}K
+        </kbd>
+      </Button>
 
-        {/* The axis groups notes in BOTH Wand and Liste, so it stays visible regardless of
-            the selected view.
-            A Select at every width rather than a segmented control on desktop: side by side
-            with the view switch, five identically-styled pills encoded two unrelated things
-            (which surface you are on, and how it is ordered) in one undifferentiated row.
-            Naming the control and collapsing its options keeps the two apart, and the top
-            bar now reads the same on a phone as on a desktop. */}
-        <Select value={axis} onValueChange={(v) => onSetAxis(v as BoardAxis)}>
-          <SelectTrigger
-            aria-label={t('board.topBar.axis.ariaLabel')}
-            className="h-9 w-[132px] rounded-lg border border-border bg-card px-3 text-14 [@media(pointer:coarse)]:h-11"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AXES.map((a) => (
-              <SelectItem key={a.value} value={a.value}>
-                {a.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DisplayMenu
+        view={view}
+        axis={axis}
+        isDesktop={isDesktop}
+        isCustomized={isCustomized}
+        onSetView={onSetView}
+        onSetAxis={onSetAxis}
+        onResetView={onResetView}
+      />
 
-      <div className="flex items-center gap-3 border-l border-border pl-4">
-        {activeMembers.length > 0 && (
-          <div
-            className="hidden items-center sm:flex"
-            aria-label={t('board.topBar.membersAria', { count: activeMembers.length })}
-          >
-            {visibleMembers.map((m) => (
-              <Avatar
-                key={m.id}
-                className="-ml-2 ring-2 ring-surface-alt transition-transform duration-150 ease-ds first:ml-0 hover:z-10 hover:-translate-y-0.5"
-              >
-                <AvatarFallback title={m.displayName ?? m.email}>
-                  {initialsOf(m.displayName ?? m.email)}
-                </AvatarFallback>
-              </Avatar>
-            ))}
-            {overflowCount > 0 && (
-              <span className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-inset text-12 font-semibold tabular-nums text-fg-muted ring-2 ring-surface-alt">
-                +{overflowCount}
-              </span>
-            )}
-          </div>
-        )}
-
-        <ShareSheet
-          boardId={boardId}
-          ownerId={board.ownerId}
-          isOwner={isOwner}
-          isBelowTablet={isBelowTablet}
-        />
-
-        {canEdit && (
-          <IconTooltip label={t('board.topBar.newNote')}>
-            <Button
-              variant="accent"
-              size="icon"
-              aria-label={t('board.topBar.newNote')}
-              onClick={() =>
-                createNote.mutate(nextFreeNotePosition(notes), {
-                  onSuccess: (n) => onOpenNote(n.id),
-                })
-              }
+      {activeMembers.length > 0 && (
+        <div
+          className="ml-1 hidden items-center sm:flex"
+          aria-label={t('board.topBar.membersAria', { count: activeMembers.length })}
+        >
+          {visibleMembers.map((m) => (
+            <Avatar
+              key={m.id}
+              className="-ml-1.5 ring-2 ring-surface first:ml-0"
+              title={m.displayName ?? m.email}
             >
-              <Plus className="h-4 w-4" strokeWidth={2.2} />
-            </Button>
-          </IconTooltip>
-        )}
-      </div>
+              <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
+            </Avatar>
+          ))}
+          {overflowCount > 0 && (
+            <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
+              +{overflowCount}
+            </span>
+          )}
+        </div>
+      )}
 
-      {/* Own divider: sitting directly beside the member avatars, the account avatar read
-          as just another collaborator. */}
-      <div className="flex items-center border-l border-border pl-4">
+      <ShareSheet
+        boardId={boardId}
+        ownerId={board.ownerId}
+        isOwner={isOwner}
+        isBelowTablet={isBelowTablet}
+      />
+
+      {canEdit && (
+        <IconTooltip label={t('board.topBar.newNote')} shortcut={['N']}>
+          <Button variant="accent" aria-label={t('board.topBar.newNote')} onClick={onNewNote}>
+            <Plus strokeWidth={2} />
+            <span className="hidden md:inline">{t('board.topBar.newNote')}</span>
+          </Button>
+        </IconTooltip>
+      )}
+
+      <div className="ml-1 flex items-center border-l border-border-subtle pl-2.5">
         <AccountMenu />
       </div>
     </header>

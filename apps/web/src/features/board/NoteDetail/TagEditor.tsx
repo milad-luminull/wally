@@ -1,8 +1,9 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
 import { TAG_MAX_LENGTH } from '@wally/shared';
-import { Input } from '@/components/ui/input';
+import { ghostFieldClassName } from '@/components/ui/field-styles';
+import { RemoveButton } from '@/components/ui/remove-button';
+import { cn } from '@/lib/cn';
 import { FieldLabel } from './Field';
 
 interface TagEditorProps {
@@ -41,30 +42,27 @@ export function TagEditor({ tags, onAdd, onRemove, disabled }: TagEditorProps) {
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex h-6 items-center gap-1.5 rounded-md border border-border px-2 text-12 text-fg-2"
+            className="inline-flex h-6 items-center gap-0.5 rounded-[5px] border border-border bg-surface-alt pl-2 pr-0.5 text-12 text-fg-2"
           >
             {tag}
             {!disabled && (
-              <button
-                type="button"
+              <RemoveButton
+                label={t('note.tags.remove', { tag })}
                 onClick={() => onRemove(tag)}
-                aria-label={t('note.tags.remove', { tag })}
-                className="text-fg-muted transition-colors hover:text-fg-1"
-              >
-                <X className="h-2.5 w-2.5" strokeWidth={2.4} />
-              </button>
+                className="h-5 w-5 [&_svg]:h-3 [&_svg]:w-3"
+              />
             )}
           </span>
         ))}
         {!disabled && (
-          <Input
+          <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={commit}
             placeholder={t('note.tags.addPlaceholder')}
             aria-label={t('note.tags.add')}
-            className="h-6 w-24 border-0 border-b border-border-subtle p-0 text-12 focus-visible:ring-0"
+            className={cn(ghostFieldClassName, 'h-6 w-28 px-1.5 text-12')}
           />
         )}
       </div>

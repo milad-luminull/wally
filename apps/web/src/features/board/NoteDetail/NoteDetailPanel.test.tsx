@@ -4,7 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { enumLabels } from '@/i18n/enumLabels';
 import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { makeNoteDetail } from '@/test/fixtures';
+import { makeNote, makeNoteDetail } from '@/test/fixtures';
+import { Toaster } from '@/components/ui/toaster';
+import { resetToasts } from '@/lib/toast';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
 vi.mock('@/lib/resources', () => ({
@@ -112,19 +114,21 @@ describe('NoteDetailPanel', () => {
       expect(onClose).toHaveBeenCalled();
     });
 
-    // Escape has to reach the topmost layer first, or confirming a delete becomes impossible
-    // to back out of without also losing the panel.
-    it('leaves Escape to the delete dialog while it is open', async () => {
+    // Escape has to reach the topmost layer first, or dismissing a dropdown would take the
+    // whole panel with it.
+    it('leaves Escape to an open dropdown', async () => {
+      const user = userEvent.setup();
       const { onClose } = renderPanel();
       await screen.findByLabelText('Titel');
-      await userEvent.click(screen.getByRole('button', { name: 'Löschen' }));
-      await screen.findByRole('alertdialog');
+      await user.click(screen.getByRole('combobox', { name: 'Zuständig' }));
+      await screen.findByRole('option', { name: 'Niemand' });
 
-      await userEvent.keyboard('{Escape}');
+      await user.keyboard('{Escape}');
 
       expect(onClose).not.toHaveBeenCalled();
     });
   });
+
   it('moves the note via the Priority control (POST /notes/:id/move, mode PRIORITY)', async () => {
     renderPanel();
     await screen.findByLabelText('Titel');
@@ -192,22 +196,57 @@ describe('NoteDetailPanel', () => {
     expect(screen.queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument();
   });
 
-  it('asks for confirmation before deleting, and only deletes on confirm', async () => {
-    const { onClose } = renderPanel();
-    await screen.findByLabelText('Titel');
+  /**
+   * No "are you sure?" dialog: the note leaves at once and a toast offers Undo. The DELETE
+   * is only sent once that window closes, so Undo never has to recreate anything.
+   */
+  describe('deleting', () => {
+    beforeEach(() => {
+      resetToasts();
+      vi.mocked(notesApi.list).mockResolvedValue([makeNote({ id: 'note-1', title: 'Angebot' })]);
+    });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Löschen' }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText('Notiz löschen?')).toBeInTheDocument();
+    async function deleteFromPanel() {
+      const user = userEvent.setup();
+      const onClose = vi.fn();
+      renderWithProviders(
+        <>
+          <NoteDetailPanel
+            noteId="note-1"
+            boardId="board-1"
+            canEdit
+            axis="horizon"
+            isBelowDesktop={false}
+            onClose={onClose}
+          />
+          <Toaster />
+        </>,
+      );
+      await screen.findByLabelText('Titel');
+      await waitFor(() => expect(notesApi.list).toHaveBeenCalled());
+      await user.click(screen.getByRole('button', { name: 'Löschen' }));
+      expect(onClose).toHaveBeenCalled();
+      return { user };
+    }
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
-    expect(notesApi.remove).not.toHaveBeenCalled();
+    it('removes the note at once and offers Undo, without calling the API yet', async () => {
+      const { user } = await deleteFromPanel();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Löschen' }));
-    const dialog2 = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog2).getByRole('button', { name: 'Löschen' }));
+      expect(await screen.findByText('„Angebot“ gelöscht')).toBeInTheDocument();
+      expect(notesApi.remove).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('note-1'));
-    expect(onClose).toHaveBeenCalled();
+      await user.click(screen.getByRole('button', { name: 'Rückgängig' }));
+      expect(screen.queryByText('„Angebot“ gelöscht')).not.toBeInTheDocument();
+      expect(notesApi.remove).not.toHaveBeenCalled();
+    });
+
+    it('sends the DELETE once the undo window is closed', async () => {
+      const { user } = await deleteFromPanel();
+      const toastItem = (await screen.findByText('„Angebot“ gelöscht')).closest('li')!;
+
+      await user.click(within(toastItem).getByRole('button', { name: 'Schließen' }));
+
+      await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('note-1'));
+    });
   });
 });

@@ -42,12 +42,12 @@ export function HistoryTrail({ history }: { history: HistoryEventDto[] }) {
           return (
             <li
               key={`${event.occurredAt}-${index}`}
-              className="flex items-baseline gap-2 text-12 text-fg-muted"
+              className="flex items-center gap-2 text-12 text-fg-3"
             >
-              <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-border-strong" />
-              <span className="font-medium text-fg-2">{action}</span>
+              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong" />
+              <span className="shrink-0 text-fg-1">{action}</span>
               <span className="min-w-0 flex-1 truncate">{who}</span>
-              <span className="shrink-0 tabular-nums text-fg-muted">{when}</span>
+              <span className="shrink-0 tabular-nums text-fg-faint">{when}</span>
             </li>
           );
         })}

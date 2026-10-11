@@ -12,6 +12,8 @@ export function useRedeemShareLink() {
 
   return useMutation({
     mutationFn: (token: string) => shareLinkApi.redeem(token),
+    // ShareRedeemPage renders its own failure states.
+    meta: { silentError: true },
     onSuccess: ({ whiteboardId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.meBoards() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.board(whiteboardId) });

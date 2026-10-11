@@ -25,7 +25,12 @@ interface ThemeContextValue {
   setTheme: (theme: ThemePreference) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+/* Outside a provider (isolated component tests) the theme is simply "system" and inert. */
+const ThemeContext = createContext<ThemeContextValue>({
+  theme: 'system',
+  resolved: 'light',
+  setTheme: () => {},
+});
 
 /* Both accessors swallow errors: localStorage throws in Safari's private mode and when site
  * data is blocked, and a theme is never worth taking the app down for. */
@@ -112,7 +117,5 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 export function useTheme(): ThemeContextValue {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used inside ThemeProvider');
-  return context;
+  return useContext(ThemeContext);
 }

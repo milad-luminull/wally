@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
+import { GoogleMark } from '@/components/GoogleMark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -89,7 +90,24 @@ export function SignUpForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        onClick={handleGoogle}
+        disabled={loading !== null}
+      >
+        <GoogleMark />
+        {loading === 'google' ? t('auth.googlePending') : t('auth.google')}
+      </Button>
+
+      <div className="flex items-center gap-3 text-12 text-fg-faint">
+        <span className="h-px flex-1 bg-border" />
+        {t('common.or')}
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="signup-email">{t('auth.emailLabel')}</Label>
         <Input
@@ -98,6 +116,7 @@ export function SignUpForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="h-9 text-14"
           aria-invalid={Boolean(fieldErrors.email)}
           aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
         />
@@ -116,6 +135,7 @@ export function SignUpForm() {
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="h-9 text-14"
           aria-invalid={Boolean(fieldErrors.password)}
           aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
         />
@@ -134,6 +154,7 @@ export function SignUpForm() {
           autoComplete="new-password"
           value={passwordConfirm}
           onChange={(e) => setPasswordConfirm(e.target.value)}
+          className="h-9 text-14"
           aria-invalid={Boolean(fieldErrors.passwordConfirm)}
           aria-describedby={
             fieldErrors.passwordConfirm ? 'signup-password-confirm-error' : undefined
@@ -147,26 +168,16 @@ export function SignUpForm() {
       </div>
 
       {formError && (
-        <p role="alert" className="text-14 text-status-danger">
+        <p role="alert" className="text-13 text-status-danger">
           {t(formError)}
         </p>
       )}
 
-      <Button type="submit" disabled={loading !== null}>
+      <Button type="submit" size="lg" disabled={loading !== null}>
         {loading === 'email' ? t('auth.signUp.pending') : t('auth.signUp.submit')}
       </Button>
 
-      <div className="flex items-center gap-3 text-12 text-fg-muted">
-        <span className="h-px flex-1 bg-border" />
-        {t('common.or')}
-        <span className="h-px flex-1 bg-border" />
-      </div>
-
-      <Button type="button" variant="outline" onClick={handleGoogle} disabled={loading !== null}>
-        {loading === 'google' ? t('auth.googlePending') : t('auth.google')}
-      </Button>
-
-      <p className="text-center text-14 text-fg-muted">
+      <p className="mt-2 text-center text-13 text-fg-3">
         {t('auth.signUp.haveAccount')}{' '}
         <Link
           to="/login"

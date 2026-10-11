@@ -64,11 +64,11 @@ export function NoteCard({
     <>
       <span
         className={cn(
-          'line-clamp-3 text-14 font-semibold leading-snug text-fg-1',
+          'line-clamp-3 text-14 font-medium leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
         )}
       >
-        {note.title || 'Ohne Titel'}
+        {note.title || t('common.untitled')}
       </span>
 
       <div className="flex items-center gap-2">
@@ -102,7 +102,7 @@ export function NoteCard({
         {showAssignee && note.assignee && (
           <span
             title={note.assignee.displayName ?? note.assignee.email}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-12 font-semibold text-primary-foreground"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground"
           >
             {initialsOf(note.assignee.displayName ?? note.assignee.email)}
           </span>
@@ -112,7 +112,7 @@ export function NoteCard({
   );
 
   const surface =
-    'relative flex w-[248px] select-none flex-col gap-2.5 overflow-hidden rounded-xl border p-3.5 text-left';
+    'relative flex w-[248px] select-none flex-col gap-2 overflow-hidden rounded-lg border p-3 text-left';
 
   if (overlay) {
     return (
@@ -125,7 +125,7 @@ export function NoteCard({
             noteColourFillClass[note.colour],
             // Lifted off the board and tilted a hair, so the card reads as picked up.
             // Kept subtle: this is unwound on release, and a big tilt has further to fall.
-            'cursor-grabbing border-border-subtle shadow-e3 rotate-[1.2deg] scale-[1.02]',
+            'cursor-grabbing border-[color:var(--note-border)] shadow-e3 rotate-[1.5deg] scale-[1.03]',
             isDone && 'opacity-60 saturate-50',
           )}
         >
@@ -197,22 +197,22 @@ function RestingNoteCard({
           // Hover/press easing only — never a transition on `opacity`, so picking a card
           // up hides it on the same frame the overlay appears instead of cross-fading.
           'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           noteColourFillClass[note.colour],
-          // Selection is a 2px slate outline and nothing else — no fill, no tint, so the
+          // Selection is a 2px ink outline and nothing else — no fill, no tint, so the
           // note keeps its own colour underneath (docs/BRAND.md). `outline` rather than a
           // border so the card's box does not shift by a pixel when it is selected.
           'outline-offset-0',
           selected
             ? 'border-transparent shadow-e2 outline outline-2 outline-[color:var(--note-selected)]'
-            : 'border-border-subtle shadow-pin',
+            : 'border-[color:var(--note-border)] shadow-pin',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column
           // does not reflow under the cursor mid-drag.
           hidden
             ? 'invisible'
             : 'hover:-translate-y-0.5 hover:shadow-e2 motion-reduce:hover:translate-y-0',
-          isDone && 'opacity-60 saturate-50',
+          isDone && 'opacity-55 saturate-50',
         )}
       >
         {body}

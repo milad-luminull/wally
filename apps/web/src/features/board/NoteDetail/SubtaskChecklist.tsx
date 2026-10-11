@@ -1,9 +1,10 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { SubtaskDto } from '@wally/shared';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { ghostFieldClassName } from '@/components/ui/field-styles';
+import { RemoveButton } from '@/components/ui/remove-button';
 import { cn } from '@/lib/cn';
 import { FieldLabel } from './Field';
 
@@ -47,14 +48,25 @@ export function SubtaskChecklist({
         {/* One interpolated string, not three JSX children — otherwise the German word
             "von" would stay orphaned in the markup, outside the catalogue. */}
         {subtasks.length > 0 && (
-          <span className="text-12 text-fg-muted tabular-nums">
+          <span className="text-12 text-fg-3 tabular-nums">
             {t('note.subtasks.progress', { done, total: subtasks.length })}
           </span>
         )}
       </div>
-      <div className="flex flex-col">
+      {subtasks.length > 0 && (
+        <div aria-hidden className="h-1 overflow-hidden rounded-full bg-inset">
+          <div
+            className="h-full rounded-full bg-[color:var(--fg-1)] transition-[width] duration-300 ease-ds"
+            style={{ width: `${(done / subtasks.length) * 100}%` }}
+          />
+        </div>
+      )}
+      <div className="-mx-1.5 flex flex-col">
         {subtasks.map((subtask) => (
-          <div key={subtask.id} className="flex items-center gap-2.5 py-1.5">
+          <div
+            key={subtask.id}
+            className="group/subtask flex min-h-8 items-center gap-2.5 rounded-md px-1.5 hover:bg-surface-alt"
+          >
             <Checkbox
               checked={subtask.done}
               onCheckedChange={(checked) => onToggle(subtask.id, checked === true)}
@@ -67,34 +79,34 @@ export function SubtaskChecklist({
             />
             <span
               className={cn(
-                'flex-1 text-14 leading-snug text-fg-2',
-                subtask.done && 'text-fg-muted line-through',
+                'flex-1 py-1 text-13 leading-snug text-fg-1',
+                subtask.done && 'text-fg-3 line-through decoration-fg-faint',
               )}
             >
               {subtask.text}
             </span>
             {!disabled && (
-              <button
-                type="button"
+              <RemoveButton
+                label={t('note.subtasks.remove', { text: subtask.text })}
                 onClick={() => onRemove(subtask.id)}
-                aria-label={t('note.subtasks.remove', { text: subtask.text })}
-                className="p-0.5 text-border-strong transition-colors hover:text-fg-muted"
-              >
-                <X className="h-[11px] w-[11px]" strokeWidth={2.2} />
-              </button>
+                className="opacity-0 focus-visible:opacity-100 group-hover/subtask:opacity-100 [@media(pointer:coarse)]:opacity-100"
+              />
             )}
           </div>
         ))}
         {!disabled && (
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={commit}
-            placeholder={t('note.subtasks.add')}
-            aria-label={t('note.subtasks.add')}
-            className="mt-1 h-[30px] border-0 border-b border-border-subtle p-0 text-14 focus-visible:ring-0"
-          />
+          <div className="flex items-center gap-1 pl-1.5">
+            <Plus aria-hidden className="h-4 w-4 shrink-0 text-fg-faint" strokeWidth={1.75} />
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={commit}
+              placeholder={t('note.subtasks.add')}
+              aria-label={t('note.subtasks.add')}
+              className={ghostFieldClassName}
+            />
+          </div>
         )}
       </div>
     </div>

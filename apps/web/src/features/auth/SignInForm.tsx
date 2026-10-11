@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
+import { GoogleMark } from '@/components/GoogleMark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -90,7 +91,24 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        onClick={handleGoogle}
+        disabled={loading !== null}
+      >
+        <GoogleMark />
+        {loading === 'google' ? t('auth.googlePending') : t('auth.google')}
+      </Button>
+
+      <div className="flex items-center gap-3 text-12 text-fg-faint">
+        <span className="h-px flex-1 bg-border" />
+        {t('common.or')}
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="signin-email">{t('auth.emailLabel')}</Label>
         <Input
@@ -99,6 +117,7 @@ export function SignInForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="h-9 text-14"
           aria-invalid={Boolean(fieldErrors.email)}
           aria-describedby={fieldErrors.email ? 'signin-email-error' : undefined}
         />
@@ -117,6 +136,7 @@ export function SignInForm() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="h-9 text-14"
           aria-invalid={Boolean(fieldErrors.password)}
           aria-describedby={fieldErrors.password ? 'signin-password-error' : undefined}
         />
@@ -128,26 +148,16 @@ export function SignInForm() {
       </div>
 
       {formError && (
-        <p role="alert" className="text-14 text-status-danger">
+        <p role="alert" className="text-13 text-status-danger">
           {t(formError)}
         </p>
       )}
 
-      <Button type="submit" disabled={loading !== null}>
+      <Button type="submit" size="lg" disabled={loading !== null}>
         {loading === 'email' ? t('auth.signIn.pending') : t('auth.signIn.submit')}
       </Button>
 
-      <div className="flex items-center gap-3 text-12 text-fg-muted">
-        <span className="h-px flex-1 bg-border" />
-        {t('common.or')}
-        <span className="h-px flex-1 bg-border" />
-      </div>
-
-      <Button type="button" variant="outline" onClick={handleGoogle} disabled={loading !== null}>
-        {loading === 'google' ? t('auth.googlePending') : t('auth.google')}
-      </Button>
-
-      <p className="text-center text-14 text-fg-muted">
+      <p className="mt-2 text-center text-13 text-fg-3">
         {t('auth.signIn.noAccount')}{' '}
         <Link
           to="/signup"

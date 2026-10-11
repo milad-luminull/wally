@@ -339,6 +339,7 @@ export function WandView({
           onCreateInZone={handleCreateInZone}
           canEdit={canEdit}
           activeDragId={activeId}
+          filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
         />
       )}
 

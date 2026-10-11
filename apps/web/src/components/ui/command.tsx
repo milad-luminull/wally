@@ -9,7 +9,7 @@ export const Command = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive
     ref={ref}
-    className={cn('flex w-full flex-col overflow-hidden rounded-md bg-card text-fg-1', className)}
+    className={cn('flex w-full flex-col overflow-hidden bg-popover text-fg-1', className)}
     {...props}
   />
 ));
@@ -19,12 +19,12 @@ export const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
-  <div className="flex items-center gap-2 border-b border-border px-3">
-    <Search className="h-3.5 w-3.5 shrink-0 text-fg-muted" />
+  <div className="flex items-center gap-2.5 border-b border-border px-4">
+    <Search className="h-4 w-4 shrink-0 text-fg-faint" strokeWidth={1.75} />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'flex h-9 w-full bg-transparent py-2 text-14 outline-none placeholder:text-fg-muted disabled:opacity-55',
+        'flex h-12 w-full bg-transparent text-14 text-fg-1 outline-none placeholder:text-fg-faint disabled:opacity-50',
         className,
       )}
       {...props}
@@ -39,7 +39,10 @@ export const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn('max-h-64 overflow-y-auto overflow-x-hidden p-1', className)}
+    className={cn(
+      'wally-scroll max-h-[min(60vh,400px)] overflow-y-auto overflow-x-hidden p-1.5',
+      className,
+    )}
     {...props}
   />
 ));
@@ -49,7 +52,7 @@ export const CommandEmpty = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Empty>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
 >((props, ref) => (
-  <CommandPrimitive.Empty ref={ref} className="py-4 text-center text-14 text-fg-muted" {...props} />
+  <CommandPrimitive.Empty ref={ref} className="py-8 text-center text-13 text-fg-3" {...props} />
 ));
 CommandEmpty.displayName = CommandPrimitive.Empty.displayName;
 
@@ -60,7 +63,7 @@ export const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      'overflow-hidden p-1 text-fg-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-12 [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-fg-muted',
+      'overflow-hidden text-fg-1 [&:not(:first-child)]:mt-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-12 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-fg-3',
       className,
     )}
     {...props}
@@ -75,8 +78,9 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-14 outline-none',
-      'data-[selected=true]:bg-secondary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-55',
+      'relative flex h-9 cursor-pointer select-none items-center gap-2.5 rounded-md px-2 text-13 text-fg-1 outline-none',
+      '[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-fg-3',
+      'data-[selected=true]:bg-inset data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className,
     )}
     {...props}

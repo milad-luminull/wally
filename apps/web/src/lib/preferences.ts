@@ -9,6 +9,7 @@ import {
 import { useMe } from '@/i18n/useProfileLanguage';
 import { queryKeys } from '@/features/board/hooks/queryKeys';
 import { meApi } from './resources';
+import { toast } from './toast';
 
 /** How long a burst of preference changes is held before one PATCH goes out. */
 export const SAVE_DELAY_MS = 600;
@@ -61,8 +62,9 @@ function flush(queryClient: QueryClient) {
     },
     () => {
       // The optimistic cache now disagrees with the server; refetch so the UI shows what
-      // was actually saved.
+      // was actually saved, and say so — otherwise the view would just jump back.
       void queryClient.invalidateQueries({ queryKey: queryKeys.profile(), exact: true });
+      toast.error('toast.prefsFailed');
     },
   );
 }

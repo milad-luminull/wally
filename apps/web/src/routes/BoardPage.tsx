@@ -1,30 +1,24 @@
 import { useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { CloudOff, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useBoard } from '@/features/board/hooks/useBoard';
 import { useMe } from '@/i18n/useProfileLanguage';
 import { AppShell } from '@/features/board/AppShell';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AppSkeleton } from '@/components/AppSkeleton';
 import { NotFoundPage } from './NotFoundPage';
 
 export function BoardPage() {
   const { t } = useTranslation();
   const { boardId } = useParams<{ boardId: string }>();
-  const { data: board, isLoading, isError, error } = useBoard(boardId);
+  const { data: board, isLoading, isError, error, refetch } = useBoard(boardId);
   // The saved view settings live on the profile; rendering before it lands would flash the
   // defaults and then jump to the user's view.
   const me = useMe();
 
   if (isLoading || me.isLoading) {
-    return (
-      <div className="flex h-screen flex-col gap-4 bg-background p-6">
-        <Skeleton className="h-8 w-64" />
-        <div className="flex flex-1 gap-4">
-          <Skeleton className="h-full flex-1" />
-          <Skeleton className="h-full flex-1" />
-          <Skeleton className="h-full flex-1" />
-        </div>
-      </div>
-    );
+    return <AppSkeleton />;
   }
 
   // A board that doesn't exist or that the caller isn't a member of is a 404 — the API
@@ -35,8 +29,17 @@ export function BoardPage() {
 
   if (isError || !board) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 bg-background px-4 text-center">
-        <p className="text-14 font-medium text-fg-1">{t('routes.board.loadFailed')}</p>
+      <div className="flex h-[100dvh] items-center justify-center bg-background px-4">
+        <EmptyState
+          icon={<CloudOff strokeWidth={1.75} />}
+          title={t('routes.board.loadFailed')}
+          action={
+            <Button variant="outline" onClick={() => void refetch()}>
+              <RotateCcw strokeWidth={1.75} />
+              {t('common.retry')}
+            </Button>
+          }
+        />
       </div>
     );
   }
