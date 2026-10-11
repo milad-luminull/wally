@@ -118,7 +118,8 @@
   --canvas-mark: rgba(16, 16, 20, 0.16);
   --canvas-line: rgba(16, 16, 20, 0.045);
   --zone-surface: rgba(255, 255, 255, 0.55);
-  --zone-surface-over: rgba(255, 178, 36, 0.1);
+  /* A zone under a dragged note: a neutral shade, never a colour wash. */
+  --zone-surface-over: rgba(16, 16, 20, 0.04);
 
   --chip-on: var(--fg-1);
   --chip-on-border: var(--fg-1);
@@ -193,7 +194,7 @@
   --canvas-mark: rgba(255, 255, 255, 0.12);
   --canvas-line: rgba(255, 255, 255, 0.04);
   --zone-surface: rgba(255, 255, 255, 0.015);
-  --zone-surface-over: rgba(255, 178, 36, 0.08);
+  --zone-surface-over: rgba(255, 255, 255, 0.035);
 
   --chip-on-foreground: #0e0e10;
 

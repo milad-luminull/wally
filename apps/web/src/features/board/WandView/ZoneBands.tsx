@@ -49,9 +49,10 @@ function ZoneBand({
         'group/zone flex min-w-0 flex-col rounded-xl border transition-[background-color,border-color] duration-200 ease-ds',
         axis === 'horizon' ? 'h-full w-[276px] shrink-0' : 'min-h-[160px] w-full',
         // A quiet panel on the wall rather than an invisible hit area, so the structure of
-        // the board is legible even when a column is empty. A drag target warms to marigold.
+        // the board is legible even when a column is empty. A drag target darkens a shade and
+        // firms its border — no colour, which would read as status or selection.
         isOver
-          ? 'border-accent bg-[color:var(--zone-surface-over)]'
+          ? 'border-border-strong bg-[color:var(--zone-surface-over)]'
           : 'border-border-subtle bg-[color:var(--zone-surface)]',
       )}
     >
@@ -103,7 +104,7 @@ function ZoneBand({
               'flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border px-3 py-6 text-center',
               'transition-colors duration-200 ease-ds',
               axis === 'horizon' ? 'h-full min-h-[120px]' : 'min-h-[92px]',
-              isOver && 'border-accent',
+              isOver && 'border-border-strong',
             )}
           >
             <p className="text-12 font-medium text-fg-3">

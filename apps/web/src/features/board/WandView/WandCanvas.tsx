@@ -64,7 +64,7 @@ export function WandCanvas({
   activeDragId,
 }: WandCanvasProps) {
   const { t } = useTranslation();
-  const { setNodeRef, isOver } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
+  const { setNodeRef } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
   const keys = emptyStateKeys(filtered, canEdit);
   const [pattern] = useCanvasPattern();
@@ -91,11 +91,9 @@ export function WandCanvas({
       >
         <div
           ref={setNodeRef}
-          className={cn(
-            CANVAS_PATTERN_CLASS[pattern],
-            'relative transition-[background-color] duration-200 ease-ds',
-            isOver && 'bg-[color:var(--zone-surface-over)]',
-          )}
+          // No drop-target tint here: the whole canvas is the target, so any wash would just
+          // recolour the entire background for the length of every drag.
+          className={cn(CANVAS_PATTERN_CLASS[pattern], 'relative')}
           style={{ width: FREE_CANVAS_WIDTH, height: FREE_CANVAS_HEIGHT }}
         >
           {notes.map((note) => (

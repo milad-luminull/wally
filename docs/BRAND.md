@@ -36,7 +36,8 @@ the theme; components use semantic tokens only.
 1. The single primary action on a screen — `<Button variant="accent">`. At most one at rest:
    "New note" on the board, "Invite" in the share popover.
 2. The back note of the mark.
-3. Warmth for a drop target and the auth backdrop's glow, as a soft tint only.
+3. The auth backdrop's glow, as a soft tint only. Never a drag or drop state: a zone under a
+   dragged note darkens a neutral shade, and the free canvas doesn't change at all.
 
 Text on marigold is near-black (`#1A1300`, 10.2:1) — never white. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
