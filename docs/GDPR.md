@@ -88,9 +88,10 @@ erasure work has to clear both, in one transaction — the invariant is already 
 - **Cloud Logging** receives Fastify's request log, which includes client IP addresses
   (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
-  ([`apps/web/src/i18n/storage.ts`](apps/web/src/i18n/storage.ts)) and a list-view collapse
-  flag ([`apps/web/src/features/board/ListView/ListView.tsx:23`](apps/web/src/features/board/ListView/ListView.tsx:23)).
-  Both are strictly functional.
+  ([`apps/web/src/i18n/storage.ts`](apps/web/src/i18n/storage.ts)), `wally.theme`
+  ([`apps/web/src/lib/theme.tsx`](apps/web/src/lib/theme.tsx)) and a list-view hint flag
+  ([`apps/web/src/features/board/ListView/ListView.tsx`](apps/web/src/features/board/ListView/ListView.tsx)).
+  All three are strictly functional.
 
 ### Who can see what
 
@@ -123,7 +124,7 @@ relationship. _(Art. 28)_
 
 ### No consent banner is required
 
-The only client-side storage is the language preference and a UI toggle, both strictly
+The only client-side storage is the language and theme preferences and a UI hint flag, all strictly
 necessary for a service the user explicitly asked for — outside the consent requirement of
 §25(1) TTDSG. A cookie banner here would be noise, not compliance. _(TTDSG §25(2))_
 

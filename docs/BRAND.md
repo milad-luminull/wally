@@ -1,121 +1,122 @@
 # Brand
 
-Wally's visual identity, transcribed from `wally - branding.pdf` v1 and reconciled with what
-the code can actually do. The guideline is the authority on intent; where a rule collided with
-a contrast floor this document records the deviation and why.
+Wally's visual identity: **Graphite + Marigold**. This document is the authority on intent;
+the tokens live in `apps/web/src/styles/globals.css` and `apps/web/tailwind.config.ts`.
 
-The short version: **the interface is a warm grey room.** Slate, linen, chalk, taupe, sand,
-one typeface, and one blue that does exactly three jobs. Everything colourful on the wall
-comes from the notes, and the notes belong to the user.
+The short version: **the interface is graphite, the notes are the colour.** Cool,
+near-neutral greys step from the wall up to ink. One warm marigold does exactly three jobs.
+Everything colourful on the wall comes from the notes, and the notes belong to the user.
+
+## Themes
+
+Light and dark are both first-class. The default follows the operating system; the user can
+pin either from the account menu or the command palette. The choice is saved to the profile
+(`preferences.theme`) so it follows them across devices, and mirrored to localStorage
+(`wally.theme`) so `index.html` can apply it before first paint — dark mode never flashes
+white.
+
+Every token has a value in `:root` and in `.dark`. Nothing outside `globals.css` branches on
+the theme; components use semantic tokens only.
 
 ## Colour
 
-| Token     | Hex       | Job                                   |
-| --------- | --------- | ------------------------------------- |
-| `--slate` | `#22303F` | Text, the mark, the primary button    |
-| `--blue`  | `#4F7196` | The pin, one CTA, the selection state |
-| `--linen` | `#EDE8DF` | The wall                              |
-| `--chalk` | `#FFFFFF` | Notes, panels                         |
-| `--taupe` | `#5F5A50` | Secondary text                        |
-| `--sand`  | `#D8D0C3` | Hairlines, dividers                   |
+| Token                 | Light     | Dark      | Job                                |
+| --------------------- | --------- | --------- | ---------------------------------- |
+| `--canvas`            | `#F6F6F7` | `#0A0A0B` | The wall                           |
+| `--surface`           | `#FFFFFF` | `#121214` | Panels, popovers, the top bar      |
+| `--inset`             | `#F0F0F2` | `#1B1B1F` | Wells: segmented tracks, skeletons |
+| `--border`            | `#E4E4E8` | `#26262C` | Hairlines                          |
+| `--fg-1`              | `#0E0E10` | `#EDEDEF` | Text, ink, the mark's front note   |
+| `--fg-3`              | `#6A6A74` | `#8B8B95` | Secondary text, labels             |
+| `--primary`           | `#18181B` | `#EDEDEF` | The everyday filled button         |
+| `--accent` (marigold) | `#FFB224` | `#FFB224` | See below                          |
 
-### Blue has three jobs and no others
+### Marigold has three jobs and no others
 
-1. The pin in the mark.
-2. The one primary action on a screen — `<Button variant="accent">`. At most one at rest.
-3. The selection state: the focus ring, a selected chip, a selected segment.
+1. The single primary action on a screen — `<Button variant="accent">`. At most one at rest:
+   "New note" on the board, "Invite" in the share popover.
+2. The back note of the mark.
+3. Warmth for a drop target and the auth backdrop's glow, as a soft tint only.
 
-Blue is a fill, never a text colour. Text on blue is white (5.08:1). **Never blue for AI** —
-the AI has no colour. A blue note is forbidden twice over: blue is functional, and a blue note
-would read as selected.
-
-Note selection is the one exception to job 3: a selected note gets a **2px slate outline**,
-with the note's own colour left showing underneath, because blue would fight the fill.
+Text on marigold is near-black (`#1A1300`, 10.2:1) — never white. Focus rings and note
+selection are **ink**, never marigold, because they have to read on every note fill. Marigold
+is not a note colour.
 
 ### Status colour is text, in the due-date line and nowhere else
 
-No badges. No tinted rows. Overdue, today, done, and everything else in taupe.
-
-**Deviation — the three status hues are darkened.** The guideline gives Overdue `#B3261E`,
-Today `#8A5A00` and Done `#1E7A4E`, and separately says a coloured note is filled edge to
-edge. Those two rules collide: the due line sits on the note fill, where the published hues
-measure 3.56:1, 3.23:1 and 2.90:1 on Clay — they only clear AA on a white chalk note. The
-tokens are the same three hues darkened in linear-light space, hue and chroma preserved, until
-the worst case across all fourteen fills clears 4.5:1:
-
-|         | Guideline | Shipped   | Worst case on a note |
-| ------- | --------- | --------- | -------------------- |
-| Overdue | `#B3261E` | `#921D17` | 4.50:1               |
-| Today   | `#8A5A00` | `#684300` | 4.54:1               |
-| Done    | `#1E7A4E` | `#125636` | 4.50:1               |
-
-A destructive _action_ — the confirm button of a delete dialog — is not a status, so it sits
-outside this rule and is the one filled red in the product. It uses the same red.
+No badges, no tinted rows. Overdue, today and done are text colours; everything else is
+secondary grey. `brandGuards.test.ts` fails the build if a status token is used as a fill or a
+border. The one filled red in the product is `--destructive`, for confirming a destructive
+action — an action is not a status.
 
 ### Priority is shape, not hue
 
-One slate dot. High is filled, medium is the same dot hollow, **low has no mark at all**.
-Red for priority is banned: red means late, and only late. Keeping priority on a single colour
-is also what lets it survive on any of the fourteen note fills. See `PriorityDot.tsx`; every
-caller has to cope with it rendering nothing.
+One dot in the current text colour. High is filled, medium is hollow, **low has no mark at
+all**. Red for priority is banned: red means late, and only late. See `PriorityDot.tsx`.
 
 ### Note colour belongs to the user
 
-Fourteen fills. Seven are the guideline's palette exactly; seven are derived into the same
-linen-dyed band so that every persisted value survives — nothing migrated in Firestore — and
-every name finally matches its hue. Before this change four of them aliased status tokens, so
-`SAND` was orange and `MINZE` was dark green.
+Fourteen fills. The persisted keys (`WEISS`, `SAND`, `BUTTER`, …) never change — only their
+values do, so nothing migrates in Firestore. In light mode they are clean pastels; in dark mode
+each is the same hue at ~16% over the surface. Cards carry a `--note-border` hairline so pale
+fills never dissolve into the wall. On the wall a note is filled edge to edge; in the list it
+is a small swatch beside the title.
 
-|                   | Guideline |            | Derived   |
-| ----------------- | --------- | ---------- | --------- |
-| `WEISS` Chalk     | `#FFFFFF` | `EIS`      | `#D5DEE3` |
-| `SAND` Stone      | `#D8D0C3` | `HIMMEL`   | `#BDCEDE` |
-| `BUTTER` Oat      | `#E3D5B8` | `MINZE`    | `#C9DBD3` |
-| `LEHM` Clay       | `#D9B9A6` | `SEEGRUEN` | `#B6C9C2` |
-| `NEBEL` Mist      | `#C5D3DF` | `OLIV`     | `#CBCCAF` |
-| `SALBEI` Sage     | `#C9D2C4` | `ROSE`     | `#E1C4C8` |
-| `FLIEDER` Heather | `#CFC6D6` | `MALVE`    | `#C4B6C6` |
+Contrast floors, measured on every fill in both themes: body text ≥ 10:1,
+`--fg-meta-on-note` ≥ 4.9:1, each status colour ≥ 5:1.
 
-A note is coloured **all over, like paper — full fill, not a stripe**. One token per colour,
-used for the card, the list row and the picker dot alike.
-
-Contrast floor for anything added here: slate ≥ 5:1 and `--fg-meta-on-note` ≥ 4.5:1. Measured
-worst cases today are 6.95:1 and 4.54:1, both on Malve.
-
-**Deviation — `--fg-meta-on-note`.** Taupe clears 4.5:1 on most note fills but not all: it
-measures 3.73:1 on Clay and 4.14:1 on Heather, two of the guideline's own seven. Meta text on
-a coloured note uses one step darker, `#4F4A41`. Body text is slate everywhere and never
-needed the help.
-
-They carry no built-in meaning. **Wally never colours a note on its own, never changes a
-colour, and never reads a colour as status.** If a team agrees "Clay = waiting on client",
-that lives in the team's head or in a tag, not in Wally.
+**Wally never colours a note on its own, never changes a colour, and never reads a colour as
+status.**
 
 ## Type
 
-One typeface: **Sora**, self-hosted from `public/fonts` so the app makes no third-party
-request. It ships as a variable font, so all four weights are two files.
+**Geist** for everything, **Geist Mono** for keyboard hints and the 404. Both self-hosted from
+`public/fonts` (SIL OFL), so the app makes no third-party request.
 
 Six steps, nothing between them, nothing below 12:
 
-| Role       | Size | Weight | Tracking                |
-| ---------- | ---- | ------ | ----------------------- |
-| Display    | 40   | 700    | −0.045em                |
-| Title      | 22   | 600    | −0.03em                 |
-| Note title | 15   | 600    | −0.01em                 |
-| Body       | 14   | 400    | 1.55 line-height        |
-| Meta       | 12   | 500    | taupe, tabular numerals |
+| Role             | Size | Weight  |
+| ---------------- | ---- | ------- |
+| Meta, labels     | 12   | 500     |
+| Controls, rows   | 13   | 500     |
+| Body, note title | 14   | 400/500 |
+| Panel title      | 16   | 600     |
+| Page title       | 20   | 600     |
+| Display          | 28   | 500     |
 
-400 for reading, 500 for meta, 600 for titles, 700 only for display and the wordmark. Two
-weights per screen is the norm, three the limit. Numbers are always tabular.
+Numbers are always tabular. Adding or removing a step means editing `theme.extend.fontSize`
+**and** `FONT_SIZES` in `src/lib/cn.ts` together — tailwind-merge otherwise reads the size
+class as a text colour and silently drops it.
 
-Adding or removing a step means editing `theme.extend.fontSize` **and** `FONT_SIZES` in
-`src/lib/cn.ts` together — tailwind-merge otherwise reads the size class as a text colour and
-silently drops it.
+## Shape, depth and motion
+
+- Radius: 6 for controls, 8 for notes and cards, 12 for panels and popovers.
+- Elevation `e1`–`e3`: soft shadows in light mode; in dark mode a hairline plus a deep shadow.
+- Controls are 28 / 32 / 36px and grow to at least 40px on a coarse pointer.
+- Motion is 120–180ms on transform and opacity only; reduced motion turns it off.
+
+## Components
+
+One look per job:
+
+- `Button` — `default` (ink), `accent` (marigold, once), `outline`, `ghost`, `link`,
+  `destructive`, `destructive-ghost`. Dialog actions reuse `buttonVariants`.
+- Fields — `Input`, `Textarea` and `SelectTrigger` share `fieldClassName`; inline list inputs
+  use `ghostFieldClassName`.
+- `RemoveButton` is the only "×". `EmptyState` is the only empty state. `AppSkeleton` is the
+  only full-page loading state.
+- Destructive actions are immediate with an **Undo** toast, not a confirmation dialog.
+- Every failed save says so in a toast; nothing snaps back silently.
+
+## Keyboard
+
+Every action is reachable with the mouse; the keyboard is an accelerator. ⌘K opens the command
+palette. `N` new note, `/` search, `V` wall/list, `G` then `H`/`P`/`F` grouping, `Esc` or ⌘↵
+closes the note, `?` shows the list. Single keys never fire while typing.
 
 ## Voice
 
-Sentence case everywhere. Uppercase only for zone labels on the wall. Copy is short, second
+Sentence case everywhere, zone and group labels included. Copy is short, second
 person, no exclamation marks. "Nothing due today." not "You're all caught up! 🎉".
 
 German is informal _du_ throughout, and German is the key authority: `de.ts` derives the `t()`
@@ -123,24 +124,17 @@ key union. Keys name a string's role, never its content, so re-wording never mea
 
 ## The mark
 
-A square note, corner radius **22%** of its side, with one round pin at top centre. The pin's
-diameter is **21%** of the side and its centre sits **28%** down from the top edge. Nothing
-else. The shape reads at 16px and at 16 metres.
+Two notes on a wall: a marigold note behind and to the upper right, an ink note overlapping it
+from the lower left, separated by a gap the colour of whatever is behind the mark. The ink note
+is `--fg-1`, so it flips with the theme; marigold stays.
 
-Slate note with a blue pin is the primary mark; on slate the pair inverts. Keep half the
-mark's width free on every side. Minimum 16px on screen — below that, the wordmark alone.
+The wordmark is Geist SemiBold, **lowercase**, tracked −0.04em. Never capitalise in the logo; in
+running text write Wally. Minimum 16px on screen — below that, the wordmark alone.
 
-The wordmark is Sora Bold, **lowercase**, tracked −0.045em, with a gap between mark and word
-equal to the pin diameter. Never capitalise in the logo; in running text write Wally.
+`BrandMark.tsx` draws it in one 24-unit viewBox; `public/favicon.svg` repeats the same numbers
+in hex and must be kept in step.
 
-**Don't**: tilt it · recolour it · add pins · shadow or gradient · put a letter in it ·
-round it off.
-
-`BrandMark.tsx` expresses every measurement as a ratio of the side, so one component covers
-every size. `public/favicon.svg` repeats the same numbers in hex and must be kept in step.
-
-The board-initial square in the top bar is the **board's** mark, not the brand's — it is a
-circle precisely so it cannot be misread as the logo.
+**Don't**: tilt it · recolour it · add a third note · put a letter in it.
 
 ## AI
 
