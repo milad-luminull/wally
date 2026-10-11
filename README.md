@@ -1,6 +1,6 @@
 # Wally
 
-A personal digital whiteboard for managing to-dos as movable notes — built for Finlex. Notes live on a free canvas and can be organized by **Horizont** (Heute / Diese Woche / Später), **Priorität** (Hoch / Mittel / Niedrig), or positioned **Frei**, with a synced list view, sharing, and full note detail (subtasks, tags, reference, history). See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec.
+A personal digital whiteboard for managing to-dos as movable notes. Notes live on a free canvas and can be organized by **Horizont** (Heute / Diese Woche / Später), **Priorität** (Hoch / Mittel / Niedrig), or positioned **Frei**, with a synced list view, sharing, and full note detail (subtasks, tags, reference, history). See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec.
 
 ## Stack
 
@@ -13,7 +13,7 @@ packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows and [`docs/RULE.md`](docs/RULE.md) for working rules.
+Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows, [`docs/RULE.md`](docs/RULE.md) for working rules, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
 
 ## Prerequisites
 
@@ -98,4 +98,4 @@ firebase deploy --only firestore:indexes,firestore:rules
 - **`firestore.indexes.json`** — the emulator never enforces indexes and creates them on the fly, so a missing one only shows up in production as a `FAILED_PRECONDITION` error.
 - **`firestore.rules`** — denies all direct client access by design. Every legitimate read goes through the API's Admin SDK, which bypasses rules.
 
-The Cloud Run service reaches Firestore through its runtime service account — there is no connection string to configure. Deployment is documented step by step in [`docs/DEPLOY.md`](docs/DEPLOY.md); it is still manual, with no CI pipeline yet.
+The Cloud Run service reaches Firestore through its runtime service account — there is no connection string to configure. Deployment is automated. Every pull request runs lint, formatting, type checks, the Vitest suites against a Firestore emulator, a production build and the Playwright end-to-end suite against a full Docker Compose stack. Pushing a `v*` tag deploys to production, behind a required approval on the `production` GitHub Environment: Firestore rules and indexes, then the API to Cloud Run as a no-traffic revision that is smoke-tested before traffic moves, then the web bundle to Firebase Hosting, then a read-only smoke test of the live site — rolling back automatically if that fails. GitHub authenticates to Google Cloud through Workload Identity Federation, so no service-account key exists anywhere. The workflows are in [`.github/workflows/`](.github/workflows/); the manual commands remain in [`docs/DEPLOY.md`](docs/DEPLOY.md) as the break-glass path, and one-time cloud setup lives in [`scripts/bootstrap-gcp-cicd.sh`](scripts/bootstrap-gcp-cicd.sh).

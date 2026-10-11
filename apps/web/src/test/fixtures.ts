@@ -37,8 +37,8 @@ export function makeMember(overrides: Partial<MemberDto> = {}): MemberDto {
   return {
     id: 'member-1',
     userId: 'user-1',
-    email: 'andrea.reiter@finlex.de',
-    displayName: 'Andrea Reiter',
+    email: 'nora.falk@example.com',
+    displayName: 'Nora Falk',
     role: 'EDIT',
     status: 'ACTIVE',
     ...overrides,

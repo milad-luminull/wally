@@ -27,7 +27,7 @@ describe('EmailVerificationBanner', () => {
 
   function arrange(overrides: Record<string, unknown> = {}) {
     mockUseAuth.mockImplementation(() => ({
-      user: { email: 'max@finlex.de' },
+      user: { email: 'max@example.com' },
       emailVerified: verified,
       resendVerificationEmail,
       refreshUser,
@@ -58,7 +58,7 @@ describe('EmailVerificationBanner', () => {
 
     expect(screen.getByText(HEADLINE)).toBeInTheDocument();
     // The address is named, so a typo at sign-up is visible rather than mysterious.
-    expect(screen.getByText('max@finlex.de')).toBeInTheDocument();
+    expect(screen.getByText('max@example.com')).toBeInTheDocument();
     expect(screen.getByText(/eingeladen wurdest/)).toBeInTheDocument();
   });
 

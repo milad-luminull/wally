@@ -14,7 +14,7 @@ export type DueTone = 'success' | 'danger' | 'warning' | 'neutral';
 export interface DueInfo {
   label: string;
   tone: DueTone;
-  weight: 400 | 500 | 600;
+  weight: 400 | 500;
 }
 
 function dayDiff(iso: string): number {
@@ -31,97 +31,59 @@ function dayDiff(iso: string): number {
  * NEW `t` reference after languageChanged, so callers that put `t` in their deps array are
  * self-correcting.
  *
- * Mirrors the mockup's urgency ladder, but expressed as design-system status tones
- * (see globals.css) instead of raw hex, so it stays theme-able and consistent with the
- * priority-dot recolouring the plan calls for. */
+ * The brand guideline names four states and no more — overdue, today, done, and everything
+ * else — so "tomorrow" no longer gets a tone of its own; it reads as an ordinary future date
+ * in taupe. Weight tops out at 500, the Meta spec, rather than the 600 this used to reach for.
+ */
 export function dueInfo(note: Pick<NoteDto, 'status' | 'dueDate'>, t: T): DueInfo {
   if (note.status === 'DONE') return { label: t('board.due.done'), tone: 'success', weight: 500 };
   if (!note.dueDate) return { label: t('board.due.none'), tone: 'neutral', weight: 400 };
   const date = parseIsoDate(note.dueDate);
   const diff = dayDiff(note.dueDate);
-  if (diff < 0) return { label: t('board.due.overdue', { date }), tone: 'danger', weight: 600 };
-  if (diff === 0) return { label: t('board.due.today'), tone: 'warning', weight: 600 };
-  if (diff === 1) return { label: t('board.due.tomorrow'), tone: 'warning', weight: 500 };
+  if (diff < 0) return { label: t('board.due.overdue', { date }), tone: 'danger', weight: 500 };
+  if (diff === 0) return { label: t('board.due.today'), tone: 'warning', weight: 500 };
+  if (diff === 1) return { label: t('board.due.tomorrow'), tone: 'neutral', weight: 400 };
   return { label: t('common.shortDate', { date }), tone: 'neutral', weight: 400 };
 }
 
+/** Status colour is TEXT, in the due-date line and nowhere else — no badges, no tinted rows.
+ * If you find yourself reaching for one of these as a `bg-`, the guideline says don't
+ * (docs/BRAND.md); brandGuards.test.ts will stop you anyway. */
 export const dueToneClass: Record<DueTone, string> = {
   success: 'text-status-success',
   danger: 'text-status-danger',
-  warning: 'text-[color:var(--status-warning)]',
-  neutral: 'text-fg-muted',
+  warning: 'text-status-warning',
+  neutral: 'text-fg-meta-on-note',
 };
 
-export const priorityToneClass: Record<NotePriority, string> = {
-  HOCH: 'bg-[color:var(--status-danger-bold)]',
-  MITTEL: 'bg-[color:var(--status-warning-bold)]',
-  NIEDRIG: 'bg-[color:var(--status-neutral-bold)]',
-};
-
-/** 14 swatches — Apricot intentionally excluded, see packages/shared's noteColourValues
- * comment (apricot stays functional-only).
+/**
+ * Priority is shape, not hue: one slate dot, and the shape carries the level.
  *
- * These four maps are written out per colour rather than derived from noteColourValues on
- * purpose: Tailwind only emits an arbitrary-value class it can find as a literal string in
- * the source, so a template-built `bg-[color:var(--note-${c})]` would compile fine and then
- * render no colour at all. The Record type keeps them exhaustive. */
-export const noteColourBorderClass: Record<NoteColour, string> = {
-  WEISS: 'border-l-border',
-  EIS: 'border-l-[color:var(--note-eis)]',
-  SAND: 'border-l-[color:var(--note-sand)]',
-  MINZE: 'border-l-[color:var(--note-minze)]',
-  HIMMEL: 'border-l-[color:var(--note-himmel)]',
-  NEBEL: 'border-l-[color:var(--note-nebel)]',
-  BUTTER: 'border-l-[color:var(--note-butter)]',
-  LEHM: 'border-l-[color:var(--note-lehm)]',
-  ROSE: 'border-l-[color:var(--note-rose)]',
-  MALVE: 'border-l-[color:var(--note-malve)]',
-  FLIEDER: 'border-l-[color:var(--note-flieder)]',
-  SEEGRUEN: 'border-l-[color:var(--note-seegruen)]',
-  SALBEI: 'border-l-[color:var(--note-salbei)]',
-  OLIV: 'border-l-[color:var(--note-oliv)]',
+ * Red for priority is banned outright — red means late, and only late. Keeping priority on a
+ * single colour is also what lets it survive on any of the fourteen note fills, which a hue
+ * ladder could not do.
+ *
+ * `null` for NIEDRIG is the "no mark" case and callers must handle it: low priority renders
+ * nothing at all, not a faint dot.
+ */
+export const priorityDotClass: Record<NotePriority, string | null> = {
+  HOCH: 'bg-[color:var(--slate)]',
+  MITTEL: 'border-[1.5px] border-[color:var(--slate)] bg-transparent',
+  NIEDRIG: null,
 };
 
-/** Paper-weight card fill per note colour (see globals.css). The saturated swatch value
- * stays on the spine and the picker dot; the card body gets the tint, so a coloured note
- * reads as coloured paper without dropping text contrast. */
-export const noteColourTintClass: Record<NoteColour, string> = {
-  WEISS: 'bg-[color:var(--note-tint-weiss)]',
-  EIS: 'bg-[color:var(--note-tint-eis)]',
-  SAND: 'bg-[color:var(--note-tint-sand)]',
-  MINZE: 'bg-[color:var(--note-tint-minze)]',
-  HIMMEL: 'bg-[color:var(--note-tint-himmel)]',
-  NEBEL: 'bg-[color:var(--note-tint-nebel)]',
-  BUTTER: 'bg-[color:var(--note-tint-butter)]',
-  LEHM: 'bg-[color:var(--note-tint-lehm)]',
-  ROSE: 'bg-[color:var(--note-tint-rose)]',
-  MALVE: 'bg-[color:var(--note-tint-malve)]',
-  FLIEDER: 'bg-[color:var(--note-tint-flieder)]',
-  SEEGRUEN: 'bg-[color:var(--note-tint-seegruen)]',
-  SALBEI: 'bg-[color:var(--note-tint-salbei)]',
-  OLIV: 'bg-[color:var(--note-tint-oliv)]',
-};
-
-/** The card's left spine — the strongest, most scannable carrier of the note colour. */
-export const noteColourSpineClass: Record<NoteColour, string> = {
-  WEISS: 'bg-border-strong',
-  EIS: 'bg-[color:var(--note-eis)]',
-  SAND: 'bg-[color:var(--note-sand)]',
-  MINZE: 'bg-[color:var(--note-minze)]',
-  HIMMEL: 'bg-[color:var(--note-himmel)]',
-  NEBEL: 'bg-[color:var(--note-nebel)]',
-  BUTTER: 'bg-[color:var(--note-butter)]',
-  LEHM: 'bg-[color:var(--note-lehm)]',
-  ROSE: 'bg-[color:var(--note-rose)]',
-  MALVE: 'bg-[color:var(--note-malve)]',
-  FLIEDER: 'bg-[color:var(--note-flieder)]',
-  SEEGRUEN: 'bg-[color:var(--note-seegruen)]',
-  SALBEI: 'bg-[color:var(--note-salbei)]',
-  OLIV: 'bg-[color:var(--note-oliv)]',
-};
-
-export const noteColourSwatchClass: Record<NoteColour, string> = {
-  WEISS: 'bg-white',
+/**
+ * A note is coloured all over, like paper — one fill per colour, used for the card, the list
+ * row and the picker dot alike. There is no swatch/spine/tint split any more: the guideline
+ * calls a stripe out by name ("full fill, not a stripe").
+ *
+ * Written out per colour rather than derived from noteColourValues on purpose: Tailwind only
+ * emits an arbitrary-value class it can find as a literal string in the source, so a
+ * template-built `bg-[color:var(--note-${c})]` would compile fine and then render no colour at
+ * all. The Record type keeps it exhaustive.
+ */
+export const noteColourFillClass: Record<NoteColour, string> = {
+  WEISS: 'bg-[color:var(--note-weiss)]',
   EIS: 'bg-[color:var(--note-eis)]',
   SAND: 'bg-[color:var(--note-sand)]',
   MINZE: 'bg-[color:var(--note-minze)]',

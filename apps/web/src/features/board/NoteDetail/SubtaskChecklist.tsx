@@ -47,7 +47,7 @@ export function SubtaskChecklist({
         {/* One interpolated string, not three JSX children — otherwise the German word
             "von" would stay orphaned in the markup, outside the catalogue. */}
         {subtasks.length > 0 && (
-          <span className="text-11 text-fg-muted tabular-nums">
+          <span className="text-12 text-fg-muted tabular-nums">
             {t('note.subtasks.progress', { done, total: subtasks.length })}
           </span>
         )}
@@ -67,7 +67,7 @@ export function SubtaskChecklist({
             />
             <span
               className={cn(
-                'flex-1 text-13 leading-snug text-fg-2',
+                'flex-1 text-14 leading-snug text-fg-2',
                 subtask.done && 'text-fg-muted line-through',
               )}
             >
@@ -93,7 +93,7 @@ export function SubtaskChecklist({
             onBlur={commit}
             placeholder={t('note.subtasks.add')}
             aria-label={t('note.subtasks.add')}
-            className="mt-1 h-[30px] border-0 border-b border-border-subtle p-0 text-13 focus-visible:ring-0"
+            className="mt-1 h-[30px] border-0 border-b border-border-subtle p-0 text-14 focus-visible:ring-0"
           />
         )}
       </div>

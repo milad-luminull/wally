@@ -38,7 +38,7 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
             Scoped here rather than raised on the shared primitive, which other callers
             position clear of the chrome. */}
       <PopoverContent align="start" className="z-overlay w-64 p-0">
-        <p className="border-b border-border-subtle px-4 py-2.5 text-11 font-semibold uppercase tracking-wide text-fg-muted">
+        <p className="border-b border-border-subtle px-4 py-2.5 text-12 font-semibold uppercase tracking-wide text-fg-muted">
           {t('board.switcherHeading')}
         </p>
         <ul className="flex flex-col p-1.5">
@@ -53,7 +53,7 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
                   state={location.state}
                   aria-current={current ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-13 transition-colors duration-150 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-14 transition-colors duration-150 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
                     current ? 'font-semibold text-fg-1' : 'font-medium text-fg-2 hover:text-fg-1',
                   )}
                 >
@@ -63,7 +63,7 @@ export function BoardSwitcher({ boardId }: { boardId: string }) {
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1 truncate">{board.name}</span>
-                  <span className="shrink-0 text-11 text-fg-muted">
+                  <span className="shrink-0 text-12 text-fg-muted">
                     {/* OWNER gets its own key rather than enums.effectiveRole.OWNER: in a
                         list of boards "your board" reads better than "owner". */}
                     {board.currentUserRole === 'OWNER'

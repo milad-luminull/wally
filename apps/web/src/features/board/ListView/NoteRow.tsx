@@ -4,13 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
-import {
-  dueInfo,
-  dueToneClass,
-  noteColourSpineClass,
-  priorityToneClass,
-  subtaskCountLabel,
-} from '../util/noteDerived';
+import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
+import { PriorityDot } from '../PriorityDot';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -56,19 +51,17 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         }
       }}
       className={cn(
-        'group/row relative flex cursor-pointer items-start gap-3.5 py-3 pl-5 pr-4',
+        'group/row relative flex cursor-pointer items-start gap-3.5 px-4 py-3',
         'border-b border-border-subtle last:border-b-0',
-        'transition-colors duration-150 ease-ds hover:bg-inset-hover',
+        // A note is coloured all over in the list too, so the same note is the same object
+        // in both views. Hover darkens the fill rather than replacing it, which a
+        // `hover:bg-*` could not do without painting over the note's own colour.
+        noteColourFillClass[note.colour],
+        'transition-[filter] duration-150 ease-ds hover:brightness-[0.97]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
         isDone && 'opacity-60',
       )}
     >
-      {/* Same colour spine as the Wand card, so a note is recognisable across both views. */}
-      <span
-        aria-hidden
-        className={cn('absolute inset-y-0 left-0 w-[3px]', noteColourSpineClass[note.colour])}
-      />
-
       <Checkbox
         checked={isDone}
         onClick={handleCheckboxClick}
@@ -90,12 +83,14 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         {(metaParts.length > 0 || note.tags.length > 0) && (
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             {metaParts.length > 0 && (
-              <span className="truncate text-12 text-fg-muted">{metaParts.join('  ·  ')}</span>
+              <span className="truncate text-12 text-fg-meta-on-note">
+                {metaParts.join('  ·  ')}
+              </span>
             )}
             {note.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-md bg-inset px-1.5 py-0.5 text-11 font-medium text-fg-muted"
+                className="rounded-md bg-[color:var(--chip-on)] px-1.5 py-0.5 text-12 font-medium text-fg-meta-on-note"
               >
                 {tag}
               </span>
@@ -111,11 +106,11 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         >
           {due.label}
         </span>
-        {note.priority === 'HOCH' && !isDone && (
-          <span
-            role="img"
-            aria-label={t('board.priorityPrefix', { label: priorityLabels.HOCH })}
-            className={cn('mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full', priorityToneClass.HOCH)}
+        {!isDone && (
+          <PriorityDot
+            priority={note.priority}
+            className="mt-1.5"
+            label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
           />
         )}
       </div>

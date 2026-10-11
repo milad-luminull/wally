@@ -1,10 +1,12 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Finlex Platform design tokens (docs/…/design-system §4 "Platform"), reconciled per the
- * plan: apricot stays strictly functional (primary CTA / active state / focus ring),
- * never a decorative note-colour or priority-dot option — see globals.css and
- * ColorSwatchPicker/NoteCard for where that boundary is enforced in code.
+ * Wally brand tokens — "wally - branding.pdf" v1, see docs/BRAND.md.
+ *
+ * Dusty blue is strictly functional: the pin in the mark, the one primary action on a
+ * screen, and the selection state. It is never a note colour and never a priority marker —
+ * see globals.css, ColorSwatchPicker and noteDerived.ts for where that boundary is
+ * enforced in code.
  *
  * Colours are wired as CSS custom properties (see src/styles/globals.css) holding plain
  * hex values — not the hsl()-triplet convention shadcn's docs default to. shadcn's
@@ -18,23 +20,25 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      /* One typeface. `head` is kept as an alias of `sans` so the 20 existing `font-head`
+       * usages keep compiling; it resolves to the same stack and can be swept away later. */
       fontFamily: {
-        head: ['Manrope', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        head: ['Sora', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Sora', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
-      /* Keep the key list in sync with FONT_SIZES in src/lib/cn.ts — tailwind-merge has to
+      /* Six steps, nothing between them, nothing below 12. Tracking is baked into the
+       * tuple rather than declared as a letterSpacing scale, so a size and its tracking can
+       * never drift apart. 15 is the note title on the wall; 22 the panel title; 40 display.
+       *
+       * Keep the key list in sync with FONT_SIZES in src/lib/cn.ts — tailwind-merge has to
        * be told about every one of them or it treats the class as a text *colour*. */
       fontSize: {
-        11: ['11px', { lineHeight: '1.3', letterSpacing: '0.01em' }],
         12: ['12px', { lineHeight: '1.35' }],
-        13: ['13px', { lineHeight: '1.4' }],
-        14: ['14px', { lineHeight: '1.45' }],
-        15: ['15px', { lineHeight: '1.35' }],
-        18: ['18px', { lineHeight: '1.3', letterSpacing: '-0.011em' }],
-        22: ['22px', { lineHeight: '1.22', letterSpacing: '-0.018em' }],
-        26: ['26px', { lineHeight: '1.18', letterSpacing: '-0.022em' }],
-        32: ['32px', { lineHeight: '1.12', letterSpacing: '-0.026em' }],
-        40: ['40px', { lineHeight: '1.05', letterSpacing: '-0.032em' }],
+        14: ['14px', { lineHeight: '1.55' }],
+        15: ['15px', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
+        22: ['22px', { lineHeight: '1.22', letterSpacing: '-0.03em' }],
+        32: ['32px', { lineHeight: '1.12', letterSpacing: '-0.036em' }],
+        40: ['40px', { lineHeight: '1.05', letterSpacing: '-0.045em' }],
       },
       colors: {
         background: 'var(--background)',
@@ -63,18 +67,14 @@ export default {
           3: 'var(--fg-3)',
           muted: 'var(--fg-muted)',
           faint: 'var(--fg-faint)',
+          disabled: 'var(--fg-disabled)',
+          'meta-on-note': 'var(--fg-meta-on-note)',
         },
         status: {
           success: 'var(--status-success)',
-          'success-bold': 'var(--status-success-bold)',
           warning: 'var(--status-warning)',
-          'warning-bold': 'var(--status-warning-bold)',
           danger: 'var(--status-danger)',
-          'danger-bold': 'var(--status-danger-bold)',
-          info: 'var(--status-info)',
-          'info-bold': 'var(--status-info-bold)',
           neutral: 'var(--status-neutral)',
-          'neutral-bold': 'var(--status-neutral-bold)',
         },
         /* Note colours deliberately have no entry here. Every consumer reads the CSS
            variable directly (`bg-[color:var(--note-…)]`, see util/noteDerived.ts), so a
@@ -88,13 +88,14 @@ export default {
         xl: '12px',
         '2xl': '16px',
       },
-      /* Elevation is tinted with the petrol brand hue rather than neutral black, so cards
-       * read as sitting on the iceblue canvas instead of on a grey sheet. */
+      /* Elevation is tinted with slate rather than neutral black, so cards read as sitting
+       * on the linen wall instead of on a grey sheet. `pin` is the resting note shadow —
+       * shallow, because a note is paper pinned flat, not a floating card. */
       boxShadow: {
-        e1: '0 1px 2px rgba(2, 71, 79, 0.06), 0 1px 1px rgba(2, 71, 79, 0.04)',
-        e2: '0 8px 24px rgba(2, 71, 79, 0.12)',
-        e3: '0 18px 40px -8px rgba(2, 71, 79, 0.22), 0 4px 10px rgba(2, 71, 79, 0.08)',
-        pin: '0 2px 4px rgba(2, 71, 79, 0.08), 0 8px 18px -10px rgba(2, 71, 79, 0.28)',
+        e1: '0 1px 2px rgba(34, 48, 63, 0.06), 0 1px 1px rgba(34, 48, 63, 0.04)',
+        e2: '0 8px 24px rgba(34, 48, 63, 0.12)',
+        e3: '0 18px 40px -8px rgba(34, 48, 63, 0.22), 0 4px 10px rgba(34, 48, 63, 0.08)',
+        pin: '0 2px 4px rgba(34, 48, 63, 0.08), 0 8px 18px -10px rgba(34, 48, 63, 0.28)',
       },
       transitionDuration: {
         120: '120ms',

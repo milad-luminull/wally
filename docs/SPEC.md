@@ -100,7 +100,7 @@ The board can be filtered by a property, either by key alone (every note carryin
 key and value.
 
 This replaces an earlier fixed "reference" field that offered only Client / Contract / Claim.
-That design assumed an integration with the surrounding Finlex platform which does not
+That design assumed an integration with a surrounding host platform which does not
 exist; in practice it was a single free-text field with a suggestion list, and it could not
 record anything outside those three categories.
 
@@ -216,14 +216,14 @@ property keys — is shown as entered, in whatever language it was written.
 
 ---
 
-## 13. Platform Integration
+## 13. Identity
 
-The application should integrate with the existing Finlex platform where relevant, including:
+Wally is a standalone application. It does not integrate with, and is not part of, any other
+product.
 
-- Users
-- Authentication and permissions
-
-The exact integration mechanism is outside the scope of these requirements.
+Users and authentication come from Firebase Authentication (email/password and Google), and
+permissions are Wally's own: a whiteboard role per member, enforced by the API. There is no
+external directory to synchronise against and no single sign-on requirement.
 
 ---
 

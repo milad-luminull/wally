@@ -4,14 +4,15 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/cn';
 
 /**
- * `accent` (apricot) is reserved for the app's sanctioned functional spots only — the
- * add-note button, "Teilen"/"Kopieren"/"Einladen" primary actions, per the design
- * system's "apricot is functional, not decorative" rule. Don't reach for it as a
- * general-purpose "primary" button; use `default` (petrol) for that.
+ * `accent` is dusty blue, and the brand guideline allows at most ONE of it per screen: it is
+ * that screen's single primary action. Today that is the add-note button on the board and the
+ * invite button in the share sheet. Don't reach for it as a general-purpose "primary" button
+ * — use `default` (slate) for that, which is what the guideline means by "Slate: text, mark,
+ * primary button". See docs/BRAND.md.
  */
 const buttonVariants = cva(
   [
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-13 font-medium',
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-14 font-medium',
     'transition-[background-color,color,border-color,box-shadow,transform] duration-150 ease-ds',
     /* Tactile press: the control gives under the finger and springs back. */
     'active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100',
@@ -23,18 +24,16 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-e1 hover:bg-[color:var(--petrol-mid)] hover:shadow-e2',
-        /* Resting fill is --apricot-dark, not --apricot: the white glyph on plain apricot
-           measures 2.77:1, under the 3:1 SC 1.4.11 requires for an icon that carries the
-           button's meaning. --apricot-dark takes it to 3.40:1; --apricot-deep is the hover. */
+          'bg-primary text-primary-foreground shadow-e1 hover:bg-[color:var(--slate-hover)] hover:shadow-e2',
+        /* White on dusty blue measures 5.08:1 — the 5.1:1 the guideline quotes, and well
+           clear of the 3:1 SC 1.4.11 asks of an icon that carries the button's meaning. */
         accent:
-          'bg-[color:var(--apricot-dark)] text-accent-foreground shadow-e1 hover:bg-[color:var(--apricot-deep)] hover:shadow-e2',
+          'bg-[color:var(--blue)] text-accent-foreground shadow-e1 hover:bg-[color:var(--blue-hover)] hover:shadow-e2',
         outline:
           'border border-border bg-card text-fg-1 hover:border-border-strong hover:bg-secondary',
         ghost: 'text-fg-muted hover:bg-inset hover:text-fg-1',
         link: 'text-fg-muted underline-offset-4 hover:text-fg-1 hover:underline p-0 h-auto active:scale-100',
-        destructive:
-          'text-status-danger hover:bg-[rgba(196,43,43,0.08)] hover:text-[color:var(--status-danger-bold)]',
+        destructive: 'text-status-danger hover:bg-[rgba(146,29,23,0.08)]',
       },
       size: {
         default: 'h-9 px-4 [@media(pointer:coarse)]:h-11',

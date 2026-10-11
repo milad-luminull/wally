@@ -44,13 +44,13 @@ describe('invite security', () => {
   it('leaves an invite pending when the only user record for that address is unverified', async () => {
     // The attacker signs up claiming the victim's address without confirming it, and makes
     // one request so their user record exists before the invite is ever sent.
-    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@example.com', null, false);
     await authenticate(attackerToken);
 
-    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@example.com');
     await authenticate(ownerToken);
 
-    const res = await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+    const res = await inviteFromOwner(ownerToken, 'victim@example.com', 'EDIT');
 
     expect(res.statusCode).toBe(200);
     // Linking the invite to that record would hand the attacker the role the owner meant
@@ -63,11 +63,11 @@ describe('invite security', () => {
   });
 
   it('404s the unverified claimant on the board they were never really invited to', async () => {
-    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@example.com', null, false);
     await authenticate(attackerToken);
-    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@example.com');
     await authenticate(ownerToken);
-    await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+    await inviteFromOwner(ownerToken, 'victim@example.com', 'EDIT');
 
     const res = await ctx.app.inject({
       method: 'GET',
@@ -81,14 +81,14 @@ describe('invite security', () => {
   });
 
   it('activates the invite for the verified owner of the address, not the squatter', async () => {
-    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@finlex.de', null, false);
+    const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@example.com', null, false);
     await authenticate(attackerToken);
-    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@example.com');
     await authenticate(ownerToken);
-    await inviteFromOwner(ownerToken, 'victim@finlex.de', 'EDIT');
+    await inviteFromOwner(ownerToken, 'victim@example.com', 'EDIT');
 
     // A different uid now authenticates with the same address, verified this time.
-    const victimToken = registerTestUser(ctx, 'sec-victim', 'victim@finlex.de');
+    const victimToken = registerTestUser(ctx, 'sec-victim', 'victim@example.com');
     await authenticate(victimToken);
 
     const members = docsWithId(await membersCol(ctx.db, 'sec-owner').get());
@@ -102,16 +102,16 @@ describe('invite security', () => {
 
   it('activates a pending invite on the request where the caller first appears verified', async () => {
     // Same uid throughout: the record is created unverified, then the address is confirmed.
-    const token = registerTestUser(ctx, 'sec-late', 'late@finlex.de', null, false);
+    const token = registerTestUser(ctx, 'sec-late', 'late@example.com', null, false);
     await authenticate(token);
 
-    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@example.com');
     await authenticate(ownerToken);
-    await inviteFromOwner(ownerToken, 'late@finlex.de', 'VIEW');
+    await inviteFromOwner(ownerToken, 'late@example.com', 'VIEW');
 
     ctx.tokens.set(token, {
       uid: 'sec-late',
-      email: 'late@finlex.de',
+      email: 'late@example.com',
       emailVerified: true,
       name: null,
     });
@@ -124,7 +124,7 @@ describe('invite security', () => {
   });
 
   it('stops rewriting the user record once the caller is in steady state', async () => {
-    const token = registerTestUser(ctx, 'sec-steady', 'steady@finlex.de');
+    const token = registerTestUser(ctx, 'sec-steady', 'steady@example.com');
     await authenticate(token);
     const first = withId(await ctx.db.collection('users').doc('sec-steady').get());
 

@@ -51,7 +51,7 @@ describe('membership integrity', () => {
     withId(await whiteboardsCol(ctx.db).doc(boardId).get())?.memberRoles;
 
   it('produces a single membership when an invited user redeems a share link before verifying', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
 
     // 1. Invited by address, before she has any account at all -> a PENDING row.
@@ -59,11 +59,11 @@ describe('membership integrity', () => {
       method: 'POST',
       url: '/whiteboards/mi-owner/members/invite',
       headers: ctx.authHeader(ownerToken),
-      payload: { email: 'alice@finlex.de', role: 'EDIT' },
+      payload: { email: 'alice@example.com', role: 'EDIT' },
     });
 
     // 2. She signs up but has not confirmed the address, so the invite stays PENDING.
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de', null, false);
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com', null, false);
     await authenticate(aliceToken);
 
     // 3. She redeems a VIEW share link. Matching only on userId could not see the row keyed
@@ -78,7 +78,7 @@ describe('membership integrity', () => {
     // 4. She confirms the address; the pending invite is now claimable.
     ctx.tokens.set(aliceToken, {
       uid: 'mi-alice',
-      email: 'alice@finlex.de',
+      email: 'alice@example.com',
       emailVerified: true,
       name: null,
     });
@@ -92,9 +92,9 @@ describe('membership integrity', () => {
   });
 
   it('lists a board once even when the caller holds two active membership rows', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de');
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
     await authenticate(aliceToken);
 
     await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'VIEW');
@@ -115,9 +115,9 @@ describe('membership integrity', () => {
   });
 
   it('keeps access when one of two membership rows is removed', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de');
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
     await authenticate(aliceToken);
 
     const viewRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'VIEW');
@@ -147,9 +147,9 @@ describe('membership integrity', () => {
   });
 
   it('removes access when the last membership row is removed', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de');
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
     await authenticate(aliceToken);
 
     const onlyRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'EDIT');
@@ -169,9 +169,9 @@ describe('membership integrity', () => {
   });
 
   it('leaves note assignments alone while a surviving membership row still grants access', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de');
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
     await authenticate(aliceToken);
 
     const viewRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'VIEW');
@@ -208,9 +208,9 @@ describe('membership integrity', () => {
   });
 
   it('unassigns the member notes once their last row is gone', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
-    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@finlex.de');
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
     await authenticate(aliceToken);
 
     const onlyRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'EDIT');
@@ -240,14 +240,14 @@ describe('membership integrity', () => {
   });
 
   it('does not promote a pending membership into the role cache when its role is edited', async () => {
-    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
 
     // A PENDING row that happens to carry a userId — the shape a partially-linked invite
     // leaves behind.
     const pendingRow = await createTestMembership(ctx.db, 'mi-owner', {
       userId: 'mi-alice',
-      invitedEmail: 'alice@finlex.de',
+      invitedEmail: 'alice@example.com',
       role: 'VIEW',
       status: 'PENDING',
     });

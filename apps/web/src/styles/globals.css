@@ -3,153 +3,176 @@
 @tailwind utilities;
 
 /**
- * Finlex Platform design tokens — hex values transcribed 1:1 from the design system's
- * §4.1 token table (window.T in the source design system; not directly importable here,
- * so re-declared as CSS custom properties). Two additions beyond that table, both
- * judgment calls flagged in the build report:
- *   --note-eis: the "Eisblau" note-colour swatch reuses the Brand-layer iceblue primary
- *     (#C6DDDD) since Platform's own token table has no separate "ice" swatch — it's the
- *     same value the reference mockup used for that swatch.
- *   --status-neutral-bold: the design system documents five *named* status hues but
- *     doesn't give neutral/grey explicit hex steps the way it does success/warning/
- *     danger/info; borderStrong (#D3D9D9) is reused here as the neutral "bold" dot colour
- *     since it already serves as the system's structural grey.
- *   --apricot-deep: a step below --apricot-dark, needed once --apricot-dark became the
- *     resting fill of the accent button (see below) and the old resting value was no
- *     longer available as its hover. Derived by the same lightness step the table uses
- *     between --apricot and --apricot-dark.
+ * Sora, self-hosted. Two files, not eight: Google ships Sora as a VARIABLE font, so every
+ * weight we use lives in one woff2 per subset and the `font-weight` range below unlocks
+ * them all. Self-hosted rather than linked from fonts.googleapis.com so the app makes no
+ * third-party request at all (see docs/GDPR.md). Licence: SIL OFL 1.1, public/fonts/OFL.txt.
+ */
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/sora-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/sora-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/**
+ * Wally brand tokens — "wally - branding.pdf" v1. See docs/BRAND.md for the rules these
+ * values serve; the short version is that blue does exactly three jobs (the pin in the mark,
+ * the one primary action on a screen, the selection state) and everything else is slate,
+ * linen, chalk, taupe and sand.
+ *
+ * Three values are derived rather than transcribed, each because a rule in the guideline
+ * collides with a contrast floor. All three are flagged where they are declared:
+ *   --fg-meta-on-note, and the three --status-* hues.
  */
 :root {
   /* Brand anchors */
-  --petrol: #02474f;
-  --petrol-dark: #013138;
-  --petrol-mid: #036470;
-  --petrol-edge: #05555f;
-  --apricot: #fd6f52;
-  --apricot-dark: #e8603f;
-  --apricot-deep: #d4542f;
-  --iceblue: #c6dddd;
+  --slate: #22303f;
+  --slate-hover: #2e4053;
+  --blue: #4f7196;
+  --blue-hover: #446283;
+  --linen: #ede8df;
+  --chalk: #ffffff;
+  --taupe: #5f5a50;
+  --sand: #d8d0c3;
 
-  /* Surfaces & borders */
-  --canvas: #e9eeee;
-  --surface: #f5f8f8;
-  --surface-alt: #fbfcfc;
-  --white: #ffffff;
-  --inset: #edf2f2;
-  --inset-hover: #f7fafa;
-  --border: #e1e7e7;
-  --border-subtle: #eef2f2;
-  --border-strong: #d3d9d9;
-  --border-input: #dde4e4;
+  /* Surfaces & borders. The wall is linen; notes and panels are chalk; sand is every
+   * hairline. --inset is the one derived surface: a linen a shade deeper than the wall,
+   * for recessed wells (zone bands, search field, skeletons). */
+  --canvas: var(--linen);
+  --surface: var(--chalk);
+  --surface-alt: #f6f3ed;
+  --white: var(--chalk);
+  --inset: #e4ded3;
+  --inset-hover: #eae5db;
+  --border: var(--sand);
+  --border-subtle: #e6e0d5;
+  --border-strong: #c9c0b1;
+  --border-input: var(--sand);
 
-  /* Text ramp.
-   * --fg-3 is carried for parity with the design system's table, but it is NOT a text
-   * colour here: against --inset (the lightest surface it ever backs onto) it measures
-   * 3.75:1, and every place it was used — band counts, the board subtitle, history rows,
-   * tag chips — is 11-12px, so the 3:1 large-text allowance never applies. Those all use
-   * --fg-muted (4.9:1) instead. Reach for --fg-3 only for non-text marks. */
-  --fg-1: #02474f;
-  --fg-2: #42585b;
-  --fg-3: #6d7e81;
-  --fg-muted: #5a6b6e;
-  --fg-faint: #8a9e9e;
-  --faint: #b7c4c4;
+  /* Text ramp. Slate for reading, taupe for meta — the guideline names only those two, so
+   * the intermediate steps are interpolations of them and nothing else.
+   * Measured on linen: slate 11.0:1, --fg-2 8.0:1, taupe 5.6:1. */
+  --fg-1: var(--slate);
+  --fg-2: #3f4a56;
+  --fg-3: var(--taupe);
+  --fg-muted: var(--taupe);
+  --fg-faint: #8b867c;
+  --faint: #a9a396;
+  /* "Use Sand for disabled, Taupe for secondary." */
+  --fg-disabled: var(--sand);
 
-  /* Status tones — text / bold(solid-fill) pairs */
-  --status-success: #0b6b4c;
-  --status-success-bold: #128054;
-  --status-warning: #8a5215;
-  --status-warning-bold: #e09b2d;
-  --status-danger: #b32222;
-  --status-danger-bold: #c42b2b;
-  --status-info: #2160b0;
-  --status-info-bold: #2a6fc4;
-  --status-neutral: #6d7e81;
-  --status-neutral-bold: #d3d9d9;
-  --on-status-warning: var(--petrol);
-  /* White, not petrol: petrol on the success fill measures 2.1:1, white 4.95:1. */
-  --on-status-success: var(--white);
+  /* Meta text sitting ON a note, rather than on linen or chalk.
+   *
+   * DERIVED, and the reason is worth keeping: taupe clears 4.5:1 on most note fills but not
+   * all — it measures 3.73:1 on Clay and 4.14:1 on Heather, two of the guideline's own seven.
+   * Rather than ship a knowingly-failing pair, meta on a coloured note uses this one step
+   * darker, which measures >= 4.54:1 on all fourteen fills (worst case Malve). Body text is
+   * slate everywhere and never needed the help: its worst case is 6.95:1. */
+  --fg-meta-on-note: #4f4a41;
 
-  /* Note-colour swatches (14 — Apricot intentionally excluded, functional-only). The first
-   * four alias existing design tokens; the rest are literal, since the DS has no token for
-   * those hues. All read ≥1.8:1 against white, enough for a 24px dot with a border. */
-  --note-eis: var(--iceblue);
-  --note-sand: var(--status-warning-bold);
-  --note-minze: var(--status-success-bold);
-  --note-himmel: var(--status-info-bold);
-  --note-nebel: #b9b1a4;
-  --note-butter: #d9c14e;
-  --note-lehm: #cf9277;
-  --note-rose: #d98a97;
-  --note-malve: #b98bb4;
-  --note-flieder: #8e8ccb;
-  --note-seegruen: #3f9e97;
-  --note-salbei: #7fa870;
-  --note-oliv: #9aab4e;
+  /* Status — text only, in the due-date line and nowhere else. No badges, no tinted rows.
+   *
+   * DERIVED lightness. The guideline gives Overdue #B3261E, Today #8A5A00, Done #1E7A4E, and
+   * separately says a coloured note is filled edge to edge. Those two rules collide: the due
+   * line sits on the note fill, where the published hues measure 3.56:1, 3.23:1 and 2.90:1
+   * on Clay — they only clear AA on a white chalk note. These are the same three hues,
+   * darkened in linear-light space (hue and chroma preserved) until the worst case across
+   * all fourteen fills clears 4.5:1. Measured: >= 4.50:1 on Malve, 8.7:1 on chalk. */
+  --status-danger: #921d17;
+  --status-warning: #684300;
+  --status-success: #125636;
+  --status-neutral: var(--taupe);
 
   /* shadcn-style contract — plain hex, see tailwind.config.ts header comment */
   --background: var(--canvas);
   --foreground: var(--fg-1);
-  --card: var(--white);
+  --card: var(--chalk);
   --card-foreground: var(--fg-1);
-  --popover: var(--white);
+  --popover: var(--chalk);
   --popover-foreground: var(--fg-1);
-  --primary: var(--petrol);
-  --primary-foreground: var(--white);
-  --secondary: var(--surface);
+  --primary: var(--slate);
+  --primary-foreground: var(--chalk);
+  --secondary: var(--surface-alt);
   --secondary-foreground: var(--fg-1);
   --muted: var(--inset);
   --muted-foreground: var(--fg-muted);
-  --accent: var(--apricot);
-  --accent-foreground: var(--white);
-  --destructive: var(--status-danger-bold);
-  --destructive-foreground: var(--white);
-  --ring: var(--apricot-dark);
-  /* Focus ring at the design system's documented alpha (0 0 0 3px accent at 22%
-   * alpha — see the mockup's own `rgba(232,96,63,0.22)` focus-visible rule and DS §4.4).
-   * Tailwind's `/NN` opacity-modifier syntax can't apply to a plain `var(--x)` hex colour
-   * (it needs a `<alpha-value>` placeholder inside an rgb()/hsl() function), so every
-   * focus ring references this pre-blended value directly via `ring-[color:var(--ring-alpha)]`
-   * instead of `ring-ring/40` (which would silently produce no ring at all). */
-  --ring-alpha: rgba(232, 96, 63, 0.22);
+  /* Blue. One CTA per screen, plus the pin and the selection state — nothing else.
+   * White on blue measures 5.08:1, which is the 5.1:1 the guideline quotes. */
+  --accent: var(--blue);
+  --accent-foreground: var(--chalk);
+  /* The one filled red in the product: the confirm button of a delete dialog. A destructive
+   * ACTION is not a status, so this sits outside the "status colour is text only" rule — but
+   * it uses the same red, so there is still only one red on screen. White on it measures
+   * 8.7:1, and 10.6:1 on the hover step. */
+  --destructive: var(--status-danger);
+  --destructive-hover: #7b1812;
+  --destructive-foreground: var(--chalk);
+  --ring: var(--blue);
+  /* Focus ring, pre-blended. Tailwind's `/NN` opacity modifier can't apply to a plain
+   * var() hex (it needs an <alpha-value> placeholder inside rgb()/hsl()), so every focus
+   * ring references this value via `ring-[color:var(--ring-alpha)]` rather than
+   * `ring-ring/40`, which would silently produce no ring at all. Blue at 22%. */
+  --ring-alpha: rgba(79, 113, 150, 0.22);
   --input: var(--border-input);
   --radius: 10px;
+  /* Overlay scrim. Slate, not black — the same tint as the elevation shadows. */
+  --scrim: rgba(34, 48, 63, 0.28);
 
-  /* Board surface. The canvas is a physical pinboard, not a blank page: a faint petrol
-   * dot-grid gives the eye a sense of plane and scale, and the zone bands sit on it as
-   * recessed panels. Both are derived from existing brand tokens, no new hues. */
-  --board-dot: rgba(2, 71, 79, 0.07);
+  /* The wall. Linen carries a faint slate dot-grid so the eye has a sense of plane and
+   * scale; the zone bands sit on it as recessed panels. The drop-target wash is slate, not
+   * blue: a drag target is not the screen's one primary action. */
+  --board-dot: rgba(34, 48, 63, 0.06);
   --board-grid-size: 22px;
   --zone-surface: rgba(255, 255, 255, 0.5);
-  --zone-surface-over: rgba(253, 111, 82, 0.07);
+  --zone-surface-over: rgba(34, 48, 63, 0.06);
 
-  /* Selected filter chips are tinted rather than solid-filled — a solid petrol pill read
-   * as a primary action sitting in the middle of a filter row. */
-  --chip-on: rgba(2, 71, 79, 0.08);
-  --chip-on-border: rgba(2, 71, 79, 0.22);
+  /* Selected filter chips are tinted rather than solid-filled — a solid blue pill would
+   * spend the screen's one blue on a filter row. */
+  --chip-on: rgba(34, 48, 63, 0.08);
+  --chip-on-border: rgba(34, 48, 63, 0.22);
 
-  /* Note-colour card fills. The swatch tokens above are saturated accent values meant for
-   * dots and spines; filling a card with them would wreck text contrast. These are the
-   * paper-weight tints of the same hues. Measured against the text ramp they carry
-   * 9.4:1–10.4:1 for --fg-1 (AAA) and 5.0:1–5.6:1 for --fg-muted (AA); --fg-3 lands at
-   * ~3.9:1, so it is not used for text on a note card — see dueToneClass.
+  /* Note fills. Seven are the guideline's palette transcribed 1:1; the other seven are
+   * derived into the same linen-dyed band so that all fourteen persisted values survive
+   * (nothing migrates in Firestore) and every name finally matches its hue — SAND used to
+   * be orange, MINZE dark green, HIMMEL a strong blue, because four of them aliased status
+   * tokens.
    *
-   * Any tint added here must stay inside that band — a card is a text surface first and a
-   * colour second. Keep them desaturated enough to read as tinted paper. */
-  --note-tint-weiss: #ffffff;
-  --note-tint-eis: #f1f8f8;
-  --note-tint-sand: #fdf6ea;
-  --note-tint-minze: #eef7f2;
-  --note-tint-himmel: #eff4fc;
-  --note-tint-nebel: #f7f4ef;
-  --note-tint-butter: #faf6e2;
-  --note-tint-lehm: #fdf2ec;
-  --note-tint-rose: #fdf2f4;
-  --note-tint-malve: #faf2f9;
-  --note-tint-flieder: #f5f3fd;
-  --note-tint-seegruen: #eaf7f5;
-  --note-tint-salbei: #eff6ea;
-  --note-tint-oliv: #f4f7e6;
+   * A note is filled edge to edge, like paper: ONE token per colour, used for the card, the
+   * list row and the picker dot alike. There is no separate swatch/tint pair any more.
+   *
+   * Contrast floor for anything added here: slate >= 5:1 and --fg-meta-on-note >= 4.5:1.
+   * Measured worst cases today are 6.95:1 and 4.54:1, both on Malve. Blue is deliberately
+   * absent — a blue note would read as selected. */
+  --note-weiss: var(--chalk); /* Chalk    — guideline */
+  --note-sand: #d8d0c3; /* Stone    — guideline */
+  --note-butter: #e3d5b8; /* Oat      — guideline */
+  --note-lehm: #d9b9a6; /* Clay     — guideline */
+  --note-nebel: #c5d3df; /* Mist     — guideline */
+  --note-salbei: #c9d2c4; /* Sage     — guideline */
+  --note-flieder: #cfc6d6; /* Heather  — guideline */
+  --note-eis: #d5dee3; /* derived */
+  --note-himmel: #bdcede; /* derived */
+  --note-minze: #c9dbd3; /* derived */
+  --note-seegruen: #b6c9c2; /* derived */
+  --note-oliv: #cbccaf; /* derived */
+  --note-rose: #e1c4c8; /* derived */
+  --note-malve: #c4b6c6; /* derived */
 }
 
 .board-surface {
@@ -166,17 +189,10 @@ body {
 }
 
 body {
-  font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Sora', ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-}
-
-h1,
-h2,
-h3,
-.font-head {
-  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Headings and short prose both suffer from orphans at these narrow measures. */

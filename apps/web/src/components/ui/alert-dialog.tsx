@@ -14,7 +14,7 @@ export const AlertDialogOverlay = React.forwardRef<
   <AlertDialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-overlay bg-[rgba(2,71,79,0.28)] backdrop-blur-[2px]',
+      'fixed inset-0 z-overlay bg-[color:var(--scrim)] backdrop-blur-[2px]',
       'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
       className,
     )}
@@ -52,7 +52,7 @@ export const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn('font-head text-18 font-semibold text-fg-1', className)}
+    className={cn('font-head text-22 font-semibold text-fg-1', className)}
     {...props}
   />
 ));
@@ -64,7 +64,7 @@ export const AlertDialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Description
     ref={ref}
-    className={cn('text-13 text-fg-muted', className)}
+    className={cn('text-14 text-fg-muted', className)}
     {...props}
   />
 ));
@@ -95,7 +95,7 @@ export const AlertDialogCancel = React.forwardRef<
   <AlertDialogPrimitive.Cancel
     ref={ref}
     className={cn(
-      'inline-flex h-9 items-center justify-center rounded-md border border-border bg-card px-4 text-13 font-medium text-fg-1 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+      'inline-flex h-9 items-center justify-center rounded-md border border-border bg-card px-4 text-14 font-medium text-fg-1 transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
       className,
     )}
     {...props}

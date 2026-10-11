@@ -42,9 +42,9 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
               <AvatarFallback>{initialsOf(name)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-13 font-medium text-fg-1">{name}</div>
+              <div className="truncate text-14 font-medium text-fg-1">{name}</div>
               {member.status === 'PENDING' && (
-                <div className="text-11 text-fg-muted">{t('share.members.pending')}</div>
+                <div className="text-12 text-fg-muted">{t('share.members.pending')}</div>
               )}
             </div>
             {isOwner && !isBoardOwner ? (

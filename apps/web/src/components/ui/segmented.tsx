@@ -49,7 +49,7 @@ export function Segmented<T extends string>({
             title={option.hint}
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative rounded-[7px] px-3 py-1.5 text-13 font-medium',
+              'relative rounded-[7px] px-3 py-1.5 text-14 font-medium',
               'transition-[background-color,color,box-shadow] duration-150 ease-ds',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
               selected

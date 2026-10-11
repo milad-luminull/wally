@@ -10,7 +10,7 @@ test('inviting a colleague and copying the share link', async ({ page, context }
   await page.getByRole('button', { name: 'Teilen' }).click();
   await expect(page.getByText('Wand teilen')).toBeVisible();
 
-  const email = `e2e-invite-${Date.now()}@finlex.de`;
+  const email = `e2e-invite-${Date.now()}@example.com`;
   await page.getByLabel('E-Mail-Adresse einladen').fill(email);
   await page.getByRole('button', { name: 'Einladen' }).click();
 

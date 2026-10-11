@@ -20,7 +20,7 @@ export const Checkbox = React.forwardRef<
       '[@media(pointer:coarse)]:after:-inset-[9px]',
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
       'disabled:cursor-not-allowed disabled:opacity-55',
-      'data-[state=checked]:border-[color:var(--status-success-bold)] data-[state=checked]:bg-[color:var(--status-success-bold)]',
+      'data-[state=checked]:border-primary data-[state=checked]:bg-primary',
       className,
     )}
     {...props}

@@ -29,14 +29,19 @@ export const noteHorizonValues = ['HEUTE', 'DIESE_WOCHE', 'SPAETER'] as const;
 export const noteHorizonSchema = z.enum(noteHorizonValues);
 export type NoteHorizon = z.infer<typeof noteHorizonSchema>;
 
-// Apricot is intentionally excluded — Finlex's design system reserves apricot for
-// functional accents only (primary CTA, active-state, focus ring), never decoration.
+// Dusty blue is intentionally excluded — the brand guideline reserves it for functional use
+// only (the pin in the mark, one CTA per screen, the selection state), and separately notes
+// that a blue note would read as selected. See docs/BRAND.md.
 //
 // Order is append-only: the original five come first so no persisted value shifts meaning.
+// These fourteen names predate the brand guideline, which specifies seven; seven of the
+// entries below now carry a guideline colour exactly and seven are derived into the same
+// linen-dyed family, so nothing here had to be renamed or migrated in Firestore.
+//
 // Every entry needs an enums.colour.* label in BOTH message catalogues (see
-// apps/web/src/i18n/), an entry in enumLabels.ts, a --note-* swatch and a --note-tint-* card tint
-// (see apps/web/src/styles/globals.css, where the tints' contrast floors are documented),
-// and an entry in each of the four maps in apps/web/.../util/noteDerived.ts.
+// apps/web/src/i18n/), an entry in enumLabels.ts, a --note-* fill (see
+// apps/web/src/styles/globals.css, where the contrast floors are documented), and an entry
+// in noteColourFillClass in apps/web/.../util/noteDerived.ts.
 export const noteColourValues = [
   'WEISS',
   'EIS',

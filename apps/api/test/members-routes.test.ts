@@ -28,7 +28,7 @@ describe('member/invite routes (owner-only)', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.ownerToken),
-        payload: { email: 'new-invitee@finlex.de', role: 'VIEW' },
+        payload: { email: 'new-invitee@example.com', role: 'VIEW' },
       });
       expect(ok.statusCode).toBe(200);
       expect(ok.json().status).toBe('PENDING');
@@ -37,7 +37,7 @@ describe('member/invite routes (owner-only)', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.editToken),
-        payload: { email: 'another@finlex.de', role: 'VIEW' },
+        payload: { email: 'another@example.com', role: 'VIEW' },
       });
       expect(forbiddenEdit.statusCode).toBe(403);
 
@@ -45,7 +45,7 @@ describe('member/invite routes (owner-only)', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.viewToken),
-        payload: { email: 'another@finlex.de', role: 'VIEW' },
+        payload: { email: 'another@example.com', role: 'VIEW' },
       });
       expect(forbiddenView.statusCode).toBe(403);
 
@@ -53,7 +53,7 @@ describe('member/invite routes (owner-only)', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.outsiderToken),
-        payload: { email: 'another@finlex.de', role: 'VIEW' },
+        payload: { email: 'another@example.com', role: 'VIEW' },
       });
       expect(notFound.statusCode).toBe(404);
     });

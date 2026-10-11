@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { noteColourValues, type NoteColour } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
-import { noteColourSwatchClass } from '../util/noteDerived';
+import { noteColourFillClass } from '../util/noteDerived';
 import { FieldLabel } from './Field';
 
 interface ColorSwatchPickerProps {
@@ -13,9 +13,10 @@ interface ColorSwatchPickerProps {
 
 /**
  * Renders whatever packages/shared's noteColourValues defines — currently 14, laid out as
- * two rows of seven. Apricot is not among them: Finlex's design system reserves apricot for
- * functional accents only (primary CTA, active state, focus ring), never a decorative
- * note-colour choice, so there is no "Apricot" option here, unlike the reference mockup.
+ * two rows of seven. Dusty blue is not among them, for two reasons the guideline gives:
+ * blue is functional only (the pin, one CTA, selection), and a blue note would read as
+ * selected. The dot shows the note's actual fill, because there is only one value per
+ * colour now — what you pick is literally what the note becomes.
  */
 export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPickerProps) {
   const { t } = useTranslation();
@@ -38,8 +39,10 @@ export function ColorSwatchPicker({ value, onChange, disabled }: ColorSwatchPick
               /* 24px, not 22: these are the target, so they carry their own SC 2.5.8 floor. */
               'h-6 w-6 rounded-full border transition-shadow duration-150 disabled:cursor-not-allowed disabled:opacity-55',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-              noteColourSwatchClass[colour],
-              value === colour ? 'border-primary ring-2 ring-white ring-inset' : 'border-border',
+              noteColourFillClass[colour],
+              value === colour
+                ? 'border-[color:var(--slate)] ring-2 ring-white ring-inset'
+                : 'border-border',
             )}
           />
         ))}

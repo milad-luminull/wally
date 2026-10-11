@@ -94,8 +94,8 @@ export function ListView({
           <span className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-inset text-fg-faint">
             <StickyNote className="h-5 w-5" strokeWidth={1.7} />
           </span>
-          <p className="font-head text-18 font-semibold text-fg-1">{t(keys.title)}</p>
-          <p className="text-13 text-fg-muted">{t(keys.body)}</p>
+          <p className="font-head text-22 font-semibold text-fg-1">{t(keys.title)}</p>
+          <p className="text-14 text-fg-muted">{t(keys.body)}</p>
         </div>
       </div>
     );
@@ -130,10 +130,10 @@ export function ListView({
             className="overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-e1"
           >
             <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-alt px-4 py-2.5">
-              <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">
+              <h2 className="text-12 font-bold uppercase tracking-[0.09em] text-fg-muted">
                 {group.label}
               </h2>
-              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-11 font-semibold tabular-nums text-fg-muted">
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-12 font-semibold tabular-nums text-fg-muted">
                 {group.notes.length}
               </span>
             </header>

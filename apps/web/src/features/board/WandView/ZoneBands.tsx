@@ -53,10 +53,10 @@ function ZoneBand({
       )}
     >
       <header className="flex shrink-0 items-center gap-2 px-4 pb-2 pt-3.5">
-        <h2 className="text-11 font-bold uppercase tracking-[0.09em] text-fg-muted">
+        <h2 className="text-12 font-bold uppercase tracking-[0.09em] text-fg-muted">
           {group.label}
         </h2>
-        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-11 font-semibold tabular-nums text-fg-muted">
+        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-inset px-1.5 text-12 font-semibold tabular-nums text-fg-muted">
           {group.notes.length}
         </span>
         <span className="flex-1" />
@@ -108,7 +108,7 @@ function ZoneBand({
             )}
           >
             <p className="text-12 font-medium text-fg-2">{t('board.zone.empty')}</p>
-            {canEdit && <p className="text-11 text-fg-muted">{t('board.zone.emptyHint')}</p>}
+            {canEdit && <p className="text-12 text-fg-muted">{t('board.zone.emptyHint')}</p>}
           </div>
         )}
       </div>

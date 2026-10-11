@@ -37,7 +37,7 @@ function Probe() {
   );
 }
 
-const PROFILE: MeDto = { id: 'u1', email: 'max@finlex.de', displayName: 'Max', language: 'de' };
+const PROFILE: MeDto = { id: 'u1', email: 'max@example.com', displayName: 'Max', language: 'de' };
 
 /**
  * The fake is stateful because the real endpoint is: PATCH /me persists, so the refetch that
@@ -90,7 +90,7 @@ describe('LanguageProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('en'));
     expect(document.documentElement.lang).toBe('en');
-    expect(document.title).toBe('Wally — My Board');
+    expect(document.title).toBe('Wally — my board');
     // Mirrored back, so the next cold start opens in the right language with no flash.
     expect(window.localStorage.getItem('wally.language')).toBe('en');
   });

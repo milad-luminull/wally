@@ -128,7 +128,7 @@ export function SignInForm() {
       </div>
 
       {formError && (
-        <p role="alert" className="text-13 text-status-danger">
+        <p role="alert" className="text-14 text-status-danger">
           {t(formError)}
         </p>
       )}
@@ -147,7 +147,7 @@ export function SignInForm() {
         {loading === 'google' ? t('auth.googlePending') : t('auth.google')}
       </Button>
 
-      <p className="text-center text-13 text-fg-muted">
+      <p className="text-center text-14 text-fg-muted">
         {t('auth.signIn.noAccount')}{' '}
         <Link
           to="/signup"

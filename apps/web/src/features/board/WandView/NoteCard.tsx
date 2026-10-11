@@ -9,11 +9,10 @@ import {
   dueInfo,
   dueToneClass,
   initialsOf,
-  noteColourSpineClass,
-  noteColourTintClass,
-  priorityToneClass,
+  noteColourFillClass,
   subtaskCountLabel,
 } from '../util/noteDerived';
+import { PriorityDot } from '../PriorityDot';
 
 interface NoteCardProps {
   note: NoteDto;
@@ -60,17 +59,9 @@ export function NoteCard({
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const showAssignee = note.assignee && note.assignee.id !== currentUserId;
   const isDone = note.status === 'DONE';
-  const showPriorityDot = note.priority === 'HOCH' && !isDone;
 
   const body = (
     <>
-      {/* Colour spine. Rendered as an element rather than a left border so it can sit
-          flush inside the card's rounded corners. */}
-      <span
-        aria-hidden
-        className={cn('absolute inset-y-0 left-0 w-[3px]', noteColourSpineClass[note.colour])}
-      />
-
       <span
         className={cn(
           'font-head line-clamp-3 text-14 font-semibold leading-snug text-fg-1',
@@ -83,7 +74,7 @@ export function NoteCard({
       <div className="flex items-center gap-2">
         <span
           className={cn(
-            'flex items-center gap-1 whitespace-nowrap text-11 tabular-nums',
+            'flex items-center gap-1 whitespace-nowrap text-12 tabular-nums',
             dueToneClass[due.tone],
           )}
           style={{ fontWeight: due.weight }}
@@ -93,7 +84,7 @@ export function NoteCard({
         </span>
 
         {checklistLabel && (
-          <span className="flex items-center gap-1 text-11 font-medium tabular-nums text-fg-muted">
+          <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
             <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
             {checklistLabel}
           </span>
@@ -101,21 +92,17 @@ export function NoteCard({
 
         <span className="flex-1" />
 
-        {showPriorityDot && (
-          <span
-            role="img"
-            aria-label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
-            className={cn(
-              'h-[7px] w-[7px] shrink-0 rounded-full',
-              priorityToneClass[note.priority],
-            )}
+        {!isDone && (
+          <PriorityDot
+            priority={note.priority}
+            label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
           />
         )}
 
         {showAssignee && note.assignee && (
           <span
             title={note.assignee.displayName ?? note.assignee.email}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-12 font-semibold text-primary-foreground"
           >
             {initialsOf(note.assignee.displayName ?? note.assignee.email)}
           </span>
@@ -125,7 +112,7 @@ export function NoteCard({
   );
 
   const surface =
-    'relative flex w-[248px] select-none flex-col gap-2.5 overflow-hidden rounded-xl border p-3.5 pl-4 text-left';
+    'relative flex w-[248px] select-none flex-col gap-2.5 overflow-hidden rounded-xl border p-3.5 text-left';
 
   if (overlay) {
     return (
@@ -135,7 +122,7 @@ export function NoteCard({
         <div
           className={cn(
             surface,
-            noteColourTintClass[note.colour],
+            noteColourFillClass[note.colour],
             // Lifted off the board and tilted a hair, so the card reads as picked up.
             // Kept subtle: this is unwound on release, and a big tilt has further to fall.
             'cursor-grabbing border-border-subtle shadow-e3 rotate-[1.2deg] scale-[1.02]',
@@ -211,9 +198,13 @@ function RestingNoteCard({
           // up hides it on the same frame the overlay appears instead of cross-fading.
           'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-          noteColourTintClass[note.colour],
+          noteColourFillClass[note.colour],
+          // Selection is a 2px slate outline and nothing else — no fill, no tint, so the
+          // note keeps its own colour underneath (docs/BRAND.md). `outline` rather than a
+          // border so the card's box does not shift by a pixel when it is selected.
+          'outline-offset-0',
           selected
-            ? 'border-primary shadow-e2 ring-1 ring-primary'
+            ? 'border-transparent shadow-e2 outline outline-2 outline-[color:var(--slate)]'
             : 'border-border-subtle shadow-pin',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column

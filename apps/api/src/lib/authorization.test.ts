@@ -18,11 +18,11 @@ describe('getEffectiveRole', () => {
   });
 
   async function makeFixture() {
-    await createTestUser(db, 'u-owner', 'owner@finlex.de');
-    await createTestUser(db, 'u-edit', 'edit@finlex.de');
-    await createTestUser(db, 'u-view', 'view@finlex.de');
-    await createTestUser(db, 'u-pending', 'pending@finlex.de');
-    await createTestUser(db, 'u-stranger', 'stranger@finlex.de');
+    await createTestUser(db, 'u-owner', 'owner@example.com');
+    await createTestUser(db, 'u-edit', 'edit@example.com');
+    await createTestUser(db, 'u-view', 'view@example.com');
+    await createTestUser(db, 'u-pending', 'pending@example.com');
+    await createTestUser(db, 'u-stranger', 'stranger@example.com');
 
     // Only ACTIVE memberships appear in memberRoles — that is exactly the distinction
     // this function is being asked about.

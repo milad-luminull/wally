@@ -24,7 +24,7 @@ export const CommandInput = React.forwardRef<
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'flex h-9 w-full bg-transparent py-2 text-13 outline-none placeholder:text-fg-muted disabled:opacity-55',
+        'flex h-9 w-full bg-transparent py-2 text-14 outline-none placeholder:text-fg-muted disabled:opacity-55',
         className,
       )}
       {...props}
@@ -49,7 +49,7 @@ export const CommandEmpty = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Empty>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
 >((props, ref) => (
-  <CommandPrimitive.Empty ref={ref} className="py-4 text-center text-13 text-fg-muted" {...props} />
+  <CommandPrimitive.Empty ref={ref} className="py-4 text-center text-14 text-fg-muted" {...props} />
 ));
 CommandEmpty.displayName = CommandPrimitive.Empty.displayName;
 
@@ -60,7 +60,7 @@ export const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      'overflow-hidden p-1 text-fg-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-11 [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-fg-muted',
+      'overflow-hidden p-1 text-fg-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-12 [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:text-fg-muted',
       className,
     )}
     {...props}
@@ -75,7 +75,7 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-13 outline-none',
+      'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-14 outline-none',
       'data-[selected=true]:bg-secondary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-55',
       className,
     )}

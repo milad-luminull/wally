@@ -55,13 +55,13 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
         placeholder={t('share.invite.placeholder')}
         aria-label={t('share.invite.aria')}
         aria-invalid={Boolean(error)}
-        className="h-9 text-13"
+        className="h-9 text-14"
       />
       <div className="flex items-center gap-2">
         <Select value={role} onValueChange={(v) => setRole(v as WhiteboardRole)}>
           <SelectTrigger
             aria-label={t('share.invite.roleAria')}
-            className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-13"
+            className="h-9 flex-1 rounded-md border border-input bg-card px-3 text-14"
           >
             <SelectValue />
           </SelectTrigger>

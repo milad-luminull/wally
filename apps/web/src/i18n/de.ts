@@ -65,7 +65,7 @@ export const de = {
       // <strong> travels WITH the words: in English the address lands in a different clause,
       // so the markup cannot be hard-coded around a bare interpolation.
       sentTo:
-        'Wir haben dir eine E-Mail an <strong>{{email}}</strong> geschickt. Erst danach können wir dich zu einer Wand hinzufügen, zu der du eingeladen wurdest.',
+        'Eine E-Mail ist an <strong>{{email}}</strong> unterwegs. Erst nach der Bestätigung kannst du zu einer Wand hinzugefügt werden, zu der du eingeladen wurdest.',
       resend: 'E-Mail erneut senden',
       resending: 'Sende…',
       resendIn: 'Erneut senden in {{seconds}}s',
@@ -274,7 +274,7 @@ export const de = {
       },
       pending: {
         title: 'Einen Moment',
-        subtitle: 'Wir fügen dich zur Wand hinzu.',
+        subtitle: 'Du wirst gerade zur Wand hinzugefügt.',
       },
       toBoard: 'Zu deiner Wand',
     },
@@ -300,7 +300,7 @@ export const de = {
     },
     membersHeading: 'Mitglieder',
     invite: {
-      placeholder: 'name@finlex.de',
+      placeholder: 'name@example.com',
       roleAria: 'Rolle',
       aria: 'E-Mail-Adresse einladen',
       submit: 'Einladen',
@@ -324,17 +324,17 @@ export const de = {
       SPAETER: 'Später',
     },
     colour: {
-      WEISS: 'Ohne',
+      WEISS: 'Kreide',
       EIS: 'Eisblau',
-      SAND: 'Sand',
+      SAND: 'Stein',
       MINZE: 'Minze',
       HIMMEL: 'Himmel',
       NEBEL: 'Nebel',
-      BUTTER: 'Butter',
+      BUTTER: 'Hafer',
       LEHM: 'Lehm',
       ROSE: 'Rosé',
       MALVE: 'Malve',
-      FLIEDER: 'Flieder',
+      FLIEDER: 'Heidekraut',
       SEEGRUEN: 'Seegrün',
       SALBEI: 'Salbei',
       OLIV: 'Oliv',

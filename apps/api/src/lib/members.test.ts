@@ -25,25 +25,25 @@ describe('members business logic', () => {
 
   describe('upsertInvite', () => {
     it('creates a PENDING row when no User exists for that email', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
 
-      const member = await upsertInvite(db, board, 'new-person@finlex.de', 'VIEW');
+      const member = await upsertInvite(db, board, 'new-person@example.com', 'VIEW');
 
       expect(member.status).toBe('PENDING');
       expect(member.userId).toBeNull();
-      expect(member.invitedEmail).toBe('new-person@finlex.de');
+      expect(member.invitedEmail).toBe('new-person@example.com');
       expect(member.role).toBe('VIEW');
       // A pending invite grants nothing yet, so it must not reach the role cache.
       expect(await memberRoles(board)).toEqual({});
     });
 
     it('creates an ACTIVE row immediately when a User already exists for that email', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'existing', 'existing@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'existing', 'existing@example.com');
       const board = await createTestBoard(db, 'owner');
 
-      const member = await upsertInvite(db, board, 'existing@finlex.de', 'EDIT');
+      const member = await upsertInvite(db, board, 'existing@example.com', 'EDIT');
 
       expect(member.status).toBe('ACTIVE');
       expect(member.userId).toBe('existing');
@@ -52,24 +52,24 @@ describe('members business logic', () => {
     });
 
     it('re-inviting updates the role of an existing row instead of erroring', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
 
-      await upsertInvite(db, board, 'person@finlex.de', 'VIEW');
-      const updated = await upsertInvite(db, board, 'person@finlex.de', 'EDIT');
+      await upsertInvite(db, board, 'person@example.com', 'VIEW');
+      const updated = await upsertInvite(db, board, 'person@example.com', 'EDIT');
 
       expect(await listMembers(board)).toHaveLength(1);
       expect(updated.role).toBe('EDIT');
     });
 
     it('links a pending invite by invitedEmail once the User record shows up', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
 
-      await upsertInvite(db, board, 'later-signup@finlex.de', 'VIEW');
-      await createTestUser(db, 'later', 'later-signup@finlex.de');
+      await upsertInvite(db, board, 'later-signup@example.com', 'VIEW');
+      await createTestUser(db, 'later', 'later-signup@example.com');
 
-      const updated = await upsertInvite(db, board, 'later-signup@finlex.de', 'EDIT');
+      const updated = await upsertInvite(db, board, 'later-signup@example.com', 'EDIT');
 
       expect(updated.status).toBe('ACTIVE');
       expect(updated.userId).toBe('later');
@@ -79,32 +79,32 @@ describe('members business logic', () => {
     });
 
     it('creates a PENDING row when the only user record for that email is unverified', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       // Firebase permits sign-up with an address you do not control, so this record proves
       // nothing: it must be treated exactly like no record at all.
-      await createTestUser(db, 'squatter', 'invitee@finlex.de', null, false);
+      await createTestUser(db, 'squatter', 'invitee@example.com', null, false);
       const board = await createTestBoard(db, 'owner');
 
-      const member = await upsertInvite(db, board, 'invitee@finlex.de', 'EDIT');
+      const member = await upsertInvite(db, board, 'invitee@example.com', 'EDIT');
 
       expect(member).toMatchObject({
         status: 'PENDING',
         userId: null,
-        invitedEmail: 'invitee@finlex.de',
+        invitedEmail: 'invitee@example.com',
       });
       expect(await memberRoles(board)).toEqual({});
     });
 
     it('prefers a verified user record over an unverified one with the same email', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       // Created first, so it sorts earlier by document id — limit(1) on the unordered
       // equality query would have returned this one and stranded the invite as PENDING for
       // a user whose record already exists, where the gated sweep never looks again.
-      await createTestUser(db, 'aaa-squatter', 'invitee@finlex.de', null, false);
-      await createTestUser(db, 'zzz-real', 'invitee@finlex.de');
+      await createTestUser(db, 'aaa-squatter', 'invitee@example.com', null, false);
+      await createTestUser(db, 'zzz-real', 'invitee@example.com');
       const board = await createTestBoard(db, 'owner');
 
-      const member = await upsertInvite(db, board, 'invitee@finlex.de', 'EDIT');
+      const member = await upsertInvite(db, board, 'invitee@example.com', 'EDIT');
 
       expect(member).toMatchObject({ status: 'ACTIVE', userId: 'zzz-real' });
       expect(await memberRoles(board)).toEqual({ 'zzz-real': 'EDIT' });
@@ -113,18 +113,18 @@ describe('members business logic', () => {
 
   describe('activatePendingInvitesForEmail', () => {
     it('activates a PENDING row regardless of the casing the caller passes', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
-        invitedEmail: 'invitee@finlex.de',
+        invitedEmail: 'invitee@example.com',
         role: 'VIEW',
         status: 'PENDING',
       });
       // In production this only runs after the auth hook has written the User record for
       // this id (see src/plugins/auth.ts), so the fixture does the same.
-      await createTestUser(db, 'new-user-id', 'invitee@finlex.de');
+      await createTestUser(db, 'new-user-id', 'invitee@example.com');
 
-      const count = await activatePendingInvitesForEmail(db, 'new-user-id', 'INVITEE@Finlex.de');
+      const count = await activatePendingInvitesForEmail(db, 'new-user-id', 'INVITEE@Example.com');
 
       expect(count).toBe(1);
       const [member] = await listMembers(board);
@@ -135,22 +135,22 @@ describe('members business logic', () => {
     });
 
     it('does nothing when there is no matching pending invite', async () => {
-      const count = await activatePendingInvitesForEmail(db, 'new-user-id', 'nobody@finlex.de');
+      const count = await activatePendingInvitesForEmail(db, 'new-user-id', 'nobody@example.com');
       expect(count).toBe(0);
     });
 
     it('merges a pending invite into the row the user already has on that board', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'alice', 'alice@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'alice', 'alice@example.com');
       const board = await createTestBoard(db, 'owner', { alice: 'VIEW' });
       await createTestMembership(db, board, { userId: 'alice', role: 'VIEW', status: 'ACTIVE' });
       await createTestMembership(db, board, {
-        invitedEmail: 'alice@finlex.de',
+        invitedEmail: 'alice@example.com',
         role: 'EDIT',
         status: 'PENDING',
       });
 
-      await activatePendingInvitesForEmail(db, 'alice', 'alice@finlex.de');
+      await activatePendingInvitesForEmail(db, 'alice', 'alice@example.com');
 
       // Two ACTIVE rows for one person desync memberRoles: removing one deletes the entry
       // while the other still grants access.
@@ -160,16 +160,16 @@ describe('members business logic', () => {
     });
 
     it('clears invitedEmail on the row it activates', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'alice', 'alice@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'alice', 'alice@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
-        invitedEmail: 'alice@finlex.de',
+        invitedEmail: 'alice@example.com',
         role: 'EDIT',
         status: 'PENDING',
       });
 
-      await activatePendingInvitesForEmail(db, 'alice', 'alice@finlex.de');
+      await activatePendingInvitesForEmail(db, 'alice', 'alice@example.com');
 
       // A row still carrying an address stays claimable by anyone who later verifies it.
       const [member] = await listMembers(board);
@@ -178,29 +178,31 @@ describe('members business logic', () => {
     });
 
     it('skips a pending invite whose board no longer exists', async () => {
-      await createTestUser(db, 'alice', 'alice@finlex.de');
+      await createTestUser(db, 'alice', 'alice@example.com');
       // A member subcollection can outlive its parent document in Firestore.
       await createTestMembership(db, 'vanished-board', {
-        invitedEmail: 'alice@finlex.de',
+        invitedEmail: 'alice@example.com',
         role: 'EDIT',
         status: 'PENDING',
       });
 
       // A single batch would have failed the whole commit here — inside the auth hook, so
       // every other board's activation would go down with it, on every request.
-      await expect(activatePendingInvitesForEmail(db, 'alice', 'alice@finlex.de')).resolves.toBe(0);
+      await expect(activatePendingInvitesForEmail(db, 'alice', 'alice@example.com')).resolves.toBe(
+        0,
+      );
     });
 
     it('drops a pending invite addressed to the board owner rather than making them a member', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
-        invitedEmail: 'owner@finlex.de',
+        invitedEmail: 'owner@example.com',
         role: 'VIEW',
         status: 'PENDING',
       });
 
-      await activatePendingInvitesForEmail(db, 'owner', 'owner@finlex.de');
+      await activatePendingInvitesForEmail(db, 'owner', 'owner@example.com');
 
       // The owner is OWNER through ownerId; a member row for them would list their own
       // board twice and could only ever describe a weaker role than they already have.
@@ -220,28 +222,28 @@ describe('members business logic', () => {
 
     it('returns null for an invalid token', async () => {
       await expect(
-        redeemShareLink(db, 'nonexistent-token', caller('some-user', 's@finlex.de')),
+        redeemShareLink(db, 'nonexistent-token', caller('some-user', 's@example.com')),
       ).resolves.toBeNull();
     });
 
     it('is a no-op when the owner redeems their own link', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestShareLink(db, 'tok', board, 'EDIT');
 
-      const result = await redeemShareLink(db, 'tok', caller('owner', 'owner@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('owner', 'owner@example.com'));
 
       expect(result).toEqual({ whiteboardId: board, role: 'EDIT' });
       expect(await listMembers(board)).toHaveLength(0);
     });
 
     it('creates a new ACTIVE membership at the link role for a first-time redeemer', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestShareLink(db, 'tok', board, 'VIEW');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com'));
 
       expect(result).toEqual({ whiteboardId: board, role: 'VIEW' });
       const [member] = await listMembers(board);
@@ -251,8 +253,8 @@ describe('members business logic', () => {
     });
 
     it('upgrades an existing VIEW membership when redeeming an EDIT link', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com');
       const board = await createTestBoard(db, 'owner', { redeemer: 'VIEW' });
       await createTestMembership(db, board, {
         userId: 'redeemer',
@@ -261,15 +263,15 @@ describe('members business logic', () => {
       });
       await createTestShareLink(db, 'tok', board, 'EDIT');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com'));
 
       expect(result?.role).toBe('EDIT');
       expect(await memberRoles(board)).toEqual({ redeemer: 'EDIT' });
     });
 
     it('never downgrades an existing EDIT membership when redeeming a VIEW link', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com');
       const board = await createTestBoard(db, 'owner', { redeemer: 'EDIT' });
       await createTestMembership(db, board, {
         userId: 'redeemer',
@@ -278,7 +280,7 @@ describe('members business logic', () => {
       });
       await createTestShareLink(db, 'tok', board, 'VIEW');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com'));
 
       expect(result?.role).toBe('EDIT');
       const [member] = await listMembers(board);
@@ -287,17 +289,17 @@ describe('members business logic', () => {
     });
 
     it('claims a pending invite addressed to the verified caller instead of creating a second row', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com');
       const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
-        invitedEmail: 'r@finlex.de',
+        invitedEmail: 'r@example.com',
         role: 'EDIT',
         status: 'PENDING',
       });
       await createTestShareLink(db, 'tok', board, 'VIEW');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com'));
 
       // Matching only on userId could not see a row keyed by invitedEmail, so redemption
       // wrote a duplicate the owner could never fully remove.
@@ -307,17 +309,17 @@ describe('members business logic', () => {
     });
 
     it('ignores a pending invite when the caller has not verified that address', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de', null, false);
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com', null, false);
       const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
-        invitedEmail: 'r@finlex.de',
+        invitedEmail: 'r@example.com',
         role: 'EDIT',
         status: 'PENDING',
       });
       await createTestShareLink(db, 'tok', board, 'VIEW');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de', false));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com', false));
 
       // Claiming it on an unverified claim would let an attacker inherit the victim's
       // invited role just by redeeming a link of their own.
@@ -328,19 +330,19 @@ describe('members business logic', () => {
     });
 
     it('never claims a row already linked to a different user', async () => {
-      await createTestUser(db, 'owner', 'owner@finlex.de');
-      await createTestUser(db, 'redeemer', 'r@finlex.de');
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'redeemer', 'r@example.com');
       const board = await createTestBoard(db, 'owner');
       // The legacy shape: activation used to leave invitedEmail populated next to a uid.
       await createTestMembership(db, board, {
         userId: 'someone-else',
-        invitedEmail: 'r@finlex.de',
+        invitedEmail: 'r@example.com',
         role: 'EDIT',
         status: 'ACTIVE',
       });
       await createTestShareLink(db, 'tok', board, 'VIEW');
 
-      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@finlex.de'));
+      const result = await redeemShareLink(db, 'tok', caller('redeemer', 'r@example.com'));
 
       // Matching on the address alone would hand this caller another user's membership.
       expect(result?.role).toBe('VIEW');

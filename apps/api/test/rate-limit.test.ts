@@ -32,7 +32,7 @@ describe('rate limiting', () => {
   }
 
   it('cuts off a caller who hammers the redeem route', async () => {
-    const token = registerTestUser(ctx, 'rl-hammer', 'hammer@finlex.de');
+    const token = registerTestUser(ctx, 'rl-hammer', 'hammer@example.com');
 
     for (let i = 0; i < REDEEM_LIMIT; i += 1) {
       expect((await redeem(token)).statusCode).toBe(404);
@@ -46,18 +46,18 @@ describe('rate limiting', () => {
   });
 
   it('charges the budget to the caller, not to everyone sharing their address', async () => {
-    const hammer = registerTestUser(ctx, 'rl-hammer-2', 'hammer2@finlex.de');
+    const hammer = registerTestUser(ctx, 'rl-hammer-2', 'hammer2@example.com');
     for (let i = 0; i <= REDEEM_LIMIT; i += 1) await redeem(hammer);
     expect((await redeem(hammer)).statusCode).toBe(429);
 
     // inject() gives every request the same IP, so an IP-keyed limiter would have locked
     // this caller out too — which behind Cloud Run's proxy would mean locking out everyone.
-    const bystander = registerTestUser(ctx, 'rl-bystander', 'bystander@finlex.de');
+    const bystander = registerTestUser(ctx, 'rl-bystander', 'bystander@example.com');
     expect((await redeem(bystander)).statusCode).toBe(404);
   });
 
   it('leaves ordinary board traffic well clear of the global budget', async () => {
-    const token = registerTestUser(ctx, 'rl-normal', 'normal@finlex.de');
+    const token = registerTestUser(ctx, 'rl-normal', 'normal@example.com');
 
     for (let i = 0; i < 40; i += 1) {
       expect(

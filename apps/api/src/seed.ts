@@ -20,7 +20,7 @@ import { generateShareToken } from './lib/tokens.js';
  * Fixed fake Firebase UIDs used only as dev fixtures. Real sign-in creates real UIDs via
  * the auth preHandler (see src/plugins/auth.ts) — these seed users only show up when
  * Firebase auth is bypassed/mocked in local dev, or as the target of the email-based
- * auto-activation demo (lena.hofer@finlex.de's pending invite below).
+ * auto-activation demo (robin.vogt@example.com's pending invite below).
  */
 const OWNER_UID = 'seed-owner';
 const EDIT_COLLEAGUE_UID = 'seed-colleague-edit';
@@ -40,8 +40,8 @@ async function seedUsers(db: Firestore, timestamp: Timestamp) {
     [
       OWNER_UID,
       {
-        email: 'max.berger@finlex.de',
-        displayName: 'Max Berger',
+        email: 'mika.brandt@example.com',
+        displayName: 'Mika Brandt',
         emailVerified: true,
         language: 'de',
         createdAt: timestamp,
@@ -51,8 +51,8 @@ async function seedUsers(db: Firestore, timestamp: Timestamp) {
     [
       EDIT_COLLEAGUE_UID,
       {
-        email: 'andrea.reiter@finlex.de',
-        displayName: 'Andrea Reiter',
+        email: 'nora.falk@example.com',
+        displayName: 'Nora Falk',
         emailVerified: true,
         language: 'de',
         createdAt: timestamp,
@@ -62,8 +62,8 @@ async function seedUsers(db: Firestore, timestamp: Timestamp) {
     [
       VIEW_COLLEAGUE_UID,
       {
-        email: 'irem.yildiz@finlex.de',
-        displayName: 'Irem Yıldız',
+        email: 'deniz.kilic@example.com',
+        displayName: 'Deniz Kılıç',
         emailVerified: true,
         language: 'de',
         createdAt: timestamp,
@@ -105,7 +105,7 @@ async function seedMembers(db: Firestore, timestamp: Timestamp) {
       {
         whiteboardId: BOARD_ID,
         userId: null,
-        invitedEmail: 'lena.hofer@finlex.de',
+        invitedEmail: 'robin.vogt@example.com',
         role: 'VIEW',
         status: 'PENDING',
         invitedAt: timestamp,
@@ -402,9 +402,9 @@ async function main() {
 
   console.log('Seed complete:', {
     board: INITIAL_BOARD_NAME.de,
-    owner: 'max.berger@finlex.de',
-    members: ['andrea.reiter@finlex.de', 'irem.yildiz@finlex.de'],
-    pendingInvite: 'lena.hofer@finlex.de',
+    owner: 'mika.brandt@example.com',
+    members: ['nora.falk@example.com', 'deniz.kilic@example.com'],
+    pendingInvite: 'robin.vogt@example.com',
     shareLinkToken,
   });
 }

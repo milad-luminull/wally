@@ -37,7 +37,7 @@ describe('/me', () => {
   });
 
   it('returns the profile, defaulting a caller with no Accept-Language to German', async () => {
-    const token = registerTestUser(ctx, 'me-de', 'max.berger@finlex.de', 'Max Berger');
+    const token = registerTestUser(ctx, 'me-de', 'mika.brandt@example.com', 'Mika Brandt');
 
     const response = await ctx.app.inject({
       method: 'GET',
@@ -48,14 +48,14 @@ describe('/me', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       id: 'me-de',
-      email: 'max.berger@finlex.de',
-      displayName: 'Max Berger',
+      email: 'mika.brandt@example.com',
+      displayName: 'Mika Brandt',
       language: 'de',
     });
   });
 
   it('seeds the language AND the board name from Accept-Language on a first request', async () => {
-    const token = registerTestUser(ctx, 'me-en', 'jo.taylor@finlex.de', 'Jo Taylor');
+    const token = registerTestUser(ctx, 'me-en', 'jo.taylor@example.com', 'Jo Taylor');
 
     const response = await ctx.app.inject({
       method: 'GET',
@@ -72,8 +72,8 @@ describe('/me', () => {
   it('reads a profile written before the field existed as German, without writing to it', async () => {
     // 'absent' writes no field at all, which is exactly the shape of a record created before
     // `language` was introduced.
-    await createTestUser(ctx.db, 'me-legacy', 'legacy@finlex.de', 'Legacy', true, 'absent');
-    const token = registerTestUser(ctx, 'me-legacy', 'legacy@finlex.de', 'Legacy');
+    await createTestUser(ctx.db, 'me-legacy', 'legacy@example.com', 'Legacy', true, 'absent');
+    const token = registerTestUser(ctx, 'me-legacy', 'legacy@example.com', 'Legacy');
 
     const response = await ctx.app.inject({
       method: 'GET',
@@ -87,7 +87,7 @@ describe('/me', () => {
   });
 
   it('persists a language change', async () => {
-    const token = registerTestUser(ctx, 'me-patch', 'patch@finlex.de');
+    const token = registerTestUser(ctx, 'me-patch', 'patch@example.com');
 
     const response = await ctx.app.inject({
       method: 'PATCH',
@@ -103,7 +103,7 @@ describe('/me', () => {
   });
 
   it('rejects a language outside the enum, leaving the stored value alone', async () => {
-    const token = registerTestUser(ctx, 'me-bad', 'bad@finlex.de');
+    const token = registerTestUser(ctx, 'me-bad', 'bad@example.com');
     await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
 
     const response = await ctx.app.inject({
@@ -120,7 +120,7 @@ describe('/me', () => {
   });
 
   it('rejects an empty body', async () => {
-    const token = registerTestUser(ctx, 'me-empty', 'empty@finlex.de');
+    const token = registerTestUser(ctx, 'me-empty', 'empty@example.com');
 
     const response = await ctx.app.inject({
       method: 'PATCH',
@@ -134,7 +134,7 @@ describe('/me', () => {
 
   // The core invariant: Accept-Language seeds a profile, it never steers an existing one.
   it('keeps the stored language when a later request disagrees with it', async () => {
-    const token = registerTestUser(ctx, 'me-stored', 'stored@finlex.de');
+    const token = registerTestUser(ctx, 'me-stored', 'stored@example.com');
     await ctx.app.inject({
       method: 'PATCH',
       url: '/me',
@@ -154,7 +154,7 @@ describe('/me', () => {
   // Regression guard for the sharpest edge in this change: provisionUser's tx.update names a
   // fixed field list, so a Firebase profile change must not take `language` down with it.
   it('preserves the language when the Firebase profile changes', async () => {
-    const token = registerTestUser(ctx, 'me-rename', 'rename@finlex.de', 'Original');
+    const token = registerTestUser(ctx, 'me-rename', 'rename@example.com', 'Original');
     await ctx.app.inject({
       method: 'PATCH',
       url: '/me',
@@ -165,7 +165,7 @@ describe('/me', () => {
     // Force the provisioning update branch by changing the name on the token.
     ctx.tokens.set(token, {
       uid: 'me-rename',
-      email: 'rename@finlex.de',
+      email: 'rename@example.com',
       emailVerified: true,
       name: 'Renamed',
     });
@@ -181,7 +181,7 @@ describe('/me', () => {
   });
 
   it('leaves the board name alone when the language changes later', async () => {
-    const token = registerTestUser(ctx, 'me-board', 'board@finlex.de');
+    const token = registerTestUser(ctx, 'me-board', 'board@example.com');
     await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
 
     await ctx.app.inject({
@@ -198,7 +198,7 @@ describe('/me', () => {
   // A returning user whose board was deleted must be renamed from their PROFILE, not from
   // whatever locale today's browser reports.
   it('recreates a deleted board from the stored language, not the header', async () => {
-    const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@finlex.de');
+    const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
     await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
     await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
 

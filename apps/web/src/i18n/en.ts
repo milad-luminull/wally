@@ -1,7 +1,7 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   app: {
-    title: 'Wally — My Board',
+    title: 'Wally — my board',
   },
   common: {
     close: 'Close',
@@ -55,7 +55,7 @@ export const en = {
     verify: {
       title: 'Confirm your email address',
       sentTo:
-        'We sent an email to <strong>{{email}}</strong>. Until you confirm it we cannot add you to a board you have been invited to.',
+        'An email is on its way to <strong>{{email}}</strong>. Until you confirm it, you cannot be added to a board you have been invited to.',
       resend: 'Resend email',
       resending: 'Sending…',
       resendIn: 'Resend in {{seconds}}s',
@@ -255,7 +255,7 @@ export const en = {
       },
       pending: {
         title: 'One moment',
-        subtitle: 'We are adding you to the board.',
+        subtitle: 'You are being added to the board.',
       },
       toBoard: 'Go to your board',
     },
@@ -281,7 +281,7 @@ export const en = {
     },
     membersHeading: 'Members',
     invite: {
-      placeholder: 'name@finlex.de',
+      placeholder: 'name@example.com',
       roleAria: 'Role',
       aria: 'Invite email address',
       submit: 'Invite',
@@ -300,17 +300,17 @@ export const en = {
       SPAETER: 'Later',
     },
     colour: {
-      WEISS: 'None',
+      WEISS: 'Chalk',
       EIS: 'Ice blue',
-      SAND: 'Sand',
+      SAND: 'Stone',
       MINZE: 'Mint',
       HIMMEL: 'Sky',
       NEBEL: 'Mist',
-      BUTTER: 'Butter',
+      BUTTER: 'Oat',
       LEHM: 'Clay',
       ROSE: 'Rose',
       MALVE: 'Mallow',
-      FLIEDER: 'Lilac',
+      FLIEDER: 'Heather',
       SEEGRUEN: 'Sea green',
       SALBEI: 'Sage',
       OLIV: 'Olive',

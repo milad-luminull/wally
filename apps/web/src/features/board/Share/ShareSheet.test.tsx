@@ -15,8 +15,8 @@ import { membersApi, shareLinkApi } from '@/lib/resources';
 const owner = makeMember({
   id: 'm-owner',
   userId: 'user-1',
-  email: 'max.berger@finlex.de',
-  displayName: 'Max Berger',
+  email: 'mika.brandt@example.com',
+  displayName: 'Mika Brandt',
 });
 
 // Asserted against directly rather than re-reading `navigator.clipboard.writeText` at
@@ -29,12 +29,12 @@ beforeEach(() => {
   vi.mocked(shareLinkApi.get).mockResolvedValue({
     token: 'tok',
     role: 'VIEW',
-    url: 'https://hub.finlex.de/w/tok',
+    url: 'https://hub.example.com/w/tok',
   });
   vi.mocked(shareLinkApi.createOrUpdate).mockResolvedValue({
     token: 'tok',
     role: 'VIEW',
-    url: 'https://hub.finlex.de/w/tok',
+    url: 'https://hub.example.com/w/tok',
   });
 });
 
@@ -56,7 +56,7 @@ async function openShareSheet() {
     <ShareSheet boardId="board-1" ownerId="user-1" isOwner isBelowTablet={false} />,
   );
   await user.click(screen.getByRole('button', { name: 'Teilen' }));
-  await screen.findByText('https://hub.finlex.de/w/tok');
+  await screen.findByText('https://hub.example.com/w/tok');
   return user;
 }
 
@@ -78,16 +78,16 @@ describe('ShareSheet', () => {
     );
 
     const user = await openShareSheet();
-    await user.type(screen.getByLabelText('E-Mail-Adresse einladen'), 'irem.yildiz@finlex.de');
+    await user.type(screen.getByLabelText('E-Mail-Adresse einladen'), 'deniz.kilic@example.com');
     await user.click(screen.getByRole('button', { name: 'Einladen' }));
 
-    expect(await screen.findByText('irem.yildiz@finlex.de')).toBeInTheDocument();
+    expect(await screen.findByText('deniz.kilic@example.com')).toBeInTheDocument();
     expect(screen.getByText('Ausstehend')).toBeInTheDocument();
 
     resolveInvite(
       makeMember({
         id: 'm-new',
-        email: 'irem.yildiz@finlex.de',
+        email: 'deniz.kilic@example.com',
         displayName: null,
         status: 'PENDING',
       }),
@@ -111,7 +111,7 @@ describe('ShareSheet', () => {
       await waitFor(() =>
         expect(screen.getByRole('button', { name: 'Kopiert' })).toBeInTheDocument(),
       );
-      expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.finlex.de/w/tok');
+      expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.example.com/w/tok');
 
       // The component's own revert setTimeout fires and calls setState while this raw
       // wait is in flight, outside any RTL-wrapped interaction — act() here keeps React

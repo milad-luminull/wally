@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { WhiteboardSummaryDto } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { boardsApi } from '@/lib/resources';
+import { cn } from '@/lib/cn';
 import { queryKeys } from '@/features/board/hooks/queryKeys';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
@@ -101,16 +102,20 @@ export function EmailVerificationBanner() {
   if (emailVerified) {
     if (!unlocked) return null;
     return (
-      <div className="z-header shrink-0 border-b border-[rgba(2,71,79,0.14)] bg-[color:var(--status-success-bold)] text-[color:var(--on-status-success)]">
+      <div className="z-header shrink-0 border-b border-border bg-card text-fg-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 lg:px-7">
-          <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-          <p role="status" className="text-13 font-semibold">
+          <CheckCircle2
+            aria-hidden
+            className="h-4 w-4 shrink-0 text-status-success"
+            strokeWidth={2.2}
+          />
+          <p role="status" className="text-14 font-semibold text-status-success">
             {t('auth.verify.unlocked', { name: unlocked.name })}
           </p>
           <Link
             to={`/boards/${unlocked.id}`}
             onClick={() => setUnlocked(null)}
-            className="text-13 font-medium underline underline-offset-4"
+            className="text-14 font-medium underline underline-offset-4"
           >
             {t('auth.verify.openBoard')}
           </Link>
@@ -122,13 +127,17 @@ export function EmailVerificationBanner() {
   const resendDisabled = busy !== null || cooldown > 0;
 
   return (
-    <div className="z-header shrink-0 border-b border-[rgba(2,71,79,0.14)] bg-[color:var(--status-warning-bold)] text-[color:var(--on-status-warning)]">
+    <div className="z-header shrink-0 border-b border-border bg-card text-fg-1">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 lg:px-7">
-        <AlertTriangle aria-hidden className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+        <AlertTriangle
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-status-warning"
+          strokeWidth={2.2}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="text-13 font-semibold">{t('auth.verify.title')}</p>
-          <p className="text-12">
+          <p className="text-14 font-semibold text-status-warning">{t('auth.verify.title')}</p>
+          <p className="text-12 text-fg-muted">
             {/* <Trans>, not interpolation: the <span> sits mid-sentence and moves clause
                 position in English, so the markup has to travel with the words. */}
             <Trans
@@ -140,7 +149,10 @@ export function EmailVerificationBanner() {
           {feedback && (
             <p
               role={feedback.tone === 'error' ? 'alert' : 'status'}
-              className="text-12 font-medium"
+              className={cn(
+                'text-12 font-medium',
+                feedback.tone === 'error' ? 'text-status-danger' : 'text-fg-muted',
+              )}
             >
               {t(feedback.key)}
             </p>
@@ -154,9 +166,6 @@ export function EmailVerificationBanner() {
             variant="outline"
             onClick={() => void handleResend()}
             disabled={resendDisabled}
-            /* The base class pins the focus ring's offset to the page background, which
-               would halo oddly against the amber field. */
-            className="focus-visible:ring-offset-[color:var(--status-warning-bold)]"
           >
             {busy === 'resend'
               ? t('auth.verify.resending')
@@ -169,7 +178,6 @@ export function EmailVerificationBanner() {
             size="sm"
             onClick={() => void handleConfirm()}
             disabled={busy !== null}
-            className="focus-visible:ring-offset-[color:var(--status-warning-bold)]"
           >
             {busy === 'confirm' ? t('auth.verify.confirming') : t('auth.verify.confirm')}
           </Button>

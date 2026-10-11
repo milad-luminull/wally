@@ -3,15 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- Linen: the wall colour, so the browser chrome meets the board rather than the page. -->
+    <meta name="theme-color" content="#EDE8DF" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!-- Brand only, so the tab is never in the wrong language while the bundle loads.
          LanguageProvider sets the full localized title from the catalogue. -->
     <title>Wally</title>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap"
-    />
+    <!-- Sora is self-hosted (public/fonts, @font-face in globals.css), so there is no
+         third-party font request to preconnect to. Preloading the latin subset keeps the
+         first paint from flashing the fallback; latin-ext loads on demand. -->
+    <link rel="preload" href="/fonts/sora-latin.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

@@ -27,7 +27,7 @@ describe('AccountMenu', () => {
     vi.clearAllMocks();
     setLanguage = vi.fn();
     mockUseAuth.mockReturnValue({
-      user: { displayName: 'Max Berger', email: 'max@finlex.de' },
+      user: { displayName: 'Mika Brandt', email: 'mika@example.com' },
       signOut: vi.fn(),
     });
     mockUseLanguage.mockReturnValue({

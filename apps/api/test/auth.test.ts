@@ -49,7 +49,7 @@ describe('auth preHandler', () => {
   });
 
   it('writes the user record and lazily provisions their whiteboard on first request', async () => {
-    const token = registerTestUser(ctx, 'auth-new-user', 'brand-new@finlex.de', 'Brand New');
+    const token = registerTestUser(ctx, 'auth-new-user', 'brand-new@example.com', 'Brand New');
 
     const res = await ctx.app.inject({
       method: 'GET',
@@ -59,7 +59,7 @@ describe('auth preHandler', () => {
     expect(res.statusCode).toBe(200);
 
     const user = withId(await usersCol(ctx.db).doc('auth-new-user').get());
-    expect(user?.email).toBe('brand-new@finlex.de');
+    expect(user?.email).toBe('brand-new@example.com');
 
     // The board's id IS the owner's uid, which is what makes one-board-per-owner
     // structural rather than a constraint.
@@ -69,7 +69,7 @@ describe('auth preHandler', () => {
   });
 
   it('auto-activates a pending invite matching the caller email, whatever its casing', async () => {
-    const ownerToken = registerTestUser(ctx, 'auth-owner', 'auth-owner@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'auth-owner', 'auth-owner@example.com');
     await ctx.app.inject({
       method: 'GET',
       url: '/whiteboards',
@@ -77,13 +77,13 @@ describe('auth preHandler', () => {
     });
 
     await createTestMembership(ctx.db, 'auth-owner', {
-      invitedEmail: 'invitee@finlex.de',
+      invitedEmail: 'invitee@example.com',
       role: 'EDIT',
       status: 'PENDING',
     });
 
     // The invited person authenticates with an email that differs only in case.
-    const inviteeToken = registerTestUser(ctx, 'auth-invitee', 'INVITEE@FINLEX.DE');
+    const inviteeToken = registerTestUser(ctx, 'auth-invitee', 'INVITEE@EXAMPLE.COM');
     await ctx.app.inject({
       method: 'GET',
       url: '/whiteboards',
@@ -103,7 +103,7 @@ describe('auth preHandler', () => {
     // Firebase allows sign-up with an unverified email — without this check, an attacker
     // could claim someone else's pending invite just by typing in their email address,
     // no access to that inbox required.
-    const ownerToken = registerTestUser(ctx, 'auth-owner-2', 'auth-owner-2@finlex.de');
+    const ownerToken = registerTestUser(ctx, 'auth-owner-2', 'auth-owner-2@example.com');
     await ctx.app.inject({
       method: 'GET',
       url: '/whiteboards',
@@ -111,7 +111,7 @@ describe('auth preHandler', () => {
     });
 
     await createTestMembership(ctx.db, 'auth-owner-2', {
-      invitedEmail: 'real-invitee@finlex.de',
+      invitedEmail: 'real-invitee@example.com',
       role: 'EDIT',
       status: 'PENDING',
     });
@@ -119,7 +119,7 @@ describe('auth preHandler', () => {
     const attackerToken = registerTestUser(
       ctx,
       'auth-attacker',
-      'real-invitee@finlex.de',
+      'real-invitee@example.com',
       null,
       false, // emailVerified: false
     );
@@ -137,7 +137,7 @@ describe('auth preHandler', () => {
     expect(board?.memberRoles).toEqual({});
   });
   it('persists emailVerified on the user record', async () => {
-    const token = registerTestUser(ctx, 'auth-verified', 'verified@finlex.de');
+    const token = registerTestUser(ctx, 'auth-verified', 'verified@example.com');
     await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
     const user = withId(await usersCol(ctx.db).doc('auth-verified').get());
@@ -145,13 +145,13 @@ describe('auth preHandler', () => {
   });
 
   it('updates a stored emailVerified of false once the caller verifies', async () => {
-    const token = registerTestUser(ctx, 'auth-later', 'later@finlex.de', null, false);
+    const token = registerTestUser(ctx, 'auth-later', 'later@example.com', null, false);
     await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
     expect(withId(await usersCol(ctx.db).doc('auth-later').get())?.emailVerified).toBe(false);
 
     ctx.tokens.set(token, {
       uid: 'auth-later',
-      email: 'later@finlex.de',
+      email: 'later@example.com',
       emailVerified: true,
       name: null,
     });
@@ -166,13 +166,13 @@ describe('auth preHandler', () => {
     const timestamp = now();
     // Deliberately field-less, bypassing the typed collection helper.
     await ctx.db.collection('users').doc('auth-legacy').set({
-      email: 'legacy@finlex.de',
+      email: 'legacy@example.com',
       displayName: null,
       createdAt: timestamp,
       updatedAt: timestamp,
     });
 
-    const token = registerTestUser(ctx, 'auth-legacy', 'legacy@finlex.de');
+    const token = registerTestUser(ctx, 'auth-legacy', 'legacy@example.com');
     await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
     // An absent flag reads as false, so this one migrating write is forced — and it is also

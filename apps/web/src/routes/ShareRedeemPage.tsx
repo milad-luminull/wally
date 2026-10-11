@@ -44,12 +44,12 @@ export function ShareRedeemPage() {
           subtitle={t('routes.redeem.gone.subtitle')}
         >
           <div className="flex flex-col gap-4">
-            <p role="alert" className="text-13 text-fg-muted">
+            <p role="alert" className="text-14 text-fg-muted">
               {t('routes.redeem.gone.body')}
             </p>
             <Link
               to="/"
-              className="self-start text-13 font-medium text-fg-1 underline-offset-4 hover:underline"
+              className="self-start text-14 font-medium text-fg-1 underline-offset-4 hover:underline"
             >
               {t('routes.redeem.toBoard')}
             </Link>
@@ -64,7 +64,7 @@ export function ShareRedeemPage() {
         subtitle={t('routes.redeem.failed.subtitle')}
       >
         <div className="flex flex-col gap-4">
-          <p role="alert" className="text-13 text-status-danger">
+          <p role="alert" className="text-14 text-status-danger">
             {t('routes.redeem.failed.body')}
           </p>
           <button
@@ -74,13 +74,13 @@ export function ShareRedeemPage() {
               startedFor.current = token;
               mutate(token);
             }}
-            className="self-start text-13 font-medium text-fg-1 underline-offset-4 hover:underline"
+            className="self-start text-14 font-medium text-fg-1 underline-offset-4 hover:underline"
           >
             {t('common.retry')}
           </button>
           <Link
             to="/"
-            className="self-start text-13 text-fg-muted underline-offset-4 hover:underline"
+            className="self-start text-14 text-fg-muted underline-offset-4 hover:underline"
           >
             {t('routes.redeem.toBoard')}
           </Link>

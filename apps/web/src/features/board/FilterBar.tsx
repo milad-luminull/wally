@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { cn } from '@/lib/cn';
-import { priorityToneClass } from './util/noteDerived';
+import { PriorityDot } from './PriorityDot';
 import type { BoardViewState } from './hooks/useBoardViewState';
 
 interface FilterBarProps {
@@ -123,7 +123,7 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
         /* h-full, so the field's own box is the full pill height rather than the 18px the
            text line occupies — the shell was already the visible target, but the input was
            what a pointer had to land on. */
-        className="h-full min-w-0 flex-1 bg-transparent text-13 text-fg-1 outline-none placeholder:text-fg-faint"
+        className="h-full min-w-0 flex-1 bg-transparent text-14 text-fg-1 outline-none placeholder:text-fg-faint"
       />
       {local && (
         <button
@@ -162,7 +162,7 @@ function PriorityChips({
           value={p}
           aria-label={t('board.filter.priorityAria', { label: priorityLabels[p] })}
         >
-          <span className={cn('h-1.5 w-1.5 rounded-full', priorityToneClass[p])} />
+          <PriorityDot priority={p} size={6} />
           {priorityLabels[p]}
         </ToggleGroupItem>
       ))}
@@ -231,7 +231,7 @@ export function FilterBar({
               <SlidersHorizontal className="h-3.5 w-3.5" />
               {t('board.filter.title')}
               {hasActiveFilters && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-11 font-semibold tabular-nums text-primary-foreground">
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-12 font-semibold tabular-nums text-primary-foreground">
                   {activeFilterCount}
                 </span>
               )}

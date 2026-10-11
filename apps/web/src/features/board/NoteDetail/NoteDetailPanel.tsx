@@ -53,7 +53,8 @@ import {
   useSetCustomField,
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
-import { collectFieldKeys, priorityToneClass } from '../util/noteDerived';
+import { collectFieldKeys } from '../util/noteDerived';
+import { PriorityDot } from '../PriorityDot';
 import { useNotes } from '../hooks/useNotes';
 import { Field, FieldLabel, PanelSection } from './Field';
 import { TagEditor } from './TagEditor';
@@ -143,7 +144,7 @@ export function NoteDetailPanel({
          board narrower in one frame. Keying the animation on the note id replays the
          slide whenever a different note is opened. */
       key={noteId}
-      className="flex h-full w-[384px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-card shadow-[-8px_0_24px_-12px_rgba(2,71,79,0.18)]"
+      className="flex h-full w-[384px] shrink-0 animate-slide-in-right flex-col border-l border-border bg-card shadow-[-8px_0_24px_-12px_rgba(34,48,63,0.18)]"
     >
       <NoteDetailContent
         noteId={noteId}
@@ -302,18 +303,10 @@ function NoteDetailContent({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-2.5 border-b border-border-subtle px-5 py-3">
-        <span
-          role="img"
-          aria-label={
-            isDone
-              ? t('note.doneStatus')
-              : `${t('note.priorityLabel')}: ${priorityLabels[note.priority]}`
-          }
-          className={cn(
-            'h-2 w-2 shrink-0 rounded-full',
-            isDone ? 'bg-[color:var(--status-success-bold)]' : priorityToneClass[note.priority],
-          )}
-        />
+        {/* Decorative only: the breadcrumb beside it already names the zone, the priority
+            and the done state in words, so labelling the dot too would announce them twice.
+            Low priority renders no dot at all — see PriorityDot. */}
+        {!isDone && <PriorityDot priority={note.priority} size={8} />}
         <span className="flex-1 truncate text-12 font-semibold text-fg-muted">
           {isDone
             ? t('note.doneStatus')
@@ -352,7 +345,7 @@ function NoteDetailContent({
           <label
             htmlFor="note-done"
             className={cn(
-              '-my-1.5 py-1.5 text-13 font-medium text-fg-2 select-none',
+              '-my-1.5 py-1.5 text-14 font-medium text-fg-2 select-none',
               !disabled && 'cursor-pointer hover:text-fg-1',
             )}
           >
@@ -394,7 +387,7 @@ function NoteDetailContent({
             >
               {notePriorityValues.map((p) => (
                 <ToggleGroupItem key={p} variant="chip" value={p} aria-label={priorityLabels[p]}>
-                  <span className={cn('h-[7px] w-[7px] rounded-full', priorityToneClass[p])} />
+                  <PriorityDot priority={p} />
                   {priorityLabels[p]}
                 </ToggleGroupItem>
               ))}
@@ -434,7 +427,7 @@ function NoteDetailContent({
                 onChange={(e) =>
                   updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
                 }
-                className="h-9 text-13"
+                className="h-9 text-14"
               />
             </Field>
             <Field>
@@ -446,7 +439,7 @@ function NoteDetailContent({
               >
                 <SelectTrigger
                   aria-label={t('note.assigneeLabel')}
-                  className="h-9 rounded-md border border-input bg-card px-3 text-13"
+                  className="h-9 rounded-md border border-input bg-card px-3 text-14"
                 >
                   <SelectValue />
                 </SelectTrigger>

@@ -10,7 +10,7 @@ Before running `pnpm --filter @wally/web test:e2e`:
 1. `make up && make seed` from the repo root.
 2. Create (or confirm) a Firebase test user and export its credentials:
    ```
-   export E2E_USER_EMAIL=max.berger@finlex.de
+   export E2E_USER_EMAIL=mika.brandt@example.com
    export E2E_USER_PASSWORD=<the seeded test account's password>
    ```
    (the seed script's demo owner — see `apps/api/src/seed.ts` — but Firebase Auth accounts

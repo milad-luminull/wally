@@ -122,11 +122,12 @@ export function TopBar({
   return (
     <header className="z-header flex shrink-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border bg-surface-alt px-5 py-3 lg:px-7">
       <div className="flex min-w-0 shrink-0 items-center gap-3">
-        {/* Board mark: anchors the identity so the title is not the only thing holding the
-            top-left corner. Petrol square with the board's initial. */}
+        {/* The BOARD's initial, not the brand's — one of these per board, and it changes
+            when the board is renamed. Deliberately a circle: a slate rounded square with a
+            letter in it would read as the Wally mark, which the guideline lists as a don't. */}
         <span
           aria-hidden
-          className="font-head hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-13 font-bold text-primary-foreground sm:flex"
+          className="font-head hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-14 font-bold text-primary-foreground sm:flex"
         >
           {(board.name.trim()[0] ?? 'W').toUpperCase()}
         </span>
@@ -147,14 +148,14 @@ export function TopBar({
                   }
                 }}
                 aria-label={t('board.topBar.boardNameAria')}
-                className="font-head min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-18 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
+                className="font-head min-w-0 max-w-[280px] rounded-sm border-0 bg-transparent text-22 font-bold text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
               />
             ) : (
               <h1
                 className={cn(
-                  'font-head min-w-0 truncate text-18 font-bold text-fg-1',
+                  'font-head min-w-0 truncate text-22 font-bold text-fg-1',
                   isOwner &&
-                    'cursor-text rounded-sm transition-colors duration-150 hover:text-[color:var(--petrol-mid)]',
+                    'cursor-text rounded-sm transition-colors duration-150 hover:text-[color:var(--slate-hover)]',
                 )}
                 onClick={() => isOwner && setEditingName(true)}
                 title={isOwner ? t('board.topBar.renameTitle') : undefined}
@@ -172,7 +173,10 @@ export function TopBar({
                 <span aria-hidden className="text-faint">
                   ·
                 </span>
-                <span className="font-semibold tabular-nums text-status-danger">
+                {/* Weight, not colour. Status colour lives in a note's due-date line and
+                    nowhere else, so a red count up here would be the "no badges" rule broken
+                    in the one place it is most tempting to break it. */}
+                <span className="font-semibold tabular-nums text-fg-1">
                   {t('board.topBar.overdue', { count: overdueCount })}
                 </span>
               </>
@@ -203,7 +207,7 @@ export function TopBar({
         <Select value={axis} onValueChange={(v) => onSetAxis(v as BoardAxis)}>
           <SelectTrigger
             aria-label={t('board.topBar.axis.ariaLabel')}
-            className="h-9 w-[132px] rounded-lg border border-border bg-card px-3 text-13 [@media(pointer:coarse)]:h-11"
+            className="h-9 w-[132px] rounded-lg border border-border bg-card px-3 text-14 [@media(pointer:coarse)]:h-11"
           >
             <SelectValue />
           </SelectTrigger>
@@ -234,7 +238,7 @@ export function TopBar({
               </Avatar>
             ))}
             {overflowCount > 0 && (
-              <span className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-inset text-11 font-semibold tabular-nums text-fg-muted ring-2 ring-surface-alt">
+              <span className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-inset text-12 font-semibold tabular-nums text-fg-muted ring-2 ring-surface-alt">
                 +{overflowCount}
               </span>
             )}

@@ -42,7 +42,7 @@ import { AuthProvider, useAuth } from './AuthProvider';
 function makeUser(overrides: Partial<FakeUser> = {}): FakeUser {
   return {
     uid: 'u-1',
-    email: 'max@finlex.de',
+    email: 'max@example.com',
     emailVerified: false,
     getIdToken: vi.fn(() => Promise.resolve('token-1')),
     reload: vi.fn(() => Promise.resolve()),
@@ -75,7 +75,7 @@ describe('AuthProvider', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
-      await result.current.signUpWithEmail('max@finlex.de', 'geheim123');
+      await result.current.signUpWithEmail('max@example.com', 'geheim123');
     });
 
     // Firebase does not send this itself, and the API refuses to activate a pending board
@@ -96,7 +96,7 @@ describe('AuthProvider', () => {
     // The account exists either way; failing the sign-up over the mail would strand them
     // with credentials they were never told worked.
     await expect(
-      result.current.signUpWithEmail('max@finlex.de', 'geheim123'),
+      result.current.signUpWithEmail('max@example.com', 'geheim123'),
     ).resolves.toBeUndefined();
   });
 
