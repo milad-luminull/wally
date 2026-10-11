@@ -197,7 +197,9 @@ function BooleanToggles({
       <Toggle variant="chip" pressed={mine} onPressedChange={setMine}>
         {t('board.filter.mine')}
       </Toggle>
-      <Toggle variant="chip" pressed={done} onPressedChange={setDone}>
+      {/* Phrased as "hide", so the chip is OFF in the default state — an ink-filled chip at
+          rest would read as a filter someone left on. */}
+      <Toggle variant="chip" pressed={!done} onPressedChange={(hide) => setDone(!hide)}>
         {t('board.filter.done')}
       </Toggle>
     </>

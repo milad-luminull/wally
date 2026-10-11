@@ -81,7 +81,7 @@ export function Toaster() {
   return createPortal(
     <ol
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-4 z-overlay mx-auto flex w-[calc(100%-32px)] max-w-[420px] flex-col gap-2"
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-toast mx-auto flex w-[calc(100%-32px)] max-w-[420px] flex-col gap-2"
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} />

@@ -106,7 +106,6 @@ export const en = {
     share: 'Share board',
     viewWall: 'Switch to wall',
     viewList: 'Switch to list',
-    groupBy: 'Group by {{label}}',
     showDone: 'Show completed',
     hideDone: 'Hide completed',
     onlyMine: 'Only my notes',
@@ -188,7 +187,7 @@ export const en = {
       anyValue: 'All values',
       showHeading: 'Show',
       mine: 'Only mine',
-      done: 'Completed',
+      done: 'Hide completed',
       reset: 'Reset',
       resetLong: 'Reset filters',
     },
@@ -242,7 +241,6 @@ export const en = {
     noAssignee: 'Nobody',
     doneStatus: 'Done',
     zone: {
-      row: 'Row',
       column: 'Column',
     },
     fields: {

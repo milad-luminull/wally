@@ -154,10 +154,13 @@ describe('NoteDetailPanel', () => {
     );
   });
 
-  it('labels the zone control "Zeile" for the Priority axis and hides it entirely in Frei mode', async () => {
+  // In the Priority axis the zone is the priority, so a "Zeile" control would be a second
+  // copy of the Priority row directly above it.
+  it('shows no separate zone control for the Priority axis or in Frei mode', async () => {
     const { rerender } = renderPanel({ axis: 'priority' });
     await screen.findByLabelText('Titel');
-    expect(screen.getByText('Zeile')).toBeInTheDocument();
+    expect(screen.queryByText('Zeile')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: 'Hoch' })).toHaveLength(1);
 
     rerender(
       <NoteDetailPanel

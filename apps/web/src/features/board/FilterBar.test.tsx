@@ -105,7 +105,7 @@ describe('FilterBar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Nur meine' }));
     expect(setMine).toHaveBeenCalledWith(true);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Erledigte' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Erledigte ausblenden' }));
     expect(setDone).toHaveBeenCalledWith(false);
   });
 

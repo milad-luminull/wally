@@ -116,7 +116,6 @@ export const de = {
     share: 'Wand teilen',
     viewWall: 'Zur Wand wechseln',
     viewList: 'Zur Liste wechseln',
-    groupBy: 'Gruppieren: {{label}}',
     showDone: 'Erledigte einblenden',
     hideDone: 'Erledigte ausblenden',
     onlyMine: 'Nur meine Notizen',
@@ -201,7 +200,7 @@ export const de = {
       anyValue: 'Alle Werte',
       showHeading: 'Anzeigen',
       mine: 'Nur meine',
-      done: 'Erledigte',
+      done: 'Erledigte ausblenden',
       reset: 'Zurücksetzen',
       resetLong: 'Filter zurücksetzen',
     },
@@ -258,7 +257,6 @@ export const de = {
     noAssignee: 'Niemand',
     doneStatus: 'Erledigt',
     zone: {
-      row: 'Zeile',
       column: 'Spalte',
     },
     fields: {

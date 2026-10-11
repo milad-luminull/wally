@@ -240,8 +240,9 @@ function NoteDetailContent({
   }
 
   const disabled = !canEdit;
-  const zoneLabel = t(axis === 'priority' ? 'note.zone.row' : 'note.zone.column');
-  const showZone = axis !== 'free';
+  // Only the horizon axis needs its own zone control: in the priority axis the zone IS the
+  // priority, and the Priority row above already moves it.
+  const showZone = axis === 'horizon';
   const isDone = note.status === 'DONE';
 
   function commitTitle() {
@@ -263,17 +264,7 @@ function NoteDetailContent({
 
   function handleZoneChange(value: string) {
     if (!value || !note) return;
-    if (axis === 'horizon') {
-      moveNote.mutate({
-        noteId: note.id,
-        input: { mode: 'HORIZON', horizon: value as (typeof noteHorizonValues)[number] },
-      });
-    } else if (axis === 'priority') {
-      moveNote.mutate({
-        noteId: note.id,
-        input: { mode: 'PRIORITY', priority: value as NotePriority },
-      });
-    }
+    moveNote.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: value as NoteHorizon } });
   }
 
   function handleAssigneeChange(value: string) {
@@ -307,7 +298,9 @@ function NoteDetailContent({
         <span className="flex-1 truncate text-12 font-medium text-fg-3">
           {isDone
             ? t('note.doneStatus')
-            : `${axis === 'priority' ? priorityLabels[note.priority] : horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`}
+            : axis === 'horizon'
+              ? `${horizonLabels[note.horizon]} · ${priorityLabels[note.priority]}`
+              : priorityLabels[note.priority]}
         </span>
         <IconTooltip label={t('common.close')} shortcut={['Esc']}>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('common.close')}>
@@ -389,21 +382,19 @@ function NoteDetailContent({
           </PropertyRow>
 
           {showZone && (
-            <PropertyRow label={zoneLabel}>
+            <PropertyRow label={t('note.zone.column')}>
               <ToggleGroup
                 type="single"
                 variant="segment"
                 size="sm"
-                value={axis === 'priority' ? note.priority : note.horizon}
+                value={note.horizon}
                 onValueChange={handleZoneChange}
                 disabled={disabled}
                 className={SEGMENTED_GROUP}
               >
-                {(axis === 'priority' ? notePriorityValues : noteHorizonValues).map((key) => (
+                {noteHorizonValues.map((key) => (
                   <ToggleGroupItem key={key} value={key}>
-                    {axis === 'priority'
-                      ? priorityLabels[key as NotePriority]
-                      : horizonLabels[key as NoteHorizon]}
+                    {horizonLabels[key]}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>

@@ -48,6 +48,12 @@ import { SEARCH_INPUT_ID } from './FilterBar';
 
 const LANGUAGE_ENDONYMS: Record<AppLocale, string> = { de: 'Deutsch', en: 'English' };
 
+const GROUP_LABEL_KEYS = {
+  horizon: 'shortcuts.groupHorizon',
+  priority: 'shortcuts.groupPriority',
+  free: 'shortcuts.groupFree',
+} as const;
+
 interface BoardCommandsProps {
   boardId: string;
   notes: NoteDto[];
@@ -245,11 +251,7 @@ function CommandPalette({
                   onSelect={() => run(() => onSetAxis(value))}
                 >
                   <LayoutGrid strokeWidth={1.75} />
-                  <span className="flex-1">
-                    {t('palette.groupBy', {
-                      label: t(`board.topBar.axis.${value}.label`),
-                    })}
-                  </span>
+                  <span className="flex-1">{t(GROUP_LABEL_KEYS[value])}</span>
                   {axis === value ? (
                     <Check strokeWidth={2} />
                   ) : (

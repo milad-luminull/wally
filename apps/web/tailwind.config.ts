@@ -175,6 +175,8 @@ export default {
         header: '60',
         tooltip: '80',
         overlay: '100',
+        /* Above overlays: an undo toast raised as a sheet closes must not sit under its scrim. */
+        toast: '110',
       },
     },
   },
