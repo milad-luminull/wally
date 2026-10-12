@@ -1,15 +1,12 @@
 version: 2
 updates:
+  # Dependabot does not discover composite actions from "/" — it needs the directory.
+  # Listing both in one entry lets a single group cover them, so it's one PR, not two.
   - package-ecosystem: github-actions
-    directory: '/'
+    directories: ['/', '/.github/actions/setup']
     schedule: { interval: weekly }
     groups:
       actions: { patterns: ['*'] }
-
-  # Dependabot does not discover composite actions from "/" — it needs the directory.
-  - package-ecosystem: github-actions
-    directory: '/.github/actions/setup'
-    schedule: { interval: weekly }
 
   # The npm ecosystem understands pnpm workspaces via the root lockfile.
   - package-ecosystem: npm
@@ -28,7 +25,16 @@ updates:
       # device descriptors; land those deliberately rather than on a Monday morning.
       - dependency-name: '@playwright/test'
         update-types: ['version-update:semver-major']
+      # plugin-react majors track vite majors (6.x needs vite 8); move them with vite.
+      - dependency-name: '@vitejs/plugin-react'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directories: ['/apps/api', '/apps/web', '/infra']
     schedule: { interval: weekly }
+    groups:
+      images: { patterns: ['*'] }
+    ignore:
+      # Odd-numbered Node majors never become LTS; move to the next LTS deliberately.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
