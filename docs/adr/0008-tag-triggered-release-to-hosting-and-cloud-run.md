@@ -24,7 +24,7 @@ The web app is static and the API is a long-running container; Firebase Hosting 
 
 Chosen option: **the tagged release workflow**, [`.github/workflows/release.yml`](../../.github/workflows/release.yml), added in commit `b53a66d9`.
 
-- A `v*` tag that is on `main` reuses the CI workflow, then waits for approval on the `production` GitHub environment.
+- A `v*` tag that is on `main` requires the CI run that the push to `main` started for that exact commit to have passed (it waits if that run is still going), then waits for approval on the `production` GitHub environment.
 - GitHub authenticates through Workload Identity Federation, set up once by [`scripts/bootstrap-gcp-cicd.sh`](../../scripts/bootstrap-gcp-cicd.sh), which binds the provider to numeric repository and owner ids rather than names.
 - Order: Firestore rules and indexes first, and wait until every index is READY. Then the API image, pushed to Artifact Registry and deployed by digest as a no-traffic revision; the Cloud Run environment is asserted (`FIRESTORE_DATABASE_ID=wally`, `NODE_ENV=production`, no emulator host); the candidate is smoke-tested; traffic shifts. Then the web bundle, built in the job and checked for the production API URL, deployed to Firebase Hosting. Then a read-only smoke test of the live site.
 - On a failed post-deploy smoke, both Cloud Run and Hosting are rolled back to the state captured at the start of the job.

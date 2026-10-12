@@ -4,8 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # release.yml re-runs this exact gate at the tagged commit before deploying.
-  workflow_call:
 
 # Read-only by default. No job here needs more; the release workflow elevates on its own.
 permissions:
@@ -96,8 +94,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Only run where the secrets actually exist. `github.event.pull_request` is null for
-    # push and workflow_call, so the first clause short-circuits and the job runs on main
-    # and during release verification. Comparing full_name (rather than `.fork`) also
+    # push, so the first clause short-circuits and the job runs on main, whose result
+    # release.yml requires before deploying. Comparing full_name (rather than `.fork`) also
     # covers a PR opened from a fork of a fork.
     if: >-
       github.event_name != 'pull_request' ||
