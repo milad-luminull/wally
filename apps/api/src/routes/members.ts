@@ -74,22 +74,24 @@ export default async function memberRoutes(fastify: FastifyInstance) {
       }
 
       const role = request.body.role;
-      await db.runTransaction(async (tx) => {
+      const member = await db.runTransaction(async (tx) => {
         // ---- reads ----
-        const fresh = await tx.get(members.doc(existing.id));
-        if (!fresh.exists) throw new AppError(404, 'NOT_FOUND', 'Not found');
+        // Every decision below uses this read, never `existing`: an invite can activate
+        // between the two, and acting on the stale PENDING snapshot would skip the cache.
+        const row = withId(await tx.get(members.doc(existing.id)));
+        if (!row) throw new AppError(404, 'NOT_FOUND', 'Not found');
         // Read the subcollection whole: a where('userId').where('status') query here would
         // need a COLLECTION-scoped composite index, and the one in firestore.indexes.json
         // is COLLECTION_GROUP.
-        const rows = existing.userId ? docsWithId(await tx.get(members)) : [];
+        const rows = row.userId ? docsWithId(await tx.get(members)) : [];
 
         // ---- writes ----
-        tx.update(members.doc(existing.id), { role });
+        tx.update(members.doc(row.id), { role });
 
         // memberRoles mirrors ACTIVE members only. A PENDING row grants nothing yet, even
         // when it happens to carry a userId, and editing its role must not become a way to
         // promote it into live access without the address ever being confirmed.
-        if (!existing.userId || existing.status !== 'ACTIVE') return;
+        if (!row.userId || row.status !== 'ACTIVE') return { ...row, role };
 
         // The row being edited is not necessarily the only one this user holds here, so the
         // cache is recomputed rather than overwritten from this row alone.
@@ -97,18 +99,18 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           role,
           ...rows
             .filter(
-              (row) =>
-                row.id !== existing.id && row.userId === existing.userId && row.status === 'ACTIVE',
+              (other) =>
+                other.id !== row.id && other.userId === row.userId && other.status === 'ACTIVE',
             )
-            .map((row) => row.role),
+            .map((other) => other.role),
         ])!;
         tx.update(whiteboardsCol(db).doc(ctx.whiteboardId), {
-          ...memberRoleUpdate(existing.userId, effective),
+          ...memberRoleUpdate(row.userId, effective),
           updatedAt: now(),
         });
+        return { ...row, role };
       });
 
-      const member = { ...existing, role };
       return toMemberDto(member, await loadUsers(db, [member.userId]));
     },
   );
@@ -132,15 +134,18 @@ export default async function memberRoutes(fastify: FastifyInstance) {
       // Whether the user retains ANY access afterwards. Decided inside the transaction,
       // because it also decides whether their notes should fall back to unassigned.
       // `undefined` means the row was already gone.
-      const survivingRole = await db.runTransaction(async (tx) => {
+      const outcome = await db.runTransaction(async (tx) => {
         // ---- reads ----
-        const fresh = await tx.get(members.doc(existing.id));
-        if (!fresh.exists) return undefined;
-        const rows = existing.userId ? docsWithId(await tx.get(members)) : [];
+        // Every decision below uses this read, never `existing`: a PENDING invite carrying
+        // no userId can activate between the two, and acting on the stale snapshot would
+        // delete the row while leaving its memberRoles entry granting access.
+        const row = withId(await tx.get(members.doc(existing.id)));
+        if (!row) return undefined;
+        const rows = row.userId ? docsWithId(await tx.get(members)) : [];
 
         // ---- writes ----
-        tx.delete(members.doc(existing.id));
-        if (!existing.userId) return null;
+        tx.delete(members.doc(row.id));
+        if (!row.userId) return { userId: null, survivingRole: null };
 
         // Recompute from the rows that SURVIVE rather than dropping the key outright. A
         // user holding a second ACTIVE row still has legitimate access through the members
@@ -149,26 +154,26 @@ export default async function memberRoutes(fastify: FastifyInstance) {
         const role = strongestRole(
           rows
             .filter(
-              (row) =>
-                row.id !== existing.id && row.userId === existing.userId && row.status === 'ACTIVE',
+              (other) =>
+                other.id !== row.id && other.userId === row.userId && other.status === 'ACTIVE',
             )
-            .map((row) => row.role),
+            .map((other) => other.role),
         );
         tx.update(whiteboardsCol(db).doc(ctx.whiteboardId), {
-          ...(role ? memberRoleUpdate(existing.userId, role) : memberRoleRemoval(existing.userId)),
+          ...(role ? memberRoleUpdate(row.userId, role) : memberRoleRemoval(row.userId)),
           updatedAt: now(),
         });
-        return role;
+        return { userId: row.userId, survivingRole: role };
       });
 
       // Only once they have genuinely lost the board. A surviving row still lets them work
       // on it, so stripping their assignments would be wrong.
-      if (existing.userId && survivingRole === null) {
+      if (outcome?.userId && outcome.survivingRole === null) {
         // Their notes fall back to unassigned. A separate pass because it is unbounded —
         // BulkWriter chunks it rather than hitting the 500-write cap on a single batch.
         const assigned = await notesCol(db)
           .where('whiteboardId', '==', ctx.whiteboardId)
-          .where('assigneeId', '==', existing.userId)
+          .where('assigneeId', '==', outcome.userId)
           .get();
         if (!assigned.empty) {
           const writer = db.bulkWriter();

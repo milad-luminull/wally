@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   docsWithId,
   membersCol,
@@ -6,6 +6,7 @@ import {
   whiteboardsCol,
   withId,
 } from '../src/lib/db/collections.js';
+import { activatePendingInvitesForEmail } from '../src/lib/members.js';
 import {
   addTestMember,
   buildTestApp,
@@ -33,6 +34,7 @@ describe('membership integrity', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await resetDatabase(PROJECT_ID);
   });
 
@@ -263,5 +265,75 @@ describe('membership integrity', () => {
     // memberRoles mirrors ACTIVE members only. Editing a role must not become a back door
     // to live access for an address nobody has confirmed.
     expect(await memberRoles('mi-owner')).toEqual({});
+  });
+
+  /**
+   * Makes the route's own transaction start only after the invite has been activated, so the
+   * row it read before the transaction is stale by construction — the interleaving a real
+   * sign-in can produce between the route's pre-read and its transaction.
+   */
+  function activateBeforeNextTransaction(userId: string, email: string) {
+    const original = ctx.db.runTransaction.bind(ctx.db);
+    vi.spyOn(ctx.db, 'runTransaction').mockImplementationOnce(async (fn, options) => {
+      await activatePendingInvitesForEmail(ctx.db, userId, email);
+      return original(fn, options);
+    });
+  }
+
+  it('revokes access when an invite activates between the pre-read and the removal', async () => {
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
+    await authenticate(ownerToken);
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
+    await authenticate(aliceToken);
+
+    const pendingRow = await createTestMembership(ctx.db, 'mi-owner', {
+      userId: null,
+      invitedEmail: 'alice@example.com',
+      role: 'EDIT',
+      status: 'PENDING',
+    });
+
+    activateBeforeNextTransaction('mi-alice', 'alice@example.com');
+    const res = await ctx.app.inject({
+      method: 'DELETE',
+      url: `/whiteboards/mi-owner/members/${pendingRow}`,
+      headers: ctx.authHeader(ownerToken),
+    });
+    expect(res.statusCode).toBe(204);
+
+    expect(await listMembers('mi-owner')).toEqual([]);
+    expect(await memberRoles('mi-owner')).toEqual({});
+    const board = await ctx.app.inject({
+      method: 'GET',
+      url: '/whiteboards/mi-owner',
+      headers: ctx.authHeader(aliceToken),
+    });
+    expect(board.statusCode).toBe(404);
+  });
+
+  it('applies a role edit to the cache when the invite activates mid-request', async () => {
+    const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
+    await authenticate(ownerToken);
+    const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');
+    await authenticate(aliceToken);
+
+    const pendingRow = await createTestMembership(ctx.db, 'mi-owner', {
+      userId: null,
+      invitedEmail: 'alice@example.com',
+      role: 'VIEW',
+      status: 'PENDING',
+    });
+
+    activateBeforeNextTransaction('mi-alice', 'alice@example.com');
+    const res = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/whiteboards/mi-owner/members/${pendingRow}`,
+      headers: ctx.authHeader(ownerToken),
+      payload: { role: 'EDIT' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ role: 'EDIT', status: 'ACTIVE' });
+
+    expect(await memberRoles('mi-owner')).toEqual({ 'mi-alice': 'EDIT' });
   });
 });
