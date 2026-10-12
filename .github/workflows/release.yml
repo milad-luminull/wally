@@ -199,7 +199,7 @@ jobs:
           # and the quotes left inside made curl reject the URL.
           URL=$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" --format=json \
                 | jq -r --arg tag "rel-${{ steps.ver.outputs.short }}" \
-                    '.status.traffic[] | select(.tag == $tag) | .url' | head -1)
+                    '[.status.traffic[] | select(.tag == $tag) | .url][0] // empty')
           [[ "$URL" == https://* ]] || { echo "::error::no URL for the candidate tag; got '${URL}'"; exit 1; }
           echo "candidate_url=${URL}" >> "$GITHUB_OUTPUT"
           echo "candidate: ${URL}"
@@ -308,9 +308,13 @@ jobs:
           [ "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
 
           # Prove the bundle actually SERVED by Hosting points at the right API.
-          asset=$(curl -fsS "$WEB/" | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -1)
+          # Download first, then search: piping curl into an early-exiting reader (grep -q,
+          # head) can kill curl with SIGPIPE, and pipefail then fails a check that matched.
+          index=$(curl -fsS "$WEB/")
+          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p)
           [ -n "$asset" ] || { echo "::error::could not find the entry bundle in index.html"; exit 1; }
-          curl -fsS "$WEB$asset" | grep -qF "${API#https://}" \
+          bundle=$(curl -fsS "$WEB$asset")
+          grep -qF "${API#https://}" <<<"$bundle" \
             || { echo "::error::the served bundle does not reference $API"; exit 1; }
           echo "production smoke OK"
 
