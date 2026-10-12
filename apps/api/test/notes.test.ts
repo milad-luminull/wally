@@ -9,6 +9,7 @@ import {
   withId,
 } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+import { listNotes } from '../src/lib/commands/queries.js';
 
 const PROJECT_ID = 'wally-test-notes-routes';
 
@@ -43,6 +44,64 @@ describe('note routes', () => {
   }
 
   describe('GET /whiteboards/:id/notes', () => {
+    it('preserves priority, horizon and assignment filters through HTTP and direct queries', async () => {
+      const fx = await createBoardFixture(ctx);
+      for (const input of [
+        { title: 'Match', priority: 'HOCH', horizon: 'HEUTE', assigneeId: fx.ownerId },
+        { title: 'Other priority', priority: 'NIEDRIG', horizon: 'HEUTE', assigneeId: fx.ownerId },
+        { title: 'Other horizon', priority: 'HOCH', horizon: 'SPAETER', assigneeId: fx.ownerId },
+        { title: 'Other assignee', priority: 'HOCH', horizon: 'HEUTE', assigneeId: fx.editorId },
+      ]) {
+        expect((await createNote(fx.boardId, fx.ownerToken, input)).statusCode).toBe(201);
+      }
+
+      for (const [query, titles] of [
+        ['priority=HOCH', ['Match', 'Other assignee', 'Other horizon']],
+        ['horizon=HEUTE', ['Match', 'Other assignee', 'Other priority']],
+        ['assignedToMe=true', ['Match', 'Other horizon', 'Other priority']],
+        ['priority=HOCH&horizon=HEUTE&assignedToMe=true', ['Match']],
+        [
+          'priority=HOCH,NIEDRIG&horizon=HEUTE&assignedToMe=false',
+          ['Match', 'Other assignee', 'Other priority'],
+        ],
+      ] as const) {
+        const res = await ctx.inject({
+          method: 'GET',
+          url: `/whiteboards/${fx.boardId}/notes?${query}`,
+          headers: ctx.authHeader(fx.ownerToken),
+        });
+        expect(res.statusCode).toBe(200);
+        expect(
+          res
+            .json()
+            .map((note: { title: string }) => note.title)
+            .sort(),
+        ).toEqual(titles);
+      }
+
+      const actor = { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true };
+      const notes = await listNotes(ctx.db, actor, fx.boardId, {
+        priority: ['HOCH'],
+        horizon: ['HEUTE'],
+        assignedToMe: true,
+      });
+      expect(notes.map((note) => note.title)).toEqual(['Match']);
+    });
+
+    it('rejects malformed filters instead of treating them as an unfiltered query', async () => {
+      const fx = await createBoardFixture(ctx);
+      const actor = { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true };
+      for (const query of [{ priority: ['INVALID'] }, { horizon: 123 }, { assignedToMe: 'yes' }]) {
+        await expect(listNotes(ctx.db, actor, fx.boardId, query)).rejects.toThrow();
+      }
+      const res = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes?assignedToMe=yes`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
     it('200s for owner/EDIT/VIEW, 404s for a non-member', async () => {
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken);
@@ -177,6 +236,33 @@ describe('note routes', () => {
       const res = await createNote(fx.boardId, fx.ownerToken, { assigneeId: 'fx-outsider' });
       expect(res.statusCode).toBe(422);
     });
+
+    it.each(['constructor', 'toString', '__proto__'])(
+      'rejects inherited membership key %s on create and assignment',
+      async (assigneeId) => {
+        const fx = await createBoardFixture(ctx);
+        const invalidCreate = await createNote(fx.boardId, fx.ownerToken, { assigneeId });
+        expect(invalidCreate.statusCode).toBe(422);
+        expect(invalidCreate.json().error).toBe('INVALID_ASSIGNEE');
+        expect((await notesCol(ctx.db).get()).size).toBe(0);
+
+        const created = (
+          await createNote(fx.boardId, fx.ownerToken, { assigneeId: fx.editorId })
+        ).json();
+        const invalidAssign = await ctx.inject({
+          method: 'POST',
+          url: `/notes/${created.id}/assign`,
+          headers: ctx.authHeader(fx.ownerToken),
+          payload: { assigneeId },
+        });
+        expect(invalidAssign.statusCode).toBe(422);
+        expect(invalidAssign.json().error).toBe('INVALID_ASSIGNEE');
+        expect((await notesCol(ctx.db).doc(created.id).get()).data()).toMatchObject({
+          assigneeId: fx.editorId,
+          revision: created.revision,
+        });
+      },
+    );
 
     it('persists custom fields, and defaults them to {} when omitted', async () => {
       const fx = await createBoardFixture(ctx);

@@ -2,13 +2,15 @@ import { z } from 'zod';
 
 /**
  * Parses a comma-separated query string param (e.g. "?priority=HOCH,MITTEL") into an
- * array validated against the given enum. Empty/missing values become undefined so
+ * array validated against the given enum. Already parsed arrays remain valid when the
+ * application layer validates a query again. Empty/missing values become undefined so
  * "no filter applied" and "filtered to nothing" stay distinguishable downstream.
  */
 export function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
   return z.preprocess(
     (val) => {
-      if (typeof val !== 'string' || val.trim().length === 0) return undefined;
+      if (typeof val !== 'string') return val;
+      if (val.trim().length === 0) return undefined;
       return val
         .split(',')
         .map((v) => v.trim())
@@ -18,10 +20,10 @@ export function csvEnum<T extends readonly [string, ...string[]]>(values: T) {
   );
 }
 
-/** Coerces the common "true"/"false" query-string boolean shape. */
+/** Accepts typed booleans as well as their HTTP query-string representation. */
 export const booleanQueryParam = z.preprocess((val) => {
-  if (typeof val !== 'string') return undefined;
+  if (val === '') return undefined;
   if (val === 'true') return true;
   if (val === 'false') return false;
-  return undefined;
+  return val;
 }, z.boolean().optional());

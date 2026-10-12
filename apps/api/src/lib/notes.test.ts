@@ -78,4 +78,19 @@ describe('assertValidAssignee', () => {
   it('rejects a non-member', () => {
     expect(() => assertValidAssignee(board, 'u-outsider')).toThrow(AppError);
   });
+
+  it.each(['constructor', 'toString', '__proto__'])('rejects inherited property %s', (id) => {
+    expect(() => assertValidAssignee(board, id)).toThrow(AppError);
+  });
+
+  it('rejects an inherited role even when its value is EDIT', () => {
+    const roles = Object.create({ 'u-inherited': 'EDIT' }) as Record<string, WhiteboardRole>;
+    expect(() => assertValidAssignee(makeBoard(roles), 'u-inherited')).toThrow(AppError);
+  });
+
+  it('allows active viewers and own properties whose names also exist on Object.prototype', () => {
+    const active = makeBoard({ 'u-viewer': 'VIEW', constructor: 'EDIT' as const });
+    expect(() => assertValidAssignee(active, 'u-viewer')).not.toThrow();
+    expect(() => assertValidAssignee(active, 'constructor')).not.toThrow();
+  });
 });
