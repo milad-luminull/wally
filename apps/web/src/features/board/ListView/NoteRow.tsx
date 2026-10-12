@@ -22,10 +22,13 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const isDone = note.status === 'DONE';
 
-  const assigneeName =
-    note.assignee && note.assignee.id !== currentUserId
-      ? (note.assignee.displayName ?? note.assignee.email)
-      : undefined;
+  // Always named, yourself included: leaving your own name out made "assigned to me" read
+  // exactly like "assigned to nobody".
+  const assigneeName = note.assignee
+    ? note.assignee.id === currentUserId
+      ? t('common.you')
+      : (note.assignee.displayName ?? note.assignee.email)
+    : undefined;
   // First property alphabetically, so the meta line is stable rather than following
   // whatever order Firestore returns the map in.
   const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) =>

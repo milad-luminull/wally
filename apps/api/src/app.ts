@@ -11,13 +11,9 @@ import { loadEnv } from './env.js';
 import firestorePlugin from './plugins/firestore.js';
 import firebasePlugin, { type AuthVerifier } from './plugins/firebase.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
+import boardRoutes from './routes/boards.js';
 import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
-import whiteboardRoutes from './routes/whiteboards.js';
-import noteRoutes from './routes/notes.js';
-import subtaskRoutes from './routes/subtasks.js';
-import memberRoutes from './routes/members.js';
-import shareLinkRoutes from './routes/share-links.js';
 import { AppError } from './lib/errors.js';
 
 /** gRPC status code Firestore raises when updating or reading a document that isn't there. */
@@ -35,7 +31,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const env = loadEnv();
 
   const app = Fastify({
-    logger: options.logger ?? env.NODE_ENV !== 'test',
+    logger:
+      (options.logger ?? env.NODE_ENV !== 'test')
+        ? {
+            serializers: {
+              req: (request: { method: string; url: string }) => ({
+                method: request.method,
+                url: request.url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]'),
+              }),
+            },
+          }
+        : false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -54,7 +60,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       typeof (err as { statusCode?: unknown }).statusCode === 'number'
         ? (err as { statusCode: number }).statusCode
         : 500;
-    if (statusCode >= 500) request.log.error(err);
+    if (statusCode >= 500)
+      request.log.error(
+        { code: (err as { code?: unknown }).code, name: (err as Error).name },
+        'Request failed',
+      );
     return reply.code(statusCode).send({
       error: statusCode === 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST',
       message: statusCode === 500 ? 'Unexpected error' : (err as Error).message,
@@ -66,6 +76,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     // @fastify/cors 11 narrowed the default to the CORS-safelisted GET/HEAD/POST, which would
     // fail the browser's preflight for every PATCH and DELETE route. Name them explicitly.
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'Accept',
+      'Accept-Language',
+      'Idempotency-Key',
+      'X-Expected-Revision',
+    ],
+    exposedHeaders: ['X-Resource-Revision'],
   });
 
   await app.register(firestorePlugin, { db: options.db });
@@ -105,11 +124,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(healthRoutes);
   await app.register(meRoutes);
-  await app.register(whiteboardRoutes);
-  await app.register(noteRoutes);
-  await app.register(subtaskRoutes);
-  await app.register(memberRoutes);
-  await app.register(shareLinkRoutes);
+  await app.register(boardRoutes);
 
   return app;
 }

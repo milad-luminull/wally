@@ -1,7 +1,9 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteDto, NoteMoveInput } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import {
+  captureNoteMutation,
   cancelNoteCaches,
   patchNoteCaches,
   restoreNoteCaches,
@@ -9,6 +11,7 @@ import {
   snapshotNoteCaches,
   type NoteCacheSnapshot,
 } from './shared';
+import { useQueryKeys } from '../queryKeys';
 
 /** The cache fields each move mode owns. Exported so the board can apply the very same
  * patch live during a drag, before this mutation ever runs. */
@@ -37,19 +40,25 @@ interface MoveVariables {
  */
 export function useMoveNote(boardId: string) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
 
   return useMutation({
-    mutationFn: ({ noteId, input }: MoveVariables) => notesApi.move(noteId, input),
+    mutationFn: ({ noteId, input, rollback }: MoveVariables) =>
+      notesApi.move(
+        noteId,
+        input,
+        captureNoteMutation(queryClient, keys, boardId, noteId, rollback),
+      ),
     onMutate: ({ noteId, input, rollback }) => {
-      cancelNoteCaches(queryClient, boardId, noteId);
-      const snapshot = rollback ?? snapshotNoteCaches(queryClient, boardId, noteId);
+      cancelNoteCaches(queryClient, keys, boardId, noteId);
+      const snapshot = rollback ?? snapshotNoteCaches(queryClient, keys, boardId, noteId);
       // Idempotent when the board already applied this during the drag.
-      patchNoteCaches(queryClient, boardId, noteId, noteMovePatch(input));
+      patchNoteCaches(queryClient, keys, boardId, noteId, noteMovePatch(input));
       return snapshot;
     },
     onError: (_err, { noteId }, snapshot) => {
-      if (snapshot) restoreNoteCaches(queryClient, boardId, noteId, snapshot);
+      if (snapshot) restoreNoteCaches(queryClient, keys, boardId, noteId, snapshot);
     },
-    onSettled: (_data, _err, { noteId }) => settleNoteCaches(queryClient, boardId, noteId),
+    onSettled: (_data, _err, { noteId }) => settleNoteCaches(queryClient, keys, boardId, noteId),
   });
 }

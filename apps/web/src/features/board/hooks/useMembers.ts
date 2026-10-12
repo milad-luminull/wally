@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { membersApi } from '@/lib/resources';
-import { queryKeys } from './queryKeys';
+import { useQueryKeys } from './queryKeys';
 
 export function useMembers(boardId: string | undefined) {
+  const keys = useQueryKeys();
   return useQuery({
-    queryKey: queryKeys.members(boardId ?? ''),
+    queryKey: keys.members(boardId ?? ''),
     queryFn: () => membersApi.list(boardId!),
     enabled: Boolean(boardId),
   });

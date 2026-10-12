@@ -8,7 +8,47 @@ import {
   resetDatabase,
 } from '../../test/helpers.js';
 import { docsWithId, membersCol, whiteboardsCol, withId } from './db/collections.js';
-import { activatePendingInvitesForEmail, redeemShareLink, upsertInvite } from './members.js';
+import { activatePendingInvitesForEmail } from './members.js';
+import { executeBoardCommand, type Actor } from './commands/index.js';
+import { randomUUID } from 'node:crypto';
+import type { Firestore } from 'firebase-admin/firestore';
+import type { WhiteboardRole, MemberDto, ShareLinkRedeemResult } from '@wally/shared';
+import { AppError } from './errors.js';
+
+// Exercise the real application commands; these fixtures only supply transport metadata.
+async function upsertInvite(db: Firestore, boardId: string, email: string, role: WhiteboardRole) {
+  const board = (await whiteboardsCol(db).doc(boardId).get()).data()!;
+  const result = await executeBoardCommand(
+    db,
+    { id: board.ownerId, email: 'owner@example.com', emailVerified: true },
+    { type: 'member.invite', boardId, input: { email, role } },
+    { operationId: randomUUID(), expectedRevision: board.revision ?? 0 },
+  );
+  return withId(
+    await membersCol(db, boardId)
+      .doc((result.data as MemberDto).id)
+      .get(),
+  )!;
+}
+async function redeemShareLink(
+  db: Firestore,
+  token: string,
+  actor: Actor,
+): Promise<ShareLinkRedeemResult | null> {
+  try {
+    return (
+      await executeBoardCommand(
+        db,
+        actor,
+        { type: 'link.redeem', token, input: {} },
+        { operationId: randomUUID() },
+      )
+    ).data as ShareLinkRedeemResult;
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode === 404) return null;
+    throw error;
+  }
+}
 
 const PROJECT_ID = 'wally-test-members-lib';
 
@@ -112,6 +152,21 @@ describe('members business logic', () => {
   });
 
   describe('activatePendingInvitesForEmail', () => {
+    it('does not claim a pending invitation already linked to another account', async () => {
+      await createTestUser(db, 'owner', 'owner@example.com');
+      await createTestUser(db, 'claimant', 'claimant@example.com');
+      const board = await createTestBoard(db, 'owner');
+      const id = await createTestMembership(db, board, {
+        userId: 'different-account',
+        invitedEmail: 'claimant@example.com',
+        role: 'EDIT',
+        status: 'PENDING',
+      });
+      expect(await activatePendingInvitesForEmail(db, 'claimant', 'claimant@example.com')).toBe(0);
+      expect((await membersCol(db, board).doc(id).get()).data()?.userId).toBe('different-account');
+      expect(await memberRoles(board)).toEqual({});
+    });
+
     it('activates a PENDING row regardless of the casing the caller passes', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       const board = await createTestBoard(db, 'owner');
@@ -347,7 +402,7 @@ describe('members business logic', () => {
       // Matching on the address alone would hand this caller another user's membership.
       expect(result?.role).toBe('VIEW');
       expect(await listMembers(board)).toHaveLength(2);
-      expect(await memberRoles(board)).toEqual({ redeemer: 'VIEW' });
+      expect(await memberRoles(board)).toEqual({ 'someone-else': 'EDIT', redeemer: 'VIEW' });
     });
   });
 });

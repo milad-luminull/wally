@@ -73,3 +73,47 @@ describe('NoteCard', () => {
     expect(wrapper?.style.transform ?? '').toBe('');
   });
 });
+
+describe('NoteCard content', () => {
+  const nora = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
+  const jonas = { id: 'user-2', email: 'jonas@example.com', displayName: 'Jonas Weber' };
+
+  function renderCard(note = makeNote(), currentUserId = 'user-1') {
+    return render(
+      <DndContext>
+        <NoteCard note={note} currentUserId={currentUserId} selected={false} onOpen={vi.fn()} />
+      </DndContext>,
+    );
+  }
+
+  // The card used to leave your own avatar off, so a note assigned to you looked exactly
+  // like one assigned to nobody.
+  it('shows the assignee when it is you, marked as yours', () => {
+    renderCard(makeNote({ assignee: nora }));
+
+    expect(screen.getByText('Dir zugewiesen')).toBeInTheDocument();
+    expect(screen.getByTitle('Du')).toHaveTextContent('NF');
+  });
+
+  it('shows someone else as the assignee by name', () => {
+    renderCard(makeNote({ assignee: jonas }));
+
+    expect(screen.getByText('Zuständig: Jonas Weber')).toBeInTheDocument();
+    expect(screen.getByTitle('Jonas Weber')).toHaveTextContent('JW');
+  });
+
+  it('shows no assignee when nobody is assigned', () => {
+    renderCard(makeNote({ assignee: null }));
+
+    expect(screen.queryByText(/Zuständig|Dir zugewiesen/)).not.toBeInTheDocument();
+  });
+
+  it('previews the description under the title, and nothing when it is blank', () => {
+    const { unmount } = renderCard(makeNote({ description: 'Mit Herrn Weber abstimmen' }));
+    expect(screen.getByText('Mit Herrn Weber abstimmen')).toHaveClass('line-clamp-1');
+    unmount();
+
+    const { container } = renderCard(makeNote({ description: '   ' }));
+    expect(container.querySelector('.line-clamp-1')).toBeNull();
+  });
+});

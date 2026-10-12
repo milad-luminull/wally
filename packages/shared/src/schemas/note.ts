@@ -8,21 +8,26 @@ import {
 } from '../enums.js';
 import { userSummarySchema } from './user.js';
 import { subtaskDtoSchema, subtaskSummarySchema } from './subtask.js';
-import { customFieldsSchema } from './customField.js';
+import { customFieldKeySchema, customFieldsSchema } from './customField.js';
 import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
+  MAX_FIELDS_PER_NOTE,
   MAX_TAGS_PER_NOTE,
+  NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
   TAG_MAX_LENGTH,
 } from '../constants.js';
 import { booleanQueryParam, csvEnum } from '../utils/query.js';
 import { noteHorizonValues, notePriorityValues } from '../enums.js';
 
-const tagsSchema = z
-  .array(z.string().trim().min(1).max(TAG_MAX_LENGTH))
-  .max(MAX_TAGS_PER_NOTE)
-  .default([]);
+const tagSchema = z.string().trim().min(1).max(TAG_MAX_LENGTH);
+
+const tagsSchema = z.array(tagSchema).max(MAX_TAGS_PER_NOTE).default([]);
+
+/** Free text under the title. Not trimmed: leading indentation and blank lines are the
+ * writer's, and only a description that is all whitespace counts as empty. */
+const descriptionSchema = z.string().max(NOTE_DESCRIPTION_MAX_LENGTH);
 
 /**
  * POST /whiteboards/:id/notes
@@ -40,10 +45,11 @@ const tagsSchema = z
  */
 export const noteCreateSchema = z.object({
   title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).default(''),
+  description: descriptionSchema.default(''),
   priority: notePrioritySchema.default('MITTEL'),
   horizon: noteHorizonSchema.default('HEUTE'),
-  freeX: z.number().default(0),
-  freeY: z.number().default(0),
+  freeX: z.number().finite().default(0),
+  freeY: z.number().finite().default(0),
   dueDate: z.string().date().nullable().optional(),
   assigneeId: z.string().nullable().optional(),
   tags: tagsSchema,
@@ -68,13 +74,41 @@ export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 export const noteUpdateSchema = z
   .object({
     title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
+    /** `''` clears it. */
+    description: descriptionSchema.optional(),
     dueDate: z.string().date().nullable().optional(),
     tags: tagsSchema.optional(),
     /** Same three-state semantics as `tags`: omitted = don't touch, `{}` = clear all. */
     customFields: customFieldsSchema.optional(),
+    /**
+     * Changes applied to the note's CURRENT properties on the server, so two people editing
+     * different properties at once both keep theirs. `customFields` replaces the whole map
+     * with whatever the client last saw, and the later of two such writes drops the other.
+     * Keys match existing ones case-insensitively, as everywhere else.
+     */
+    fieldChanges: z
+      .object({
+        set: customFieldsSchema.optional(),
+        remove: z.array(customFieldKeySchema).max(MAX_FIELDS_PER_NOTE).optional(),
+      })
+      .optional(),
+    /** The same for tags: added to / removed from the current list, not a replacement. */
+    tagChanges: z
+      .object({
+        add: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
+        remove: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
+      })
+      .optional(),
     colour: noteColourSchema.optional(),
   })
-  .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' });
+  .strict()
+  .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' })
+  .refine((val) => !(val.customFields !== undefined && val.fieldChanges !== undefined), {
+    message: 'Send either customFields or fieldChanges, not both',
+  })
+  .refine((val) => !(val.tags !== undefined && val.tagChanges !== undefined), {
+    message: 'Send either tags or tagChanges, not both',
+  });
 export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>;
 
 /**
@@ -82,11 +116,29 @@ export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>;
  * touch only their own field; see the plan's "three independent fields" decision.
  */
 export const noteMoveSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('HORIZON'), horizon: noteHorizonSchema }),
-  z.object({ mode: z.literal('PRIORITY'), priority: notePrioritySchema }),
-  z.object({ mode: z.literal('FREE'), x: z.number(), y: z.number() }),
+  z.object({ mode: z.literal('HORIZON'), horizon: noteHorizonSchema }).strict(),
+  z.object({ mode: z.literal('PRIORITY'), priority: notePrioritySchema }).strict(),
+  z.object({ mode: z.literal('FREE'), x: z.number().finite(), y: z.number().finite() }).strict(),
 ]);
 export type NoteMoveInput = z.infer<typeof noteMoveSchema>;
+
+/**
+ * POST /notes/:id/duplicate — every field is optional; the server copies the rest from the
+ * source note.
+ *
+ * `title` and `description` are what the client currently shows. The panel saves both on a
+ * debounce, so the copy would otherwise miss whatever was typed in the last half second.
+ * The placement fields put an Alt-dragged copy where it was dropped.
+ */
+export const noteDuplicateSchema = z.object({
+  title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
+  description: descriptionSchema.optional(),
+  horizon: noteHorizonSchema.optional(),
+  priority: notePrioritySchema.optional(),
+  freeX: z.number().finite().optional(),
+  freeY: z.number().finite().optional(),
+});
+export type NoteDuplicateInput = z.infer<typeof noteDuplicateSchema>;
 
 /** POST /notes/:id/assign */
 export const noteAssignSchema = z.object({
@@ -125,15 +177,17 @@ export type HistoryEventDto = z.infer<typeof historyEventDtoSchema>;
 
 /** Shape returned in list responses — kept light, no subtasks[]/history[]. */
 export const noteDtoSchema = z.object({
+  revision: z.number().int().nonnegative(),
   id: z.string(),
   whiteboardId: z.string(),
   title: z.string(),
+  description: z.string(),
   status: noteStatusSchema,
   completedAt: z.string().datetime().nullable(),
   priority: notePrioritySchema,
   horizon: noteHorizonSchema,
-  freeX: z.number(),
-  freeY: z.number(),
+  freeX: z.number().finite(),
+  freeY: z.number().finite(),
   dueDate: z.string().date().nullable(),
   assignee: userSummarySchema.nullable(),
   tags: z.array(z.string()),

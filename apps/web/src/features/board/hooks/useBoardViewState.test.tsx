@@ -15,8 +15,11 @@ vi.mock('@/lib/resources', () => ({
 import { meApi } from '@/lib/resources';
 import { SAVE_DELAY_MS } from '@/lib/preferences';
 import { createTestQueryClient } from '@/test/renderWithProviders';
-import { queryKeys } from './queryKeys';
+import { scopedQueryKeys } from './queryKeys';
 import { useBoardViewState } from './useBoardViewState';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 const PROFILE: MeDto = {
   id: 'u1',

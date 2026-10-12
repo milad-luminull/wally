@@ -11,6 +11,7 @@ export const subtaskUpdateSchema = z
     text: z.string().trim().min(1).max(SUBTASK_TEXT_MAX_LENGTH).optional(),
     done: z.boolean().optional(),
   })
+  .strict()
   .refine((val) => val.text !== undefined || val.done !== undefined, {
     message: 'At least one of text or done must be provided',
   });

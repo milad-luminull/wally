@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import type { NoteDetailDto, NoteDto } from '@wally/shared';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
-import { queryKeys } from '../queryKeys';
+import { scopedQueryKeys } from '../queryKeys';
 import { useRemoveCustomField, useSetCustomField } from './useCustomFieldMutations';
 
 vi.mock('@/lib/resources', () => ({
@@ -14,6 +14,9 @@ vi.mock('@/lib/resources', () => ({
 
 // Imported after the mock so it resolves to the mocked module.
 import { notesApi } from '@/lib/resources';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 const boardId = 'board-1';
 
@@ -26,7 +29,7 @@ describe('custom field mutations', () => {
     const note = makeNote({ customFields: fields });
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(queryKeys.notes(boardId), [note]);
-    queryClient.setQueryData(['notes', note.id], { ...note, subtasks: [], history: [] });
+    queryClient.setQueryData(queryKeys.noteDetail(note.id), { ...note, subtasks: [], history: [] });
 
     function wrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -39,7 +42,7 @@ describe('custom field mutations', () => {
       ?.customFields;
 
   const detailFields = (queryClient: ReturnType<typeof createTestQueryClient>, id: string) =>
-    queryClient.getQueryData<NoteDetailDto>(['notes', id])?.customFields;
+    queryClient.getQueryData<NoteDetailDto>(queryKeys.noteDetail(id))?.customFields;
 
   it('optimistically patches both the list and detail caches when setting a property', async () => {
     const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH' });
@@ -63,18 +66,51 @@ describe('custom field mutations', () => {
     });
   });
 
-  it('overwrites an existing property whose key differs only in case', async () => {
-    const { note, wrapper } = setup({ Kunde: 'Müller GmbH' });
-    vi.mocked(notesApi.update).mockResolvedValue(note);
+  it('sends only the changed property, and patches the stored spelling optimistically', async () => {
+    const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
+    vi.mocked(notesApi.update).mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useSetCustomField(boardId), { wrapper });
     result.current.mutate({ noteId: note.id, key: 'kunde', value: 'Steiner AG' });
 
-    // The stored spelling wins, so the note keeps one property rather than gaining a twin.
+    // Never the whole cached map: that would drop a property a colleague added meanwhile.
+    // The server resolves "kunde" to the stored "Kunde" against its current copy.
     await waitFor(() =>
-      expect(notesApi.update).toHaveBeenCalledWith(note.id, {
-        customFields: { Kunde: 'Steiner AG' },
-      }),
+      expect(notesApi.update).toHaveBeenCalledWith(
+        note.id,
+        {
+          fieldChanges: { set: { kunde: 'Steiner AG' } },
+        },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
+    );
+    // The stored spelling wins, so the note keeps one property rather than gaining a twin.
+    expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Steiner AG', Vertrag: 'X' });
+  });
+
+  it('sends only the removed key', async () => {
+    const { note, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
+    vi.mocked(notesApi.update).mockResolvedValue({ ...note, customFields: { Vertrag: 'X' } });
+
+    const { result } = renderHook(() => useRemoveCustomField(boardId), { wrapper });
+    result.current.mutate({ noteId: note.id, key: 'Kunde' });
+
+    await waitFor(() =>
+      expect(notesApi.update).toHaveBeenCalledWith(
+        note.id,
+        {
+          fieldChanges: { remove: ['Kunde'] },
+        },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
     );
   });
 

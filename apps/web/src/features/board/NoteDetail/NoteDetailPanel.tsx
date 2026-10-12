@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Circle, CircleCheck, Trash2, X } from 'lucide-react';
+import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
   notePriorityValues,
   noteHorizonValues,
   type NoteColour,
   type NoteHorizon,
   type NotePriority,
+  type UserSummary,
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/cn';
+import { MOD_KEY } from '@/lib/shortcuts';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import { useNoteDetail } from '../hooks/useNoteDetail';
 import { useActiveMembers } from '../hooks/useMembers';
@@ -42,9 +43,10 @@ import {
   useSetCustomField,
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
-import { collectFieldKeys } from '../util/noteDerived';
-import { patchNoteCaches } from '../hooks/mutations/shared';
+import { collectFieldKeys, displayName } from '../util/noteDerived';
+import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
+import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
@@ -52,11 +54,14 @@ import { SubtaskChecklist } from './SubtaskChecklist';
 import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
+import { useLiveNoteText } from './useLiveNoteText';
 
 const NO_ASSIGNEE = '__none__';
 
-/** How long typing pauses before the title is sent. The board updates on every keystroke. */
-const TITLE_SAVE_DELAY_MS = 500;
+/** An empty title is never saved; leaving the field puts the last one back. */
+const normalizeTitle = (raw: string) => raw.trim() || null;
+/** A description may be cleared; one that is only whitespace counts as cleared. */
+const normalizeDescription = (raw: string) => (raw.trim() ? raw : '');
 
 /** A ToggleGroup rendered as a compact segmented control, for the properties grid. */
 const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0.5';
@@ -68,6 +73,8 @@ interface NoteDetailPanelProps {
   axis: BoardAxis;
   isBelowDesktop: boolean;
   onClose: () => void;
+  onDuplicate: (noteId: string) => void;
+  currentUserId: string | undefined;
 }
 
 /**
@@ -107,6 +114,8 @@ export function NoteDetailPanel({
   axis,
   isBelowDesktop,
   onClose,
+  onDuplicate,
+  currentUserId,
 }: NoteDetailPanelProps) {
   const { t } = useTranslation();
   useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
@@ -122,6 +131,8 @@ export function NoteDetailPanel({
               canEdit={canEdit}
               axis={axis}
               onClose={onClose}
+              onDuplicate={onDuplicate}
+              currentUserId={currentUserId}
               autoFocusTitle={false}
             />
           )}
@@ -149,6 +160,8 @@ export function NoteDetailPanel({
         canEdit={canEdit}
         axis={axis}
         onClose={onClose}
+        onDuplicate={onDuplicate}
+        currentUserId={currentUserId}
         autoFocusTitle
       />
     </aside>
@@ -161,6 +174,8 @@ interface ContentProps {
   canEdit: boolean;
   axis: BoardAxis;
   onClose: () => void;
+  onDuplicate: (noteId: string) => void;
+  currentUserId: string | undefined;
   autoFocusTitle: boolean;
 }
 
@@ -170,6 +185,8 @@ function NoteDetailContent({
   canEdit,
   axis,
   onClose,
+  onDuplicate,
+  currentUserId,
   autoFocusTitle,
 }: ContentProps) {
   const { t } = useTranslation();
@@ -193,71 +210,37 @@ function NoteDetailContent({
   const setCustomField = useSetCustomField(boardId);
   const removeCustomField = useRemoveCustomField(boardId);
 
-  const titleRef = useRef<HTMLTextAreaElement>(null);
-  const [title, setTitle] = useState(note?.title ?? '');
-
-  /** Grows the field to fit its content. The title is the one piece of text on the panel
-   * that must never be clipped or scrolled. */
-  const resizeTitle = useCallback(() => {
-    const el = titleRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, []);
-
-  // Server copy -> field, but never while the user is typing in it: a refetch landing
-  // mid-word would otherwise put back an older title and jump the caret.
-  useEffect(() => {
-    if (document.activeElement !== titleRef.current) setTitle(note?.title ?? '');
-  }, [note?.id, note?.title]);
-
   /*
-   * The title saves as you type. Every keystroke patches the cached note so the card on the
-   * board changes instantly; the request itself is debounced, and flushed on blur, Enter,
-   * and when the panel closes or switches note.
+   * Title and description save as you type: see useLiveNoteText. Both patch the cached
+   * note on every keystroke, so the card on the board follows along.
    */
-  const queryClient = useQueryClient();
-  const { mutate: mutateNote } = updateNote;
-  const lastSavedTitle = useRef(note?.title ?? '');
-  const pendingTitle = useRef<string | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (note && pendingTitle.current === null) lastSavedTitle.current = note.title;
-  }, [note]);
-
-  const flushTitle = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = null;
-    const value = pendingTitle.current;
-    pendingTitle.current = null;
-    if (value === null || value === lastSavedTitle.current) return;
-    lastSavedTitle.current = value;
-    mutateNote({ noteId, input: { title: value } });
-  }, [mutateNote, noteId]);
-
-  // Closing the panel or switching note unmounts this content: send what was typed.
-  useEffect(() => flushTitle, [flushTitle]);
-
-  function handleTitleChange(value: string) {
-    setTitle(value);
-    const trimmed = value.trim();
-    // An empty title is never saved; leaving the field puts the last one back.
-    if (!trimmed) return;
-    patchNoteCaches(queryClient, boardId, noteId, { title: trimmed });
-    pendingTitle.current = trimmed;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(flushTitle, TITLE_SAVE_DELAY_MS);
-  }
-
-  function handleTitleBlur() {
-    flushTitle();
-    if (!title.trim()) setTitle(lastSavedTitle.current);
-  }
-
-  useEffect(() => {
-    resizeTitle();
-  }, [title, resizeTitle]);
+  const { mutateAsync: mutateNote } = updateNote;
+  const saveTitle = useCallback(
+    (title: string, ticket?: MutationTicket) => mutateNote({ noteId, input: { title }, ticket }),
+    [mutateNote, noteId],
+  );
+  const saveDescription = useCallback(
+    (description: string, ticket?: MutationTicket) =>
+      mutateNote({ noteId, input: { description }, ticket }),
+    [mutateNote, noteId],
+  );
+  const title = useLiveNoteText({
+    serverValue: note?.title ?? '',
+    normalize: normalizeTitle,
+    onLocalChange: () => {},
+    draftKey: `${noteId}:title`,
+    capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
+    save: saveTitle,
+  });
+  const description = useLiveNoteText({
+    serverValue: note?.description ?? '',
+    normalize: normalizeDescription,
+    onLocalChange: () => {},
+    draftKey: `${noteId}:description`,
+    capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
+    save: saveDescription,
+  });
+  const titleRef = title.ref;
 
   const noteReady = Boolean(note);
   useEffect(() => {
@@ -268,8 +251,8 @@ function NoteDetailContent({
     }
     // Re-run once the note finishes loading (noteReady flips false -> true), but not on
     // every subsequent title keystroke — that's why this depends on the boolean
-    // `noteReady`, not `note` itself.
-  }, [noteId, autoFocusTitle, noteReady]);
+    // `noteReady`, not `note` itself. `titleRef` is a ref object and never changes.
+  }, [noteId, autoFocusTitle, noteReady, titleRef]);
 
   if (isLoading || !note) {
     return (
@@ -292,6 +275,16 @@ function NoteDetailContent({
   }
 
   const disabled = !canEdit;
+  // Active members, plus the current assignee if they are not among them (a pending or
+  // since-removed member) — otherwise the trigger has no item to show and goes blank.
+  const assigneeOptions: UserSummary[] = activeMembers.map((m) => ({
+    id: m.userId ?? m.id,
+    email: m.email,
+    displayName: m.displayName,
+  }));
+  if (note.assignee && !assigneeOptions.some((o) => o.id === note.assignee!.id)) {
+    assigneeOptions.push(note.assignee);
+  }
   // Only the horizon axis needs its own zone control: in the priority axis the zone IS the
   // priority, and the Priority row above already moves it.
   const showZone = axis === 'horizon';
@@ -365,9 +358,9 @@ function NoteDetailContent({
         <div className="px-5 pb-4 pt-5">
           <textarea
             ref={titleRef}
-            value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            onBlur={handleTitleBlur}
+            value={title.value}
+            onChange={(e) => title.onChange(e.target.value)}
+            onBlur={title.onBlur}
             onKeyDown={(e) => {
               // One line of meaning, even when it wraps: Enter finishes the title.
               if (e.key === 'Enter') {
@@ -375,7 +368,7 @@ function NoteDetailContent({
                 e.currentTarget.blur();
               }
             }}
-            onInput={resizeTitle}
+            onInput={title.resize}
             disabled={disabled}
             rows={1}
             placeholder={t('note.titlePlaceholder')}
@@ -388,6 +381,32 @@ function NoteDetailContent({
               'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
               isDone && 'text-fg-3 line-through decoration-fg-faint',
+            )}
+          />
+          {/* Deliberately bare: no label, no border, no toolbar — it reads as the line under
+              the title until you write in it. Enter is a new line here, unlike the title. */}
+          <textarea
+            ref={description.ref}
+            value={description.value}
+            onChange={(e) => description.onChange(e.target.value)}
+            onBlur={description.onBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                // Leave the field, not the panel: the first Escape only ends the edit.
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+            onInput={description.resize}
+            disabled={disabled}
+            rows={1}
+            placeholder={disabled ? undefined : t('note.descriptionPlaceholder')}
+            aria-label={t('note.descriptionAria')}
+            className={cn(
+              'mt-1 block w-full resize-none overflow-hidden rounded-md bg-transparent text-14 leading-relaxed text-fg-2 outline-none',
+              'placeholder:text-fg-faint',
+              'disabled:cursor-not-allowed disabled:opacity-70',
+              disabled && !description.value && 'hidden',
             )}
           />
         </div>
@@ -471,9 +490,14 @@ function NoteDetailContent({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
-                {activeMembers.map((member) => (
-                  <SelectItem key={member.id} value={member.userId ?? member.id}>
-                    {member.displayName ?? member.email}
+                {assigneeOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    <span className="flex items-center gap-2">
+                      <AssigneeAvatar user={option} isYou={option.id === currentUserId} size="sm" />
+                      {option.id === currentUserId
+                        ? t('note.youSuffix', { name: displayName(option) })
+                        : displayName(option)}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -513,10 +537,17 @@ function NoteDetailContent({
         </PanelSection>
       </div>
 
-      {/* Delete is the only footer action. No confirmation dialog: the note goes at once
-          and a toast offers Undo, which is both faster and safer than "Are you sure?". */}
+      {/* No confirmation dialog for Delete: the note goes at once and a toast offers Undo,
+          which is both faster and safer than "Are you sure?". Duplicate sits beside it and
+          opens the copy straight away, the same as ⌘D. */}
       {!disabled && (
-        <footer className="flex shrink-0 items-center border-t border-border-subtle px-3 py-2">
+        <footer className="flex shrink-0 items-center justify-between border-t border-border-subtle px-3 py-2">
+          <IconTooltip label={t('note.duplicate')} shortcut={[MOD_KEY, 'D']}>
+            <Button variant="ghost" size="sm" onClick={() => onDuplicate(note.id)}>
+              <Copy strokeWidth={1.75} />
+              {t('note.duplicate')}
+            </Button>
+          </IconTooltip>
           <Button
             variant="destructive-ghost"
             size="sm"

@@ -24,7 +24,7 @@ describe('member/invite routes (owner-only)', () => {
     it('200s for the owner, 403 for EDIT/VIEW, 404 for non-member', async () => {
       const fx = await createBoardFixture(ctx);
 
-      const ok = await ctx.app.inject({
+      const ok = await ctx.inject({
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -33,7 +33,7 @@ describe('member/invite routes (owner-only)', () => {
       expect(ok.statusCode).toBe(200);
       expect(ok.json().status).toBe('PENDING');
 
-      const forbiddenEdit = await ctx.app.inject({
+      const forbiddenEdit = await ctx.inject({
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.editToken),
@@ -41,7 +41,7 @@ describe('member/invite routes (owner-only)', () => {
       });
       expect(forbiddenEdit.statusCode).toBe(403);
 
-      const forbiddenView = await ctx.app.inject({
+      const forbiddenView = await ctx.inject({
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.viewToken),
@@ -49,7 +49,7 @@ describe('member/invite routes (owner-only)', () => {
       });
       expect(forbiddenView.statusCode).toBe(403);
 
-      const notFound = await ctx.app.inject({
+      const notFound = await ctx.inject({
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/members/invite`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -63,7 +63,7 @@ describe('member/invite routes (owner-only)', () => {
     it('owner can change role; deleting a member nulls out their assigned notes', async () => {
       const fx = await createBoardFixture(ctx);
 
-      const patched = await ctx.app.inject({
+      const patched = await ctx.inject({
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -72,7 +72,7 @@ describe('member/invite routes (owner-only)', () => {
       expect(patched.statusCode).toBe(200);
       expect(patched.json().role).toBe('VIEW');
 
-      const created = await ctx.app.inject({
+      const created = await ctx.inject({
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -81,14 +81,14 @@ describe('member/invite routes (owner-only)', () => {
       expect(created.statusCode).toBe(201);
       const noteId = created.json().id;
 
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'DELETE',
         url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.editToken),
       });
       expect(forbidden.statusCode).toBe(403);
 
-      const deleted = await ctx.app.inject({
+      const deleted = await ctx.inject({
         method: 'DELETE',
         url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
         headers: ctx.authHeader(fx.ownerToken),
