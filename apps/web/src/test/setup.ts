@@ -57,3 +57,18 @@ if (!Element.prototype.releasePointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+/*
+ * jsdom's selector engine (nwsapi 2.2.2x) has no support for the top-layer pseudo-classes,
+ * and asking it about `:modal` recurses through its `:fullscreen` handling for seconds per
+ * call. floating-ui asks exactly that — `:popover-open` and `:modal` — every time a Radix
+ * popover, select or tooltip positions itself, which made each "open the menu" test take
+ * 7–18s locally and time out on CI. jsdom has no top layer, so the honest answer is always
+ * false; give it without the walk.
+ */
+const TOP_LAYER_SELECTORS = new Set([':modal', ':popover-open']);
+const nativeMatches = Element.prototype.matches;
+Element.prototype.matches = function matches(this: Element, selectors: string) {
+  if (TOP_LAYER_SELECTORS.has(selectors.trim())) return false;
+  return nativeMatches.call(this, selectors);
+};
