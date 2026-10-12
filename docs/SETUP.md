@@ -82,6 +82,13 @@ All commands run inside Docker. The host needs only Docker and `make`.
 - Commit messages: Conventional Commits (`feat:`, `fix:`, `chore:`, `test:`, `docs:`).
 - Small commits. Never commit directly to `main`. Never force-push.
 
+## Documentation
+
+- Docs live in `docs/`; start at [`docs/README.md`](README.md) for what goes where.
+- A decision that is hard to reverse, changes stored data, or picks between real alternatives gets an ADR in `docs/adr/` (template: `0000-template.md`, process: [`docs/adr/README.md`](adr/README.md)).
+- Never edit an accepted ADR; supersede it with a new one.
+- This file holds working conventions. The reasoning behind a convention belongs in its ADR.
+
 ## Ask before you do
 
 - Delete files or folders.
