@@ -16,6 +16,7 @@ export const INITIAL_BOARD_NAME: Record<Language, string> = {
 };
 
 export const NOTE_TITLE_MAX_LENGTH = 200;
+export const NOTE_DESCRIPTION_MAX_LENGTH = 5000;
 export const TAG_MAX_LENGTH = 40;
 export const MAX_TAGS_PER_NOTE = 20;
 export const SUBTASK_TEXT_MAX_LENGTH = 300;

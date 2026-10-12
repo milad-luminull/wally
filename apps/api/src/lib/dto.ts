@@ -99,6 +99,7 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
     id: note.id,
     whiteboardId: note.whiteboardId,
     title: note.title,
+    description: note.description ?? '',
     status: note.status,
     completedAt: toIsoOrNull(note.completedAt),
     priority: note.priority,

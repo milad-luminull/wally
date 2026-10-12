@@ -7,6 +7,7 @@ import {
   noteCreateSchema,
   noteDetailDtoSchema,
   noteDtoSchema,
+  noteDuplicateSchema,
   noteListQuerySchema,
   noteMoveSchema,
   noteUpdateSchema,
@@ -23,7 +24,7 @@ import {
 } from '../lib/db/collections.js';
 import { requireRole, requireWhiteboardAccess } from '../lib/authorization.js';
 import { toNoteDetailDto, toNoteDto } from '../lib/dto.js';
-import { assertValidAssignee, computeMoveUpdate } from '../lib/notes.js';
+import { assertValidAssignee, computeMoveUpdate, isValidAssignee } from '../lib/notes.js';
 
 const whiteboardIdParams = z.object({ id: z.string() });
 const noteIdParams = z.object({ id: z.string() });
@@ -92,6 +93,7 @@ export default async function noteRoutes(fastify: FastifyInstance) {
         notes = notes.filter(
           (n) =>
             n.title.toLowerCase().includes(needle) ||
+            (n.description ?? '').toLowerCase().includes(needle) ||
             n.tags.some((t) => t.toLowerCase().includes(needle)) ||
             Object.entries(n.customFields ?? {}).some(
               ([key, value]) =>
@@ -153,6 +155,7 @@ export default async function noteRoutes(fastify: FastifyInstance) {
       const note: NoteDoc = {
         whiteboardId: ctx.whiteboardId,
         title: body.title,
+        description: body.description,
         status: 'OPEN',
         completedAt: null,
         priority: body.priority,
@@ -178,6 +181,86 @@ export default async function noteRoutes(fastify: FastifyInstance) {
         occurredAt: timestamp,
         actorId: request.user.id,
         metadata: null,
+      });
+      await batch.commit();
+
+      const created = { ...note, id: ref.id };
+      reply.code(201);
+      return toNoteDto(created, await usersForNote(db, created));
+    },
+  );
+
+  /**
+   * Copies a note whole — fields, subtasks with their ticks, tags, custom fields, assignee —
+   * in one batch, so a copy is never seen half-written. The copy always starts OPEN: a
+   * duplicated done note is almost always being reused, and a done copy would vanish into
+   * the done styling the moment it appeared.
+   */
+  app.post(
+    '/notes/:id/duplicate',
+    {
+      preHandler: [requireWhiteboardAccess({ kind: 'noteParam' }), requireRole(['OWNER', 'EDIT'])],
+      schema: {
+        params: noteIdParams,
+        body: noteDuplicateSchema,
+        response: { 201: noteDtoSchema },
+      },
+    },
+    async (request, reply) => {
+      const ctx = request.whiteboardContext!;
+      const source = request.noteContext!;
+      const body = request.body;
+      const db = request.server.db;
+
+      const subtasks = docsWithId(await subtasksCol(db, source.id).get());
+      // The assignee may have left the board since the source was assigned; the copy then
+      // starts unassigned rather than failing the whole duplicate.
+      const assigneeId = isValidAssignee(ctx.board, source.assigneeId) ? source.assigneeId : null;
+
+      const ref = notesCol(db).doc();
+      const timestamp = now();
+      const note: NoteDoc = {
+        whiteboardId: source.whiteboardId,
+        title: body.title ?? source.title,
+        description: body.description ?? source.description ?? '',
+        status: 'OPEN',
+        completedAt: null,
+        priority: body.priority ?? source.priority,
+        horizon: body.horizon ?? source.horizon,
+        freeX: body.freeX ?? source.freeX,
+        freeY: body.freeY ?? source.freeY,
+        dueDate: source.dueDate,
+        assigneeId,
+        tags: [...source.tags],
+        customFields: { ...(source.customFields ?? {}) },
+        colour: source.colour,
+        createdById: request.user.id,
+        subtaskSummary: {
+          total: subtasks.length,
+          done: subtasks.filter((s) => s.done).length,
+        },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      const batch = db.batch();
+      batch.set(ref, note);
+      for (const subtask of subtasks) {
+        batch.set(subtasksCol(db, ref.id).doc(), {
+          noteId: ref.id,
+          text: subtask.text,
+          done: subtask.done,
+          sortIndex: subtask.sortIndex,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
+      batch.set(historyCol(db, ref.id).doc(), {
+        noteId: ref.id,
+        type: 'CREATED',
+        occurredAt: timestamp,
+        actorId: request.user.id,
+        metadata: { duplicatedFrom: source.id },
       });
       await batch.commit();
 
@@ -229,6 +312,7 @@ export default async function noteRoutes(fastify: FastifyInstance) {
 
       const changes: Partial<NoteDoc> = {
         ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.dueDate !== undefined ? { dueDate: body.dueDate } : {}),
         ...(body.customFields !== undefined ? { customFields: body.customFields } : {}),
         ...(body.tags !== undefined ? { tags: body.tags } : {}),

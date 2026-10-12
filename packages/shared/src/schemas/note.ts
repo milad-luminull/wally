@@ -13,6 +13,7 @@ import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
   MAX_TAGS_PER_NOTE,
+  NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
   TAG_MAX_LENGTH,
 } from '../constants.js';
@@ -23,6 +24,10 @@ const tagsSchema = z
   .array(z.string().trim().min(1).max(TAG_MAX_LENGTH))
   .max(MAX_TAGS_PER_NOTE)
   .default([]);
+
+/** Free text under the title. Not trimmed: leading indentation and blank lines are the
+ * writer's, and only a description that is all whitespace counts as empty. */
+const descriptionSchema = z.string().max(NOTE_DESCRIPTION_MAX_LENGTH);
 
 /**
  * POST /whiteboards/:id/notes
@@ -40,6 +45,7 @@ const tagsSchema = z
  */
 export const noteCreateSchema = z.object({
   title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).default(''),
+  description: descriptionSchema.default(''),
   priority: notePrioritySchema.default('MITTEL'),
   horizon: noteHorizonSchema.default('HEUTE'),
   freeX: z.number().default(0),
@@ -68,6 +74,8 @@ export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 export const noteUpdateSchema = z
   .object({
     title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
+    /** `''` clears it. */
+    description: descriptionSchema.optional(),
     dueDate: z.string().date().nullable().optional(),
     tags: tagsSchema.optional(),
     /** Same three-state semantics as `tags`: omitted = don't touch, `{}` = clear all. */
@@ -87,6 +95,24 @@ export const noteMoveSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('FREE'), x: z.number(), y: z.number() }),
 ]);
 export type NoteMoveInput = z.infer<typeof noteMoveSchema>;
+
+/**
+ * POST /notes/:id/duplicate — every field is optional; the server copies the rest from the
+ * source note.
+ *
+ * `title` and `description` are what the client currently shows. The panel saves both on a
+ * debounce, so the copy would otherwise miss whatever was typed in the last half second.
+ * The placement fields put an Alt-dragged copy where it was dropped.
+ */
+export const noteDuplicateSchema = z.object({
+  title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).optional(),
+  description: descriptionSchema.optional(),
+  horizon: noteHorizonSchema.optional(),
+  priority: notePrioritySchema.optional(),
+  freeX: z.number().optional(),
+  freeY: z.number().optional(),
+});
+export type NoteDuplicateInput = z.infer<typeof noteDuplicateSchema>;
 
 /** POST /notes/:id/assign */
 export const noteAssignSchema = z.object({
@@ -128,6 +154,7 @@ export const noteDtoSchema = z.object({
   id: z.string(),
   whiteboardId: z.string(),
   title: z.string(),
+  description: z.string(),
   status: noteStatusSchema,
   completedAt: z.string().datetime().nullable(),
   priority: notePrioritySchema,

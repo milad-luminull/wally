@@ -11,13 +11,19 @@ import { AppError } from './errors.js';
  * holds ACTIVE members only, which is exactly the check.
  */
 export function assertValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): void {
-  if (assigneeId === null) return;
-  if (board.ownerId === assigneeId || board.memberRoles[assigneeId]) return;
+  if (isValidAssignee(board, assigneeId)) return;
 
   throw new AppError(
     422,
     'INVALID_ASSIGNEE',
     'Assignee must be the board owner or an active member of this whiteboard',
+  );
+}
+
+/** The rule behind `assertValidAssignee`, for callers that fall back instead of failing. */
+export function isValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): boolean {
+  return (
+    assigneeId === null || board.ownerId === assigneeId || Boolean(board.memberRoles[assigneeId])
   );
 }
 

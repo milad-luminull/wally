@@ -97,6 +97,8 @@ export type MemberDoc = {
 export type NoteDoc = {
   whiteboardId: string;
   title: string;
+  /** Missing on notes written before descriptions existed; read it as `''`. */
+  description?: string;
   status: NoteStatus;
   completedAt: Timestamp | null;
   priority: NotePriority;

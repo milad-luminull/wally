@@ -1,5 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { historyCol, notesCol, subtasksCol, withId } from '../src/lib/db/collections.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import {
+  docsWithId,
+  historyCol,
+  notesCol,
+  subtasksCol,
+  withId,
+} from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-notes-routes';
@@ -57,7 +64,7 @@ describe('note routes', () => {
       expect(forbidden.statusCode).toBe(404);
     });
 
-    it('q filter matches title, custom fields, and tags, case-insensitively', async () => {
+    it('q filter matches title, description, custom fields, and tags, case-insensitively', async () => {
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken, { title: 'Cyber-Police prüfen' });
       await createNote(fx.boardId, fx.ownerToken, {
@@ -65,6 +72,10 @@ describe('note routes', () => {
         customFields: { Vertrag: 'Cyber-Paket Plus' },
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Irrelevant', tags: ['cyber'] });
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'Irrelevant',
+        description: 'Angebot für die Cyber-Deckung einholen',
+      });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Ganz anderes Thema' });
 
       const res = await ctx.app.inject({
@@ -73,7 +84,7 @@ describe('note routes', () => {
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toHaveLength(3);
+      expect(res.json()).toHaveLength(4);
     });
 
     it('field filter matches by key alone and by key:value, case-insensitively', async () => {
@@ -179,6 +190,32 @@ describe('note routes', () => {
       expect(without.json().customFields).toEqual({});
     });
 
+    it('persists a description, and defaults it to an empty string', async () => {
+      const fx = await createBoardFixture(ctx);
+      const withText = await createNote(fx.boardId, fx.ownerToken, {
+        description: 'Erste Zeile\nzweite Zeile',
+      });
+      expect(withText.json().description).toBe('Erste Zeile\nzweite Zeile');
+
+      const without = await createNote(fx.boardId, fx.ownerToken);
+      expect(without.json().description).toBe('');
+    });
+
+    it('reads a note stored before descriptions existed as an empty description', async () => {
+      const fx = await createBoardFixture(ctx);
+      const created = await createNote(fx.boardId, fx.ownerToken);
+      const id = created.json().id as string;
+      await notesCol(ctx.db).doc(id).update({ description: FieldValue.delete() });
+
+      const res = await ctx.app.inject({
+        method: 'GET',
+        url: `/notes/${id}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().description).toBe('');
+    });
+
     it('400s on custom fields that break the key rules or the per-note cap', async () => {
       const fx = await createBoardFixture(ctx);
       const tooMany = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`Feld${i}`, 'x']));
@@ -250,6 +287,23 @@ describe('note routes', () => {
 
       const cleared = await patch({ customFields: {} });
       expect(cleared.json().customFields).toEqual({});
+    });
+
+    it('PATCH description: sets it, and an empty string clears it', async () => {
+      const { fx, noteId } = await setup();
+      const patch = (payload: Record<string, unknown>) =>
+        ctx.app.inject({
+          method: 'PATCH',
+          url: `/notes/${noteId}`,
+          headers: ctx.authHeader(fx.editToken),
+          payload,
+        });
+
+      expect((await patch({ description: 'Kurz notiert' })).json().description).toBe(
+        'Kurz notiert',
+      );
+      expect((await patch({ title: 'Anderer Titel' })).json().description).toBe('Kurz notiert');
+      expect((await patch({ description: '' })).json().description).toBe('');
     });
 
     it('POST /notes/:id/move — HORIZON mode leaves priority/freeX/freeY untouched', async () => {
@@ -395,6 +449,140 @@ describe('note routes', () => {
 
       expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(0);
       expect((await historyCol(ctx.db, noteId).get()).size).toBe(0);
+    });
+  });
+
+  describe('POST /notes/:id/duplicate', () => {
+    function duplicate(noteId: string, token: string, payload: Record<string, unknown> = {}) {
+      return ctx.app.inject({
+        method: 'POST',
+        url: `/notes/${noteId}/duplicate`,
+        headers: ctx.authHeader(token),
+        payload,
+      });
+    }
+
+    async function doneNoteWithEverything() {
+      const fx = await createBoardFixture(ctx);
+      const created = await createNote(fx.boardId, fx.ownerToken, {
+        title: 'Vorlage',
+        description: 'Was zu tun ist',
+        priority: 'HOCH',
+        horizon: 'DIESE_WOCHE',
+        freeX: 100,
+        freeY: 200,
+        dueDate: '2026-11-02',
+        assigneeId: fx.editorId,
+        tags: ['kunde'],
+        customFields: { Kunde: 'Müller GmbH' },
+        colour: 'BUTTER',
+      });
+      const noteId = created.json().id as string;
+      for (const text of ['Erstens', 'Zweitens']) {
+        await ctx.app.inject({
+          method: 'POST',
+          url: `/notes/${noteId}/subtasks`,
+          headers: ctx.authHeader(fx.ownerToken),
+          payload: { text },
+        });
+      }
+      const [first] = docsWithId(await subtasksCol(ctx.db, noteId).orderBy('sortIndex').get());
+      await ctx.app.inject({
+        method: 'PATCH',
+        url: `/notes/${noteId}/subtasks/${first!.id}`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { done: true },
+      });
+      await ctx.app.inject({
+        method: 'POST',
+        url: `/notes/${noteId}/complete`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      return { fx, noteId };
+    }
+
+    it('copies every field and every subtask with its tick, and the copy starts open', async () => {
+      const { fx, noteId } = await doneNoteWithEverything();
+      const res = await duplicate(noteId, fx.editToken);
+      expect(res.statusCode).toBe(201);
+      const copy = res.json();
+
+      expect(copy.id).not.toBe(noteId);
+      expect(copy).toMatchObject({
+        title: 'Vorlage',
+        description: 'Was zu tun ist',
+        status: 'OPEN',
+        completedAt: null,
+        priority: 'HOCH',
+        horizon: 'DIESE_WOCHE',
+        freeX: 100,
+        freeY: 200,
+        dueDate: '2026-11-02',
+        tags: ['kunde'],
+        customFields: { Kunde: 'Müller GmbH' },
+        colour: 'BUTTER',
+        subtaskSummary: { total: 2, done: 1 },
+      });
+      expect(copy.assignee.id).toBe(fx.editorId);
+      expect(copy.createdBy.id).toBe(fx.editorId);
+
+      const detail = await ctx.app.inject({
+        method: 'GET',
+        url: `/notes/${copy.id}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      const subtasks = detail.json().subtasks as { text: string; done: boolean }[];
+      expect(subtasks.map((s) => [s.text, s.done])).toEqual([
+        ['Erstens', true],
+        ['Zweitens', false],
+      ]);
+      expect(detail.json().history).toEqual([
+        expect.objectContaining({ type: 'CREATED', metadata: { duplicatedFrom: noteId } }),
+      ]);
+
+      // The source is left exactly as it was.
+      const source = await ctx.app.inject({
+        method: 'GET',
+        url: `/notes/${noteId}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(source.json().status).toBe('DONE');
+      expect(source.json().subtasks).toHaveLength(2);
+    });
+
+    it('applies the title, description and placement the client sends', async () => {
+      const { fx, noteId } = await doneNoteWithEverything();
+      const res = await duplicate(noteId, fx.ownerToken, {
+        title: 'Noch nicht gespeichert',
+        description: '',
+        horizon: 'SPAETER',
+        priority: 'NIEDRIG',
+        freeX: 300,
+        freeY: 400,
+      });
+      expect(res.json()).toMatchObject({
+        title: 'Noch nicht gespeichert',
+        description: '',
+        horizon: 'SPAETER',
+        priority: 'NIEDRIG',
+        freeX: 300,
+        freeY: 400,
+      });
+    });
+
+    it('drops an assignee who has left the board instead of failing', async () => {
+      const { fx, noteId } = await doneNoteWithEverything();
+      await notesCol(ctx.db).doc(noteId).update({ assigneeId: 'gone-user' });
+      const res = await duplicate(noteId, fx.ownerToken);
+      expect(res.statusCode).toBe(201);
+      expect(res.json().assignee).toBeNull();
+    });
+
+    it('403s for a VIEW member and 404s for a non-member', async () => {
+      const fx = await createBoardFixture(ctx);
+      const noteId = (await createNote(fx.boardId, fx.ownerToken)).json().id as string;
+      expect((await duplicate(noteId, fx.viewToken)).statusCode).toBe(403);
+      expect((await duplicate(noteId, fx.outsiderToken)).statusCode).toBe(404);
     });
   });
 });
