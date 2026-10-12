@@ -17,5 +17,6 @@ test('mobile viewport shows list-only with no drag/canvas affordance', async ({ 
   await expect(page.locator('[data-note-id]')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Filter' }).click();
-  await expect(page.getByText('Filter')).toBeVisible();
+  // The sheet's heading, not getByText: the button just clicked is also labelled "Filter".
+  await expect(page.getByRole('heading', { name: 'Filter' })).toBeVisible();
 });

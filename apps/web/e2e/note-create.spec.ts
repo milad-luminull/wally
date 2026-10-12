@@ -15,6 +15,9 @@ test('creating a note from the top bar opens it for editing', async ({ page }) =
   await titleField.blur();
 
   await page.getByRole('button', { name: 'Schließen' }).click();
+  // Wait out the panel's exit animation: while it runs, its title field still holds the
+  // same text as the new card, and the getByText below would match both.
+  await expect(titleField).toBeHidden();
   await page.getByLabel('Notizen durchsuchen').fill(title);
 
   await expect(page.getByText(title)).toBeVisible();
