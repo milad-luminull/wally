@@ -1,3 +1,4 @@
+import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Columns3, List, Plus, Command, RotateCcw, SlidersHorizontal } from 'lucide-react';
@@ -170,9 +171,12 @@ export function TopBar({
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(board.name);
+  const nameTicket = useRef<MutationTicket | undefined>(undefined);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setNameDraft(board.name), [board.name]);
+  useEffect(() => {
+    if (!editingName) setNameDraft(board.name);
+  }, [board.name, editingName]);
   useEffect(() => {
     if (editingName) nameInputRef.current?.select();
   }, [editingName]);
@@ -180,7 +184,12 @@ export function TopBar({
   function commitName() {
     setEditingName(false);
     const trimmed = nameDraft.trim();
-    if (trimmed && trimmed !== board.name) renameBoard.mutate(trimmed);
+    if (trimmed && trimmed !== board.name)
+      renameBoard.mutate({
+        name: trimmed,
+        ticket:
+          nameTicket.current ?? captureMutation(`board:${boardId}`, { revision: board.revision }),
+      });
     else setNameDraft(board.name);
   }
 
@@ -220,7 +229,12 @@ export function TopBar({
               {isOwner ? (
                 <button
                   type="button"
-                  onClick={() => setEditingName(true)}
+                  onClick={() => {
+                    nameTicket.current = captureMutation(`board:${boardId}`, {
+                      revision: board.revision,
+                    });
+                    setEditingName(true);
+                  }}
                   title={t('board.topBar.renameTitle')}
                   className="block h-7 max-w-[260px] truncate rounded-md px-1.5 text-left transition-colors duration-100 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
                 >

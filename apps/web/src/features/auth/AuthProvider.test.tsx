@@ -35,8 +35,23 @@ vi.mock('firebase/auth', () => ({
   sendEmailVerification: vi.fn(),
 }));
 
+vi.mock('@/lib/resources', () => ({
+  meApi: { get: vi.fn(), updatePreferences: vi.fn() },
+}));
+
 // Imported after the mocks so they resolve to the mocked module.
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import type { MeDto } from '@wally/shared';
+import { meApi } from '@/lib/resources';
+import { flushPreferences, queuePreferences } from '@/lib/preferencesQueue';
+import { useMe } from '@/i18n/useProfileLanguage';
+import { createTestQueryClient } from '@/test/renderWithProviders';
+import { scopedQueryKeys } from '@/features/board/hooks/queryKeys';
 import { AuthProvider, useAuth } from './AuthProvider';
 
 function makeUser(overrides: Partial<FakeUser> = {}): FakeUser {
@@ -50,8 +65,18 @@ function makeUser(overrides: Partial<FakeUser> = {}): FakeUser {
   };
 }
 
+let queryClient: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+function profileOf(uid: string): MeDto {
+  return { id: uid, email: `${uid}@example.com` } as MeDto;
 }
 
 /** Signs the given user in through the captured onAuthStateChanged callback. */
@@ -67,6 +92,7 @@ describe('AuthProvider', () => {
     authStub.currentUser = null;
     listener.current = null;
     vi.clearAllMocks();
+    queryClient = createTestQueryClient();
   });
 
   it('sends a verification email when a new account is created with a password', async () => {
@@ -163,5 +189,70 @@ describe('AuthProvider', () => {
     // A stale `true` here would hide the banner from the next person to sign in.
     expect(result.current.emailVerified).toBe(false);
     expect(result.current.status).toBe('unauthenticated');
+  });
+
+  describe('changing account', () => {
+    const alice = () => makeUser({ uid: 'alice', email: 'alice@example.com' });
+    const bob = () => makeUser({ uid: 'bob', email: 'bob@example.com' });
+
+    function renderMe() {
+      return renderHook(() => ({ auth: useAuth(), me: useMe() }), { wrapper });
+    }
+
+    it.each([
+      ['after a sign-out', true],
+      ['straight from one account to the next', false],
+    ])('never serves the previous account its profile (%s)', async (_label, signOutFirst) => {
+      vi.mocked(meApi.get).mockResolvedValueOnce(profileOf('alice'));
+      const { result } = renderMe();
+      await signIn(alice());
+      await waitFor(() => expect(result.current.me.data?.id).toBe('alice'));
+
+      if (signOutFirst) await signIn(null);
+      let answerBob: (me: MeDto) => void = () => {};
+      vi.mocked(meApi.get).mockReturnValueOnce(new Promise((resolve) => (answerBob = resolve)));
+      await signIn(bob());
+      await waitFor(() => expect(result.current.auth.status).toBe('authenticated'));
+
+      // Bob's own request is still out; nothing of Alice's may stand in for it.
+      expect(result.current.me.data).toBeUndefined();
+      expect(queryClient.getQueryData(scopedQueryKeys('alice').profile())).toBeUndefined();
+
+      answerBob(profileOf('bob'));
+      await waitFor(() => expect(result.current.me.data?.id).toBe('bob'));
+    });
+
+    it('drops a preferences change still waiting to go out', async () => {
+      renderHook(() => useAuth(), { wrapper });
+      await signIn(alice());
+      queuePreferences(queryClient, scopedQueryKeys('alice'), { theme: 'dark' });
+
+      await signIn(bob());
+      await flushPreferences(queryClient);
+
+      // Sent now it would carry Bob's token and land on Bob's profile.
+      expect(meApi.updatePreferences).not.toHaveBeenCalled();
+    });
+
+    it('sends a held preferences change before signing out', async () => {
+      const order: string[] = [];
+      vi.mocked(meApi.updatePreferences).mockImplementation(async () => {
+        order.push('save');
+        return profileOf('alice');
+      });
+      vi.mocked(firebaseSignOut).mockImplementation(async () => {
+        order.push('signOut');
+      });
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await signIn(alice());
+      queuePreferences(queryClient, scopedQueryKeys('alice'), { theme: 'dark' });
+
+      await act(async () => {
+        await result.current.signOut();
+      });
+
+      // Under Alice's token, while it is still the one attached.
+      expect(order).toEqual(['save', 'signOut']);
+    });
   });
 });

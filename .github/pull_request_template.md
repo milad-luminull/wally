@@ -12,6 +12,7 @@ From `docs/SETUP.md` — CI enforces the first three; the rest are yours to conf
 - [ ] `make up` starts clean from an empty checkout
 - [ ] No console errors in the browser
 - [ ] Verified in the running app, not just in tests
+- [ ] Docs updated, or not needed. A decision that is hard to reverse has an ADR under `docs/adr/` (see `docs/adr/README.md`)
 
 ## Anything reviewers should know
 

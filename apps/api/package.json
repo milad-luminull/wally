@@ -12,7 +12,8 @@
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "maintenance": "tsx src/maintenance.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",

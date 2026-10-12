@@ -13,7 +13,7 @@ packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows, [`docs/RULE.md`](docs/RULE.md) for working rules, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
+Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows, [`docs/RULE.md`](docs/RULE.md) for working rules, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
 
 ## Prerequisites
 

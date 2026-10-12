@@ -98,7 +98,9 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
   return {
     id: note.id,
     whiteboardId: note.whiteboardId,
+    revision: note.revision ?? 0,
     title: note.title,
+    description: note.description ?? '',
     status: note.status,
     completedAt: toIsoOrNull(note.completedAt),
     priority: note.priority,
@@ -147,6 +149,7 @@ export function toWhiteboardDto(
     id: whiteboard.id,
     name: whiteboard.name,
     ownerId: whiteboard.ownerId,
+    revision: whiteboard.revision ?? 0,
     currentUserRole,
     createdAt: toIso(whiteboard.createdAt),
     updatedAt: toIso(whiteboard.updatedAt),

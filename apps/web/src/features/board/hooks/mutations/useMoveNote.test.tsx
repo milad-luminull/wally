@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
-import { queryKeys } from '../queryKeys';
+import { scopedQueryKeys } from '../queryKeys';
 import { useMoveNote } from './useMoveNote';
 
 vi.mock('@/lib/resources', () => ({
@@ -14,6 +14,9 @@ vi.mock('@/lib/resources', () => ({
 
 // Imported after the mock so it resolves to the mocked module.
 import { notesApi } from '@/lib/resources';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 const boardId = 'board-1';
 
@@ -25,7 +28,7 @@ describe('useMoveNote', () => {
   function setup(initialNote: NoteDto) {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(queryKeys.notes(boardId), [initialNote]);
-    queryClient.setQueryData(['notes', initialNote.id], {
+    queryClient.setQueryData(queryKeys.noteDetail(initialNote.id), {
       ...initialNote,
       subtasks: [],
       history: [],

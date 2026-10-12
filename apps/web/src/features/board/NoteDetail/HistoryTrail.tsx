@@ -7,9 +7,16 @@ import { FieldLabel } from './Field';
 
 const VISIBLE_BY_DEFAULT = 3;
 
+function actionKey(event: HistoryEventDto) {
+  if (event.type !== 'CREATED') return 'note.history.moved' as const;
+  return event.metadata?.duplicatedFrom
+    ? ('note.history.duplicated' as const)
+    : ('note.history.created' as const);
+}
+
 function eventText(event: HistoryEventDto, t: T): { action: string; who: string; when: string } {
   return {
-    action: t(event.type === 'CREATED' ? 'note.history.created' : 'note.history.moved'),
+    action: t(actionKey(event)),
     who: event.actor ? displayName(event.actor) : t('note.history.someone'),
     // occurredAt is a real timestamp with a zone, so it is parsed directly — parseIsoDate is
     // only for bare calendar dates.

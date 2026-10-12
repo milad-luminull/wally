@@ -54,3 +54,25 @@ describe('useCreateNote', () => {
     }
   });
 });
+
+it('cannot repopulate account caches after a delayed query cancellation completes', async () => {
+  const { resetMutationSession } = await import('@/lib/mutationQueue');
+  resetMutationSession();
+  const queryClient = createTestQueryClient();
+  let resume!: () => void;
+  const cancelled = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  vi.spyOn(queryClient, 'cancelQueries').mockReturnValue(cancelled);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useCreateNote(boardId), { wrapper });
+  result.current.mutate({ title: 'Old private text' });
+  await waitFor(() => expect(queryClient.cancelQueries).toHaveBeenCalled());
+  resetMutationSession();
+  queryClient.clear();
+  resume();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+});

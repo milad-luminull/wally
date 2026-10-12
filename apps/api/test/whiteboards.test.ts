@@ -22,7 +22,7 @@ describe('whiteboard routes', () => {
   describe('GET /whiteboards/:id', () => {
     it('200s for the owner', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -33,7 +33,7 @@ describe('whiteboard routes', () => {
 
     it('200s for an active EDIT member', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.editToken),
@@ -44,7 +44,7 @@ describe('whiteboard routes', () => {
 
     it('200s for an active VIEW member', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.viewToken),
@@ -55,7 +55,7 @@ describe('whiteboard routes', () => {
 
     it('404s for a non-member (never reveals existence)', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -65,7 +65,7 @@ describe('whiteboard routes', () => {
 
     it('404s for a nonexistent whiteboard id', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/does-not-exist`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -77,7 +77,7 @@ describe('whiteboard routes', () => {
   describe('PATCH /whiteboards/:id (owner-only rename)', () => {
     it('200s and renames for the owner', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -89,7 +89,7 @@ describe('whiteboard routes', () => {
 
     it('403s for an EDIT member', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.editToken),
@@ -100,7 +100,7 @@ describe('whiteboard routes', () => {
 
     it('403s for a VIEW member', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.viewToken),
@@ -111,7 +111,7 @@ describe('whiteboard routes', () => {
 
     it('404s for a non-member', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -125,7 +125,7 @@ describe('whiteboard routes', () => {
     it('200s for owner, EDIT, and VIEW; 404 for non-member', async () => {
       const fx = await createBoardFixture(ctx);
       for (const token of [fx.ownerToken, fx.editToken, fx.viewToken]) {
-        const res = await ctx.app.inject({
+        const res = await ctx.inject({
           method: 'GET',
           url: `/whiteboards/${fx.boardId}/members`,
           headers: ctx.authHeader(token),
@@ -134,7 +134,7 @@ describe('whiteboard routes', () => {
         // Two stored member rows plus the synthetic owner row.
         expect(res.json()).toHaveLength(3);
       }
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/members`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -144,7 +144,7 @@ describe('whiteboard routes', () => {
 
     it('includes the owner first, so a note can be assigned to them', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/members`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -159,7 +159,7 @@ describe('whiteboard routes', () => {
       });
       // The owner has no member document, so their row must not be editable or removable.
       for (const method of ['PATCH', 'DELETE'] as const) {
-        const denied = await ctx.app.inject({
+        const denied = await ctx.inject({
           method,
           url: `/whiteboards/${fx.boardId}/members/owner:${fx.ownerId}`,
           headers: ctx.authHeader(fx.ownerToken),
@@ -177,7 +177,7 @@ describe('whiteboard routes', () => {
         { title: 'A', tags: ['Cyber', 'Review'] },
         { title: 'B', tags: ['Cyber'] },
       ]) {
-        await ctx.app.inject({
+        await ctx.inject({
           method: 'POST',
           url: `/whiteboards/${fx.boardId}/notes`,
           headers: ctx.authHeader(fx.ownerToken),
@@ -185,7 +185,7 @@ describe('whiteboard routes', () => {
         });
       }
 
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/tags`,
         headers: ctx.authHeader(fx.viewToken),
@@ -193,7 +193,7 @@ describe('whiteboard routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json().sort()).toEqual(['Cyber', 'Review']);
 
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/tags`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -206,7 +206,7 @@ describe('whiteboard routes', () => {
     it('lists boards owned or actively membered by the caller', async () => {
       const fx = await createBoardFixture(ctx);
 
-      const ownerRes = await ctx.app.inject({
+      const ownerRes = await ctx.inject({
         method: 'GET',
         url: '/whiteboards',
         headers: ctx.authHeader(fx.ownerToken),
@@ -214,7 +214,7 @@ describe('whiteboard routes', () => {
       const ownerBoards = ownerRes.json();
       expect(ownerBoards.some((b: { id: string }) => b.id === fx.boardId)).toBe(true);
 
-      const editRes = await ctx.app.inject({
+      const editRes = await ctx.inject({
         method: 'GET',
         url: '/whiteboards',
         headers: ctx.authHeader(fx.editToken),

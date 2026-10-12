@@ -23,6 +23,9 @@ export const isMac =
 /** `mod` rendered for the current platform, for hint chips. */
 export const MOD_KEY = isMac ? '⌘' : 'Ctrl';
 
+/** The Alt/Option key, for hint chips. */
+export const ALT_KEY = isMac ? '⌥' : 'Alt';
+
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;

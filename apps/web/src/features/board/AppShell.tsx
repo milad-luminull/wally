@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -9,6 +9,7 @@ import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useCreateNote } from './hooks/mutations/useCreateNote';
+import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
 import { canEdit as canEditRole, isOwner as isOwnerRole } from './util/permissions';
 import { collectFieldKeys, collectFieldValues, filterNotes } from './util/noteDerived';
@@ -61,6 +62,25 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     });
   }, [canEdit, createNote, notes, viewState]);
 
+  // Read through a ref: Undo can fire long after the render that set up the toast.
+  const openNoteId = useRef(viewState.noteId);
+  openNoteId.current = viewState.noteId;
+  const { openNote } = viewState;
+  const { duplicate } = useDuplicateNote(boardId, {
+    onUndo: (copyId) => {
+      if (openNoteId.current === copyId) openNote(null);
+    },
+  });
+  /** The panel button and ⌘D open the copy, ready to edit. An Alt-drag places one and
+   * leaves the panel alone, since the user is busy arranging cards. */
+  const duplicateNote = useCallback(
+    (noteId: string, placement?: DuplicatePlacement) => {
+      if (!canEdit) return;
+      duplicate(noteId, placement, placement ? undefined : { onSuccess: (n) => openNote(n.id) });
+    },
+    [canEdit, duplicate, openNote],
+  );
+
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
     // visible viewport, which pushes the board's own scroll containers off-screen.
@@ -107,6 +127,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             axis={viewState.axis}
             selectedNoteId={viewState.noteId}
             onOpenNote={viewState.openNote}
+            onDuplicateNote={duplicateNote}
             canEdit={canEdit}
           />
         ) : (
@@ -131,6 +152,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           axis={viewState.axis}
           isBelowDesktop={isBelowDesktop}
           onClose={() => viewState.openNote(null)}
+          onDuplicate={duplicateNote}
+          currentUserId={user?.uid}
         />
       </div>
 
@@ -145,6 +168,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         canEdit={canEdit}
         noteOpen={viewState.noteId !== null}
         onNewNote={newNote}
+        onDuplicateNote={() => viewState.noteId && duplicateNote(viewState.noteId)}
         onOpenNote={viewState.openNote}
         onCloseNote={() => viewState.openNote(null)}
         onSetView={viewState.setView}

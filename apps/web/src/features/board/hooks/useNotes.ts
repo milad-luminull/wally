@@ -1,6 +1,7 @@
+import { useNoteDrafts, withNoteDraft } from '@/lib/noteDrafts';
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from '@/lib/resources';
-import { queryKeys } from './queryKeys';
+import { useQueryKeys } from './queryKeys';
 
 /**
  * The single source of truth for a board's notes. WandView and ListView both call this
@@ -8,9 +9,12 @@ import { queryKeys } from './queryKeys';
  * duplicate the notes list per view (see the util/noteDerived helpers).
  */
 export function useNotes(boardId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.notes(boardId ?? ''),
+  const keys = useQueryKeys();
+  useNoteDrafts();
+  const query = useQuery({
+    queryKey: keys.notes(boardId ?? ''),
     queryFn: () => notesApi.list(boardId!, { status: 'ALL' }),
     enabled: Boolean(boardId),
   });
+  return { ...query, data: query.data?.map(withNoteDraft) };
 }

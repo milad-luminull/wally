@@ -133,6 +133,7 @@ async function provisionUser(
       tx.set(boardRef, {
         name: INITIAL_BOARD_NAME[boardLanguage],
         ownerId: uid,
+        revision: 1,
         memberRoles: {},
         shareLinkToken: null,
         createdAt: timestamp,

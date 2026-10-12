@@ -1,7 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteCreateInput, NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { queryKeys } from '../queryKeys';
+import { useQueryKeys } from '../queryKeys';
 
 const TEMP_ID_PREFIX = 'temp-';
 
@@ -9,8 +10,10 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
   const now = new Date().toISOString();
   return {
     id: tempId,
+    revision: 1,
     whiteboardId: boardId,
     title: input.title ?? '',
+    description: input.description ?? '',
     status: 'OPEN',
     completedAt: null,
     priority: input.priority ?? 'MITTEL',
@@ -31,34 +34,38 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
 
 export function useCreateNote(boardId: string) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
 
   return useMutation({
     mutationFn: (input: Partial<NoteCreateInput>) => notesApi.create(boardId, input),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notes(boardId) });
-      const previous = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      const tempId = `${TEMP_ID_PREFIX}${Date.now()}`;
-      queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) => [
+    onMutate: (input) => {
+      void queryClient.cancelQueries({ queryKey: keys.notes(boardId) });
+      const previous = queryClient.getQueryData<NoteDto[]>(keys.notes(boardId));
+      const tempId = `${TEMP_ID_PREFIX}${crypto.randomUUID()}`;
+      queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) => [
         ...(prev ?? []),
         optimisticNote(boardId, tempId, input),
       ]);
       return { previous, tempId };
     },
     onError: (_err, _input, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKeys.notes(boardId), context.previous);
+      if (context)
+        queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) =>
+          prev?.filter((note) => note.id !== context.tempId),
+        );
     },
     onSuccess: (created, _input, context) => {
-      queryClient.setQueryData<NoteDto[]>(queryKeys.notes(boardId), (prev) =>
+      queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) =>
         prev?.map((n) => (n.id === context?.tempId ? created : n)),
       );
-      // Deliberately NOT seeding the detail cache (['notes', created.id]) with `created`.
+      // Deliberately NOT seeding the detail cache (keys.noteDetail) with `created`.
       // POST /notes answers with the LIGHT list DTO, which has no subtasks[]/history[],
       // while everything reading that key (useNoteDetail -> SubtaskChecklist, HistoryTrail)
       // indexes those arrays directly. Seeding it crashed the panel on the first open of a
       // freshly created note. Leaving the key empty lets useNoteDetail fetch real detail.
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.notes(boardId) });
+      void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
     },
   });
 }

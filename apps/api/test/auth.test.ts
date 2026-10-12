@@ -35,12 +35,12 @@ describe('auth preHandler', () => {
   });
 
   it('401s on a protected route with no Authorization header', async () => {
-    const res = await ctx.app.inject({ method: 'GET', url: '/whiteboards' });
+    const res = await ctx.inject({ method: 'GET', url: '/whiteboards' });
     expect(res.statusCode).toBe(401);
   });
 
   it('401s on a protected route with an invalid token', async () => {
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: { authorization: 'Bearer not-a-real-token' },
@@ -51,7 +51,7 @@ describe('auth preHandler', () => {
   it('writes the user record and lazily provisions their whiteboard on first request', async () => {
     const token = registerTestUser(ctx, 'auth-new-user', 'brand-new@example.com', 'Brand New');
 
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: ctx.authHeader(token),
@@ -70,7 +70,7 @@ describe('auth preHandler', () => {
 
   it('auto-activates a pending invite matching the caller email, whatever its casing', async () => {
     const ownerToken = registerTestUser(ctx, 'auth-owner', 'auth-owner@example.com');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: ctx.authHeader(ownerToken),
@@ -84,7 +84,7 @@ describe('auth preHandler', () => {
 
     // The invited person authenticates with an email that differs only in case.
     const inviteeToken = registerTestUser(ctx, 'auth-invitee', 'INVITEE@EXAMPLE.COM');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: ctx.authHeader(inviteeToken),
@@ -104,7 +104,7 @@ describe('auth preHandler', () => {
     // could claim someone else's pending invite just by typing in their email address,
     // no access to that inbox required.
     const ownerToken = registerTestUser(ctx, 'auth-owner-2', 'auth-owner-2@example.com');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: ctx.authHeader(ownerToken),
@@ -123,7 +123,7 @@ describe('auth preHandler', () => {
       null,
       false, // emailVerified: false
     );
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
       headers: ctx.authHeader(attackerToken),
@@ -138,7 +138,7 @@ describe('auth preHandler', () => {
   });
   it('persists emailVerified on the user record', async () => {
     const token = registerTestUser(ctx, 'auth-verified', 'verified@example.com');
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
     const user = withId(await usersCol(ctx.db).doc('auth-verified').get());
     expect(user?.emailVerified).toBe(true);
@@ -146,7 +146,7 @@ describe('auth preHandler', () => {
 
   it('updates a stored emailVerified of false once the caller verifies', async () => {
     const token = registerTestUser(ctx, 'auth-later', 'later@example.com', null, false);
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
     expect(withId(await usersCol(ctx.db).doc('auth-later').get())?.emailVerified).toBe(false);
 
     ctx.tokens.set(token, {
@@ -155,7 +155,7 @@ describe('auth preHandler', () => {
       emailVerified: true,
       name: null,
     });
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
     // emailVerified has to take part in the fast-path comparison, or a user who verifies
     // later keeps a stale false forever and the invite waiting on it never activates.
@@ -173,7 +173,7 @@ describe('auth preHandler', () => {
     });
 
     const token = registerTestUser(ctx, 'auth-legacy', 'legacy@example.com');
-    await ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
     // An absent flag reads as false, so this one migrating write is forced — and it is also
     // the one sweep that recovers any invite the pre-fix code left stranded.

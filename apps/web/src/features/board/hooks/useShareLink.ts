@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { shareLinkApi } from '@/lib/resources';
-import { queryKeys } from './queryKeys';
+import { useQueryKeys } from './queryKeys';
 
 export function useShareLink(boardId: string | undefined, enabled: boolean) {
+  const keys = useQueryKeys();
   return useQuery({
-    queryKey: queryKeys.shareLink(boardId ?? ''),
+    queryKey: keys.shareLink(boardId ?? ''),
     queryFn: () => shareLinkApi.get(boardId!),
     enabled: Boolean(boardId) && enabled,
     retry: false,

@@ -8,7 +8,7 @@ describe('GET /health', () => {
 
   it('returns 200 with no auth header at all', async () => {
     ctx = await buildTestApp(PROJECT_ID);
-    const res = await ctx.app.inject({ method: 'GET', url: '/health' });
+    const res = await ctx.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
   });

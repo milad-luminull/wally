@@ -1,4 +1,5 @@
-import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
+import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
 import { DEFAULT_LANGUAGE, INITIAL_BOARD_NAME } from '@wally/shared';
 import type { Language, MembershipStatus, WhiteboardRole } from '@wally/shared';
@@ -6,6 +7,7 @@ import type { UserDoc } from '../src/lib/db/types.js';
 import { buildApp } from '../src/app.js';
 import { createNamedDb } from '../src/lib/db/client.js';
 import {
+  notesCol,
   membersCol,
   normalizeEmail,
   now,
@@ -69,6 +71,8 @@ export async function resetDatabase(projectId: string): Promise<void> {
 
 export interface TestContext {
   app: FastifyInstance;
+  /** Normal client contract; use app.inject directly to test missing/stale metadata. */
+  inject(options: InjectOptions): Promise<LightMyRequestResponse>;
   db: Firestore;
   projectId: string;
   tokens: Map<string, DecodedAuthToken>;
@@ -82,6 +86,25 @@ export async function buildTestApp(projectId: string): Promise<TestContext> {
   await app.ready();
   return {
     app,
+    async inject(options) {
+      const url = typeof options.url === 'string' ? options.url : (options.url?.pathname ?? '/');
+      const method = String(options.method ?? 'GET').toUpperCase();
+      if (method === 'GET' || url === '/me' || url === '/health') return app.inject(options);
+      const parts = url.split('/');
+      let revision: number | undefined;
+      if (parts[1] === 'notes')
+        revision = (await notesCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
+      else if (parts[1] === 'whiteboards')
+        revision = (await whiteboardsCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
+      return app.inject({
+        ...options,
+        headers: {
+          'idempotency-key': randomUUID(),
+          ...(revision === undefined ? {} : { 'x-expected-revision': String(revision) }),
+          ...options.headers,
+        },
+      });
+    },
     db,
     projectId,
     tokens,

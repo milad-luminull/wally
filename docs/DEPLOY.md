@@ -842,3 +842,49 @@ with the run URL, and GitHub's log masking does not apply to artifact contents. 
 `playwright.config.ts` sets `trace: 'off'` and `video: 'off'` under CI, and the workflow
 uploads only `playwright-report/` — never `test-results/`. If you ever turn traces back on,
 rotate the E2E password afterwards.
+
+## Board safety rollout
+
+Ship the enforced API and matching web bundle from the **same release**. The release workflow
+builds and validates both artifacts before shifting API traffic and publishing Hosting. There
+is a short handover between services; old tabs receive `428 PRECONDITION_REQUIRED` and must
+refresh. Do not temporarily disable preconditions. Keep drafts for review before refreshing.
+The release remains subject to the existing CI and production environment approval gates.
+
+Before promotion:
+
+1. Deploy `firestore.indexes.json`, including the `boardOperations.expiresAt` TTL policy, to
+   the configured named database. Confirm the TTL policy is active in Firestore. TTL removal
+   is asynchronous, usually within 24 hours after expiry; seven days is the supported retry
+   window, not an exact erasure time. Do not enable TTL on `boardCleanup`.
+2. Run the reconciliation command below against the intended database in dry-run mode.
+   Review its counts, then apply repairs if needed. Repairs re-read each board transactionally.
+3. Run emulator/browser tests, lint, typecheck and build. The full authenticated Playwright
+   suite additionally needs the existing `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` secrets.
+4. Release both artifacts; check response revision headers, 428 for missing mutation
+   metadata, 409 on stale writes, successful same-key replay, and browser draft review on
+   the disposable test environment. Production smoke checks remain read-only.
+
+No revision backfill is necessary: legacy records read as zero and their first substantive
+change becomes one. Reconciliation rebuilds role caches from active membership records and
+removes share-link documents that are not a board's current token.
+
+Local Docker commands (emulator only):
+
+```bash
+docker compose exec api pnpm --filter @wally/api maintenance
+docker compose exec api pnpm --filter @wally/api maintenance --apply
+docker compose exec api pnpm --filter @wally/api maintenance --cleanup
+```
+
+With the production API image and its existing database identity/configuration, the compiled
+entry point is `node dist/maintenance.js`; the same flags apply. `--cleanup` performs writes
+and drains durable jobs even without `--apply`; `--apply` applies reconciliation repairs.
+The command exits nonzero when requested cleanup remains pending. Run it after any
+`cleanup_pending` outcome and monitor the remaining count; jobs do not expire until completed.
+A repeated deletion request also retries its cleanup while its receipt is retained.
+
+Rollback API and Hosting together through the release procedure. Keep receipts, revisions,
+and pending cleanup records intact across rollback; never restore deleted notes from old
+client drafts. Reverting to an older API also reverts enforcement, so prefer a forward fix
+once writes have resumed.
