@@ -21,12 +21,10 @@ updates:
         dependency-type: production
         update-types: [minor, patch]
     ignore:
-      # Playwright browser binaries are cached by version and a major bump can change
-      # device descriptors; land those deliberately rather than on a Monday morning.
-      - dependency-name: '@playwright/test'
-        update-types: ['version-update:semver-major']
-      # plugin-react majors track vite majors (6.x needs vite 8); move them with vite.
-      - dependency-name: '@vitejs/plugin-react'
+      # Majors are migrations (vitest, zod, eslint, tailwind, vite + plugin-react, playwright
+      # browsers), not version bumps; one PR each just piles up conflicting. Take them on
+      # deliberately, one at a time, and let Dependabot carry only the grouped minor/patch.
+      - dependency-name: '*'
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
