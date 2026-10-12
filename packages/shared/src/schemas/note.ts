@@ -8,10 +8,11 @@ import {
 } from '../enums.js';
 import { userSummarySchema } from './user.js';
 import { subtaskDtoSchema, subtaskSummarySchema } from './subtask.js';
-import { customFieldsSchema } from './customField.js';
+import { customFieldKeySchema, customFieldsSchema } from './customField.js';
 import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
+  MAX_FIELDS_PER_NOTE,
   MAX_TAGS_PER_NOTE,
   NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
@@ -20,10 +21,9 @@ import {
 import { booleanQueryParam, csvEnum } from '../utils/query.js';
 import { noteHorizonValues, notePriorityValues } from '../enums.js';
 
-const tagsSchema = z
-  .array(z.string().trim().min(1).max(TAG_MAX_LENGTH))
-  .max(MAX_TAGS_PER_NOTE)
-  .default([]);
+const tagSchema = z.string().trim().min(1).max(TAG_MAX_LENGTH);
+
+const tagsSchema = z.array(tagSchema).max(MAX_TAGS_PER_NOTE).default([]);
 
 /** Free text under the title. Not trimmed: leading indentation and blank lines are the
  * writer's, and only a description that is all whitespace counts as empty. */
@@ -80,9 +80,34 @@ export const noteUpdateSchema = z
     tags: tagsSchema.optional(),
     /** Same three-state semantics as `tags`: omitted = don't touch, `{}` = clear all. */
     customFields: customFieldsSchema.optional(),
+    /**
+     * Changes applied to the note's CURRENT properties on the server, so two people editing
+     * different properties at once both keep theirs. `customFields` replaces the whole map
+     * with whatever the client last saw, and the later of two such writes drops the other.
+     * Keys match existing ones case-insensitively, as everywhere else.
+     */
+    fieldChanges: z
+      .object({
+        set: customFieldsSchema.optional(),
+        remove: z.array(customFieldKeySchema).max(MAX_FIELDS_PER_NOTE).optional(),
+      })
+      .optional(),
+    /** The same for tags: added to / removed from the current list, not a replacement. */
+    tagChanges: z
+      .object({
+        add: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
+        remove: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
+      })
+      .optional(),
     colour: noteColourSchema.optional(),
   })
-  .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' });
+  .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' })
+  .refine((val) => !(val.customFields !== undefined && val.fieldChanges !== undefined), {
+    message: 'Send either customFields or fieldChanges, not both',
+  })
+  .refine((val) => !(val.tags !== undefined && val.tagChanges !== undefined), {
+    message: 'Send either tags or tagChanges, not both',
+  });
 export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>;
 
 /**

@@ -21,10 +21,18 @@ import {
   notesCol,
   now,
   subtasksCol,
+  withId,
 } from '../lib/db/collections.js';
 import { requireRole, requireWhiteboardAccess } from '../lib/authorization.js';
 import { toNoteDetailDto, toNoteDto } from '../lib/dto.js';
-import { assertValidAssignee, computeMoveUpdate, isValidAssignee } from '../lib/notes.js';
+import { AppError } from '../lib/errors.js';
+import {
+  applyFieldChanges,
+  applyTagChanges,
+  assertValidAssignee,
+  computeMoveUpdate,
+  isValidAssignee,
+} from '../lib/notes.js';
 
 const whiteboardIdParams = z.object({ id: z.string() });
 const noteIdParams = z.object({ id: z.string() });
@@ -319,11 +327,31 @@ export default async function noteRoutes(fastify: FastifyInstance) {
         ...(body.colour !== undefined ? { colour: body.colour } : {}),
       };
       const updatedAt = now();
-      await notesCol(db)
-        .doc(note.id)
-        .update({ ...changes, updatedAt });
+      const ref = notesCol(db).doc(note.id);
 
-      const updated = { ...note, ...changes, updatedAt };
+      if (body.fieldChanges === undefined && body.tagChanges === undefined) {
+        await ref.update({ ...changes, updatedAt });
+        const updated = { ...note, ...changes, updatedAt };
+        return toNoteDto(updated, await usersForNote(db, updated));
+      }
+
+      // Property and tag changes merge into what is stored NOW. Read and written in one
+      // transaction, so a concurrent edit to another property is never overwritten.
+      const updated = await db.runTransaction(async (tx) => {
+        const fresh = withId(await tx.get(ref));
+        if (!fresh) throw new AppError(404, 'NOT_FOUND', 'Not found');
+        const merged: Partial<NoteDoc> = {
+          ...changes,
+          ...(body.fieldChanges !== undefined
+            ? { customFields: applyFieldChanges(fresh.customFields ?? {}, body.fieldChanges) }
+            : {}),
+          ...(body.tagChanges !== undefined
+            ? { tags: applyTagChanges(fresh.tags, body.tagChanges) }
+            : {}),
+        };
+        tx.update(ref, { ...merged, updatedAt });
+        return { ...fresh, ...merged, updatedAt };
+      });
       return toNoteDto(updated, await usersForNote(db, updated));
     },
   );

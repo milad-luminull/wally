@@ -63,17 +63,34 @@ describe('custom field mutations', () => {
     });
   });
 
-  it('overwrites an existing property whose key differs only in case', async () => {
-    const { note, wrapper } = setup({ Kunde: 'Müller GmbH' });
-    vi.mocked(notesApi.update).mockResolvedValue(note);
+  it('sends only the changed property, and patches the stored spelling optimistically', async () => {
+    const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
+    vi.mocked(notesApi.update).mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useSetCustomField(boardId), { wrapper });
     result.current.mutate({ noteId: note.id, key: 'kunde', value: 'Steiner AG' });
 
-    // The stored spelling wins, so the note keeps one property rather than gaining a twin.
+    // Never the whole cached map: that would drop a property a colleague added meanwhile.
+    // The server resolves "kunde" to the stored "Kunde" against its current copy.
     await waitFor(() =>
       expect(notesApi.update).toHaveBeenCalledWith(note.id, {
-        customFields: { Kunde: 'Steiner AG' },
+        fieldChanges: { set: { kunde: 'Steiner AG' } },
+      }),
+    );
+    // The stored spelling wins, so the note keeps one property rather than gaining a twin.
+    expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Steiner AG', Vertrag: 'X' });
+  });
+
+  it('sends only the removed key', async () => {
+    const { note, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
+    vi.mocked(notesApi.update).mockResolvedValue({ ...note, customFields: { Vertrag: 'X' } });
+
+    const { result } = renderHook(() => useRemoveCustomField(boardId), { wrapper });
+    result.current.mutate({ noteId: note.id, key: 'Kunde' });
+
+    await waitFor(() =>
+      expect(notesApi.update).toHaveBeenCalledWith(note.id, {
+        fieldChanges: { remove: ['Kunde'] },
       }),
     );
   });

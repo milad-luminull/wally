@@ -10,9 +10,10 @@ import {
   snapshotNoteCaches,
 } from './shared';
 
-/** No dedicated add/remove-tag route — PATCH /notes/:id's `tags` field is a full-array
- * replace (see packages/shared/src/schemas/note.ts), so both hooks read the current
- * cached tags and send the next full array. */
+/** The request carries only the tag being added or removed (`tagChanges`), which the API
+ * applies to the note's stored tags — sending the whole cached array would drop a tag a
+ * colleague added meanwhile. The cached tags are used only for the optimistic patch. See
+ * packages/shared/src/schemas/note.ts. */
 function currentTags(
   queryClient: ReturnType<typeof useQueryClient>,
   boardId: string,
@@ -25,10 +26,8 @@ function currentTags(
 export function useAddTag(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) => {
-      const next = Array.from(new Set([...currentTags(queryClient, boardId, noteId), tag]));
-      return notesApi.update(noteId, { tags: next });
-    },
+    mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
+      notesApi.update(noteId, { tagChanges: { add: [tag] } }),
     onMutate: ({ noteId, tag }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
@@ -46,10 +45,8 @@ export function useAddTag(boardId: string) {
 export function useRemoveTag(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) => {
-      const next = currentTags(queryClient, boardId, noteId).filter((t) => t !== tag);
-      return notesApi.update(noteId, { tags: next });
-    },
+    mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
+      notesApi.update(noteId, { tagChanges: { remove: [tag] } }),
     onMutate: ({ noteId, tag }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);

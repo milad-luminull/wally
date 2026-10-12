@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FieldValue } from 'firebase-admin/firestore';
+import { MAX_FIELDS_PER_NOTE, MAX_TAGS_PER_NOTE } from '@wally/shared';
 import {
   docsWithId,
   historyCol,
@@ -287,6 +288,100 @@ describe('note routes', () => {
 
       const cleared = await patch({ customFields: {} });
       expect(cleared.json().customFields).toEqual({});
+    });
+
+    describe('PATCH fieldChanges / tagChanges', () => {
+      const patchAs = (token: string, noteId: string, payload: Record<string, unknown>) =>
+        ctx.app.inject({
+          method: 'PATCH',
+          url: `/notes/${noteId}`,
+          headers: ctx.authHeader(token),
+          payload,
+        });
+
+      it('keeps both properties when two editors add one each at the same time', async () => {
+        const { fx, noteId } = await setup();
+
+        const [a, b] = await Promise.all([
+          patchAs(fx.ownerToken, noteId, { fieldChanges: { set: { Customer: 'Müller GmbH' } } }),
+          patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }),
+        ]);
+        expect(a.statusCode).toBe(200);
+        expect(b.statusCode).toBe(200);
+
+        const stored = withId(await notesCol(ctx.db).doc(noteId).get());
+        expect(stored?.customFields).toEqual({ Customer: 'Müller GmbH', Contract: '4711' });
+      });
+
+      it('keeps both tags when two editors add one each at the same time', async () => {
+        const { fx, noteId } = await setup();
+
+        await Promise.all([
+          patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }),
+          patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }),
+        ]);
+
+        const stored = withId(await notesCol(ctx.db).doc(noteId).get());
+        expect([...(stored?.tags ?? [])].sort()).toEqual(['cyber', 'd&o']);
+      });
+
+      it('resolves set and remove against existing keys case-insensitively', async () => {
+        const { fx, noteId } = await setup();
+        await patchAs(fx.ownerToken, noteId, { customFields: { Kunde: 'Alt', Vertrag: 'X' } });
+
+        const set = await patchAs(fx.ownerToken, noteId, {
+          fieldChanges: { set: { kunde: 'Neu' } },
+        });
+        expect(set.json().customFields).toEqual({ Kunde: 'Neu', Vertrag: 'X' });
+
+        const removed = await patchAs(fx.ownerToken, noteId, {
+          fieldChanges: { remove: ['VERTRAG'] },
+        });
+        expect(removed.json().customFields).toEqual({ Kunde: 'Neu' });
+      });
+
+      it('adds a tag once, and removes it', async () => {
+        const { fx, noteId } = await setup();
+        await patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } });
+        const twice = await patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } });
+        expect(twice.json().tags).toEqual(['cyber']);
+
+        const removed = await patchAs(fx.ownerToken, noteId, { tagChanges: { remove: ['cyber'] } });
+        expect(removed.json().tags).toEqual([]);
+      });
+
+      it('400s when the merged result goes over the limit', async () => {
+        const { fx, noteId } = await setup();
+        const full = Object.fromEntries(
+          Array.from({ length: MAX_FIELDS_PER_NOTE }, (_, i) => [`Feld ${i}`, 'x']),
+        );
+        await patchAs(fx.ownerToken, noteId, { customFields: full });
+
+        const over = await patchAs(fx.ownerToken, noteId, {
+          fieldChanges: { set: { Extra: 'x' } },
+        });
+        expect(over.statusCode).toBe(400);
+
+        const tags = Array.from({ length: MAX_TAGS_PER_NOTE }, (_, i) => `t${i}`);
+        await patchAs(fx.ownerToken, noteId, { tags });
+        const overTags = await patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['extra'] } });
+        expect(overTags.statusCode).toBe(400);
+      });
+
+      it('400s when a replace and a change target the same attribute', async () => {
+        const { fx, noteId } = await setup();
+        const fields = await patchAs(fx.ownerToken, noteId, {
+          customFields: {},
+          fieldChanges: { set: { Kunde: 'x' } },
+        });
+        expect(fields.statusCode).toBe(400);
+
+        const tags = await patchAs(fx.ownerToken, noteId, {
+          tags: [],
+          tagChanges: { add: ['x'] },
+        });
+        expect(tags.statusCode).toBe(400);
+      });
     });
 
     it('PATCH description: sets it, and an empty string clears it', async () => {

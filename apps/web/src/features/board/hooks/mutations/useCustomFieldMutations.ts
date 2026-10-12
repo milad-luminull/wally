@@ -10,9 +10,10 @@ import {
   snapshotNoteCaches,
 } from './shared';
 
-/** Like tags, there is no dedicated per-property route — PATCH /notes/:id replaces the
- * whole `customFields` map, so both hooks read the current cached map and send the next
- * one. See packages/shared/src/schemas/note.ts. */
+/** The request carries only the one property being changed (`fieldChanges`), which the API
+ * merges into the note's stored map — sending the whole cached map would drop a property a
+ * colleague added meanwhile. The cached map is used only for the optimistic patch. See
+ * packages/shared/src/schemas/note.ts. */
 function currentFields(
   queryClient: ReturnType<typeof useQueryClient>,
   boardId: string,
@@ -37,10 +38,8 @@ function withoutField(fields: CustomFields, key: string): CustomFields {
 export function useSetCustomField(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, key, value }: { noteId: string; key: string; value: string }) => {
-      const next = withField(currentFields(queryClient, boardId, noteId), key, value);
-      return notesApi.update(noteId, { customFields: next });
-    },
+    mutationFn: ({ noteId, key, value }: { noteId: string; key: string; value: string }) =>
+      notesApi.update(noteId, { fieldChanges: { set: { [key]: value } } }),
     onMutate: ({ noteId, key, value }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
@@ -58,10 +57,8 @@ export function useSetCustomField(boardId: string) {
 export function useRemoveCustomField(boardId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ noteId, key }: { noteId: string; key: string }) => {
-      const next = withoutField(currentFields(queryClient, boardId, noteId), key);
-      return notesApi.update(noteId, { customFields: next });
-    },
+    mutationFn: ({ noteId, key }: { noteId: string; key: string }) =>
+      notesApi.update(noteId, { fieldChanges: { remove: [key] } }),
     onMutate: ({ noteId, key }) => {
       cancelNoteCaches(queryClient, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);

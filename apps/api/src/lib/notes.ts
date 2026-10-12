@@ -1,4 +1,13 @@
-import type { NoteHorizon, NoteMoveInput, NotePriority } from '@wally/shared';
+import {
+  findFieldKey,
+  MAX_FIELDS_PER_NOTE,
+  MAX_TAGS_PER_NOTE,
+  type CustomFields,
+  type NoteHorizon,
+  type NoteMoveInput,
+  type NotePriority,
+  type NoteUpdateInput,
+} from '@wally/shared';
 import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
 import { AppError } from './errors.js';
 
@@ -70,4 +79,48 @@ export function computeMoveUpdate(
       to: { x: input.x, y: input.y },
     },
   };
+}
+
+/**
+ * Applies PATCH `fieldChanges` to the note's CURRENT properties — the map read inside the
+ * route's transaction, not whatever the client last saw. Keys resolve case-insensitively, so
+ * setting "kunde" overwrites an existing "Kunde" and removing "KUNDE" removes it.
+ * Throws a 400 when the result would carry more properties than a note may hold.
+ */
+export function applyFieldChanges(
+  current: CustomFields,
+  changes: NonNullable<NoteUpdateInput['fieldChanges']>,
+): CustomFields {
+  const next = { ...current };
+  for (const key of changes.remove ?? []) {
+    const existing = findFieldKey(next, key);
+    if (existing !== undefined) delete next[existing];
+  }
+  for (const [key, value] of Object.entries(changes.set ?? {})) {
+    next[findFieldKey(next, key) ?? key] = value;
+  }
+  if (Object.keys(next).length > MAX_FIELDS_PER_NOTE) {
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      `A note may carry at most ${MAX_FIELDS_PER_NOTE} properties`,
+    );
+  }
+  return next;
+}
+
+/** The same for `tagChanges`: removals, then additions not already present, in order. */
+export function applyTagChanges(
+  current: string[],
+  changes: NonNullable<NoteUpdateInput['tagChanges']>,
+): string[] {
+  const removed = new Set(changes.remove ?? []);
+  const next = current.filter((tag) => !removed.has(tag));
+  for (const tag of changes.add ?? []) {
+    if (!next.includes(tag)) next.push(tag);
+  }
+  if (next.length > MAX_TAGS_PER_NOTE) {
+    throw new AppError(400, 'BAD_REQUEST', `A note may carry at most ${MAX_TAGS_PER_NOTE} tags`);
+  }
+  return next;
 }
