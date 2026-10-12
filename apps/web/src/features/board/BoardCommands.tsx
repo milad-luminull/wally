@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Check,
   Columns3,
+  Copy,
   Eye,
   EyeOff,
   Grid3x3,
@@ -40,6 +41,7 @@ import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
 import { useTheme } from '@/lib/theme';
 import { useCanvasPattern } from '@/lib/preferences';
 import {
+  ALT_KEY,
   MOD_KEY,
   requestOpen,
   useKeyboardShortcuts,
@@ -69,6 +71,8 @@ interface BoardCommandsProps {
   canEdit: boolean;
   noteOpen: boolean;
   onNewNote: () => void;
+  /** Duplicates the open note. */
+  onDuplicateNote: () => void;
   onOpenNote: (id: string) => void;
   onCloseNote: () => void;
   onSetView: (view: BoardView) => void;
@@ -100,6 +104,14 @@ export function BoardCommands(props: BoardCommandsProps) {
     { keys: '?', handler: () => setHelpOpen(true) },
     { keys: '/', handler: () => document.getElementById(SEARCH_INPUT_ID)?.focus() },
     { keys: 'n', handler: () => canEdit && props.onNewNote() },
+    {
+      // Works from inside the title or description too: duplicating what you are writing
+      // is the common case. Without an open note it still swallows the key, so the
+      // browser's bookmark dialog never opens on the board.
+      keys: 'mod+d',
+      allowInInputs: true,
+      handler: () => canEdit && props.noteOpen && props.onDuplicateNote(),
+    },
     {
       keys: 'v',
       handler: () => isDesktop && props.onSetView(props.view === 'wand' ? 'list' : 'wand'),
@@ -136,7 +148,9 @@ function CommandPalette({
   mine,
   isDesktop,
   canEdit,
+  noteOpen,
   onNewNote,
+  onDuplicateNote,
   onOpenNote,
   onSetView,
   onSetAxis,
@@ -220,6 +234,16 @@ function CommandPalette({
                   <Plus strokeWidth={1.75} />
                   <span className="flex-1">{t('board.topBar.newNote')}</span>
                   <Kbd>N</Kbd>
+                </CommandItem>
+              )}
+              {canEdit && noteOpen && (
+                <CommandItem value="duplicate copy note" onSelect={() => run(onDuplicateNote)}>
+                  <Copy strokeWidth={1.75} />
+                  <span className="flex-1">{t('palette.duplicateNote')}</span>
+                  <span className="flex gap-0.5">
+                    <Kbd>{MOD_KEY}</Kbd>
+                    <Kbd>D</Kbd>
+                  </span>
                 </CommandItem>
               )}
               <CommandItem
@@ -382,6 +406,8 @@ function ShortcutsDialog({
   const rows: { keys: string[]; label: string }[] = [
     { keys: [MOD_KEY, 'K'], label: t('shortcuts.palette') },
     { keys: ['N'], label: t('shortcuts.newNote') },
+    { keys: [MOD_KEY, 'D'], label: t('shortcuts.duplicateNote') },
+    { keys: [ALT_KEY], label: t('shortcuts.copyDrag') },
     { keys: ['/'], label: t('shortcuts.search') },
     { keys: ['V'], label: t('shortcuts.toggleView') },
     { keys: ['G', 'H'], label: t('shortcuts.groupHorizon') },

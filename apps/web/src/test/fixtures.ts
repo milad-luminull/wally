@@ -5,6 +5,7 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     id: 'note-1',
     whiteboardId: 'board-1',
     title: 'Angebotsvergleich freigeben',
+    description: '',
     status: 'OPEN',
     completedAt: null,
     priority: 'HOCH',

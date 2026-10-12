@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { DuplicatePlacement } from '../hooks/mutations/useDuplicateNote';
 import { useTranslation } from 'react-i18next';
 import { flushSync } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +39,7 @@ import { groupByAxis } from '../util/noteDerived';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
 import { NoteCard } from './NoteCard';
+import { CopyDragContext } from './copyDrag';
 
 interface WandViewProps {
   boardId: string;
@@ -49,6 +51,8 @@ interface WandViewProps {
   axis: BoardAxis;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
+  /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
+  onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
   canEdit: boolean;
 }
 
@@ -71,6 +75,7 @@ export function WandView({
   axis,
   selectedNoteId,
   onOpenNote,
+  onDuplicateNote,
   canEdit,
 }: WandViewProps) {
   const queryClient = useQueryClient();
@@ -88,6 +93,35 @@ export function WandView({
    * has to roll back to.
    */
   const dragRollback = useRef<{ noteId: string; snapshot: NoteCacheSnapshot } | null>(null);
+
+  /**
+   * Alt/Option held during the drag: the drop places a copy and the original stays put.
+   * Followed live rather than read once at pick-up, so the key can be pressed or let go
+   * mid-drag the way it works in design tools. The ref is for the dnd-kit callbacks, which
+   * can run before the state update renders.
+   */
+  const [copyDrag, setCopyDrag] = useState(false);
+  const copyDragRef = useRef(false);
+  function setCopying(value: boolean) {
+    copyDragRef.current = value;
+    setCopyDrag(value);
+  }
+
+  useEffect(() => {
+    if (!activeId) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Alt') return;
+      // Alone, Alt focuses the menu bar on Windows — not while it means "copy".
+      event.preventDefault();
+      setCopying(event.type === 'keydown');
+    }
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKey);
+    };
+  }, [activeId]);
 
   /**
    * The just-dropped move, held in React state so the board can paint it in the very frame
@@ -149,29 +183,53 @@ export function WandView({
     },
     onDragEnd({ active, over }) {
       const note = noteLabel(findNote(notes, String(active.id)), t);
-      return t(over ? 'board.dnd.moved' : 'board.dnd.notMoved', { note });
+      if (!over) return t('board.dnd.notMoved', { note });
+      return t(copyDragRef.current ? 'board.dnd.copied' : 'board.dnd.moved', { note });
     },
     onDragCancel({ active }) {
       return t('board.dnd.cancelled', { note: noteLabel(findNote(notes, String(active.id)), t) });
     },
   };
 
-  /** Maps a droppable id to the move it represents, or null if it is not a zone. */
-  function zoneMoveFor(overId: string, note: NoteDto) {
+  /** Maps a droppable id to the zone it stands for, or null if it is not a zone. */
+  function zoneFor(overId: string) {
     if (overId.startsWith('zone:horizon:')) {
-      const horizon = overId.slice('zone:horizon:'.length) as NoteHorizon;
-      return horizon === note.horizon ? null : ({ mode: 'HORIZON', horizon } as const);
+      return { horizon: overId.slice('zone:horizon:'.length) as NoteHorizon };
     }
     if (overId.startsWith('zone:priority:')) {
-      const priority = overId.slice('zone:priority:'.length) as NotePriority;
-      return priority === note.priority ? null : ({ mode: 'PRIORITY', priority } as const);
+      return { priority: overId.slice('zone:priority:'.length) as NotePriority };
     }
     return null;
+  }
+
+  /** Maps a droppable id to the move it represents, or null if it is not a zone. */
+  function zoneMoveFor(overId: string, note: NoteDto) {
+    const zone = zoneFor(overId);
+    if (zone?.horizon) {
+      return zone.horizon === note.horizon
+        ? null
+        : ({ mode: 'HORIZON', horizon: zone.horizon } as const);
+    }
+    if (zone?.priority) {
+      return zone.priority === note.priority
+        ? null
+        : ({ mode: 'PRIORITY', priority: zone.priority } as const);
+    }
+    return null;
+  }
+
+  /** Free-canvas drop position: where the card was picked up, plus how far it travelled. */
+  function freeDropPosition(event: DragEndEvent, origin: NoteDto) {
+    return {
+      x: Math.max(0, Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, origin.freeX + event.delta.x)),
+      y: Math.max(0, Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, origin.freeY + event.delta.y)),
+    };
   }
 
   function handleDragStart(event: DragStartEvent) {
     const noteId = String(event.active.id);
     setActiveId(noteId);
+    setCopying(Boolean((event.activatorEvent as KeyboardEvent | PointerEvent | null)?.altKey));
     dragRollback.current = { noteId, snapshot: snapshotNoteCaches(queryClient, boardId, noteId) };
     // Nothing in flight may land on top of the live repositioning below.
     cancelNoteCaches(queryClient, boardId, noteId);
@@ -183,6 +241,7 @@ export function WandView({
 
   function endDrag() {
     setActiveId(null);
+    setCopying(false);
     dragRollback.current = null;
   }
 
@@ -253,20 +312,28 @@ export function WandView({
     }
 
     const overId = String(over.id);
+    const origin = rollback?.previousList?.find((n) => n.id === noteId) ?? note;
+
+    if (copyDragRef.current) {
+      // The original never moved, so there is nothing to commit for it — put the caches
+      // back exactly as they were and let the copy appear where it was dropped. Dropping
+      // into the note's own zone is a perfectly good copy, not a no-op.
+      handleDragCancel();
+      if (overId === FREE_CANVAS_DROPPABLE_ID) {
+        const { x, y } = freeDropPosition(event, origin);
+        onDuplicateNote(noteId, { freeX: x, freeY: y });
+      } else {
+        const zone = zoneFor(overId);
+        if (zone) onDuplicateNote(noteId, zone);
+      }
+      return;
+    }
 
     if (overId === FREE_CANVAS_DROPPABLE_ID) {
       // Free mode has no hover target to move into, so the position is only known now.
       // Patching before clearing `activeId` keeps both in the same commit, so the card is
       // never painted at its old coordinates after the overlay goes away.
-      const origin = rollback?.previousList?.find((n) => n.id === noteId) ?? note;
-      const x = Math.max(
-        0,
-        Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, origin.freeX + event.delta.x),
-      );
-      const y = Math.max(
-        0,
-        Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, origin.freeY + event.delta.y),
-      );
+      const { x, y } = freeDropPosition(event, origin);
       const released = overlayRect();
       commitMove(noteId, { freeX: x, freeY: y });
       moveNote.mutate({ noteId, input: { mode: 'FREE', x, y }, rollback });
@@ -311,56 +378,58 @@ export function WandView({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      accessibility={{ announcements }}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      {axis === 'free' ? (
-        <WandCanvas
-          notes={shownNotes}
-          filtered={totalNoteCount > 0}
-          currentUserId={currentUserId}
-          selectedNoteId={selectedNoteId}
-          onOpenNote={onOpenNote}
-          onCreateAt={handleCreateAt}
-          canEdit={canEdit}
-          activeDragId={activeId}
-        />
-      ) : (
-        <ZoneBands
-          axis={axis}
-          groups={groups}
-          currentUserId={currentUserId}
-          selectedNoteId={selectedNoteId}
-          onOpenNote={onOpenNote}
-          onCreateInZone={handleCreateInZone}
-          canEdit={canEdit}
-          activeDragId={activeId}
-          filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
-        />
-      )}
+    <CopyDragContext.Provider value={copyDrag}>
+      <DndContext
+        sensors={sensors}
+        accessibility={{ announcements }}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        {axis === 'free' ? (
+          <WandCanvas
+            notes={shownNotes}
+            filtered={totalNoteCount > 0}
+            currentUserId={currentUserId}
+            selectedNoteId={selectedNoteId}
+            onOpenNote={onOpenNote}
+            onCreateAt={handleCreateAt}
+            canEdit={canEdit}
+            activeDragId={activeId}
+          />
+        ) : (
+          <ZoneBands
+            axis={axis}
+            groups={groups}
+            currentUserId={currentUserId}
+            selectedNoteId={selectedNoteId}
+            onOpenNote={onOpenNote}
+            onCreateInZone={handleCreateInZone}
+            canEdit={canEdit}
+            activeDragId={activeId}
+            filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
+          />
+        )}
 
-      {/* The dragged card lives here rather than in its column. Both the zone body and the
+        {/* The dragged card lives here rather than in its column. Both the zone body and the
           board itself are scroll containers, so a card translated in place gets clipped at
           the column edge the moment it starts moving toward another zone.
           The overlay is removed on release without a dnd-kit drop animation: dnd-kit
           measures that animation before React can render the move, so it always aimed back
           at the zone the note came from. `settleCard` below does the travel instead. */}
-      <DragOverlay dropAnimation={null}>
-        {activeNote ? (
-          <NoteCard
-            note={activeNote}
-            currentUserId={currentUserId}
-            selected={false}
-            onOpen={() => {}}
-            overlay
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        <DragOverlay dropAnimation={null}>
+          {activeNote ? (
+            <NoteCard
+              note={activeNote}
+              currentUserId={currentUserId}
+              selected={false}
+              onOpen={() => {}}
+              overlay
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </CopyDragContext.Provider>
   );
 }
 

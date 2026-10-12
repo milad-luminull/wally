@@ -178,7 +178,7 @@ export function filterNotes(
       const fields = Object.entries(n.customFields ?? {})
         .map(([k, v]) => `${k} ${v}`)
         .join(' ');
-      const haystack = `${n.title} ${fields} ${n.tags.join(' ')}`.toLowerCase();
+      const haystack = `${n.title} ${n.description} ${fields} ${n.tags.join(' ')}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -189,9 +189,14 @@ export function subtaskCountLabel(summary: { done: number; total: number }): str
   return summary.total ? `${summary.done}/${summary.total}` : '';
 }
 
+/**
+ * Up to two initials. A user with no display name is shown by email, and the local part is
+ * split on the usual separators, so `milad.rezazadeh@…` reads "MR" rather than a lone "M".
+ */
 export function initialsOf(name: string): string {
-  return name
-    .split(' ')
+  const at = name.indexOf('@');
+  const words = at > 0 ? name.slice(0, at).split(/[._-]+/) : name.split(' ');
+  return words
     .filter(Boolean)
     .map((p) => p[0])
     .join('')

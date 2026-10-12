@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { enumLabels } from '@/i18n/enumLabels';
 import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { makeNote, makeNoteDetail } from '@/test/fixtures';
+import { makeMember, makeNote, makeNoteDetail } from '@/test/fixtures';
 import { Toaster } from '@/components/ui/toaster';
 import { resetToasts } from '@/lib/toast';
 import { NoteDetailPanel } from './NoteDetailPanel';
@@ -40,6 +40,7 @@ beforeEach(() => {
 
 function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> = {}) {
   const onClose = vi.fn();
+  const onDuplicate = vi.fn();
   const utils = renderWithProviders(
     <NoteDetailPanel
       noteId="note-1"
@@ -48,10 +49,12 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
       axis="horizon"
       isBelowDesktop={false}
       onClose={onClose}
+      onDuplicate={onDuplicate}
+      currentUserId="user-1"
       {...overrides}
     />,
   );
-  return { onClose, ...utils };
+  return { onClose, onDuplicate, ...utils };
 }
 
 describe('NoteDetailPanel', () => {
@@ -143,6 +146,119 @@ describe('NoteDetailPanel', () => {
     });
   });
 
+  describe('editing the description', () => {
+    beforeEach(() => {
+      vi.mocked(notesApi.update).mockImplementation(async (_id, input) => {
+        vi.mocked(notesApi.get).mockResolvedValue(
+          makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE', ...input }),
+        );
+        return makeNote({ ...input });
+      });
+    });
+
+    it('saves while typing, and Enter adds a line instead of leaving', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+      const field = await screen.findByLabelText('Beschreibung');
+      expect(field).toHaveAttribute('placeholder', 'Beschreibung hinzufügen…');
+
+      await user.type(field, 'Erste Zeile{Enter}zweite');
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', {
+          description: 'Erste Zeile\nzweite',
+        }),
+      );
+      expect(field).toHaveFocus();
+    });
+
+    it('can be cleared', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ description: 'Alt' }));
+      const user = userEvent.setup();
+      renderPanel();
+      const field = await screen.findByDisplayValue('Alt');
+
+      await user.clear(field);
+      await user.tab();
+
+      expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { description: '' });
+    });
+
+    it('sends what was typed when the panel closes before the save delay', async () => {
+      const user = userEvent.setup();
+      const { unmount } = renderPanel();
+      const field = await screen.findByLabelText('Beschreibung');
+
+      await user.type(field, 'Kurz');
+      unmount();
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { description: 'Kurz' }),
+      );
+    });
+
+    it('leaves the field, not the panel, on the first Escape', async () => {
+      const user = userEvent.setup();
+      const { onClose } = renderPanel();
+      const field = await screen.findByLabelText('Beschreibung');
+      await user.click(field);
+
+      await user.keyboard('{Escape}');
+
+      expect(field).not.toHaveFocus();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('duplicating', () => {
+    it('duplicates from the footer button', async () => {
+      const user = userEvent.setup();
+      const { onDuplicate } = renderPanel();
+      await screen.findByLabelText('Titel');
+
+      await user.click(screen.getByRole('button', { name: 'Duplizieren' }));
+
+      expect(onDuplicate).toHaveBeenCalledWith('note-1');
+    });
+
+    it('is not offered to a member who cannot edit', async () => {
+      renderPanel({ canEdit: false });
+      await screen.findByLabelText('Titel');
+
+      expect(screen.queryByRole('button', { name: 'Duplizieren' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('choosing an assignee', () => {
+    it('marks your own entry, so it cannot be mistaken for someone else', async () => {
+      vi.mocked(membersApi.list).mockResolvedValue([
+        makeMember({ id: 'member-1', userId: 'user-1', displayName: 'Nora Falk' }),
+        makeMember({ id: 'member-2', userId: 'user-2', displayName: 'Jonas Weber' }),
+      ]);
+      const user = userEvent.setup();
+      renderPanel({ currentUserId: 'user-1' });
+      await screen.findByLabelText('Titel');
+      await waitFor(() => expect(membersApi.list).toHaveBeenCalled());
+
+      await user.click(screen.getByRole('combobox', { name: 'Zuständig' }));
+
+      expect(await screen.findByRole('option', { name: /Nora Falk \(du\)/ })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Jonas Weber/ })).toBeInTheDocument();
+    });
+
+    it('still names an assignee who is no longer an active member', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({
+          assignee: { id: 'user-gone', email: 'ex@example.com', displayName: 'Ex Kollegin' },
+        }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      expect(screen.getByRole('combobox', { name: 'Zuständig' })).toHaveTextContent('Ex Kollegin');
+    });
+  });
+
   describe('closing the panel', () => {
     it('closes on Escape', async () => {
       const { onClose } = renderPanel();
@@ -209,6 +325,8 @@ describe('NoteDetailPanel', () => {
         axis="free"
         isBelowDesktop={false}
         onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        currentUserId="user-1"
       />,
     );
     await waitFor(() => {
@@ -260,6 +378,8 @@ describe('NoteDetailPanel', () => {
             axis="horizon"
             isBelowDesktop={false}
             onClose={onClose}
+            onDuplicate={vi.fn()}
+            currentUserId="user-1"
           />
           <Toaster />
         </>,

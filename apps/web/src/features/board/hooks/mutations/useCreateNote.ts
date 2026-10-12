@@ -11,6 +11,7 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
     id: tempId,
     whiteboardId: boardId,
     title: input.title ?? '',
+    description: input.description ?? '',
     status: 'OPEN',
     completedAt: null,
     priority: input.priority ?? 'MITTEL',

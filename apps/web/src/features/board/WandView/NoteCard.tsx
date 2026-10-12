@@ -1,18 +1,14 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CheckCircle2, ListChecks } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
+import { CheckCircle2, ListChecks, Plus } from 'lucide-react';
+import { useContext, type CSSProperties, type ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
-import {
-  dueInfo,
-  dueToneClass,
-  initialsOf,
-  noteColourFillClass,
-  subtaskCountLabel,
-} from '../util/noteDerived';
+import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
 import { PriorityIcon } from '../PriorityIcon';
+import { AssigneeAvatar } from '../AssigneeAvatar';
+import { CopyDragContext } from './copyDrag';
 
 interface NoteCardProps {
   note: NoteDto;
@@ -57,8 +53,9 @@ export function NoteCard({
   const { priority: priorityLabels } = useEnumLabels();
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
-  const showAssignee = note.assignee && note.assignee.id !== currentUserId;
+  const description = note.description.trim();
   const isDone = note.status === 'DONE';
+  const copying = useContext(CopyDragContext);
 
   const body = (
     <>
@@ -70,6 +67,12 @@ export function NoteCard({
       >
         {note.title || t('common.untitled')}
       </span>
+
+      {description && (
+        <span className="-mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
+          {description}
+        </span>
+      )}
 
       <div className="flex items-center gap-2">
         <span
@@ -99,13 +102,8 @@ export function NoteCard({
           />
         )}
 
-        {showAssignee && note.assignee && (
-          <span
-            title={note.assignee.displayName ?? note.assignee.email}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground"
-          >
-            {initialsOf(note.assignee.displayName ?? note.assignee.email)}
-          </span>
+        {note.assignee && (
+          <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
         )}
       </div>
     </>
@@ -118,14 +116,20 @@ export function NoteCard({
     return (
       // Deliberately not `data-note-id`: that selector addresses cards on the board, and
       // during a drag the overlay would otherwise be a second element with the same id.
-      <div data-note-overlay={note.id} aria-hidden>
+      <div data-note-overlay={note.id} aria-hidden className="relative">
+        {copying && (
+          <span className="absolute -right-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-e2">
+            <Plus className="h-3 w-3" strokeWidth={2.5} />
+          </span>
+        )}
         <div
           className={cn(
             surface,
             noteColourFillClass[note.colour],
             // Lifted off the board and tilted a hair, so the card reads as picked up.
             // Kept subtle: this is unwound on release, and a big tilt has further to fall.
-            'cursor-grabbing border-[color:var(--note-border)] shadow-e3 rotate-[1.5deg] scale-[1.03]',
+            'border-[color:var(--note-border)] shadow-e3 rotate-[1.5deg] scale-[1.03]',
+            copying ? 'cursor-copy' : 'cursor-grabbing',
             isDone && 'opacity-60 saturate-50',
           )}
         >
@@ -140,7 +144,8 @@ export function NoteCard({
       note={note}
       selected={selected}
       isDone={isDone}
-      dragging={dragging}
+      dragging={dragging && !copying}
+      copying={copying}
       onOpen={onOpen}
       style={style}
       surface={surface}
@@ -154,6 +159,7 @@ interface RestingProps {
   selected: boolean;
   isDone: boolean;
   dragging: boolean;
+  copying: boolean;
   onOpen: () => void;
   style?: CSSProperties;
   surface: string;
@@ -166,13 +172,15 @@ function RestingNoteCard({
   selected,
   isDone,
   dragging,
+  copying,
   onOpen,
   style,
   surface,
   body,
 }: RestingProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
-  const hidden = dragging || isDragging;
+  // A copy-drag leaves the original in place: only the copy is travelling.
+  const hidden = dragging || (isDragging && !copying);
 
   const wrapperStyle: CSSProperties = {
     ...style,

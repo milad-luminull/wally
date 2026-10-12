@@ -10,6 +10,7 @@ import {
   noteUpdateSchema,
   noteMoveSchema,
   noteAssignSchema,
+  noteDuplicateSchema,
   memberDtoSchema,
   inviteCreateSchema,
   memberRoleUpdateSchema,
@@ -28,6 +29,7 @@ import {
   type NoteCreateInput,
   type NoteUpdateInput,
   type NoteMoveInput,
+  type NoteDuplicateInput,
   type NoteListQuery,
   type PreferencesUpdate,
   type MemberDto,
@@ -90,6 +92,8 @@ export const notesApi = {
     api.patch(`/notes/${noteId}`, noteUpdateSchema.parse(input), noteDtoSchema),
   move: (noteId: string, input: NoteMoveInput): Promise<NoteDto> =>
     api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDtoSchema),
+  duplicate: (noteId: string, input: NoteDuplicateInput): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/duplicate`, noteDuplicateSchema.parse(input), noteDtoSchema),
   assign: (noteId: string, assigneeId: string | null): Promise<NoteDto> =>
     api.post(`/notes/${noteId}/assign`, noteAssignSchema.parse({ assigneeId }), noteDtoSchema),
   complete: (noteId: string): Promise<NoteDto> =>
