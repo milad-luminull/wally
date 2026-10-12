@@ -76,9 +76,17 @@ describe('custom field mutations', () => {
     // Never the whole cached map: that would drop a property a colleague added meanwhile.
     // The server resolves "kunde" to the stored "Kunde" against its current copy.
     await waitFor(() =>
-      expect(notesApi.update).toHaveBeenCalledWith(note.id, {
-        fieldChanges: { set: { kunde: 'Steiner AG' } },
-      }),
+      expect(notesApi.update).toHaveBeenCalledWith(
+        note.id,
+        {
+          fieldChanges: { set: { kunde: 'Steiner AG' } },
+        },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
     );
     // The stored spelling wins, so the note keeps one property rather than gaining a twin.
     expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Steiner AG', Vertrag: 'X' });
@@ -92,9 +100,17 @@ describe('custom field mutations', () => {
     result.current.mutate({ noteId: note.id, key: 'Kunde' });
 
     await waitFor(() =>
-      expect(notesApi.update).toHaveBeenCalledWith(note.id, {
-        fieldChanges: { remove: ['Kunde'] },
-      }),
+      expect(notesApi.update).toHaveBeenCalledWith(
+        note.id,
+        {
+          fieldChanges: { remove: ['Kunde'] },
+        },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
     );
   });
 

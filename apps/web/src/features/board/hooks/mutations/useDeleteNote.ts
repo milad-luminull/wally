@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteDto } from '@wally/shared';
+import { captureMutation, isCurrentSession, type MutationTicket } from '@/lib/mutationQueue';
 import { notesApi } from '@/lib/resources';
 import { toast } from '@/lib/toast';
 import { useQueryKeys } from '../queryKeys';
@@ -19,8 +21,10 @@ export function useDeleteNote(boardId: string) {
   const notesKey = keys.notes(boardId);
 
   const mutation = useMutation({
-    mutationFn: (noteId: string) => notesApi.remove(noteId),
-    onSuccess: (_data, noteId) => queryClient.removeQueries({ queryKey: keys.noteDetail(noteId) }),
+    mutationFn: ({ noteId, ticket }: { noteId: string; ticket: MutationTicket }) =>
+      notesApi.remove(noteId, ticket),
+    onSuccess: (_data, { noteId }) =>
+      queryClient.removeQueries({ queryKey: keys.noteDetail(noteId) }),
     // On failure the refetch brings the note back; the global handler says why.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: notesKey }),
   });
@@ -31,6 +35,7 @@ export function useDeleteNote(boardId: string) {
       // The list-shaped copy, so Undo puts back exactly what the board renders from.
       const note = queryClient.getQueryData<NoteDto[]>(notesKey)?.find((n) => n.id === noteId);
       if (!note) return;
+      const ticket = captureMutation(`note:${noteId}`, { revision: note.revision, pinned: true });
       void queryClient.cancelQueries({ queryKey: notesKey });
       queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
         prev?.filter((n) => n.id !== note.id),
@@ -46,7 +51,9 @@ export function useDeleteNote(boardId: string) {
               prev && !prev.some((n) => n.id === note.id) ? [...prev, note] : prev,
             ),
         },
-        onExpire: () => mutate(note.id),
+        onExpire: () => {
+          if (isCurrentSession(ticket.generation)) mutate({ noteId: note.id, ticket });
+        },
       });
     },
     [mutate, notesKey, queryClient],

@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import {
   FREE_CANVAS_HEIGHT,
   FREE_CANVAS_WIDTH,
@@ -9,6 +10,9 @@ import {
   type NoteDuplicateInput,
 } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
+import { captureNoteMutation } from './shared';
+import { withNoteDraft } from '@/lib/noteDrafts';
+import { captureMutation, isCurrentSession } from '@/lib/mutationQueue';
 import { toast } from '@/lib/toast';
 import { useQueryKeys } from '../queryKeys';
 
@@ -72,12 +76,16 @@ export function useDuplicateNote(
   const notesKey = keys.notes(boardId);
 
   const { mutate, isPending } = useMutation({
-    mutationFn: ({ noteId, input }: DuplicateVariables) => notesApi.duplicate(noteId, input),
-    onMutate: async ({ noteId, input }) => {
-      await queryClient.cancelQueries({ queryKey: notesKey });
+    mutationFn: ({ noteId, input }: DuplicateVariables) =>
+      notesApi.duplicate(noteId, input, {
+        ...captureNoteMutation(queryClient, keys, boardId, noteId),
+        advance: false,
+      }),
+    onMutate: ({ noteId, input }) => {
+      void queryClient.cancelQueries({ queryKey: notesKey });
       const previous = queryClient.getQueryData<NoteDto[]>(notesKey);
       const source = previous?.find((n) => n.id === noteId);
-      const tempId = `${TEMP_ID_PREFIX}${Date.now()}`;
+      const tempId = `${TEMP_ID_PREFIX}${crypto.randomUUID()}`;
       if (source) {
         queryClient.setQueryData<NoteDto[]>(notesKey, (prev) => [
           ...(prev ?? []),
@@ -87,18 +95,26 @@ export function useDuplicateNote(
       return { previous, tempId };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(notesKey, context.previous);
+      if (context)
+        queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
+          prev?.filter((note) => note.id !== context.tempId),
+        );
     },
     onSuccess: (created, _vars, context) => {
       queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
         prev?.map((n) => (n.id === context?.tempId ? created : n)),
       );
+      const undoTicket = captureMutation(`note:${created.id}`, {
+        revision: created.revision,
+        pinned: true,
+      });
       toast({
         title: created.title ? 'toast.noteDuplicated' : 'toast.noteDuplicatedUntitled',
         values: { title: created.title },
         action: {
           label: 'toast.undo',
           onClick: () => {
+            if (!isCurrentSession(undoTicket.generation)) return;
             queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
               prev?.filter((n) => n.id !== created.id),
             );
@@ -107,7 +123,8 @@ export function useDuplicateNote(
             // that was about to be deleted.
             onUndo?.(created.id);
             void notesApi
-              .remove(created.id)
+              .remove(created.id, undoTicket)
+              .catch(() => {})
               .finally(() => void queryClient.invalidateQueries({ queryKey: notesKey }));
           },
         },
@@ -119,9 +136,8 @@ export function useDuplicateNote(
   });
 
   /**
-   * Title and description are taken from the cache rather than left to the server: the
-   * panel saves both on a debounce but patches the cache on every keystroke, so this is the
-   * only place the last half second of typing is guaranteed to be.
+   * Include the separately held text draft so copying before the autosave debounce
+   * completes preserves the text currently displayed in the editor.
    */
   const duplicate = useCallback(
     (
@@ -136,8 +152,8 @@ export function useDuplicateNote(
         {
           noteId,
           input: {
-            title: source.title,
-            description: source.description,
+            title: withNoteDraft(source).title,
+            description: withNoteDraft(source).description,
             // Nudged even when dropped into a zone, so the copy is not stacked exactly on
             // its source once the board is switched to the free canvas.
             ...nudged(source),

@@ -22,7 +22,7 @@ describe('subtask routes', () => {
 
   async function setup() {
     const fx = await createBoardFixture(ctx);
-    const created = await ctx.app.inject({
+    const created = await ctx.inject({
       method: 'POST',
       url: `/whiteboards/${fx.boardId}/notes`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -32,7 +32,7 @@ describe('subtask routes', () => {
   }
 
   const summaryOf = async (fx: { boardId: string; ownerToken: string }, noteId: string) => {
-    const detail = await ctx.app.inject({
+    const detail = await ctx.inject({
       method: 'GET',
       url: `/notes/${noteId}`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -43,7 +43,7 @@ describe('subtask routes', () => {
   it('POST creates a subtask for EDIT/OWNER, 403 for VIEW, 404 for non-member', async () => {
     const { fx, noteId } = await setup();
 
-    const ok = await ctx.app.inject({
+    const ok = await ctx.inject({
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.editToken),
@@ -52,7 +52,7 @@ describe('subtask routes', () => {
     expect(ok.statusCode).toBe(201);
     expect(ok.json().done).toBe(false);
 
-    const forbidden = await ctx.app.inject({
+    const forbidden = await ctx.inject({
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.viewToken),
@@ -60,7 +60,7 @@ describe('subtask routes', () => {
     });
     expect(forbidden.statusCode).toBe(403);
 
-    const notFound = await ctx.app.inject({
+    const notFound = await ctx.inject({
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.outsiderToken),
@@ -71,7 +71,7 @@ describe('subtask routes', () => {
 
   it('PATCH toggles done, DELETE removes it', async () => {
     const { fx, noteId } = await setup();
-    const created = await ctx.app.inject({
+    const created = await ctx.inject({
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -79,7 +79,7 @@ describe('subtask routes', () => {
     });
     const subtaskId = created.json().id;
 
-    const patched = await ctx.app.inject({
+    const patched = await ctx.inject({
       method: 'PATCH',
       url: `/notes/${noteId}/subtasks/${subtaskId}`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -88,7 +88,7 @@ describe('subtask routes', () => {
     expect(patched.statusCode).toBe(200);
     expect(patched.json().done).toBe(true);
 
-    const deleted = await ctx.app.inject({
+    const deleted = await ctx.inject({
       method: 'DELETE',
       url: `/notes/${noteId}/subtasks/${subtaskId}`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -104,7 +104,7 @@ describe('subtask routes', () => {
     // does not actually change `done` must not move it — the schema allows done:true on
     // an already-done subtask.
     const { fx, noteId } = await setup();
-    const created = await ctx.app.inject({
+    const created = await ctx.inject({
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -114,7 +114,7 @@ describe('subtask routes', () => {
     expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 0 });
 
     for (let i = 0; i < 3; i += 1) {
-      await ctx.app.inject({
+      await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}/subtasks/${subtaskId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -123,7 +123,7 @@ describe('subtask routes', () => {
     }
     expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 1 });
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'PATCH',
       url: `/notes/${noteId}/subtasks/${subtaskId}`,
       headers: ctx.authHeader(fx.ownerToken),
@@ -131,7 +131,7 @@ describe('subtask routes', () => {
     });
     expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 0 });
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'DELETE',
       url: `/notes/${noteId}/subtasks/${subtaskId}`,
       headers: ctx.authHeader(fx.ownerToken),

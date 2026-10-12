@@ -225,9 +225,6 @@ jobs:
           [ "$code" = "401" ] || { echo "::error::GET /whiteboards returned $code, expected 401"; exit 1; }
           echo "candidate healthy"
 
-      - name: Shift all traffic to the new revision
-        run: gcloud run services update-traffic wally-api --region="${{ vars.GCP_REGION }}" --to-latest
-
       # ---------------------------------------------------------------------------------
       # 4. Web bundle. Built HERE, not downloaded from the CI job: the CI build ran with
       #    VITE_API_BASE_URL pointing at localhost and must never reach Hosting.
@@ -259,6 +256,11 @@ jobs:
           if grep -rqF "localhost:4000" apps/web/dist/assets/*.js; then
             echo "::error::the bundle contains localhost:4000"; exit 1
           fi
+
+      # Prepare and validate BOTH artifacts before enforcing the new API contract.
+      # Existing tabs fail safely with 428 until refreshed during this short handover.
+      - name: Shift all traffic to the new revision
+        run: gcloud run services update-traffic wally-api --region="${{ vars.GCP_REGION }}" --to-latest
 
       - name: Deploy Firebase Hosting
         run: |

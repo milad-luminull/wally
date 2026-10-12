@@ -1,4 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { captureBoardMutation } from './shared';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { InviteCreateInput, MemberDto } from '@wally/shared';
 import { membersApi } from '@/lib/resources';
 import { useQueryKeys } from '../queryKeys';
@@ -10,11 +12,16 @@ export function useCreateInvite(boardId: string) {
   const keys = useQueryKeys();
 
   return useMutation({
-    mutationFn: (input: InviteCreateInput) => membersApi.invite(boardId, input),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: keys.members(boardId) });
+    mutationFn: (input: InviteCreateInput) =>
+      membersApi.invite(
+        boardId,
+        input,
+        captureBoardMutation(queryClient, keys, boardId, 'members'),
+      ),
+    onMutate: (input) => {
+      void queryClient.cancelQueries({ queryKey: keys.members(boardId) });
       const previous = queryClient.getQueryData<MemberDto[]>(keys.members(boardId));
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${crypto.randomUUID()}`;
       const optimistic: MemberDto = {
         id: tempId,
         userId: null,
@@ -30,7 +37,10 @@ export function useCreateInvite(boardId: string) {
       return { previous, tempId };
     },
     onError: (_err, _input, context) => {
-      if (context?.previous) queryClient.setQueryData(keys.members(boardId), context.previous);
+      if (context)
+        queryClient.setQueryData<MemberDto[]>(keys.members(boardId), (rows) =>
+          rows?.filter((row) => row.id !== context.tempId),
+        );
     },
     onSuccess: (created, _input, context) => {
       queryClient.setQueryData<MemberDto[]>(keys.members(boardId), (prev) =>

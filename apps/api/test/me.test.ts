@@ -32,14 +32,14 @@ describe('/me', () => {
   });
 
   it('rejects an unauthenticated caller', async () => {
-    const response = await ctx.app.inject({ method: 'GET', url: '/me' });
+    const response = await ctx.inject({ method: 'GET', url: '/me' });
     expect(response.statusCode).toBe(401);
   });
 
   it('returns the profile, defaulting a caller with no Accept-Language to German', async () => {
     const token = registerTestUser(ctx, 'me-de', 'mika.brandt@example.com', 'Mika Brandt');
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -58,7 +58,7 @@ describe('/me', () => {
   it('seeds the language AND the board name from Accept-Language on a first request', async () => {
     const token = registerTestUser(ctx, 'me-en', 'jo.taylor@example.com', 'Jo Taylor');
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: { ...ctx.authHeader(token), ...EN_HEADER },
@@ -76,7 +76,7 @@ describe('/me', () => {
     await createTestUser(ctx.db, 'me-legacy', 'legacy@example.com', 'Legacy', true, 'absent');
     const token = registerTestUser(ctx, 'me-legacy', 'legacy@example.com', 'Legacy');
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -90,7 +90,7 @@ describe('/me', () => {
   it('persists a language change', async () => {
     const token = registerTestUser(ctx, 'me-patch', 'patch@example.com');
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -105,9 +105,9 @@ describe('/me', () => {
 
   it('rejects a language outside the enum, leaving the stored value alone', async () => {
     const token = registerTestUser(ctx, 'me-bad', 'bad@example.com');
-    await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -123,7 +123,7 @@ describe('/me', () => {
   it('rejects an empty body', async () => {
     const token = registerTestUser(ctx, 'me-empty', 'empty@example.com');
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -136,14 +136,14 @@ describe('/me', () => {
   // The core invariant: Accept-Language seeds a profile, it never steers an existing one.
   it('keeps the stored language when a later request disagrees with it', async () => {
     const token = registerTestUser(ctx, 'me-stored', 'stored@example.com');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
       payload: { language: 'en' },
     });
 
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: { ...ctx.authHeader(token), ...DE_HEADER },
@@ -156,7 +156,7 @@ describe('/me', () => {
   // fixed field list, so a Firebase profile change must not take `language` down with it.
   it('preserves the language when the Firebase profile changes', async () => {
     const token = registerTestUser(ctx, 'me-rename', 'rename@example.com', 'Original');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -170,7 +170,7 @@ describe('/me', () => {
       emailVerified: true,
       name: 'Renamed',
     });
-    const response = await ctx.app.inject({
+    const response = await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -183,9 +183,9 @@ describe('/me', () => {
 
   it('leaves the board name alone when the language changes later', async () => {
     const token = registerTestUser(ctx, 'me-board', 'board@example.com');
-    await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'PATCH',
       url: '/me',
       headers: ctx.authHeader(token),
@@ -200,10 +200,10 @@ describe('/me', () => {
   // whatever locale today's browser reports.
   it('recreates a deleted board from the stored language, not the header', async () => {
     const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
-    await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
     await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'GET',
       url: '/me',
       headers: { ...ctx.authHeader(token), ...EN_HEADER },
@@ -224,7 +224,7 @@ describe('/me', () => {
     const WALL_FREE = { view: 'wand', axis: 'free', done: true, mine: false, priority: [] };
 
     function patch(token: string, payload: unknown) {
-      return ctx.app.inject({
+      return ctx.inject({
         method: 'PATCH',
         url: '/me',
         headers: ctx.authHeader(token),
@@ -239,7 +239,7 @@ describe('/me', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json().preferences.boards).toEqual({ b1: LIST_BY_PRIORITY });
 
-      const again = await ctx.app.inject({
+      const again = await ctx.inject({
         method: 'GET',
         url: '/me',
         headers: ctx.authHeader(token),
@@ -305,7 +305,7 @@ describe('/me', () => {
 
     it('prunes the least recently saved boards past the cap', async () => {
       const token = registerTestUser(ctx, 'pref-prune', 'pref-prune@example.com');
-      await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
       const boards = Object.fromEntries(
         Array.from({ length: MAX_REMEMBERED_BOARDS }, (_, i) => [
           `old${i}`,
@@ -332,7 +332,7 @@ describe('/me', () => {
         emailVerified: true,
         name: 'After',
       });
-      const response = await ctx.app.inject({
+      const response = await ctx.inject({
         method: 'GET',
         url: '/me',
         headers: ctx.authHeader(token),
@@ -346,14 +346,14 @@ describe('/me', () => {
 
     it('reads a malformed stored value as the default instead of failing', async () => {
       const token = registerTestUser(ctx, 'pref-junk', 'pref-junk@example.com');
-      await ctx.app.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
       await usersCol(ctx.db)
         .doc('pref-junk')
         .update({
           preferences: { theme: 'sepia', canvas: 'lines', boards: { b1: { view: 'kanban' } } },
         } as never);
 
-      const response = await ctx.app.inject({
+      const response = await ctx.inject({
         method: 'GET',
         url: '/me',
         headers: ctx.authHeader(token),

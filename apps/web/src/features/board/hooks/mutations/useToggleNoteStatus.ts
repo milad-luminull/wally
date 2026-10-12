@@ -1,7 +1,9 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteStatus } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import {
+  captureNoteMutation,
   cancelNoteCaches,
   patchNoteCaches,
   restoreNoteCaches,
@@ -16,7 +18,9 @@ export function useToggleNoteStatus(boardId: string) {
 
   return useMutation({
     mutationFn: ({ noteId, currentStatus }: { noteId: string; currentStatus: NoteStatus }) =>
-      currentStatus === 'DONE' ? notesApi.reopen(noteId) : notesApi.complete(noteId),
+      currentStatus === 'DONE'
+        ? notesApi.reopen(noteId, captureNoteMutation(queryClient, keys, boardId, noteId))
+        : notesApi.complete(noteId, captureNoteMutation(queryClient, keys, boardId, noteId)),
     onMutate: ({ noteId, currentStatus }) => {
       cancelNoteCaches(queryClient, keys, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);

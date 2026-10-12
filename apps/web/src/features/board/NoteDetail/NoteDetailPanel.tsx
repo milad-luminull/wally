@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
@@ -45,7 +44,7 @@ import {
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
 import { collectFieldKeys, displayName } from '../util/noteDerived';
-import { patchNoteCaches } from '../hooks/mutations/shared';
+import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
@@ -56,7 +55,6 @@ import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 import { useLiveNoteText } from './useLiveNoteText';
-import { useQueryKeys } from '../hooks/queryKeys';
 
 const NO_ASSIGNEE = '__none__';
 
@@ -216,28 +214,30 @@ function NoteDetailContent({
    * Title and description save as you type: see useLiveNoteText. Both patch the cached
    * note on every keystroke, so the card on the board follows along.
    */
-  const queryClient = useQueryClient();
-  const keys = useQueryKeys();
-  const { mutate: mutateNote } = updateNote;
+  const { mutateAsync: mutateNote } = updateNote;
   const saveTitle = useCallback(
-    (title: string) => mutateNote({ noteId, input: { title } }),
+    (title: string, ticket?: MutationTicket) => mutateNote({ noteId, input: { title }, ticket }),
     [mutateNote, noteId],
   );
   const saveDescription = useCallback(
-    (description: string) => mutateNote({ noteId, input: { description } }),
+    (description: string, ticket?: MutationTicket) =>
+      mutateNote({ noteId, input: { description }, ticket }),
     [mutateNote, noteId],
   );
   const title = useLiveNoteText({
     serverValue: note?.title ?? '',
     normalize: normalizeTitle,
-    onLocalChange: (value) => patchNoteCaches(queryClient, keys, boardId, noteId, { title: value }),
+    onLocalChange: () => {},
+    draftKey: `${noteId}:title`,
+    capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
     save: saveTitle,
   });
   const description = useLiveNoteText({
     serverValue: note?.description ?? '',
     normalize: normalizeDescription,
-    onLocalChange: (value) =>
-      patchNoteCaches(queryClient, keys, boardId, noteId, { description: value }),
+    onLocalChange: () => {},
+    draftKey: `${noteId}:description`,
+    capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
     save: saveDescription,
   });
   const titleRef = title.ref;

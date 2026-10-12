@@ -48,8 +48,8 @@ export const noteCreateSchema = z.object({
   description: descriptionSchema.default(''),
   priority: notePrioritySchema.default('MITTEL'),
   horizon: noteHorizonSchema.default('HEUTE'),
-  freeX: z.number().default(0),
-  freeY: z.number().default(0),
+  freeX: z.number().finite().default(0),
+  freeY: z.number().finite().default(0),
   dueDate: z.string().date().nullable().optional(),
   assigneeId: z.string().nullable().optional(),
   tags: tagsSchema,
@@ -101,6 +101,7 @@ export const noteUpdateSchema = z
       .optional(),
     colour: noteColourSchema.optional(),
   })
+  .strict()
   .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' })
   .refine((val) => !(val.customFields !== undefined && val.fieldChanges !== undefined), {
     message: 'Send either customFields or fieldChanges, not both',
@@ -115,9 +116,9 @@ export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>;
  * touch only their own field; see the plan's "three independent fields" decision.
  */
 export const noteMoveSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('HORIZON'), horizon: noteHorizonSchema }),
-  z.object({ mode: z.literal('PRIORITY'), priority: notePrioritySchema }),
-  z.object({ mode: z.literal('FREE'), x: z.number(), y: z.number() }),
+  z.object({ mode: z.literal('HORIZON'), horizon: noteHorizonSchema }).strict(),
+  z.object({ mode: z.literal('PRIORITY'), priority: notePrioritySchema }).strict(),
+  z.object({ mode: z.literal('FREE'), x: z.number().finite(), y: z.number().finite() }).strict(),
 ]);
 export type NoteMoveInput = z.infer<typeof noteMoveSchema>;
 
@@ -134,8 +135,8 @@ export const noteDuplicateSchema = z.object({
   description: descriptionSchema.optional(),
   horizon: noteHorizonSchema.optional(),
   priority: notePrioritySchema.optional(),
-  freeX: z.number().optional(),
-  freeY: z.number().optional(),
+  freeX: z.number().finite().optional(),
+  freeY: z.number().finite().optional(),
 });
 export type NoteDuplicateInput = z.infer<typeof noteDuplicateSchema>;
 
@@ -176,6 +177,7 @@ export type HistoryEventDto = z.infer<typeof historyEventDtoSchema>;
 
 /** Shape returned in list responses — kept light, no subtasks[]/history[]. */
 export const noteDtoSchema = z.object({
+  revision: z.number().int().nonnegative(),
   id: z.string(),
   whiteboardId: z.string(),
   title: z.string(),
@@ -184,8 +186,8 @@ export const noteDtoSchema = z.object({
   completedAt: z.string().datetime().nullable(),
   priority: notePrioritySchema,
   horizon: noteHorizonSchema,
-  freeX: z.number(),
-  freeY: z.number(),
+  freeX: z.number().finite(),
+  freeY: z.number().finite(),
   dueDate: z.string().date().nullable(),
   assignee: userSummarySchema.nullable(),
   tags: z.array(z.string()),

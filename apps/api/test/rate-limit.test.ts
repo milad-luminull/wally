@@ -24,7 +24,7 @@ describe('rate limiting', () => {
 
   /** Redeeming a nonexistent token 404s, which is enough to consume the budget. */
   async function redeem(token: string) {
-    return ctx.app.inject({
+    return ctx.inject({
       method: 'POST',
       url: '/share-links/no-such-token/redeem',
       headers: ctx.authHeader(token),
@@ -62,7 +62,7 @@ describe('rate limiting', () => {
     for (let i = 0; i < 40; i += 1) {
       expect(
         (
-          await ctx.app.inject({
+          await ctx.inject({
             method: 'GET',
             url: '/whiteboards',
             headers: ctx.authHeader(token),

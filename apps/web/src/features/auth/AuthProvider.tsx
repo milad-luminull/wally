@@ -22,6 +22,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QueryScopeContext } from '@/features/board/hooks/queryKeys';
 import { discardPendingPreferences, flushPreferences } from '@/lib/preferencesQueue';
 import { auth } from './firebase';
+import { resetMutationSession } from '@/lib/mutationQueue';
+import { clearNoteDrafts } from '@/lib/noteDrafts';
+import { resetToasts } from '@/lib/toast';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -91,6 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (previous === nextUid) return undefined;
       uidRef.current = nextUid;
       if (previous === undefined) return undefined;
+      resetMutationSession();
+      clearNoteDrafts();
+      resetToasts();
       discardPendingPreferences(queryClient);
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -118,12 +124,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const token = await firebaseUser.getIdToken();
+        if (uidRef.current !== firebaseUser.uid) return;
         tokenRef.current = token;
         setUser(firebaseUser);
         setIdToken(token);
         setEmailVerified(firebaseUser.emailVerified);
         setStatus('authenticated');
       } catch {
+        if (uidRef.current !== firebaseUser.uid) return;
         onIdentityChange(null);
         setUser(null);
         setIdToken(null);

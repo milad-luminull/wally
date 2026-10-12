@@ -61,12 +61,20 @@ describe('useDuplicateNote', () => {
 
     // The request leaves after onMutate has cancelled in-flight list fetches.
     await waitFor(() => expect(notesApi.duplicate).toHaveBeenCalled());
-    expect(notesApi.duplicate).toHaveBeenCalledWith('note-1', {
-      title: 'Gerade getippt',
-      description: 'Und das',
-      freeX: 34,
-      freeY: 44,
-    });
+    expect(notesApi.duplicate).toHaveBeenCalledWith(
+      'note-1',
+      {
+        title: 'Gerade getippt',
+        description: 'Und das',
+        freeX: 34,
+        freeY: 44,
+      },
+      expect.objectContaining({
+        operationId: expect.any(String),
+        resource: expect.stringMatching(/^note:/),
+        revision: expect.any(Number),
+      }),
+    );
   });
 
   it('lets a drop placement override where the copy goes', async () => {
@@ -79,6 +87,11 @@ describe('useDuplicateNote', () => {
     expect(notesApi.duplicate).toHaveBeenCalledWith(
       'note-1',
       expect.objectContaining({ horizon: 'SPAETER', freeX: 500, freeY: 600 }),
+      expect.objectContaining({
+        operationId: expect.any(String),
+        resource: expect.stringMatching(/^note:/),
+        revision: expect.any(Number),
+      }),
     );
   });
 
@@ -121,7 +134,14 @@ describe('useDuplicateNote', () => {
     act(() => result.current.toasts[0]!.action!.onClick());
 
     expect(notes().map((n) => n.id)).toEqual(['note-1']);
-    expect(notesApi.remove).toHaveBeenCalledWith('note-copy');
+    expect(notesApi.remove).toHaveBeenCalledWith(
+      'note-copy',
+      expect.objectContaining({
+        operationId: expect.any(String),
+        resource: expect.stringMatching(/^note:/),
+        revision: expect.any(Number),
+      }),
+    );
     expect(onUndo).toHaveBeenCalledWith('note-copy');
   });
 

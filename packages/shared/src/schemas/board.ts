@@ -8,6 +8,7 @@ export const whiteboardRenameSchema = z.object({
 export type WhiteboardRenameInput = z.infer<typeof whiteboardRenameSchema>;
 
 export const whiteboardDtoSchema = z.object({
+  revision: z.number().int().nonnegative(),
   id: z.string(),
   name: z.string(),
   ownerId: z.string(),

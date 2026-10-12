@@ -66,6 +66,7 @@ export type StoredPreferences = {
 };
 
 export type WhiteboardDoc = {
+  revision?: number;
   name: string;
   ownerId: string;
   /**
@@ -95,6 +96,8 @@ export type MemberDoc = {
 };
 
 export type NoteDoc = {
+  revision?: number;
+  deletedAt?: Timestamp;
   whiteboardId: string;
   title: string;
   /** Missing on notes written before descriptions existed; read it as `''`. */

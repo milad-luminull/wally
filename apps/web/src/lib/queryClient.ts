@@ -17,8 +17,14 @@ export const queryClient = new QueryClient({
    * that isn't already reported where it happened gets one toast, here, for all of them.
    */
   mutationCache: new MutationCache({
-    onError: (_error, _variables, _context, mutation) => {
-      if (mutation.meta?.silentError) return;
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.meta?.silentError || (error as Error)?.name === 'AbortError') return;
+      const code = (error as { code?: string })?.code;
+      if (code === 'STALE_REVISION' || code === 'MUTATION_BLOCKED') return;
+      if (code === 'PRECONDITION_REQUIRED') {
+        toast.error('safety.reload');
+        return;
+      }
       toast.error('toast.saveFailed');
     },
   }),

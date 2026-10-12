@@ -33,7 +33,7 @@ describe('note routes', () => {
     token: string,
     overrides: Record<string, unknown> = {},
   ) {
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'POST',
       url: `/whiteboards/${boardId}/notes`,
       headers: ctx.authHeader(token),
@@ -48,7 +48,7 @@ describe('note routes', () => {
       await createNote(fx.boardId, fx.ownerToken);
 
       for (const token of [fx.ownerToken, fx.editToken, fx.viewToken]) {
-        const res = await ctx.app.inject({
+        const res = await ctx.inject({
           method: 'GET',
           url: `/whiteboards/${fx.boardId}/notes`,
           headers: ctx.authHeader(token),
@@ -57,7 +57,7 @@ describe('note routes', () => {
         expect(res.json()).toHaveLength(1);
       }
 
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -79,7 +79,7 @@ describe('note routes', () => {
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Ganz anderes Thema' });
 
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/notes?q=CYBER`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -104,14 +104,14 @@ describe('note routes', () => {
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'D' });
 
-      const byKey = await ctx.app.inject({
+      const byKey = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('kunde')}`,
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(byKey.json()).toHaveLength(2);
 
-      const byPair = await ctx.app.inject({
+      const byPair = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('Kunde:müller gmbh')}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -129,7 +129,7 @@ describe('note routes', () => {
       await createNote(fx.boardId, fx.ownerToken, { title: 'Spät', dueDate: '2027-01-31' });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Früh', dueDate: '2026-01-31' });
 
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -150,7 +150,7 @@ describe('note routes', () => {
       expect(res.statusCode).toBe(201);
       const note = res.json();
 
-      const detail = await ctx.app.inject({
+      const detail = await ctx.inject({
         method: 'GET',
         url: `/notes/${note.id}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -208,7 +208,7 @@ describe('note routes', () => {
       const id = created.json().id as string;
       await notesCol(ctx.db).doc(id).update({ description: FieldValue.delete() });
 
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'GET',
         url: `/notes/${id}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -243,7 +243,7 @@ describe('note routes', () => {
 
     it('PATCH /notes/:id — 200 for EDIT, 403 for VIEW, 404 for non-member', async () => {
       const { fx, noteId } = await setup();
-      const ok = await ctx.app.inject({
+      const ok = await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.editToken),
@@ -251,7 +251,7 @@ describe('note routes', () => {
       });
       expect(ok.statusCode).toBe(200);
 
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.viewToken),
@@ -259,7 +259,7 @@ describe('note routes', () => {
       });
       expect(forbidden.statusCode).toBe(403);
 
-      const notFound = await ctx.app.inject({
+      const notFound = await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -272,7 +272,7 @@ describe('note routes', () => {
       const { fx, noteId } = await setup();
 
       const patch = (payload: Record<string, unknown>) =>
-        ctx.app.inject({
+        ctx.inject({
           method: 'PATCH',
           url: `/notes/${noteId}`,
           headers: ctx.authHeader(fx.ownerToken),
@@ -292,35 +292,49 @@ describe('note routes', () => {
 
     describe('PATCH fieldChanges / tagChanges', () => {
       const patchAs = (token: string, noteId: string, payload: Record<string, unknown>) =>
-        ctx.app.inject({
+        ctx.inject({
           method: 'PATCH',
           url: `/notes/${noteId}`,
           headers: ctx.authHeader(token),
           payload,
         });
 
-      it('keeps both properties when two editors add one each at the same time', async () => {
+      it('keeps property deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
 
         const [a, b] = await Promise.all([
           patchAs(fx.ownerToken, noteId, { fieldChanges: { set: { Customer: 'Müller GmbH' } } }),
           patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }),
         ]);
-        expect(a.statusCode).toBe(200);
-        expect(b.statusCode).toBe(200);
+        expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+        const retry =
+          a.statusCode === 409
+            ? await patchAs(fx.ownerToken, noteId, {
+                fieldChanges: { set: { Customer: 'Müller GmbH' } },
+              })
+            : await patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } });
+        expect(retry.statusCode).toBe(200);
 
         const stored = withId(await notesCol(ctx.db).doc(noteId).get());
         expect(stored?.customFields).toEqual({ Customer: 'Müller GmbH', Contract: '4711' });
       });
 
-      it('keeps both tags when two editors add one each at the same time', async () => {
+      it('keeps tag deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
 
-        await Promise.all([
+        const [a, b] = await Promise.all([
           patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }),
           patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }),
         ]);
 
+        expect([a!.statusCode, b!.statusCode].sort()).toEqual([200, 409]);
+        expect(
+          (
+            await patchAs(a!.statusCode === 409 ? fx.ownerToken : fx.editToken, noteId, {
+              tagChanges: { add: [a!.statusCode === 409 ? 'cyber' : 'd&o'] },
+            })
+          ).statusCode,
+        ).toBe(200);
         const stored = withId(await notesCol(ctx.db).doc(noteId).get());
         expect([...(stored?.tags ?? [])].sort()).toEqual(['cyber', 'd&o']);
       });
@@ -387,7 +401,7 @@ describe('note routes', () => {
     it('PATCH description: sets it, and an empty string clears it', async () => {
       const { fx, noteId } = await setup();
       const patch = (payload: Record<string, unknown>) =>
-        ctx.app.inject({
+        ctx.inject({
           method: 'PATCH',
           url: `/notes/${noteId}`,
           headers: ctx.authHeader(fx.editToken),
@@ -403,14 +417,14 @@ describe('note routes', () => {
 
     it('POST /notes/:id/move — HORIZON mode leaves priority/freeX/freeY untouched', async () => {
       const { fx, noteId } = await setup();
-      const before = await ctx.app.inject({
+      const before = await ctx.inject({
         method: 'GET',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.ownerToken),
       });
       const beforeNote = before.json();
 
-      const res = await ctx.app.inject({
+      const res = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.editToken),
@@ -424,7 +438,7 @@ describe('note routes', () => {
       expect(after.freeX).toBe(beforeNote.freeX);
       expect(after.freeY).toBe(beforeNote.freeY);
 
-      const detail = await ctx.app.inject({
+      const detail = await ctx.inject({
         method: 'GET',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -435,7 +449,7 @@ describe('note routes', () => {
 
     it('POST /notes/:id/move — 403 for VIEW, 404 for non-member', async () => {
       const { fx, noteId } = await setup();
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.viewToken),
@@ -443,7 +457,7 @@ describe('note routes', () => {
       });
       expect(forbidden.statusCode).toBe(403);
 
-      const notFound = await ctx.app.inject({
+      const notFound = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.outsiderToken),
@@ -454,7 +468,7 @@ describe('note routes', () => {
 
     it('POST /notes/:id/assign — 200 for a valid active member, 422 for a non-member', async () => {
       const { fx, noteId } = await setup();
-      const ok = await ctx.app.inject({
+      const ok = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/assign`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -463,7 +477,7 @@ describe('note routes', () => {
       expect(ok.statusCode).toBe(200);
       expect(ok.json().assignee.id).toBe(fx.editorId);
 
-      const invalid = await ctx.app.inject({
+      const invalid = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/assign`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -475,7 +489,7 @@ describe('note routes', () => {
 
     it('POST /notes/:id/complete then /reopen round-trips status', async () => {
       const { fx, noteId } = await setup();
-      const completed = await ctx.app.inject({
+      const completed = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/complete`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -484,7 +498,7 @@ describe('note routes', () => {
       expect(completed.json().status).toBe('DONE');
       expect(completed.json().completedAt).not.toBeNull();
 
-      const reopened = await ctx.app.inject({
+      const reopened = await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/reopen`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -497,21 +511,21 @@ describe('note routes', () => {
     it('DELETE /notes/:id — 204 for EDIT, 403 for VIEW, 404 for non-member', async () => {
       const { fx, noteId } = await setup();
 
-      const forbidden = await ctx.app.inject({
+      const forbidden = await ctx.inject({
         method: 'DELETE',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.viewToken),
       });
       expect(forbidden.statusCode).toBe(403);
 
-      const notFound = await ctx.app.inject({
+      const notFound = await ctx.inject({
         method: 'DELETE',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.outsiderToken),
       });
       expect(notFound.statusCode).toBe(404);
 
-      const ok = await ctx.app.inject({
+      const ok = await ctx.inject({
         method: 'DELETE',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.editToken),
@@ -526,7 +540,7 @@ describe('note routes', () => {
       // Firestore does not delete subcollections when their parent document goes, and
       // there are no foreign keys left to cascade — the route has to do this by hand.
       const { fx, noteId } = await setup();
-      await ctx.app.inject({
+      await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/subtasks`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -535,7 +549,7 @@ describe('note routes', () => {
       expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(1);
       expect((await historyCol(ctx.db, noteId).get()).size).toBe(1); // the CREATED event
 
-      const deleted = await ctx.app.inject({
+      const deleted = await ctx.inject({
         method: 'DELETE',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -549,7 +563,7 @@ describe('note routes', () => {
 
   describe('POST /notes/:id/duplicate', () => {
     function duplicate(noteId: string, token: string, payload: Record<string, unknown> = {}) {
-      return ctx.app.inject({
+      return ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/duplicate`,
         headers: ctx.authHeader(token),
@@ -574,7 +588,7 @@ describe('note routes', () => {
       });
       const noteId = created.json().id as string;
       for (const text of ['Erstens', 'Zweitens']) {
-        await ctx.app.inject({
+        await ctx.inject({
           method: 'POST',
           url: `/notes/${noteId}/subtasks`,
           headers: ctx.authHeader(fx.ownerToken),
@@ -582,13 +596,13 @@ describe('note routes', () => {
         });
       }
       const [first] = docsWithId(await subtasksCol(ctx.db, noteId).orderBy('sortIndex').get());
-      await ctx.app.inject({
+      await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}/subtasks/${first!.id}`,
         headers: ctx.authHeader(fx.ownerToken),
         payload: { done: true },
       });
-      await ctx.app.inject({
+      await ctx.inject({
         method: 'POST',
         url: `/notes/${noteId}/complete`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -621,7 +635,7 @@ describe('note routes', () => {
       expect(copy.assignee.id).toBe(fx.editorId);
       expect(copy.createdBy.id).toBe(fx.editorId);
 
-      const detail = await ctx.app.inject({
+      const detail = await ctx.inject({
         method: 'GET',
         url: `/notes/${copy.id}`,
         headers: ctx.authHeader(fx.ownerToken),
@@ -636,7 +650,7 @@ describe('note routes', () => {
       ]);
 
       // The source is left exactly as it was.
-      const source = await ctx.app.inject({
+      const source = await ctx.inject({
         method: 'GET',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.ownerToken),

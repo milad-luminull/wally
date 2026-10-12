@@ -43,6 +43,7 @@ import {
   type WhiteboardRole,
 } from '@wally/shared';
 import { api } from './apiClient';
+import type { MutationTicket } from './mutationQueue';
 
 const noteListSchema = z.array(noteDtoSchema);
 const memberListSchema = z.array(memberDtoSchema);
@@ -60,13 +61,13 @@ export const boardsApi = {
   list: (): Promise<WhiteboardSummaryDto[]> => api.get('/whiteboards', whiteboardListSchema),
   get: (boardId: string): Promise<WhiteboardDto> =>
     api.get(`/whiteboards/${boardId}`, whiteboardDtoSchema),
-  rename: (boardId: string, name: string): Promise<WhiteboardDto> =>
-    api.patch(`/whiteboards/${boardId}`, { name }, whiteboardDtoSchema),
+  rename: (boardId: string, name: string, ticket?: MutationTicket): Promise<WhiteboardDto> =>
+    api.patch(`/whiteboards/${boardId}`, { name }, whiteboardDtoSchema, ticket),
 };
 
 /**
  * The write routes (`create`, `update`, `move`, `assign`, `complete`, `reopen`) answer with
- * the LIST-shaped note — see apps/api/src/routes/notes.ts, which returns `toNoteDto` from
+ * the LIST-shaped note — see apps/api/src/lib/commands/notes.ts, which returns `toNoteDto` from
  * all of them and `toNoteDetailDto` only from `GET /notes/:id`. Declaring them as
  * `noteDetailDtoSchema` made every one of those calls fail response validation on a 200
  * ("subtasks: Required, history: Required"), which surfaced as an optimistic update being
@@ -88,66 +89,107 @@ export const notesApi = {
   get: (noteId: string): Promise<NoteDetailDto> => api.get(`/notes/${noteId}`, noteDetailDtoSchema),
   create: (boardId: string, input: Partial<NoteCreateInput>): Promise<NoteDto> =>
     api.post(`/whiteboards/${boardId}/notes`, noteCreateSchema.parse(input), noteDtoSchema),
-  update: (noteId: string, input: NoteUpdateInput): Promise<NoteDto> =>
-    api.patch(`/notes/${noteId}`, noteUpdateSchema.parse(input), noteDtoSchema),
-  move: (noteId: string, input: NoteMoveInput): Promise<NoteDto> =>
-    api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDtoSchema),
-  duplicate: (noteId: string, input: NoteDuplicateInput): Promise<NoteDto> =>
-    api.post(`/notes/${noteId}/duplicate`, noteDuplicateSchema.parse(input), noteDtoSchema),
-  assign: (noteId: string, assigneeId: string | null): Promise<NoteDto> =>
-    api.post(`/notes/${noteId}/assign`, noteAssignSchema.parse({ assigneeId }), noteDtoSchema),
-  complete: (noteId: string): Promise<NoteDto> =>
-    api.post(`/notes/${noteId}/complete`, {}, noteDtoSchema),
-  reopen: (noteId: string): Promise<NoteDto> =>
-    api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema),
-  remove: (noteId: string): Promise<void> => api.delete(`/notes/${noteId}`),
+  update: (noteId: string, input: NoteUpdateInput, ticket?: MutationTicket): Promise<NoteDto> =>
+    api.patch(`/notes/${noteId}`, noteUpdateSchema.parse(input), noteDtoSchema, ticket),
+  move: (noteId: string, input: NoteMoveInput, ticket?: MutationTicket): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/move`, noteMoveSchema.parse(input), noteDtoSchema, ticket),
+  duplicate: (
+    noteId: string,
+    input: NoteDuplicateInput,
+    ticket?: MutationTicket,
+  ): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/duplicate`, noteDuplicateSchema.parse(input), noteDtoSchema, ticket),
+  assign: (noteId: string, assigneeId: string | null, ticket?: MutationTicket): Promise<NoteDto> =>
+    api.post(
+      `/notes/${noteId}/assign`,
+      noteAssignSchema.parse({ assigneeId }),
+      noteDtoSchema,
+      ticket,
+    ),
+  complete: (noteId: string, ticket?: MutationTicket): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/complete`, {}, noteDtoSchema, ticket),
+  reopen: (noteId: string, ticket?: MutationTicket): Promise<NoteDto> =>
+    api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema, ticket),
+  remove: (noteId: string, ticket?: MutationTicket): Promise<void> =>
+    api.delete(`/notes/${noteId}`, undefined, ticket),
 };
 
 export const subtasksApi = {
-  create: (noteId: string, input: SubtaskCreateInput): Promise<SubtaskDto> =>
-    api.post(`/notes/${noteId}/subtasks`, subtaskCreateSchema.parse(input), subtaskDtoSchema),
-  update: (noteId: string, subtaskId: string, input: SubtaskUpdateInput): Promise<SubtaskDto> =>
+  create: (
+    noteId: string,
+    input: SubtaskCreateInput,
+    ticket?: MutationTicket,
+  ): Promise<SubtaskDto> =>
+    api.post(
+      `/notes/${noteId}/subtasks`,
+      subtaskCreateSchema.parse(input),
+      subtaskDtoSchema,
+      ticket,
+    ),
+  update: (
+    noteId: string,
+    subtaskId: string,
+    input: SubtaskUpdateInput,
+    ticket?: MutationTicket,
+  ): Promise<SubtaskDto> =>
     api.patch(
       `/notes/${noteId}/subtasks/${subtaskId}`,
       subtaskUpdateSchema.parse(input),
       subtaskDtoSchema,
+      ticket,
     ),
-  remove: (noteId: string, subtaskId: string): Promise<void> =>
-    api.delete(`/notes/${noteId}/subtasks/${subtaskId}`),
+  remove: (noteId: string, subtaskId: string, ticket?: MutationTicket): Promise<void> =>
+    api.delete(`/notes/${noteId}/subtasks/${subtaskId}`, undefined, ticket),
 };
 
 export const membersApi = {
   list: (boardId: string): Promise<MemberDto[]> =>
     api.get(`/whiteboards/${boardId}/members`, memberListSchema),
-  invite: (boardId: string, input: InviteCreateInput): Promise<MemberDto> =>
+  invite: (
+    boardId: string,
+    input: InviteCreateInput,
+    ticket?: MutationTicket,
+  ): Promise<MemberDto> =>
     api.post(
       `/whiteboards/${boardId}/members/invite`,
       inviteCreateSchema.parse(input),
       memberDtoSchema,
+      ticket,
     ),
   updateRole: (
     boardId: string,
     memberId: string,
     input: MemberRoleUpdateInput,
+    ticket?: MutationTicket,
   ): Promise<MemberDto> =>
     api.patch(
       `/whiteboards/${boardId}/members/${memberId}`,
       memberRoleUpdateSchema.parse(input),
       memberDtoSchema,
+      ticket,
     ),
-  remove: (boardId: string, memberId: string): Promise<void> =>
-    api.delete(`/whiteboards/${boardId}/members/${memberId}`),
+  remove: (boardId: string, memberId: string, ticket?: MutationTicket): Promise<void> =>
+    api.delete(`/whiteboards/${boardId}/members/${memberId}`, undefined, ticket),
 };
 
 export const shareLinkApi = {
   get: (boardId: string): Promise<ShareLinkDto> =>
     api.get(`/whiteboards/${boardId}/share-link`, shareLinkDtoSchema),
-  createOrUpdate: (boardId: string, role: WhiteboardRole): Promise<ShareLinkDto> =>
-    api.post(
+  createOrUpdate: (
+    boardId: string,
+    role: WhiteboardRole,
+    exists = false,
+    ticket?: MutationTicket,
+  ): Promise<ShareLinkDto> =>
+    api[exists ? 'patch' : 'post'](
       `/whiteboards/${boardId}/share-link`,
       shareLinkRoleSchema.parse({ role }),
       shareLinkDtoSchema,
+      ticket,
     ),
+  rotate: (boardId: string): Promise<ShareLinkDto> =>
+    api.post(`/whiteboards/${boardId}/share-link/rotate`, {}, shareLinkDtoSchema),
+  remove: (boardId: string): Promise<void> => api.delete(`/whiteboards/${boardId}/share-link`),
   /** The route declares params only, so the body is empty — same shape as notesApi's
    *  body-less POSTs. Tokens are base64url, so they need no escaping. */
   redeem: (token: string): Promise<ShareLinkRedeemResult> =>

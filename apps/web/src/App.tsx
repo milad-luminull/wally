@@ -1,3 +1,4 @@
+import { MutationRecovery } from '@/features/board/MutationRecovery';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/routes/LoginPage';
@@ -10,6 +11,7 @@ import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
 export function App() {
   return (
     <BrowserRouter>
+      <MutationRecovery />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />

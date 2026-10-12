@@ -80,6 +80,19 @@ erasure work has to clear both, in one transaction — the invariant is already 
 | `subtasks/{id}.text`                           | Free text                             |                                              |
 | `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                   |
 
+### Mutation receipts and cleanup jobs
+
+`users/{uid}/boardOperations/{operationId}` stores a command fingerprint, board ID, timestamps,
+committed revision and result for safe retries. Results can include note text, member data or a
+share token; these are personal or access-sensitive data even after the original record is deleted.
+The `expiresAt` Firestore TTL policy targets seven days; physical deletion is asynchronous.
+Any account-erasure routine must recursively remove these user subcollections too.
+
+`boardCleanup/{id}` stores only IDs, job kind and creation time. Pending deletion or assignment
+cleanup jobs have **no TTL**: they are removed only after successful cleanup, so receipt expiry
+cannot strand content. Browser drafts and retry state are held in memory and cleared on account
+change. Command outcome logs omit note contents and share tokens; redemption URLs are redacted.
+
 ### Elsewhere
 
 - **Firebase Authentication** holds the credential record, and Google's own sign-in metadata

@@ -1,6 +1,9 @@
+import { captureBoardMutation } from './shared';
 import { useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { MemberDto } from '@wally/shared';
+import { isCurrentSession, type MutationTicket } from '@/lib/mutationQueue';
 import { membersApi } from '@/lib/resources';
 import { toast } from '@/lib/toast';
 import { useQueryKeys } from '../queryKeys';
@@ -15,13 +18,18 @@ export function useRemoveMember(boardId: string) {
   const membersKey = keys.members(boardId);
 
   const mutation = useMutation({
-    mutationFn: (memberId: string) => membersApi.remove(boardId, memberId),
+    mutationFn: ({ memberId, ticket }: { memberId: string; ticket: MutationTicket }) =>
+      membersApi.remove(boardId, memberId, ticket),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: membersKey }),
   });
   const { mutate } = mutation;
 
   const removeMember = useCallback(
     (member: MemberDto) => {
+      const ticket = {
+        ...captureBoardMutation(queryClient, keys, boardId, 'members'),
+        pinned: true,
+      };
       void queryClient.cancelQueries({ queryKey: membersKey });
       const previous = queryClient.getQueryData<MemberDto[]>(membersKey);
       const index = previous?.findIndex((m) => m.id === member.id) ?? -1;
@@ -42,10 +50,12 @@ export function useRemoveMember(boardId: string) {
               return next;
             }),
         },
-        onExpire: () => mutate(member.id),
+        onExpire: () => {
+          if (isCurrentSession(ticket.generation)) mutate({ memberId: member.id, ticket });
+        },
       });
     },
-    [membersKey, mutate, queryClient],
+    [boardId, keys, membersKey, mutate, queryClient],
   );
 
   return { removeMember };

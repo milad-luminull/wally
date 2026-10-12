@@ -44,7 +44,7 @@ describe('membership integrity', () => {
   });
 
   async function authenticate(token: string) {
-    return ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    return ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
   }
 
   const listMembers = async (boardId: string) =>
@@ -57,7 +57,7 @@ describe('membership integrity', () => {
     await authenticate(ownerToken);
 
     // 1. Invited by address, before she has any account at all -> a PENDING row.
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'POST',
       url: '/whiteboards/mi-owner/members/invite',
       headers: ctx.authHeader(ownerToken),
@@ -71,7 +71,7 @@ describe('membership integrity', () => {
     // 3. She redeems a VIEW share link. Matching only on userId could not see the row keyed
     //    by invitedEmail, so this used to write a SECOND membership.
     await createTestShareLink(ctx.db, 'mi-tok', 'mi-owner', 'VIEW');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'POST',
       url: '/share-links/mi-tok/redeem',
       headers: ctx.authHeader(aliceToken),
@@ -112,8 +112,8 @@ describe('membership integrity', () => {
     // Her own board plus the shared one — not the shared one twice with conflicting roles,
     // which is how the desync surfaced to the user.
     expect(boards.filter((b) => b.id === 'mi-owner')).toHaveLength(1);
-    // The strongest role is the one authorization will actually grant.
-    expect(boards.find((b) => b.id === 'mi-owner')?.currentUserRole).toBe('EDIT');
+    // Read DTOs match live authorization until the inconsistent cache is reconciled.
+    expect(boards.find((b) => b.id === 'mi-owner')?.currentUserRole).toBe('VIEW');
   });
 
   it('keeps access when one of two membership rows is removed', async () => {
@@ -129,7 +129,7 @@ describe('membership integrity', () => {
       status: 'ACTIVE',
     });
 
-    const removal = await ctx.app.inject({
+    const removal = await ctx.inject({
       method: 'DELETE',
       url: `/whiteboards/mi-owner/members/${viewRow}`,
       headers: ctx.authHeader(ownerToken),
@@ -139,7 +139,7 @@ describe('membership integrity', () => {
     // The unconditional FieldValue.delete() stripped the cache entry outright here, revoking
     // all access while the EDIT row survived, invisible to authorization.
     expect(await memberRoles('mi-owner')).toEqual({ 'mi-alice': 'EDIT' });
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'GET',
       url: '/whiteboards/mi-owner',
       headers: ctx.authHeader(aliceToken),
@@ -155,14 +155,14 @@ describe('membership integrity', () => {
     await authenticate(aliceToken);
 
     const onlyRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'EDIT');
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'DELETE',
       url: `/whiteboards/mi-owner/members/${onlyRow}`,
       headers: ctx.authHeader(ownerToken),
     });
 
     expect(await memberRoles('mi-owner')).toEqual({});
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'GET',
       url: '/whiteboards/mi-owner',
       headers: ctx.authHeader(aliceToken),
@@ -183,7 +183,7 @@ describe('membership integrity', () => {
       status: 'ACTIVE',
     });
 
-    const note = await ctx.app.inject({
+    const note = await ctx.inject({
       method: 'POST',
       url: '/whiteboards/mi-owner/notes',
       headers: ctx.authHeader(ownerToken),
@@ -199,7 +199,7 @@ describe('membership integrity', () => {
     });
     const noteId = note.json().id as string;
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'DELETE',
       url: `/whiteboards/mi-owner/members/${viewRow}`,
       headers: ctx.authHeader(ownerToken),
@@ -216,7 +216,7 @@ describe('membership integrity', () => {
     await authenticate(aliceToken);
 
     const onlyRow = await addTestMember(ctx.db, 'mi-owner', 'mi-alice', 'EDIT');
-    const note = await ctx.app.inject({
+    const note = await ctx.inject({
       method: 'POST',
       url: '/whiteboards/mi-owner/notes',
       headers: ctx.authHeader(ownerToken),
@@ -232,7 +232,7 @@ describe('membership integrity', () => {
     });
     const noteId = note.json().id as string;
 
-    await ctx.app.inject({
+    await ctx.inject({
       method: 'DELETE',
       url: `/whiteboards/mi-owner/members/${onlyRow}`,
       headers: ctx.authHeader(ownerToken),
@@ -254,7 +254,7 @@ describe('membership integrity', () => {
       status: 'PENDING',
     });
 
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'PATCH',
       url: `/whiteboards/mi-owner/members/${pendingRow}`,
       headers: ctx.authHeader(ownerToken),
@@ -294,16 +294,23 @@ describe('membership integrity', () => {
     });
 
     activateBeforeNextTransaction('mi-alice', 'alice@example.com');
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'DELETE',
       url: `/whiteboards/mi-owner/members/${pendingRow}`,
       headers: ctx.authHeader(ownerToken),
     });
-    expect(res.statusCode).toBe(204);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    const reviewed = await ctx.inject({
+      method: 'DELETE',
+      url: `/whiteboards/mi-owner/members/${pendingRow}`,
+      headers: ctx.authHeader(ownerToken),
+    });
+    expect(reviewed.statusCode).toBe(204);
 
     expect(await listMembers('mi-owner')).toEqual([]);
     expect(await memberRoles('mi-owner')).toEqual({});
-    const board = await ctx.app.inject({
+    const board = await ctx.inject({
       method: 'GET',
       url: '/whiteboards/mi-owner',
       headers: ctx.authHeader(aliceToken),
@@ -325,14 +332,22 @@ describe('membership integrity', () => {
     });
 
     activateBeforeNextTransaction('mi-alice', 'alice@example.com');
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'PATCH',
       url: `/whiteboards/mi-owner/members/${pendingRow}`,
       headers: ctx.authHeader(ownerToken),
       payload: { role: 'EDIT' },
     });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ role: 'EDIT', status: 'ACTIVE' });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    const reviewed = await ctx.inject({
+      method: 'PATCH',
+      url: `/whiteboards/mi-owner/members/${pendingRow}`,
+      headers: ctx.authHeader(ownerToken),
+      payload: { role: 'EDIT' },
+    });
+    expect(reviewed.statusCode).toBe(200);
+    expect(reviewed.json()).toMatchObject({ role: 'EDIT', status: 'ACTIVE' });
 
     expect(await memberRoles('mi-owner')).toEqual({ 'mi-alice': 'EDIT' });
   });

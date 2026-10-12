@@ -1,8 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import { findFieldKey, type CustomFields, type NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { useQueryKeys, type QueryKeys } from '../queryKeys';
 import {
+  captureNoteMutation,
   cancelNoteCaches,
   patchNoteCaches,
   restoreNoteCaches,
@@ -41,7 +43,11 @@ export function useSetCustomField(boardId: string) {
   const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, key, value }: { noteId: string; key: string; value: string }) =>
-      notesApi.update(noteId, { fieldChanges: { set: { [key]: value } } }),
+      notesApi.update(
+        noteId,
+        { fieldChanges: { set: { [key]: value } } },
+        captureNoteMutation(queryClient, keys, boardId, noteId),
+      ),
     onMutate: ({ noteId, key, value }) => {
       cancelNoteCaches(queryClient, keys, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);
@@ -61,7 +67,11 @@ export function useRemoveCustomField(boardId: string) {
   const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, key }: { noteId: string; key: string }) =>
-      notesApi.update(noteId, { fieldChanges: { remove: [key] } }),
+      notesApi.update(
+        noteId,
+        { fieldChanges: { remove: [key] } },
+        captureNoteMutation(queryClient, keys, boardId, noteId),
+      ),
     onMutate: ({ noteId, key }) => {
       cancelNoteCaches(queryClient, keys, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);

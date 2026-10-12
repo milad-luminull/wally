@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteCreateInput, NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { useQueryKeys } from '../queryKeys';
@@ -9,6 +10,7 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
   const now = new Date().toISOString();
   return {
     id: tempId,
+    revision: 1,
     whiteboardId: boardId,
     title: input.title ?? '',
     description: input.description ?? '',
@@ -36,10 +38,10 @@ export function useCreateNote(boardId: string) {
 
   return useMutation({
     mutationFn: (input: Partial<NoteCreateInput>) => notesApi.create(boardId, input),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: keys.notes(boardId) });
+    onMutate: (input) => {
+      void queryClient.cancelQueries({ queryKey: keys.notes(boardId) });
       const previous = queryClient.getQueryData<NoteDto[]>(keys.notes(boardId));
-      const tempId = `${TEMP_ID_PREFIX}${Date.now()}`;
+      const tempId = `${TEMP_ID_PREFIX}${crypto.randomUUID()}`;
       queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) => [
         ...(prev ?? []),
         optimisticNote(boardId, tempId, input),
@@ -47,7 +49,10 @@ export function useCreateNote(boardId: string) {
       return { previous, tempId };
     },
     onError: (_err, _input, context) => {
-      if (context?.previous) queryClient.setQueryData(keys.notes(boardId), context.previous);
+      if (context)
+        queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) =>
+          prev?.filter((note) => note.id !== context.tempId),
+        );
     },
     onSuccess: (created, _input, context) => {
       queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) =>

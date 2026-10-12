@@ -1,8 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
 import type { NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { useQueryKeys, type QueryKeys } from '../queryKeys';
 import {
+  captureNoteMutation,
   cancelNoteCaches,
   patchNoteCaches,
   restoreNoteCaches,
@@ -29,7 +31,11 @@ export function useAddTag(boardId: string) {
   const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
-      notesApi.update(noteId, { tagChanges: { add: [tag] } }),
+      notesApi.update(
+        noteId,
+        { tagChanges: { add: [tag] } },
+        captureNoteMutation(queryClient, keys, boardId, noteId),
+      ),
     onMutate: ({ noteId, tag }) => {
       cancelNoteCaches(queryClient, keys, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);
@@ -49,7 +55,11 @@ export function useRemoveTag(boardId: string) {
   const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
-      notesApi.update(noteId, { tagChanges: { remove: [tag] } }),
+      notesApi.update(
+        noteId,
+        { tagChanges: { remove: [tag] } },
+        captureNoteMutation(queryClient, keys, boardId, noteId),
+      ),
     onMutate: ({ noteId, tag }) => {
       cancelNoteCaches(queryClient, keys, boardId, noteId);
       const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);

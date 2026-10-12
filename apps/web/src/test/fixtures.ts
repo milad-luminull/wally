@@ -2,6 +2,7 @@ import type { MemberDto, NoteDetailDto, NoteDto, WhiteboardDto } from '@wally/sh
 
 export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
   return {
+    revision: 1,
     id: 'note-1',
     whiteboardId: 'board-1',
     title: 'Angebotsvergleich freigeben',
@@ -48,6 +49,7 @@ export function makeMember(overrides: Partial<MemberDto> = {}): MemberDto {
 
 export function makeBoard(overrides: Partial<WhiteboardDto> = {}): WhiteboardDto {
   return {
+    revision: 1,
     id: 'board-1',
     name: 'Meine Wand',
     ownerId: 'user-1',

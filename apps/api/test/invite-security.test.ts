@@ -29,11 +29,11 @@ describe('invite security', () => {
 
   /** Drives one request per token so the auth preHandler provisions each identity. */
   async function authenticate(token: string) {
-    return ctx.app.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    return ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
   }
 
   async function inviteFromOwner(ownerToken: string, email: string, role: 'EDIT' | 'VIEW') {
-    return ctx.app.inject({
+    return ctx.inject({
       method: 'POST',
       url: '/whiteboards/sec-owner/members/invite',
       headers: ctx.authHeader(ownerToken),
@@ -69,7 +69,7 @@ describe('invite security', () => {
     await authenticate(ownerToken);
     await inviteFromOwner(ownerToken, 'victim@example.com', 'EDIT');
 
-    const res = await ctx.app.inject({
+    const res = await ctx.inject({
       method: 'GET',
       url: '/whiteboards/sec-owner',
       headers: ctx.authHeader(attackerToken),

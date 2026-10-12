@@ -74,7 +74,16 @@ describe('NoteDetailPanel', () => {
       expect(done).not.toBeChecked();
       await userEvent.click(done);
 
-      await waitFor(() => expect(notesApi.complete).toHaveBeenCalledWith('note-1'));
+      await waitFor(() =>
+        expect(notesApi.complete).toHaveBeenCalledWith(
+          'note-1',
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
+      );
     });
 
     it('reopens a completed note from the same checkbox', async () => {
@@ -87,7 +96,16 @@ describe('NoteDetailPanel', () => {
       expect(done).toBeChecked();
       await userEvent.click(done);
 
-      await waitFor(() => expect(notesApi.reopen).toHaveBeenCalledWith('note-1'));
+      await waitFor(() =>
+        expect(notesApi.reopen).toHaveBeenCalledWith(
+          'note-1',
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
+      );
     });
 
     it('leaves no button that could be mistaken for a way out of the panel', async () => {
@@ -127,7 +145,15 @@ describe('NoteDetailPanel', () => {
       await user.type(field, 'Angebot prüfen');
 
       await waitFor(() =>
-        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { title: 'Angebot prüfen' }),
+        expect(notesApi.update).toHaveBeenLastCalledWith(
+          'note-1',
+          { title: 'Angebot prüfen' },
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
       );
       expect(field).toHaveFocus();
     });
@@ -140,7 +166,15 @@ describe('NoteDetailPanel', () => {
       await user.clear(field);
       await user.type(field, 'Angebot prüfen{Enter}');
 
-      expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { title: 'Angebot prüfen' });
+      expect(notesApi.update).toHaveBeenLastCalledWith(
+        'note-1',
+        { title: 'Angebot prüfen' },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      );
       expect(field).toHaveValue('Angebot prüfen');
       expect(field).not.toHaveFocus();
     });
@@ -165,9 +199,17 @@ describe('NoteDetailPanel', () => {
       await user.type(field, 'Erste Zeile{Enter}zweite');
 
       await waitFor(() =>
-        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', {
-          description: 'Erste Zeile\nzweite',
-        }),
+        expect(notesApi.update).toHaveBeenLastCalledWith(
+          'note-1',
+          {
+            description: 'Erste Zeile\nzweite',
+          },
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
       );
       expect(field).toHaveFocus();
     });
@@ -181,7 +223,15 @@ describe('NoteDetailPanel', () => {
       await user.clear(field);
       await user.tab();
 
-      expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { description: '' });
+      expect(notesApi.update).toHaveBeenLastCalledWith(
+        'note-1',
+        { description: '' },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      );
     });
 
     it('sends what was typed when the panel closes before the save delay', async () => {
@@ -193,7 +243,15 @@ describe('NoteDetailPanel', () => {
       unmount();
 
       await waitFor(() =>
-        expect(notesApi.update).toHaveBeenLastCalledWith('note-1', { description: 'Kurz' }),
+        expect(notesApi.update).toHaveBeenLastCalledWith(
+          'note-1',
+          { description: 'Kurz' },
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
       );
     });
 
@@ -293,7 +351,15 @@ describe('NoteDetailPanel', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Hoch' }));
 
     await waitFor(() =>
-      expect(notesApi.move).toHaveBeenCalledWith('note-1', { mode: 'PRIORITY', priority: 'HOCH' }),
+      expect(notesApi.move).toHaveBeenCalledWith(
+        'note-1',
+        { mode: 'PRIORITY', priority: 'HOCH' },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
     );
   });
 
@@ -305,7 +371,15 @@ describe('NoteDetailPanel', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Später' }));
 
     await waitFor(() =>
-      expect(notesApi.move).toHaveBeenCalledWith('note-1', { mode: 'HORIZON', horizon: 'SPAETER' }),
+      expect(notesApi.move).toHaveBeenCalledWith(
+        'note-1',
+        { mode: 'HORIZON', horizon: 'SPAETER' },
+        expect.objectContaining({
+          operationId: expect.any(String),
+          resource: expect.stringMatching(/^note:/),
+          revision: expect.any(Number),
+        }),
+      ),
     );
   });
 
@@ -408,7 +482,16 @@ describe('NoteDetailPanel', () => {
 
       await user.click(within(toastItem).getByRole('button', { name: 'Schließen' }));
 
-      await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('note-1'));
+      await waitFor(() =>
+        expect(notesApi.remove).toHaveBeenCalledWith(
+          'note-1',
+          expect.objectContaining({
+            operationId: expect.any(String),
+            resource: expect.stringMatching(/^note:/),
+            revision: expect.any(Number),
+          }),
+        ),
+      );
     });
   });
 });

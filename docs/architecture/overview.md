@@ -44,10 +44,12 @@ The browser never talks to Firestore. [`firestore.rules`](../../firestore.rules)
 
 1. The browser attaches a fresh Firebase ID token to every call made through `apiClient.ts`.
 2. The `preHandler` in [`apps/api/src/plugins/auth.ts`](../../apps/api/src/plugins/auth.ts) verifies the token and, on the caller's first request, creates their user record and their own whiteboard in one transaction ([ADR-0004](../adr/0004-firebase-auth-with-lazy-provisioning.md)).
-3. `requireWhiteboardAccess` and `requireRole` in [`apps/api/src/lib/authorization.ts`](../../apps/api/src/lib/authorization.ts) resolve the board the request is about and the caller's role on it. No role means 404; the wrong role means 403.
-4. The route handler receives a body already validated by the Zod schema from `@wally/shared` ([ADR-0005](../adr/0005-rest-api-validated-with-shared-zod-schemas.md)).
-5. Writes go through a Firestore transaction or batch, and every denormalised field they affect (`memberRoles`, `subtaskSummary`, history events) is updated in the same write.
-6. The browser patches its TanStack Query cache optimistically before the response arrives and rolls back if the call fails ([ADR-0006](../adr/0006-server-state-in-tanstack-query-no-realtime.md)).
+3. Board routes adapt transport to shared `lib/commands` functions; the command schema is validated again at the application boundary. Identity comes from the verified token.
+4. A write transaction reads its receipt, board permissions and affected records, checks role, scope and expected integer revision, and commits data, denormalized fields and a receipt together. Authorized retries replay that result. Missing preconditions fail with 428; stale writes and changed-payload retries fail with 409.
+5. The browser serializes work per note or board administration aggregate and advances only from its own acknowledged writes. Remote changes require draft review; failed optimism rolls back only fields owned by the failed operation. Text drafts remain separate from server data until acknowledged.
+6. Deletion commits a hidden tombstone and durable cleanup job. Recursive cleanup runs immediately and can resume through a retry or maintenance command. Account changes abort and clear queued browser work.
+
+The full command contract and operating procedures are in [Board operations](board-operations.md) and [ADR-0010](../adr/0010-board-commands-revisions-and-receipts.md).
 
 ## Repository layout
 

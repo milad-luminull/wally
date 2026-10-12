@@ -324,6 +324,7 @@ async function seedNotes(db: Firestore, timestamp: Timestamp) {
       customFields: seed.customFields,
       colour: seed.colour,
       createdById: seed.createdById,
+      revision: 1,
       subtaskSummary: { total: subtasks.length, done: subtasks.filter((s) => s.done).length },
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -384,6 +385,7 @@ async function main() {
     .set({
       name: INITIAL_BOARD_NAME.de,
       ownerId: OWNER_UID,
+      revision: (existingBoard?.revision ?? 0) + 1,
       memberRoles: { [EDIT_COLLEAGUE_UID]: 'EDIT', [VIEW_COLLEAGUE_UID]: 'VIEW' },
       shareLinkToken,
       createdAt: existingBoard?.createdAt ?? timestamp,
