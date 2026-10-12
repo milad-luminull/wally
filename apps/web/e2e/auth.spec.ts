@@ -9,7 +9,8 @@ test('sign in with email/password loads the seeded board', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('E-Mail').fill(EMAIL);
   await page.getByLabel('Passwort').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Anmelden' }).click();
+  // `exact`: name matching is substring by default, and "Mit Google anmelden" contains it.
+  await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
 
   await page.waitForURL(/\/boards\/.+/);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
