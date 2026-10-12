@@ -32,7 +32,10 @@ export function assertValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: st
 /** The rule behind `assertValidAssignee`, for callers that fall back instead of failing. */
 export function isValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): boolean {
   return (
-    assigneeId === null || board.ownerId === assigneeId || Boolean(board.memberRoles[assigneeId])
+    assigneeId === null ||
+    board.ownerId === assigneeId ||
+    (Object.hasOwn(board.memberRoles, assigneeId) &&
+      (board.memberRoles[assigneeId] === 'EDIT' || board.memberRoles[assigneeId] === 'VIEW'))
   );
 }
 

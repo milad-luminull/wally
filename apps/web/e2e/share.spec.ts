@@ -14,8 +14,10 @@ test('inviting a colleague and copying the share link', async ({ page, context }
   await page.getByLabel('E-Mail-Adresse einladen').fill(email);
   await page.getByRole('button', { name: 'Einladen' }).click();
 
-  await expect(page.getByText(email)).toBeVisible();
-  await expect(page.getByText('Ausstehend')).toBeVisible();
+  // The toast also contains the email, and other invitations may still be pending.
+  const invitedEmail = page.getByText(email, { exact: true });
+  await expect(invitedEmail).toBeVisible();
+  await expect(invitedEmail.locator('..').getByText('Ausstehend', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Kopieren' }).click();
   await expect(page.getByRole('button', { name: 'Kopiert' })).toBeVisible();
