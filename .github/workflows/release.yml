@@ -195,8 +195,12 @@ jobs:
             --tag="rel-${{ steps.ver.outputs.short }}" \
             --revision-suffix="rel-${{ steps.ver.outputs.short }}" \
             --no-traffic
-          URL=$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" \
-                  --format="value(status.traffic.filter(tag:rel-${{ steps.ver.outputs.short }}).extract(url))" | tr -d '[]')
+          # jq, not a gcloud value() projection: that prints a list repr like ['https://…'],
+          # and the quotes left inside made curl reject the URL.
+          URL=$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" --format=json \
+                | jq -r --arg tag "rel-${{ steps.ver.outputs.short }}" \
+                    '.status.traffic[] | select(.tag == $tag) | .url' | head -1)
+          [[ "$URL" == https://* ]] || { echo "::error::no URL for the candidate tag; got '${URL}'"; exit 1; }
           echo "candidate_url=${URL}" >> "$GITHUB_OUTPUT"
           echo "candidate: ${URL}"
 
