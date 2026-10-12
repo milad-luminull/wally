@@ -63,6 +63,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await app.register(cors, {
     origin: env.CORS_ORIGIN,
+    // @fastify/cors 11 narrowed the default to the CORS-safelisted GET/HEAD/POST, which would
+    // fail the browser's preflight for every PATCH and DELETE route. Name them explicitly.
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
   });
 
   await app.register(firestorePlugin, { db: options.db });
