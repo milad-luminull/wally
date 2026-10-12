@@ -96,8 +96,15 @@ jobs:
         id: prev
         run: |
           set -euo pipefail
-          REV=$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" \
-                  --format='value(status.traffic[0].revisionName)')
+          # The revision serving 100%, not traffic[0]: tagged 0% revisions are listed too, and
+          # rolling back to one of those once sent production to an older release.
+          REV=$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" --format=json \
+                | jq -r '.status as $s
+                         | [$s.traffic[] | select((.percent // 0) == 100)][0]
+                         | if . == null then empty
+                           elif .revisionName then .revisionName
+                           else $s.latestReadyRevisionName end')
+          [ -n "$REV" ] || { echo "::error::no single revision serves 100% of traffic; refusing to release without a rollback target"; exit 1; }
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
           HV=$(curl -fsS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
                  "https://firebasehosting.googleapis.com/v1beta1/sites/${{ vars.GCP_PROJECT_ID }}/releases?pageSize=1" \
@@ -212,7 +219,8 @@ jobs:
           # annotation that survives revision deploys — but if it ever came back, every path
           # would 404 with a Google error page.
           test "$(gcloud run services describe wally-api --region="${{ vars.GCP_REGION }}" \
-                    --format="value(metadata.annotations.'run.googleapis.com/invoker-iam-disabled')")" = "True" \
+                    --format="value(metadata.annotations.'run.googleapis.com/invoker-iam-disabled')" \
+                  | tr '[:upper:]' '[:lower:]')" = "true" \
             || { echo "::error::the invoker IAM check is enabled again; the service will 404 every request"; exit 1; }
 
       - name: Smoke-test the candidate revision
@@ -260,9 +268,11 @@ jobs:
       # Prepare and validate BOTH artifacts before enforcing the new API contract.
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Shift all traffic to the new revision
+        id: shift
         run: gcloud run services update-traffic wally-api --region="${{ vars.GCP_REGION }}" --to-latest
 
       - name: Deploy Firebase Hosting
+        id: hosting
         run: |
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
             --only hosting \
@@ -301,10 +311,11 @@ jobs:
           echo "production smoke OK"
 
       # ---------------------------------------------------------------------------------
-      # Rollback. Only reached if something above failed after traffic moved.
+      # Rollback. Only reached if something above failed after traffic moved. A failure
+      # before that point needs no rollback: production never served the candidate.
       # ---------------------------------------------------------------------------------
       - name: Roll back Cloud Run
-        if: failure() && steps.prev.outputs.revision != ''
+        if: failure() && steps.shift.outcome == 'success' && steps.prev.outputs.revision != ''
         run: |
           echo "::warning::rolling Cloud Run back to ${{ steps.prev.outputs.revision }}"
           gcloud run services update-traffic wally-api --region="${{ vars.GCP_REGION }}" \
@@ -313,7 +324,7 @@ jobs:
       # There is no `firebase hosting:rollback` command. A release is created by POSTing the
       # previous version name, which is why steps.prev captured it before the deploy.
       - name: Roll back Firebase Hosting
-        if: failure() && steps.prev.outputs.hosting_version != ''
+        if: failure() && steps.hosting.outcome != 'skipped' && steps.prev.outputs.hosting_version != ''
         run: |
           echo "::warning::restoring Hosting version ${{ steps.prev.outputs.hosting_version }}"
           curl -fsS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
