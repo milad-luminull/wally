@@ -18,6 +18,9 @@ import {
   sendEmailVerification,
   type User,
 } from 'firebase/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { QueryScopeContext } from '@/features/board/hooks/queryKeys';
+import { discardPendingPreferences, flushPreferences } from '@/lib/preferencesQueue';
 import { auth } from './firebase';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -62,6 +65,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -69,9 +73,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Firebase can fire onAuthStateChanged before the token is attached; track it so we
   // never flip to "authenticated" without a usable token.
   const tokenRef = useRef<string | null>(null);
+  // `undefined` until Firebase has reported anyone at all.
+  const uidRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    /**
+     * Everything cached belongs to the account that fetched it — `/me` is whoever is calling,
+     * and nothing else is keyed by user either. So on any change of account, before anything
+     * renders for the new one: drop a preferences write still waiting to go out (it would be
+     * sent with the new user's token), stop in-flight requests, and empty the cache. Keys are
+     * also scoped per user (queryKeys.ts), which covers callbacks still running from the old
+     * session.
+     */
+    /** Returns the uid that was signed in before, when this report is a different account. */
+    function onIdentityChange(nextUid: string | null): string | null | undefined {
+      const previous = uidRef.current;
+      if (previous === nextUid) return undefined;
+      uidRef.current = nextUid;
+      if (previous === undefined) return undefined;
+      discardPendingPreferences(queryClient);
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      return previous;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const previousUid = onIdentityChange(firebaseUser?.uid ?? null);
       if (!firebaseUser) {
         tokenRef.current = null;
         setUser(null);
@@ -79,6 +106,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmailVerified(false);
         setStatus('unauthenticated');
         return;
+      }
+      if (previousUid) {
+        // Straight from one account to another (another tab signed in): leave the signed-in
+        // UI until the new token is ready, so nothing mounted for the previous account keeps
+        // running against the new one.
+        tokenRef.current = null;
+        setUser(null);
+        setIdToken(null);
+        setStatus('loading');
       }
       try {
         const token = await firebaseUser.getIdToken();
@@ -88,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmailVerified(firebaseUser.emailVerified);
         setStatus('authenticated');
       } catch {
+        onIdentityChange(null);
         setUser(null);
         setIdToken(null);
         setEmailVerified(false);
@@ -95,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [queryClient]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
@@ -141,8 +178,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // A preference change still inside its debounce belongs to this account; send it while
+    // its token is still the one attached. A failure has already been reported by the toast.
+    await flushPreferences(queryClient).catch(() => {});
     await firebaseSignOut(auth);
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -171,7 +211,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <QueryScopeContext.Provider value={user?.uid ?? null}>{children}</QueryScopeContext.Provider>
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MemberDto } from '@wally/shared';
 import { membersApi } from '@/lib/resources';
 import { toast } from '@/lib/toast';
-import { queryKeys } from '../queryKeys';
+import { useQueryKeys } from '../queryKeys';
 
 /**
  * Removes a member with an undo window — same shape as useDeleteNote: the row goes at once,
@@ -11,7 +11,8 @@ import { queryKeys } from '../queryKeys';
  */
 export function useRemoveMember(boardId: string) {
   const queryClient = useQueryClient();
-  const membersKey = queryKeys.members(boardId);
+  const keys = useQueryKeys();
+  const membersKey = keys.members(boardId);
 
   const mutation = useMutation({
     mutationFn: (memberId: string) => membersApi.remove(boardId, memberId),

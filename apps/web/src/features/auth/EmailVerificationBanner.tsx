@@ -7,7 +7,7 @@ import type { WhiteboardSummaryDto } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { boardsApi } from '@/lib/resources';
 import { cn } from '@/lib/cn';
-import { queryKeys } from '@/features/board/hooks/queryKeys';
+import { useQueryKeys } from '@/features/board/hooks/queryKeys';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
 
@@ -33,6 +33,7 @@ export function EmailVerificationBanner() {
   const { t } = useTranslation();
   const { user, emailVerified, resendVerificationEmail, refreshUser } = useAuth();
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
 
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [busy, setBusy] = useState<'resend' | 'confirm' | null>(null);
@@ -81,7 +82,7 @@ export function EmailVerificationBanner() {
       // suspect. Order matters — invalidating before the refresh would refetch with the old
       // token and activate nothing.
       const boards = await queryClient.fetchQuery({
-        queryKey: queryKeys.meBoards(),
+        queryKey: keys.meBoards(),
         queryFn: () => boardsApi.list(),
       });
       await queryClient.invalidateQueries();

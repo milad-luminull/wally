@@ -18,9 +18,12 @@ vi.mock('@/features/auth/AuthProvider', async () => {
 
 import { ApiError } from '@/lib/apiClient';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
-import { queryKeys } from '@/features/board/hooks/queryKeys';
+import { scopedQueryKeys } from '@/features/board/hooks/queryKeys';
 import { createTestQueryClient, renderWithProviders } from '@/test/renderWithProviders';
 import { ShareRedeemPage } from './ShareRedeemPage';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 /** Stands in for the board the token unlocks, so a redirect is observable. */
 function BoardStub() {

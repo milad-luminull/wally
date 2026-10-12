@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { toast } from '@/lib/toast';
-import { queryKeys } from '../queryKeys';
+import { useQueryKeys } from '../queryKeys';
 
 /**
  * Deletes a note with an undo window instead of a confirmation dialog.
@@ -15,11 +15,12 @@ import { queryKeys } from '../queryKeys';
  */
 export function useDeleteNote(boardId: string) {
   const queryClient = useQueryClient();
-  const notesKey = queryKeys.notes(boardId);
+  const keys = useQueryKeys();
+  const notesKey = keys.notes(boardId);
 
   const mutation = useMutation({
     mutationFn: (noteId: string) => notesApi.remove(noteId),
-    onSuccess: (_data, noteId) => queryClient.removeQueries({ queryKey: ['notes', noteId] }),
+    onSuccess: (_data, noteId) => queryClient.removeQueries({ queryKey: keys.noteDetail(noteId) }),
     // On failure the refetch brings the note back; the global handler says why.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: notesKey }),
   });

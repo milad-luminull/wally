@@ -10,7 +10,7 @@ import {
 } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
 import { toast } from '@/lib/toast';
-import { queryKeys } from '../queryKeys';
+import { useQueryKeys } from '../queryKeys';
 
 const TEMP_ID_PREFIX = 'temp-';
 
@@ -68,7 +68,8 @@ export function useDuplicateNote(
   { onUndo }: { onUndo?: (id: string) => void } = {},
 ) {
   const queryClient = useQueryClient();
-  const notesKey = queryKeys.notes(boardId);
+  const keys = useQueryKeys();
+  const notesKey = keys.notes(boardId);
 
   const { mutate, isPending } = useMutation({
     mutationFn: ({ noteId, input }: DuplicateVariables) => notesApi.duplicate(noteId, input),

@@ -6,7 +6,7 @@ import type { NoteDto } from '@wally/shared';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { resetToasts, useToasts } from '@/lib/toast';
-import { queryKeys } from '../queryKeys';
+import { scopedQueryKeys } from '../queryKeys';
 import { useDuplicateNote } from './useDuplicateNote';
 
 vi.mock('@/lib/resources', () => ({
@@ -15,6 +15,9 @@ vi.mock('@/lib/resources', () => ({
 
 // Imported after the mock so it resolves to the mocked module.
 import { notesApi } from '@/lib/resources';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 const boardId = 'board-1';
 const notesKey = queryKeys.notes(boardId);

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import type { NoteDetailDto, NoteDto } from '@wally/shared';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
-import { queryKeys } from '../queryKeys';
+import { scopedQueryKeys } from '../queryKeys';
 import { useRemoveCustomField, useSetCustomField } from './useCustomFieldMutations';
 
 vi.mock('@/lib/resources', () => ({
@@ -14,6 +14,9 @@ vi.mock('@/lib/resources', () => ({
 
 // Imported after the mock so it resolves to the mocked module.
 import { notesApi } from '@/lib/resources';
+
+// Hooks rendered outside AuthProvider read and write the signed-out scope.
+const queryKeys = scopedQueryKeys(null);
 
 const boardId = 'board-1';
 
@@ -26,7 +29,7 @@ describe('custom field mutations', () => {
     const note = makeNote({ customFields: fields });
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(queryKeys.notes(boardId), [note]);
-    queryClient.setQueryData(['notes', note.id], { ...note, subtasks: [], history: [] });
+    queryClient.setQueryData(queryKeys.noteDetail(note.id), { ...note, subtasks: [], history: [] });
 
     function wrapper({ children }: { children: ReactNode }) {
       return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
@@ -39,7 +42,7 @@ describe('custom field mutations', () => {
       ?.customFields;
 
   const detailFields = (queryClient: ReturnType<typeof createTestQueryClient>, id: string) =>
-    queryClient.getQueryData<NoteDetailDto>(['notes', id])?.customFields;
+    queryClient.getQueryData<NoteDetailDto>(queryKeys.noteDetail(id))?.customFields;
 
   it('optimistically patches both the list and detail caches when setting a property', async () => {
     const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH' });

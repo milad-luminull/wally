@@ -40,6 +40,7 @@ import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
 import { NoteCard } from './NoteCard';
 import { CopyDragContext } from './copyDrag';
+import { useQueryKeys } from '../hooks/queryKeys';
 
 interface WandViewProps {
   boardId: string;
@@ -79,6 +80,7 @@ export function WandView({
   canEdit,
 }: WandViewProps) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   const { t } = useTranslation();
   const moveNote = useMoveNote(boardId);
   const createNote = useCreateNote(boardId);
@@ -230,13 +232,16 @@ export function WandView({
     const noteId = String(event.active.id);
     setActiveId(noteId);
     setCopying(Boolean((event.activatorEvent as KeyboardEvent | PointerEvent | null)?.altKey));
-    dragRollback.current = { noteId, snapshot: snapshotNoteCaches(queryClient, boardId, noteId) };
+    dragRollback.current = {
+      noteId,
+      snapshot: snapshotNoteCaches(queryClient, keys, boardId, noteId),
+    };
     // Nothing in flight may land on top of the live repositioning below.
-    cancelNoteCaches(queryClient, boardId, noteId);
+    cancelNoteCaches(queryClient, keys, boardId, noteId);
   }
 
-  function commitMove(noteId: string, patch: Parameters<typeof writeNoteCaches>[3]) {
-    writeNoteCaches(queryClient, boardId, noteId, patch);
+  function commitMove(noteId: string, patch: Parameters<typeof writeNoteCaches>[4]) {
+    writeNoteCaches(queryClient, keys, boardId, noteId, patch);
   }
 
   function endDrag() {
@@ -295,7 +300,7 @@ export function WandView({
    *  `activeId`, so it cannot miss the rollback because of a stale closure. */
   function handleDragCancel() {
     const pending = dragRollback.current;
-    if (pending) restoreNoteCaches(queryClient, boardId, pending.noteId, pending.snapshot);
+    if (pending) restoreNoteCaches(queryClient, keys, boardId, pending.noteId, pending.snapshot);
     cancelPendingMove();
     endDrag();
   }

@@ -56,6 +56,7 @@ import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 import { useLiveNoteText } from './useLiveNoteText';
+import { useQueryKeys } from '../hooks/queryKeys';
 
 const NO_ASSIGNEE = '__none__';
 
@@ -216,6 +217,7 @@ function NoteDetailContent({
    * note on every keystroke, so the card on the board follows along.
    */
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   const { mutate: mutateNote } = updateNote;
   const saveTitle = useCallback(
     (title: string) => mutateNote({ noteId, input: { title } }),
@@ -228,13 +230,14 @@ function NoteDetailContent({
   const title = useLiveNoteText({
     serverValue: note?.title ?? '',
     normalize: normalizeTitle,
-    onLocalChange: (value) => patchNoteCaches(queryClient, boardId, noteId, { title: value }),
+    onLocalChange: (value) => patchNoteCaches(queryClient, keys, boardId, noteId, { title: value }),
     save: saveTitle,
   });
   const description = useLiveNoteText({
     serverValue: note?.description ?? '',
     normalize: normalizeDescription,
-    onLocalChange: (value) => patchNoteCaches(queryClient, boardId, noteId, { description: value }),
+    onLocalChange: (value) =>
+      patchNoteCaches(queryClient, keys, boardId, noteId, { description: value }),
     save: saveDescription,
   });
   const titleRef = title.ref;

@@ -8,9 +8,11 @@ import {
   settleNoteCaches,
   snapshotNoteCaches,
 } from './shared';
+import { useQueryKeys } from '../queryKeys';
 
 export function useAssignNote(boardId: string) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
 
   return useMutation({
     mutationFn: ({
@@ -22,14 +24,14 @@ export function useAssignNote(boardId: string) {
       optimisticAssignee?: UserSummary | null;
     }) => notesApi.assign(noteId, assigneeId),
     onMutate: ({ noteId, optimisticAssignee }) => {
-      cancelNoteCaches(queryClient, boardId, noteId);
-      const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
-      patchNoteCaches(queryClient, boardId, noteId, { assignee: optimisticAssignee ?? null });
+      cancelNoteCaches(queryClient, keys, boardId, noteId);
+      const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);
+      patchNoteCaches(queryClient, keys, boardId, noteId, { assignee: optimisticAssignee ?? null });
       return snapshot;
     },
     onError: (_err, { noteId }, snapshot) => {
-      if (snapshot) restoreNoteCaches(queryClient, boardId, noteId, snapshot);
+      if (snapshot) restoreNoteCaches(queryClient, keys, boardId, noteId, snapshot);
     },
-    onSettled: (_data, _err, { noteId }) => settleNoteCaches(queryClient, boardId, noteId),
+    onSettled: (_data, _err, { noteId }) => settleNoteCaches(queryClient, keys, boardId, noteId),
   });
 }

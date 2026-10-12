@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { MeDto } from '@wally/shared';
 import { meApi } from '@/lib/resources';
-import { queryKeys } from '@/features/board/hooks/queryKeys';
+import { useQueryKeys } from '@/features/board/hooks/queryKeys';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { normalizeLocale, FALLBACK_LOCALE, type AppLocale } from './locales';
 import { writeStoredLocale } from './storage';
@@ -15,8 +15,9 @@ import { writeStoredLocale } from './storage';
  */
 export function useMe() {
   const { status } = useAuth();
+  const keys = useQueryKeys();
   return useQuery({
-    queryKey: queryKeys.profile(),
+    queryKey: keys.profile(),
     queryFn: meApi.get,
     enabled: status === 'authenticated',
   });
@@ -33,6 +34,7 @@ export function useMe() {
 export function useUpdateLanguage() {
   const { i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   const [saveFailed, setSaveFailed] = useState(false);
 
   const mutation = useMutation({
@@ -40,9 +42,9 @@ export function useUpdateLanguage() {
     // The account menu says so inline, beside the control that failed.
     meta: { silentError: true },
     onSettled: () => {
-      // The EXACT key: queryKeys.meBoards() shares the ['me'] prefix, and invalidating that
+      // The EXACT key: keys.meBoards() shares the ['me'] prefix, and invalidating that
       // would throw away the boards list as collateral.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+      void queryClient.invalidateQueries({ queryKey: keys.profile() });
     },
   });
 
@@ -56,7 +58,7 @@ export function useUpdateLanguage() {
       setSaveFailed(false);
       void i18n.changeLanguage(next);
       writeStoredLocale(next);
-      queryClient.setQueryData<MeDto>(queryKeys.profile(), (old) =>
+      queryClient.setQueryData<MeDto>(keys.profile(), (old) =>
         old ? { ...old, language: next } : old,
       );
 
@@ -64,14 +66,14 @@ export function useUpdateLanguage() {
         onError: () => {
           void i18n.changeLanguage(previous);
           writeStoredLocale(previous);
-          queryClient.setQueryData<MeDto>(queryKeys.profile(), (old) =>
+          queryClient.setQueryData<MeDto>(keys.profile(), (old) =>
             old ? { ...old, language: previous } : old,
           );
           setSaveFailed(true);
         },
       });
     },
-    [i18n, mutate, queryClient],
+    [i18n, keys, mutate, queryClient],
   );
 
   return { setLanguage, isSaving: mutation.isPending, saveFailed };

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NoteDto } from '@wally/shared';
 import { notesApi } from '@/lib/resources';
-import { queryKeys } from '../queryKeys';
+import { useQueryKeys, type QueryKeys } from '../queryKeys';
 import {
   cancelNoteCaches,
   patchNoteCaches,
@@ -16,47 +16,50 @@ import {
  * packages/shared/src/schemas/note.ts. */
 function currentTags(
   queryClient: ReturnType<typeof useQueryClient>,
+  keys: QueryKeys,
   boardId: string,
   noteId: string,
 ): string[] {
-  const list = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
+  const list = queryClient.getQueryData<NoteDto[]>(keys.notes(boardId));
   return list?.find((n) => n.id === noteId)?.tags ?? [];
 }
 
 export function useAddTag(boardId: string) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
       notesApi.update(noteId, { tagChanges: { add: [tag] } }),
     onMutate: ({ noteId, tag }) => {
-      cancelNoteCaches(queryClient, boardId, noteId);
-      const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
-      const next = Array.from(new Set([...currentTags(queryClient, boardId, noteId), tag]));
-      patchNoteCaches(queryClient, boardId, noteId, { tags: next });
+      cancelNoteCaches(queryClient, keys, boardId, noteId);
+      const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);
+      const next = Array.from(new Set([...currentTags(queryClient, keys, boardId, noteId), tag]));
+      patchNoteCaches(queryClient, keys, boardId, noteId, { tags: next });
       return snapshot;
     },
     onError: (_err, { noteId }, snapshot) => {
-      if (snapshot) restoreNoteCaches(queryClient, boardId, noteId, snapshot);
+      if (snapshot) restoreNoteCaches(queryClient, keys, boardId, noteId, snapshot);
     },
-    onSettled: (_d, _e, { noteId }) => settleNoteCaches(queryClient, boardId, noteId),
+    onSettled: (_d, _e, { noteId }) => settleNoteCaches(queryClient, keys, boardId, noteId),
   });
 }
 
 export function useRemoveTag(boardId: string) {
   const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   return useMutation({
     mutationFn: ({ noteId, tag }: { noteId: string; tag: string }) =>
       notesApi.update(noteId, { tagChanges: { remove: [tag] } }),
     onMutate: ({ noteId, tag }) => {
-      cancelNoteCaches(queryClient, boardId, noteId);
-      const snapshot = snapshotNoteCaches(queryClient, boardId, noteId);
-      const next = currentTags(queryClient, boardId, noteId).filter((t) => t !== tag);
-      patchNoteCaches(queryClient, boardId, noteId, { tags: next });
+      cancelNoteCaches(queryClient, keys, boardId, noteId);
+      const snapshot = snapshotNoteCaches(queryClient, keys, boardId, noteId);
+      const next = currentTags(queryClient, keys, boardId, noteId).filter((t) => t !== tag);
+      patchNoteCaches(queryClient, keys, boardId, noteId, { tags: next });
       return snapshot;
     },
     onError: (_err, { noteId }, snapshot) => {
-      if (snapshot) restoreNoteCaches(queryClient, boardId, noteId, snapshot);
+      if (snapshot) restoreNoteCaches(queryClient, keys, boardId, noteId, snapshot);
     },
-    onSettled: (_d, _e, { noteId }) => settleNoteCaches(queryClient, boardId, noteId),
+    onSettled: (_d, _e, { noteId }) => settleNoteCaches(queryClient, keys, boardId, noteId),
   });
 }

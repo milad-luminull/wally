@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from '@/lib/resources';
-import { queryKeys } from './queryKeys';
+import { useQueryKeys } from './queryKeys';
 
 /**
  * The single source of truth for a board's notes. WandView and ListView both call this
@@ -8,8 +8,9 @@ import { queryKeys } from './queryKeys';
  * duplicate the notes list per view (see the util/noteDerived helpers).
  */
 export function useNotes(boardId: string | undefined) {
+  const keys = useQueryKeys();
   return useQuery({
-    queryKey: queryKeys.notes(boardId ?? ''),
+    queryKey: keys.notes(boardId ?? ''),
     queryFn: () => notesApi.list(boardId!, { status: 'ALL' }),
     enabled: Boolean(boardId),
   });
