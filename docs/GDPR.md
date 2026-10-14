@@ -86,12 +86,13 @@ erasure work has to clear both, in one transaction — the invariant is already 
 
 ### Content — `notes/{id}` and subcollections
 
-| Field                                          | Personal data                         | Notes                                        |
-| ---------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `title`, `tags`, `customFields`                | Free text — **may contain anything**  | Not translated, stored as typed              |
-| `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board |
-| `subtasks/{id}.text`                           | Free text                             |                                              |
-| `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                   |
+| Field                                          | Personal data                         | Notes                                                                     |
+| ---------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
+| `title`, `tags`, `customFields`                | Free text — **may contain anything**  | Not translated, stored as typed                                           |
+| `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board                              |
+| `visibility`                                   | No                                    | Decides who sees the note; a private note is readable only by its creator |
+| `subtasks/{id}.text`                           | Free text                             |                                                                           |
+| `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                                                |
 
 ### Mutation receipts and cleanup jobs
 
@@ -127,6 +128,8 @@ board, including invitees who have not signed up — see `toMemberDto`
 ([`apps/api/src/lib/dto.ts:183`](apps/api/src/lib/dto.ts:183)). This is necessary for the
 assignee picker and is not a defect, but it is a disclosure that belongs in the privacy
 notice (GAP-03).
+
+Private notes are the exception: only their creator receives them from the API.
 
 ---
 
@@ -184,6 +187,7 @@ rows pointing at a person. _(Art. 17(1))_
 
 Their notes fall back to unassigned, but only once they have genuinely lost all access —
 [`apps/api/src/routes/members.ts:170`](apps/api/src/routes/members.ts:170). _(Art. 5(1)(c))_
+A removed member's private notes are kept, hidden from everyone, and become visible to them again if they rejoin. They are deleted with the rest of the account once account deletion (GAP-01) exists.
 
 ### Browser locale is not used as an ongoing tracking signal
 

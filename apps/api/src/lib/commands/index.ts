@@ -14,7 +14,9 @@ import {
   withId,
 } from '../db/collections.js';
 import { AppError } from '../errors.js';
+import type { NoteDoc, WithId } from '../db/types.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
+import { canSeeNote } from '../notes.js';
 import { executeNoteCommand } from './notes.js';
 import { createBoard, executeAdminCommand } from './administration.js';
 import { drainCleanupJob } from './maintenance.js';
@@ -34,13 +36,27 @@ function canonical(value: unknown): string {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-function rolesFor(command: BoardCommand): EffectiveRole[] {
-  if (command.type === 'link.redeem') return ['OWNER', 'EDIT', 'VIEW'];
+const ANY_ROLE: EffectiveRole[] = ['OWNER', 'EDIT', 'VIEW'];
+const EDITORS: EffectiveRole[] = ['OWNER', 'EDIT'];
+
+/**
+ * Who may run `command`. A member's own private note is theirs whatever their board role,
+ * so a VIEW member can keep private notes. Changing who sees a note is the exception: it
+ * adds to or removes from what the shared board shows, so it always needs EDIT or OWNER.
+ */
+function rolesFor(
+  command: BoardCommand,
+  note: WithId<NoteDoc> | null,
+  actorId: string,
+): EffectiveRole[] {
+  if (command.type === 'link.redeem') return ANY_ROLE;
   // A member leaves; the owner cannot (they delete instead), so OWNER is a 403 here.
   if (command.type === 'board.leave') return ['EDIT', 'VIEW'];
-  return command.type.startsWith('note.') || command.type.startsWith('subtask.')
-    ? ['OWNER', 'EDIT']
-    : ['OWNER'];
+  if (!command.type.startsWith('note.') && !command.type.startsWith('subtask.')) return ['OWNER'];
+  if (command.type === 'note.create')
+    return command.input.visibility === 'PRIVATE' ? ANY_ROLE : EDITORS;
+  if (command.type === 'note.update' && command.input.visibility !== undefined) return EDITORS;
+  return note?.visibility === 'PRIVATE' && note.createdById === actorId ? ANY_ROLE : EDITORS;
 }
 
 /** The emulator can report an aborted query as INVALID_ARGUMENT with a closed
@@ -93,10 +109,13 @@ export async function executeBoardCommand(
     .doc(operationId);
   try {
     const { result, replayed } = await runCommandTransaction(db, async (tx) => {
-      const writeReceipt = (boardId: string, result: CommandResult) =>
+      // `roles` are the ones that authorized the command; replay re-checks the caller's
+      // current role against them, so a viewer's retried private-note write still replays.
+      const writeReceipt = (boardId: string, result: CommandResult, roles: EffectiveRole[]) =>
         tx.create(receiptRef, {
           fingerprint,
           boardId,
+          roles,
           result,
           createdAt: Timestamp.now(),
           expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
@@ -106,7 +125,8 @@ export async function executeBoardCommand(
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
         const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
-        requireAccess(board, actor.id, rolesFor(command));
+        // Receipts written before roles were stored fall back to the note-free rule.
+        requireAccess(board, actor.id, receipt.roles ?? rolesFor(command, null, actor.id));
         if (receipt.fingerprint !== fingerprint)
           throw new AppError(
             409,
@@ -120,13 +140,15 @@ export async function executeBoardCommand(
       // Its receipt names the new board, so a replay re-authorizes the caller as its owner.
       if (command.type === 'board.create') {
         const result = await createBoard(db, tx, actor, command.input.name);
-        writeReceipt(result.boardId, result);
+        writeReceipt(result.boardId, result, rolesFor(command, null, actor.id));
         return { result, replayed: false };
       }
 
       const note =
         'noteId' in command ? withId(await tx.get(notesCol(db).doc(command.noteId))) : null;
       if ('noteId' in command && (!note || note.deletedAt)) notFound();
+      // Before any role check, so a non-creator learns nothing from a private note's id.
+      if (note && !canSeeNote(note, actor.id)) notFound();
       const link =
         command.type === 'link.redeem'
           ? withId(await tx.get(shareLinksCol(db).doc(command.token)))
@@ -137,9 +159,10 @@ export async function executeBoardCommand(
         notFound();
       const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
+      const roles = rolesFor(command, note, actor.id);
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();
-      } else requireAccess(board, actor.id, rolesFor(command));
+      } else requireAccess(board, actor.id, roles);
 
       // board.leave states a fact about the caller, not an edit of the board: a concurrent
       // rename by the owner must not turn it into a 409 the member cannot resolve.
@@ -170,7 +193,7 @@ export async function executeBoardCommand(
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
           ? await executeNoteCommand(context, command)
           : await executeAdminCommand(context, command);
-      writeReceipt(boardId, result);
+      writeReceipt(boardId, result, roles);
       return { result, replayed: false };
     });
     options.logger?.info({

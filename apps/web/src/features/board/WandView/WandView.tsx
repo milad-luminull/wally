@@ -24,6 +24,7 @@ import {
   type NotePriority,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
+import type { BoardAccess } from '../util/permissions';
 import type { T } from '@/i18n/enumLabels';
 import { noteMovePatch, useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useCreateNote } from '../hooks/mutations/useCreateNote';
@@ -54,7 +55,7 @@ interface WandViewProps {
   onOpenNote: (id: string) => void;
   /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
   onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
-  canEdit: boolean;
+  access: BoardAccess;
 }
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
@@ -77,7 +78,7 @@ export function WandView({
   selectedNoteId,
   onOpenNote,
   onDuplicateNote,
-  canEdit,
+  access,
 }: WandViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -311,7 +312,7 @@ export function WandView({
     const noteId = String(active.id);
     const note = findNote(notes, noteId);
 
-    if (!canEdit || !over || !note) {
+    if (!over || !note || !access.canEditNote(note)) {
       handleDragCancel();
       return;
     }
@@ -368,18 +369,21 @@ export function WandView({
     const at = nextFreeNotePosition(notes);
     if (axis === 'horizon')
       createNote.mutate(
-        { ...at, horizon: key as NoteHorizon },
+        { ...at, horizon: key as NoteHorizon, visibility: access.newNoteVisibility },
         { onSuccess: (n) => onOpenNote(n.id) },
       );
     else if (axis === 'priority')
       createNote.mutate(
-        { ...at, priority: key as NotePriority },
+        { ...at, priority: key as NotePriority, visibility: access.newNoteVisibility },
         { onSuccess: (n) => onOpenNote(n.id) },
       );
   }
 
   function handleCreateAt(x: number, y: number) {
-    createNote.mutate({ freeX: x, freeY: y }, { onSuccess: (n) => onOpenNote(n.id) });
+    createNote.mutate(
+      { freeX: x, freeY: y, visibility: access.newNoteVisibility },
+      { onSuccess: (n) => onOpenNote(n.id) },
+    );
   }
 
   return (
@@ -399,7 +403,7 @@ export function WandView({
             selectedNoteId={selectedNoteId}
             onOpenNote={onOpenNote}
             onCreateAt={handleCreateAt}
-            canEdit={canEdit}
+            canEditShared={access.canEditShared}
             activeDragId={activeId}
           />
         ) : (
@@ -410,7 +414,6 @@ export function WandView({
             selectedNoteId={selectedNoteId}
             onOpenNote={onOpenNote}
             onCreateInZone={handleCreateInZone}
-            canEdit={canEdit}
             activeDragId={activeId}
             filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
           />

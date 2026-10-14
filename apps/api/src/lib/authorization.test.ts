@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { NoteVisibility } from '@wally/shared';
+import { notesCol, now, whiteboardsCol } from './db/collections.js';
 import {
   createTestBoard,
   createTestMembership,
@@ -7,8 +10,7 @@ import {
   resetDatabase,
 } from '../../test/helpers.js';
 import { Timestamp } from 'firebase-admin/firestore';
-import { whiteboardsCol } from './db/collections.js';
-import { getEffectiveRole } from './authorization.js';
+import { getEffectiveRole, requireWhiteboardAccess } from './authorization.js';
 
 const PROJECT_ID = 'wally-test-authorization';
 
@@ -69,5 +71,110 @@ describe('getEffectiveRole', () => {
   it('returns null for a nonexistent whiteboard', async () => {
     await makeFixture();
     await expect(getEffectiveRole(db, 'u-stranger', 'does-not-exist')).resolves.toBeNull();
+  });
+});
+
+describe('requireWhiteboardAccess({ kind: noteParam })', () => {
+  const db = getTestDb(PROJECT_ID);
+
+  beforeEach(async () => {
+    await resetDatabase(PROJECT_ID);
+  });
+
+  async function makeNote(id: string, creatorId: string, visibility: NoteVisibility) {
+    const timestamp = now();
+    await notesCol(db)
+      .doc(id)
+      .set({
+        whiteboardId: 'u-owner',
+        title: 'Anna wegen Müller fragen',
+        status: 'OPEN',
+        completedAt: null,
+        priority: 'MITTEL',
+        horizon: 'HEUTE',
+        freeX: 0,
+        freeY: 0,
+        dueDate: null,
+        assigneeId: creatorId,
+        tags: [],
+        customFields: {},
+        colour: 'WEISS',
+        visibility,
+        createdById: creatorId,
+        subtaskSummary: { total: 0, done: 0 },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+  }
+
+  /** Runs the preHandler directly with a minimal request and a reply that records its answer. */
+  async function run(noteId: string, userId: string) {
+    const request = {
+      params: { id: noteId },
+      server: { db },
+      user: { id: userId },
+    } as unknown as FastifyRequest;
+    const sent: { status?: number; body?: unknown } = {};
+    const reply = {
+      code(status: number) {
+        sent.status = status;
+        return this;
+      },
+      send(body: unknown) {
+        sent.body = body;
+        return this;
+      },
+    } as unknown as FastifyReply;
+    await requireWhiteboardAccess({ kind: 'noteParam' }).call(
+      {} as never,
+      request,
+      reply,
+      () => {},
+    );
+    return { sent, request };
+  }
+
+  async function makeBoard() {
+    await createTestUser(db, 'u-owner', 'owner@example.com');
+    await createTestUser(db, 'u-edit', 'edit@example.com');
+    await createTestBoard(db, 'u-owner', { 'u-edit': 'EDIT' });
+    await createTestMembership(db, 'u-owner', { userId: 'u-edit', role: 'EDIT', status: 'ACTIVE' });
+  }
+
+  it('answers a member who did not create a private note exactly as for a missing note', async () => {
+    await makeBoard();
+    await makeNote('n-private', 'u-edit', 'PRIVATE');
+
+    const missing = await run('does-not-exist', 'u-owner');
+    const hidden = await run('n-private', 'u-owner');
+
+    expect(hidden.sent).toEqual({
+      status: 404,
+      body: { error: 'NOT_FOUND', message: 'Not found' },
+    });
+    expect(hidden.sent).toEqual(missing.sent);
+    expect(hidden.request.noteContext).toBeUndefined();
+    expect(hidden.request.whiteboardContext).toBeUndefined();
+  });
+
+  it('lets the creator through to their own private note', async () => {
+    await makeBoard();
+    await makeNote('n-private', 'u-edit', 'PRIVATE');
+
+    const { sent, request } = await run('n-private', 'u-edit');
+
+    expect(sent).toEqual({});
+    expect(request.noteContext?.id).toBe('n-private');
+    expect(request.whiteboardContext).toMatchObject({ whiteboardId: 'u-owner', role: 'EDIT' });
+  });
+
+  it('lets any member through to a shared note', async () => {
+    await makeBoard();
+    await makeNote('n-shared', 'u-edit', 'SHARED');
+
+    const { sent, request } = await run('n-shared', 'u-owner');
+
+    expect(sent).toEqual({});
+    expect(request.whiteboardContext).toMatchObject({ role: 'OWNER' });
   });
 });

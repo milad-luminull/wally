@@ -8,6 +8,7 @@ import { cn } from '@/lib/cn';
 import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
+import { PrivateBadge } from '../PrivateBadge';
 import { CopyDragContext } from './copyDrag';
 
 interface NoteCardProps {
@@ -102,8 +103,12 @@ export function NoteCard({
           />
         )}
 
-        {note.assignee && (
-          <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
+        {note.visibility === 'PRIVATE' ? (
+          <PrivateBadge className="text-fg-meta-on-note" />
+        ) : (
+          note.assignee && (
+            <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
+          )
         )}
       </div>
     </>

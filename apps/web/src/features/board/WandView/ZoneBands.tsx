@@ -19,7 +19,6 @@ interface ZoneBandProps {
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
   onCreateInZone: (key: string) => void;
-  canEdit: boolean;
   activeDragId: string | null;
   /** Every note on the board is hidden by the filters — say so, rather than "empty". */
   filteredOut: boolean;
@@ -32,7 +31,6 @@ function ZoneBand({
   selectedNoteId,
   onOpenNote,
   onCreateInZone,
-  canEdit,
   activeDragId,
   filteredOut,
 }: ZoneBandProps) {
@@ -43,7 +41,7 @@ function ZoneBand({
   return (
     <section
       ref={setNodeRef}
-      onDoubleClick={() => canEdit && onCreateInZone(group.key)}
+      onDoubleClick={() => onCreateInZone(group.key)}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
       className={cn(
         'group/zone flex min-w-0 flex-col rounded-xl border transition-[background-color,border-color] duration-200 ease-ds',
@@ -62,23 +60,21 @@ function ZoneBand({
         <h2 className="text-13 font-medium text-fg-1">{group.label}</h2>
         <span className="text-12 tabular-nums text-fg-faint">{group.notes.length}</span>
         <span className="flex-1" />
-        {canEdit && (
-          <button
-            type="button"
-            aria-label={t('board.zone.addNote', { label: group.label })}
-            onClick={() => onCreateInZone(group.key)}
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md text-fg-faint',
-              'transition-[background-color,color,opacity] duration-150 ease-ds',
-              'hover:bg-inset hover:text-fg-1',
-              'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-              // Faint at rest so a full board stays quiet, full on hover; always discoverable.
-              'opacity-50 group-hover/zone:opacity-100',
-            )}
-          >
-            <Plus className="h-4 w-4" strokeWidth={1.75} />
-          </button>
-        )}
+        <button
+          type="button"
+          aria-label={t('board.zone.addNote', { label: group.label })}
+          onClick={() => onCreateInZone(group.key)}
+          className={cn(
+            'flex h-7 w-7 items-center justify-center rounded-md text-fg-faint',
+            'transition-[background-color,color,opacity] duration-150 ease-ds',
+            'hover:bg-inset hover:text-fg-1',
+            'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+            // Faint at rest so a full board stays quiet, full on hover; always discoverable.
+            'opacity-50 group-hover/zone:opacity-100',
+          )}
+        >
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
+        </button>
       </header>
 
       <div
@@ -114,9 +110,7 @@ function ZoneBand({
             <p className="text-12 font-medium text-fg-3">
               {filteredOut ? t('board.zone.noMatch') : t('board.zone.empty')}
             </p>
-            {canEdit && !filteredOut && (
-              <p className="text-12 text-fg-faint">{t('board.zone.emptyHint')}</p>
-            )}
+            {!filteredOut && <p className="text-12 text-fg-faint">{t('board.zone.emptyHint')}</p>}
           </div>
         )}
       </div>
@@ -131,7 +125,6 @@ interface ZoneBandsProps {
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
   onCreateInZone: (key: string) => void;
-  canEdit: boolean;
   activeDragId: string | null;
   filteredOut: boolean;
 }

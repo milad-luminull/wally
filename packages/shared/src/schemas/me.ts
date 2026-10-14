@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   boardAxisSchema,
+  boardVisibilityFilterSchema,
   boardViewSchema,
   canvasPatternSchema,
   languageSchema,
@@ -30,6 +31,9 @@ export const boardPreferencesSchema = z.object({
   done: z.boolean(),
   mine: z.boolean(),
   priority: z.array(notePrioritySchema).max(notePriorityValues.length),
+  /** Defaulted, not required: preferences saved before this filter existed must still parse,
+   *  or userPreferences() would drop the whole board entry as malformed. */
+  visibility: boardVisibilityFilterSchema.default('all'),
 });
 export type BoardPreferences = z.infer<typeof boardPreferencesSchema>;
 

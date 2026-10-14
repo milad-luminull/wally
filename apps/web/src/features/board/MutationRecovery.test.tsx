@@ -46,3 +46,29 @@ it('keeps a failed draft reachable and applies it only after reviewing the lates
   await waitFor(() => expect(getRecoveries()).toHaveLength(0));
   expect(calls).toBe(2);
 });
+
+it('shows a visibility change in words, not as the stored value', async () => {
+  rememberResource('note:v', 1);
+  const original = captureMutation('note:v');
+  await enqueueMutation(
+    original,
+    async () => {
+      throw Object.assign(new Error('stale'), { code: 'STALE_REVISION' });
+    },
+    {
+      action: 'update',
+      input: { visibility: 'PRIVATE' },
+      loadLatest: async () => ({ data: { visibility: 'SHARED' }, revision: 4 }),
+    },
+  ).catch(() => {});
+  renderWithProviders(<MutationRecovery />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /Ungespeicherte Änderungen/ }));
+
+  // Once for the stored version, once for the proposed change.
+  expect(await screen.findAllByText('Sichtbarkeit')).toHaveLength(2);
+  expect(await screen.findByText('Privat')).toBeInTheDocument();
+  expect(screen.getByText('Für alle')).toBeInTheDocument();
+  expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
+  expect(screen.queryByText('SHARED')).not.toBeInTheDocument();
+});

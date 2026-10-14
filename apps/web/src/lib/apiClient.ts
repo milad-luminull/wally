@@ -101,10 +101,14 @@ function observeResponse(path: string, data: unknown, revision: number | undefin
   )
     rememberResource(resource, revision);
 }
+/** A schema is read as `unknown` and yields T. Not `ZodType<T>`, whose input type would also
+ *  have to be T: a schema with a `.default()` (board preferences) has a wider input. */
+type ResponseSchema<T> = z.ZodType<T, z.ZodTypeDef, unknown>;
+
 async function request<T>(
   path: string,
   options: RequestOptions = {},
-  schema?: z.ZodType<T>,
+  schema?: ResponseSchema<T>,
 ): Promise<T> {
   const generation = options.ticket?.generation ?? sessionGeneration();
   const signal = sessionSignal();
@@ -309,12 +313,12 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string, schema: z.ZodType<T>, query?: RequestOptions['query']) =>
+  get: <T>(path: string, schema: ResponseSchema<T>, query?: RequestOptions['query']) =>
     request(path, { method: 'GET', query }, schema),
-  post: <T>(path: string, body: unknown, schema?: z.ZodType<T>, ticket?: MutationTicket) =>
+  post: <T>(path: string, body: unknown, schema?: ResponseSchema<T>, ticket?: MutationTicket) =>
     request(path, { method: 'POST', body, ticket }, schema),
-  patch: <T>(path: string, body: unknown, schema?: z.ZodType<T>, ticket?: MutationTicket) =>
+  patch: <T>(path: string, body: unknown, schema?: ResponseSchema<T>, ticket?: MutationTicket) =>
     request(path, { method: 'PATCH', body, ticket }, schema),
-  delete: <T = void>(path: string, schema?: z.ZodType<T>, ticket?: MutationTicket) =>
+  delete: <T = void>(path: string, schema?: ResponseSchema<T>, ticket?: MutationTicket) =>
     request(path, { method: 'DELETE', ticket }, schema),
 };

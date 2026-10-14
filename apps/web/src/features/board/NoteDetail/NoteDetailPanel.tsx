@@ -32,6 +32,7 @@ import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
 import { useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useToggleNoteStatus } from '../hooks/mutations/useToggleNoteStatus';
 import { useAssignNote } from '../hooks/mutations/useAssignNote';
+import { useSetNoteVisibility } from '../hooks/mutations/useSetNoteVisibility';
 import { useDeleteNote } from '../hooks/mutations/useDeleteNote';
 import {
   useAddSubtask,
@@ -44,6 +45,7 @@ import {
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
 import { collectFieldKeys, displayName } from '../util/noteDerived';
+import type { BoardAccess } from '../util/permissions';
 import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
@@ -54,6 +56,7 @@ import { SubtaskChecklist } from './SubtaskChecklist';
 import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
+import { VisibilityRow } from './VisibilityRow';
 import { useLiveNoteText } from './useLiveNoteText';
 
 const NO_ASSIGNEE = '__none__';
@@ -69,7 +72,7 @@ const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0
 interface NoteDetailPanelProps {
   noteId: string | null;
   boardId: string;
-  canEdit: boolean;
+  access: BoardAccess;
   axis: BoardAxis;
   isBelowDesktop: boolean;
   onClose: () => void;
@@ -110,7 +113,7 @@ function useEscapeToClose(onClose: () => void, enabled: boolean) {
 export function NoteDetailPanel({
   noteId,
   boardId,
-  canEdit,
+  access,
   axis,
   isBelowDesktop,
   onClose,
@@ -128,7 +131,7 @@ export function NoteDetailPanel({
             <NoteDetailContent
               noteId={noteId}
               boardId={boardId}
-              canEdit={canEdit}
+              access={access}
               axis={axis}
               onClose={onClose}
               onDuplicate={onDuplicate}
@@ -157,7 +160,7 @@ export function NoteDetailPanel({
         key={noteId}
         noteId={noteId}
         boardId={boardId}
-        canEdit={canEdit}
+        access={access}
         axis={axis}
         onClose={onClose}
         onDuplicate={onDuplicate}
@@ -171,7 +174,7 @@ export function NoteDetailPanel({
 interface ContentProps {
   noteId: string;
   boardId: string;
-  canEdit: boolean;
+  access: BoardAccess;
   axis: BoardAxis;
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
@@ -182,7 +185,7 @@ interface ContentProps {
 function NoteDetailContent({
   noteId,
   boardId,
-  canEdit,
+  access,
   axis,
   onClose,
   onDuplicate,
@@ -201,6 +204,7 @@ function NoteDetailContent({
   const moveNote = useMoveNote(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
   const assignNote = useAssignNote(boardId);
+  const setVisibility = useSetNoteVisibility(boardId);
   const { deleteNote } = useDeleteNote(boardId);
   const addSubtask = useAddSubtask(boardId);
   const toggleSubtask = useToggleSubtask(boardId);
@@ -274,7 +278,7 @@ function NoteDetailContent({
     );
   }
 
-  const disabled = !canEdit;
+  const disabled = !access.canEditNote(note);
   // Active members, plus the current assignee if they are not among them (a pending or
   // since-removed member) — otherwise the trigger has no item to show and goes blank.
   const assigneeOptions: UserSummary[] = activeMembers.map((m) => ({
@@ -289,6 +293,7 @@ function NoteDetailContent({
   // priority, and the Priority row above already moves it.
   const showZone = axis === 'horizon';
   const isDone = note.status === 'DONE';
+  const isPrivate = note.visibility === 'PRIVATE';
 
   function handlePriorityChange(value: string) {
     if (!value) return;
@@ -476,32 +481,61 @@ function NoteDetailContent({
             />
           </PropertyRow>
 
+          {access.showsVisibilitySwitch(note) && (
+            <VisibilityRow
+              visibility={note.visibility}
+              canChange={access.canEditShared}
+              onChange={(visibility) =>
+                setVisibility.mutate({ noteId: note.id, visibility, creator: note.createdBy })
+              }
+            />
+          )}
+
           <PropertyRow label={t('note.assigneeLabel')}>
-            <Select
-              value={note.assignee?.id ?? NO_ASSIGNEE}
-              onValueChange={handleAssigneeChange}
-              disabled={disabled}
-            >
-              <SelectTrigger
-                aria-label={t('note.assigneeLabel')}
-                className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+            {isPrivate ? (
+              // Only its creator ever opens a private note, and it is always theirs: "You".
+              // The helper wraps rather than truncating, so on a narrow screen the rule stays
+              // readable. Items align to the top so a wrapped line sits beside the avatar.
+              <span className="flex min-w-0 items-start gap-2">
+                {note.assignee && (
+                  <AssigneeAvatar user={note.assignee} isYou size="sm" className="shrink-0" />
+                )}
+                <span className="shrink-0 text-13 text-fg-1">{t('common.you')}</span>
+                <span className="min-w-0 text-12 leading-snug text-fg-3">
+                  {t('note.private.assigneeLocked')}
+                </span>
+              </span>
+            ) : (
+              <Select
+                value={note.assignee?.id ?? NO_ASSIGNEE}
+                onValueChange={handleAssigneeChange}
+                disabled={disabled}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
-                {assigneeOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    <span className="flex items-center gap-2">
-                      <AssigneeAvatar user={option} isYou={option.id === currentUserId} size="sm" />
-                      {option.id === currentUserId
-                        ? t('note.youSuffix', { name: displayName(option) })
-                        : displayName(option)}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  aria-label={t('note.assigneeLabel')}
+                  className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
+                  {assigneeOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar
+                          user={option}
+                          isYou={option.id === currentUserId}
+                          size="sm"
+                        />
+                        {option.id === currentUserId
+                          ? t('note.youSuffix', { name: displayName(option) })
+                          : displayName(option)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </PropertyRow>
 
           <PropertyRow label={t('note.colourLabel')}>

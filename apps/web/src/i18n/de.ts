@@ -63,6 +63,7 @@ export const de = {
       colour: 'Farbe',
       priority: 'Priorität',
       horizon: 'Zeitraum',
+      visibility: 'Sichtbarkeit',
       tags: 'Tags',
       customFields: 'Eigenschaften',
       fieldChanges: 'Eigenschaftsänderungen',
@@ -178,6 +179,8 @@ export const de = {
     memberRemoved: '{{name}} entfernt',
     undo: 'Rückgängig',
     inviteSent: 'Einladung an {{email}} gesendet',
+    notePrivate: 'Jetzt privat. Nur du siehst diese Notiz.',
+    noteShared: 'Jetzt für alle auf der Wand sichtbar.',
   },
   palette: {
     aria: 'Befehle',
@@ -266,6 +269,7 @@ export const de = {
       membersAria_other: '{{count}} Mitglieder',
       // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
       newNote: 'Neue Notiz',
+      newPrivateNote: 'Neue private Notiz',
       display: {
         label: 'Anzeige',
         remembered: 'Wally merkt sich die Ansicht pro Wand.',
@@ -290,13 +294,16 @@ export const de = {
       done: 'Erledigte ausblenden',
       reset: 'Zurücksetzen',
       resetLong: 'Filter zurücksetzen',
+      onlyPrivate: 'Nur private',
+      hidePrivate: 'Private ausblenden',
+      visibilityAria: 'Private Notizen',
     },
     empty: {
       board: {
         title: 'Deine Wand ist noch leer',
         // Quotes the top bar's own button label — keep in step with board.topBar.newNote.
         canEdit: 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.',
-        readOnly: 'Sobald jemand eine Notiz anlegt, erscheint sie hier.',
+        viewer: 'Du kannst diese Wand ansehen. Notizen, die du hier anlegst, sind privat.',
       },
       filtered: {
         title: 'Keine Notiz passt zum Filter',
@@ -305,7 +312,7 @@ export const de = {
       free: {
         title: 'Freie Wand',
         canEdit: 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.',
-        readOnly: 'Auf dieser Wand liegt noch nichts.',
+        viewer: 'Doppelklicke auf die Wand für eine private Notiz. Nur du siehst sie.',
       },
     },
     hint: {
@@ -344,6 +351,14 @@ export const de = {
     priorityLabel: 'Priorität',
     dueLabel: 'Fällig',
     assigneeLabel: 'Zuständig',
+    private: {
+      label: 'Privat',
+      hintOff: 'Nur du siehst eine private Notiz.',
+      hintOn: 'Nur du siehst diese Notiz.',
+      needsEdit: 'Zum Teilen brauchst du Bearbeitungsrechte.',
+      assigneeLocked: 'Private Notizen gehören immer dir.',
+      badge: 'Private Notiz',
+    },
     noAssignee: 'Niemand',
     assignedTo: 'Zuständig: {{name}}',
     assignedToYou: 'Dir zugewiesen',
@@ -476,6 +491,7 @@ export const de = {
       VIEW: 'Jeder mit dem Link kann die Wand ansehen.',
     },
     ownerOnly: 'Nur der Eigentümer kann Freigaben verwalten.',
+    privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
     members: {
       pending: 'Ausstehend',
       roleAria: 'Rolle von {{name}}',
@@ -530,6 +546,10 @@ export const de = {
       OWNER: 'Eigentümer',
       EDIT: 'Bearbeiten',
       VIEW: 'Ansehen',
+    },
+    visibility: {
+      PRIVATE: 'Privat',
+      SHARED: 'Für alle',
     },
   },
 } as const;

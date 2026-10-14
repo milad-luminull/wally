@@ -2,7 +2,7 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Columns3, List, Plus, Command, RotateCcw, SlidersHorizontal } from 'lucide-react';
-import type { NoteDto, WhiteboardDto } from '@wally/shared';
+import type { NoteDto, NoteVisibility, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -68,7 +68,8 @@ interface TopBarProps {
   axis: BoardAxis;
   isDesktop: boolean;
   isBelowTablet: boolean;
-  canEdit: boolean;
+  /** What the New button would create — viewers, and "Only private", add private notes. */
+  newNoteVisibility: NoteVisibility;
   isOwner: boolean;
   /** The view differs from the defaults, so "Reset view" has something to do. */
   isCustomized: boolean;
@@ -152,7 +153,7 @@ export function TopBar({
   axis,
   isDesktop,
   isBelowTablet,
-  canEdit,
+  newNoteVisibility,
   isOwner,
   isCustomized,
   onSetView,
@@ -161,6 +162,9 @@ export function TopBar({
   onNewNote,
 }: TopBarProps) {
   const { t } = useTranslation();
+  const newNoteLabel = t(
+    newNoteVisibility === 'PRIVATE' ? 'board.topBar.newPrivateNote' : 'board.topBar.newNote',
+  );
   const { activeMembers } = useActiveMembers(boardId);
   const { user } = useAuth();
   const renameBoard = useBoardRename(boardId);
@@ -330,14 +334,12 @@ export function TopBar({
         isBelowTablet={isBelowTablet}
       />
 
-      {canEdit && (
-        <IconTooltip label={t('board.topBar.newNote')} shortcut={['N']}>
-          <Button variant="accent" aria-label={t('board.topBar.newNote')} onClick={onNewNote}>
-            <Plus strokeWidth={2} />
-            <span className="hidden md:inline">{t('board.topBar.newNote')}</span>
-          </Button>
-        </IconTooltip>
-      )}
+      <IconTooltip label={newNoteLabel} shortcut={['N']}>
+        <Button variant="accent" aria-label={newNoteLabel} onClick={onNewNote}>
+          <Plus strokeWidth={2} />
+          <span className="hidden md:inline">{newNoteLabel}</span>
+        </Button>
+      </IconTooltip>
 
       <div className="ml-1 flex items-center border-l border-border-subtle pl-2.5">
         <AccountMenu />

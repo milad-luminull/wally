@@ -74,7 +74,7 @@ Changes made in either the whiteboard or list must be reflected in the other.
 ## 4a. Remembered view settings
 
 Wally remembers, per user and per board, the view (wall or list), the grouping, and the
-done / mine / priority filters. They are saved to the user's profile, so the board opens the
+done / mine / priority / visibility filters. They are saved to the user's profile, so the board opens the
 same way on every device. Opening the app goes straight into the user's only board, or to
 the board home when they have none or several; the home marks the board last opened (see §4b).
 
@@ -133,6 +133,7 @@ A note has:
 - Subtasks
 - Colour
 - Status
+- Visibility (shared or private)
 - Position on the whiteboard
 - Creation history
 - Movement history
@@ -149,6 +150,66 @@ This replaces an earlier fixed "reference" field that offered only Client / Cont
 That design assumed an integration with a surrounding host platform which does not
 exist; in practice it was a single free-text field with a suggestion list, and it could not
 record anything outside those three categories.
+
+---
+
+## 5a. Private notes
+
+A private note is a normal note that only its creator can see. It sits on the same wall, in the
+same columns, with the same subtasks, properties and filters; only the audience differs. The
+reasoning and the decisions behind it are in [`rfcs/PRIVATE_NOTES.md`](rfcs/PRIVATE_NOTES.md).
+
+**Who sees a private note.** Its creator, and nobody else: not other members, not the board
+owner. Search, the tag list, the property filter and subtask counts never include another
+person's private notes. To everyone else the note does not exist: reads and commands that
+target it answer 404.
+
+**Always yours.** A private note is always assigned to its creator and cannot be assigned to
+anyone else. Assigning it to another person is refused with `422 PRIVATE_NOTE_NOT_ASSIGNABLE`.
+The **Mine** filter includes the creator's private notes.
+
+**Who may create and change.** Every role, including VIEW, can create a private note. A creator
+can do everything with their own private note that a note allows: edit, move, assign (to
+themselves), complete, reopen, delete and manage subtasks, whatever their role. Creating a
+shared note still needs EDIT or OWNER.
+
+**Who may switch.** Only the creator, and only with the EDIT or OWNER role, can make a shared
+note private or a private note shared again, because either change alters what the shared
+board shows. Making a note private assigns it to the creator in the same change. Making it
+shared leaves the assignee as the creator. A note with no recorded creator (records older than
+that field) cannot be made private.
+
+**Viewers.** For a VIEW member every note created from the board is private. The New button, the
+`N` shortcut, the zone `+` buttons and double-click are therefore available to viewers. A viewer
+never changes a note's visibility, so a private note they created stays private.
+
+**Copies.** A copy of a private note is private, created by and assigned to whoever copies it. A
+copy of a shared note is shared.
+
+**Leaving and rejoining.** When a member is removed or leaves, their private notes stay on the
+board, keep their assignment to that member and stay hidden from everyone, while the member's
+assignments on shared notes are released as before, leaving those notes unassigned. If the
+person rejoins, with any role, the notes are visible to them again. Deleting a board deletes
+all of its notes, members' private notes included.
+
+**The lock.** On the wall and in the list a private note shows a small lock in place of the
+assignee avatar, labelled "Private Notiz" / "Private note". Colour, border and opacity do not
+change. In the note panel a **Privat** switch sits directly above **Assignee**. It is shown only
+to the creator of a note and, for a shared note, only with the EDIT or OWNER role. It is disabled
+on a private note whose creator now has the VIEW role. On a private note the assignee row shows
+**You**, disabled. The switch is offered on every board, including an unshared one.
+
+**The filter.** The filter bar has two single-choice chips after **Mine** and **Done**: **Nur
+private** (only private) and **Private ausblenden** (hide private); neither pressed shows all
+notes. The choice is remembered per board like the other filters (§4a) and can be given in a
+link as `visibility=private` or `visibility=shared`. The chips appear when the filter is active
+or at least one note in the current view is private. While **Nur private** is on, a new note is
+created private so it stays in view. Whenever a new note would be private (a viewer, or anyone
+with **Nur private** on), the New button and the palette entry read **Neue private Notiz** /
+"New private note".
+
+**Share sheet.** The owner is told, under the member list, that members can keep private notes
+that only they can see.
 
 ---
 
@@ -181,6 +242,8 @@ Users with edit permission can:
 
 Completed notes remain available unless deleted.
 
+A VIEW member may do all of the above on their own private notes.
+
 ---
 
 ## 8. Filtering and Search
@@ -191,6 +254,7 @@ Users can filter the visible notes using:
 - Priority
 - Assigned to me
 - Completed / not completed
+- Private notes: only private, or hide private
 
 Filters affect the currently displayed notes but do not modify or delete them.
 
@@ -213,7 +277,7 @@ The owner can:
 
 Users with edit permission can modify notes.
 
-Users with view permission can view the whiteboard and notes but cannot modify them.
+Users with view permission can view the whiteboard and notes but cannot modify shared notes; they can keep private notes (§5a).
 
 Notes can be assigned to users who are members of the shared whiteboard.
 

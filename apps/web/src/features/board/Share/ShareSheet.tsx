@@ -83,6 +83,7 @@ function ShareBody({
           <MemberList boardId={boardId} members={members} ownerId={ownerId} isOwner={isOwner} />
         )}
       </div>
+      <p className="text-12 text-fg-3">{t('share.privateNotesHint')}</p>
 
       {isOwner ? (
         <div className="-mx-4 -mb-4 flex flex-col gap-2 border-t border-border-subtle bg-surface-alt px-4 py-3">

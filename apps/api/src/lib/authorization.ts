@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { EffectiveRole } from '@wally/shared';
 import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
 import { liveWhiteboard, notesCol, whiteboardsCol, withId } from './db/collections.js';
+import { canSeeNote } from './notes.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -55,8 +56,9 @@ type WhiteboardSource =
  * from a `:id` whiteboard param, or by loading a `:id` note and using its
  * whiteboardId), resolves the caller's effective role on it, and 404s if they have no
  * role at all. On success it stashes `{ whiteboardId, role }` on the request for
- * `requireRole` (and route handlers) to use — this is what lets "note doesn't exist"
- * and "note exists but you're not a member" both come back as a plain 404.
+ * `requireRole` (and route handlers) to use — this is what lets "note doesn't exist",
+ * "note exists but you're not a member" and "note is someone else's private note" all
+ * come back as the same plain 404.
  */
 export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHookHandler {
   return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -73,7 +75,9 @@ export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHoo
     if (source.kind === 'whiteboardParam') {
       whiteboardId = paramValue;
     } else {
-      const note = withId(await notesCol(db).doc(paramValue).get());
+      const loaded = withId(await notesCol(db).doc(paramValue).get());
+      // Someone else's private note is answered exactly like a note that does not exist.
+      const note = loaded && canSeeNote(loaded, request.user.id) ? loaded : null;
       if (note) request.noteContext = note;
       whiteboardId = note?.whiteboardId;
     }

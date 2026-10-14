@@ -39,6 +39,24 @@ export function isValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string
   );
 }
 
+/** A private note exists only for its creator: everyone else gets "not found". */
+export function canSeeNote(
+  note: Pick<NoteDoc, 'visibility' | 'createdById'>,
+  actorId: string,
+): boolean {
+  return note.visibility !== 'PRIVATE' || note.createdById === actorId;
+}
+
+/** A private note is always assigned to its creator: never to someone else, never to nobody. */
+export function assertPrivateAssignee(creatorId: string | null, assigneeId: string | null): void {
+  if (creatorId !== null && assigneeId === creatorId) return;
+  throw new AppError(
+    422,
+    'PRIVATE_NOTE_NOT_ASSIGNABLE',
+    'A private note is always assigned to its creator',
+  );
+}
+
 export interface MoveComputation {
   data: Partial<Pick<NoteDoc, 'horizon' | 'priority' | 'freeX' | 'freeY'>>;
   metadata: Record<string, unknown>;

@@ -56,6 +56,7 @@ export const en = {
       colour: 'Colour',
       priority: 'Priority',
       horizon: 'Horizon',
+      visibility: 'Visibility',
       tags: 'Tags',
       customFields: 'Properties',
       fieldChanges: 'Property changes',
@@ -167,6 +168,8 @@ export const en = {
     memberRemoved: '{{name}} removed',
     undo: 'Undo',
     inviteSent: 'Invite sent to {{email}}',
+    notePrivate: 'Now private. Only you can see it.',
+    noteShared: 'Now visible to everyone on the board.',
   },
   palette: {
     aria: 'Commands',
@@ -251,6 +254,7 @@ export const en = {
       membersAria_one: '{{count}} member',
       membersAria_other: '{{count}} members',
       newNote: 'New note',
+      newPrivateNote: 'New private note',
       display: {
         label: 'Display',
         remembered: 'Wally remembers your view for each board.',
@@ -275,12 +279,15 @@ export const en = {
       done: 'Hide completed',
       reset: 'Reset',
       resetLong: 'Reset filters',
+      onlyPrivate: 'Only private',
+      hidePrivate: 'Hide private',
+      visibilityAria: 'Private notes',
     },
     empty: {
       board: {
         title: 'Your board is still empty',
         canEdit: 'Use “New note” at the top right to add your first one.',
-        readOnly: 'As soon as someone adds a note, it will show up here.',
+        viewer: 'You can view this board. Notes you add here are private.',
       },
       filtered: {
         title: 'No note matches the filter',
@@ -289,7 +296,7 @@ export const en = {
       free: {
         title: 'Free canvas',
         canEdit: 'Double-click anywhere on the board to add a note right there.',
-        readOnly: 'There is nothing on this board yet.',
+        viewer: 'Double-click the wall to add a private note. Only you can see it.',
       },
     },
     hint: {
@@ -326,6 +333,14 @@ export const en = {
     priorityLabel: 'Priority',
     dueLabel: 'Due',
     assigneeLabel: 'Assignee',
+    private: {
+      label: 'Private',
+      hintOff: 'Only you can see a private note.',
+      hintOn: 'Only you can see this note.',
+      needsEdit: 'You need edit rights to share it.',
+      assigneeLocked: 'A private note is always yours.',
+      badge: 'Private note',
+    },
     noAssignee: 'Nobody',
     assignedTo: 'Assigned to {{name}}',
     assignedToYou: 'Assigned to you',
@@ -453,6 +468,7 @@ export const en = {
       VIEW: 'Anyone with the link can view the board.',
     },
     ownerOnly: 'Only the owner can manage sharing.',
+    privateNotesHint: 'Members can keep private notes that only they can see.',
     members: {
       pending: 'Pending',
       roleAria: "{{name}}'s role",
@@ -502,6 +518,10 @@ export const en = {
       OWNER: 'Owner',
       EDIT: 'Can edit',
       VIEW: 'Can view',
+    },
+    visibility: {
+      PRIVATE: 'Private',
+      SHARED: 'Everyone',
     },
   },
 } as const;
