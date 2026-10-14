@@ -43,7 +43,7 @@ mitigation is organisational (§8), not technical.
 
 ## 2. Data inventory (Art. 30)
 
-Derived from [`apps/api/src/lib/db/types.ts`](apps/api/src/lib/db/types.ts), which is the
+Derived from [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), which is the
 single source of truth for stored shapes. Firestore is schemaless, so this table and that
 file must be kept in step — a new personal-data field is a change to both.
 
@@ -82,7 +82,7 @@ the physical deletion.
 
 `whiteboards/{id}.memberRoles` is a denormalised `uid -> role` cache of the same facts. Any
 erasure work has to clear both, in one transaction — the invariant is already documented on
-`WhiteboardDoc.memberRoles` and enforced in [`apps/api/src/lib/members.ts`](apps/api/src/lib/members.ts).
+`WhiteboardDoc.memberRoles` and enforced in [`apps/api/src/lib/members.ts`](../apps/api/src/lib/members.ts).
 
 ### Content — `notes/{id}` and subcollections
 
@@ -115,17 +115,17 @@ change. Command outcome logs omit note contents and share tokens; redemption URL
 - **Cloud Logging** receives Fastify's request log, which includes client IP addresses
   (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
-  ([`apps/web/src/i18n/storage.ts`](apps/web/src/i18n/storage.ts)), `wally.theme`
-  ([`apps/web/src/lib/theme.tsx`](apps/web/src/lib/theme.tsx)) and a list-view hint flag
-  ([`apps/web/src/features/board/ListView/ListView.tsx`](apps/web/src/features/board/ListView/ListView.tsx)).
+  ([`apps/web/src/i18n/storage.ts`](../apps/web/src/i18n/storage.ts)), `wally.theme`
+  ([`apps/web/src/lib/theme.tsx`](../apps/web/src/lib/theme.tsx)) and a list-view hint flag
+  ([`apps/web/src/features/board/ListView/ListView.tsx`](../apps/web/src/features/board/ListView/ListView.tsx)).
   All three are strictly functional.
 
 ### Who can see what
 
 A board member sees the **email address and display name of every other member** of that
 board, including invitees who have not signed up — see `toMemberDto`
-([`apps/api/src/lib/dto.ts:156`](apps/api/src/lib/dto.ts:156)) and `ownerMemberDto`
-([`apps/api/src/lib/dto.ts:183`](apps/api/src/lib/dto.ts:183)). This is necessary for the
+([`apps/api/src/lib/dto.ts`](../apps/api/src/lib/dto.ts)) and `ownerMemberDto`
+(same file). This is necessary for the
 assignee picker and is not a defect, but it is a disclosure that belongs in the privacy
 notice (GAP-03).
 
@@ -141,13 +141,13 @@ regression is visible as a change to a named file.
 ### Data residency stays in the EU
 
 Firestore is `europe-west3` (Frankfurt) and everything else `europe-west1` (Belgium) —
-[`docs/DEPLOY.md:117`](docs/DEPLOY.md:117) and [`docs/DEPLOY.md:74`](docs/DEPLOY.md:74). No
+[`DEPLOY.md`, Which database this project actually uses](DEPLOY.md#which-database-this-project-actually-uses) and [`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout). No
 third-country transfer to assess under Chapter V, and `DEPLOY.md` already warns that a
 database's location is permanent. _(Art. 44 ff.)_
 
 ### No third-party processors beyond Google
 
-[`apps/web/package.json`](apps/web/package.json) carries no analytics, tag manager, error
+[`apps/web/package.json`](../apps/web/package.json) carries no analytics, tag manager, error
 reporter or session recorder. Google is the sole processor, which keeps Art. 28 to a single
 relationship. _(Art. 28)_
 
@@ -159,52 +159,56 @@ necessary for a service the user explicitly asked for — outside the consent re
 
 ### The database is closed to direct client access
 
-[`firestore.rules`](firestore.rules) denies every read and write. The web app holds no
+[`firestore.rules`](../firestore.rules) denies every read and write. The web app holds no
 Firestore client; every request passes the API's role checks in
-[`apps/api/src/lib/authorization.ts`](apps/api/src/lib/authorization.ts). The rules file says
+[`apps/api/src/lib/authorization.ts`](../apps/api/src/lib/authorization.ts). The rules file says
 in its own comment that this is the intended posture, not a placeholder. _(Art. 32(1)(b))_
 
 ### Privilege decisions keyed on email require a verified address
 
 An invite can only be claimed once Firebase confirms the caller controls the address —
-[`apps/api/src/plugins/auth.ts:231`](apps/api/src/plugins/auth.ts:231), with the reasoning
+the `emailVerified` check before `activatePendingInvitesForEmail` in
+[`apps/api/src/plugins/auth.ts`](../apps/api/src/plugins/auth.ts), with the reasoning
 recorded on `UserDoc.emailVerified`. Without it, anyone could claim a colleague's pending
 invite by typing their address at signup. This is a real unauthorised-disclosure control.
 _(Art. 32(1)(b))_
 
 ### Share tokens are not guessable
 
-24 cryptographically random bytes — [`apps/api/src/lib/tokens.ts:5`](apps/api/src/lib/tokens.ts:5).
+24 cryptographically random bytes — `generateShareToken` in
+[`apps/api/src/lib/tokens.ts`](../apps/api/src/lib/tokens.ts).
 _(Art. 32)_
 
 ### Deleting a note removes everything under it
 
-`recursiveDelete` takes the subtasks and history subcollections with it —
-[`apps/api/src/routes/notes.ts:352`](apps/api/src/routes/notes.ts:352). No orphaned history
+`recursiveDelete` takes the subtasks and history subcollections with it — the `note.delete` and
+`board.delete` cleanup in `drainCleanupJob`,
+[`apps/api/src/lib/commands/maintenance.ts`](../apps/api/src/lib/commands/maintenance.ts). No orphaned history
 rows pointing at a person. _(Art. 17(1))_
 
 ### Removing a member releases their assignments
 
 Their notes fall back to unassigned, but only once they have genuinely lost all access —
-[`apps/api/src/routes/members.ts:170`](apps/api/src/routes/members.ts:170). _(Art. 5(1)(c))_
+the `member.remove` cleanup in `drainCleanupJob`,
+[`apps/api/src/lib/commands/maintenance.ts`](../apps/api/src/lib/commands/maintenance.ts). _(Art. 5(1)(c))_
 A removed member's private notes are kept, hidden from everyone, and become visible to them again if they rejoin. They are deleted with the rest of the account once account deletion (GAP-01) exists.
 
 ### Browser locale is not used as an ongoing tracking signal
 
 `Accept-Language` is read once, at provisioning, and never again — the reasoning is on
-[`apps/api/src/lib/language.ts`](apps/api/src/lib/language.ts) and the property is
+[`apps/api/src/lib/language.ts`](../apps/api/src/lib/language.ts) and the property is
 grep-verifiable. _(Art. 5(1)(c))_
 
 ### Rate limiting is keyed on identity, not IP
 
-[`apps/api/src/app.ts:93`](apps/api/src/app.ts:93) keys on the authenticated user id and only
+The rate limiter's `keyGenerator` in [`apps/api/src/app.ts`](../apps/api/src/app.ts) keys on the authenticated user id and only
 falls back to `request.ip` for unauthenticated requests, so no per-IP profile is built for
 signed-in users. _(Art. 5(1)(c))_
 
 ### Secrets are not committed
 
 `.env` and `.env.*` are ignored, `.env.example` carries no values
-([`.gitignore`](.gitignore)). Service-account keys never enter git. _(Art. 32)_
+([`.gitignore`](../.gitignore)). Service-account keys never enter git. _(Art. 32)_
 
 ---
 
@@ -249,7 +253,7 @@ across the repo, excluding tooling). Users are told nothing about what is stored
 long, or on what basis.
 
 **Plan.** The text is the controller's to write (§8). The code side is: a route and a link in
-the account menu, in **both DE and EN** per [`docs/SPEC.md`](docs/SPEC.md) §12, and a link on
+the account menu, in **both DE and EN** per [`docs/SPEC.md`](SPEC.md) §12, and a link on
 the sign-in screen — which is the one surface an unauthenticated person sees. Must state the
 member-visibility disclosure from §2.
 
@@ -272,7 +276,7 @@ carries infrastructure work, not just a query.
 
 ### GAP-05 — Request logs contain IP addresses, unredacted and unbounded · **Medium** · Art. 5(1)(c), (e)
 
-[`apps/api/src/app.ts:38`](apps/api/src/app.ts:38) enables Fastify's logger with no `redact`
+`buildApp` in [`apps/api/src/app.ts`](../apps/api/src/app.ts) enables Fastify's logger with no `redact`
 configuration, so the default serializers write `remoteAddress` — a personal datum — into
 Cloud Logging, which keeps `_Default` entries for 30 days unless the bucket says otherwise.
 Authorization headers are not logged by default, but nothing in the config guarantees that
@@ -286,7 +290,7 @@ say so in the privacy notice.
 ### GAP-06 — Share links never expire and are not auditable · **Medium** · Art. 5(1)(e), 32
 
 `ShareLinkDoc` has no expiry field and no usage record
-([`apps/api/src/lib/db/types.ts`](apps/api/src/lib/db/types.ts)). A link handed out once grants
+([`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts)). A link handed out once grants
 access until someone remembers to revoke it, and nobody can tell who redeemed it. The token
 itself is strong; the lifecycle around it is not.
 
@@ -307,11 +311,12 @@ addresses is permitted at all.
 ### GAP-08 — Note history is per-person activity data · **Medium** · Art. 5(1)(b) · **and see §8**
 
 Every history event records `actorId` and `occurredAt`
-([`apps/api/src/routes/notes.ts:175`](apps/api/src/routes/notes.ts:175) and
-[`:259`](apps/api/src/routes/notes.ts:259)). Only `CREATED` and `MOVED` exist today
-([`packages/shared/src/enums.ts:77`](packages/shared/src/enums.ts:77)), so the trail is
+(both history writes in `executeNoteCommand`,
+[`apps/api/src/lib/commands/notes.ts`](../apps/api/src/lib/commands/notes.ts)). Only `CREATED` and `MOVED` exist today
+(`noteHistoryEventTypeValues` in
+[`packages/shared/src/enums.ts`](../packages/shared/src/enums.ts)), so the trail is
 narrow — but it is still a timestamped record of who did what, retained forever, and
-[`docs/SPEC.md`](docs/SPEC.md) §10 justifies it only as "informational".
+[`docs/SPEC.md`](SPEC.md) §10 justifies it only as "informational".
 
 **Plan.** State the purpose explicitly in the spec and the privacy notice; apply the
 retention from GAP-04; and treat any new event type as a change that needs re-assessment
@@ -447,7 +452,7 @@ systematic monitoring of a public area. Write the _assessment_ down anyway — a
 ### ORG-06 — Breach procedure · Art. 33, 34
 
 72 hours to notify the supervisory authority. There is no CI pipeline and deployment is
-manual ([`README.md`](README.md)), so it is worth writing down who notices an incident, who
+manual ([`README.md`](../README.md)), so it is worth writing down who notices an incident, who
 decides, and who reports.
 
 ### ORG-07 — Add Wally to the record of processing · Art. 30
@@ -465,16 +470,16 @@ the change is reviewable and the mistake is not repeated.
 
 What was changed:
 
-| Area                                                                                                                                                                                                                                                                               | What changed                                                                                                                                                                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`README.md:3`](README.md:3)                                                                                                                                                                                                                                                       | Dropped "built for …" from the opening sentence                                                                                                                                                                                                                             |
-| [`docs/SPEC.md:103`](docs/SPEC.md:103)                                                                                                                                                                                                                                             | The superseded-design note now says "a surrounding host platform"                                                                                                                                                                                                           |
-| [`docs/SPEC.md`](docs/SPEC.md) §13                                                                                                                                                                                                                                                 | Was "Platform Integration", requiring integration with that company's platform. Rewritten as **§13 Identity**: Wally is standalone, users and authentication come from Firebase Authentication, permissions are Wally's own. The heading was kept so §14 does not renumber. |
-| [`packages/shared/src/enums.ts:32`](packages/shared/src/enums.ts:32), [`ColorSwatchPicker.tsx:16`](apps/web/src/features/board/NoteDetail/ColorSwatchPicker.tsx:16), [`tailwind.config.ts:4`](apps/web/tailwind.config.ts:4), [`globals.css:6`](apps/web/src/styles/globals.css:6) | Design-token attributions reworded to "the design system". The apricot rationale — functional accents only, never decoration — is preserved verbatim; only the company name went.                                                                                           |
-| [`apps/web/src/i18n/de.ts`](apps/web/src/i18n/de.ts), [`en.ts`](apps/web/src/i18n/en.ts)                                                                                                                                                                                           | **User-visible.** The invite field's placeholder read `name@<company>.de` in both catalogues; now `name@example.com`.                                                                                                                                                       |
-| [`apps/api/src/seed.ts`](apps/api/src/seed.ts)                                                                                                                                                                                                                                     | Four seeded people replaced with invented names on `@example.com` — see GAP-10                                                                                                                                                                                              |
-| 14 test files across api and web                                                                                                                                                                                                                                                   | Every fixture, mock and assertion address moved to `@example.com`, preserving the deliberate case variations that exercise email normalisation (`INVITEE@EXAMPLE.COM`, `INVITEE@Example.com`)                                                                               |
-| [`apps/web/e2e/README.md`](apps/web/e2e/README.md), [`share.spec.ts`](apps/web/e2e/share.spec.ts)                                                                                                                                                                                  | E2E account placeholder and the generated invite address                                                                                                                                                                                                                    |
+| Area                                                                                                                                                                                                                                                                       | What changed                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`README.md`](../README.md), opening sentence                                                                                                                                                                                                                              | Dropped "built for …" from the opening sentence                                                                                                                                                                                                                             |
+| [`SPEC.md` §5](SPEC.md#5-notes)                                                                                                                                                                                                                                            | The superseded-design note now says "a surrounding host platform"                                                                                                                                                                                                           |
+| [`docs/SPEC.md`](SPEC.md) §13                                                                                                                                                                                                                                              | Was "Platform Integration", requiring integration with that company's platform. Rewritten as **§13 Identity**: Wally is standalone, users and authentication come from Firebase Authentication, permissions are Wally's own. The heading was kept so §14 does not renumber. |
+| [`packages/shared/src/enums.ts`](../packages/shared/src/enums.ts), [`ColorSwatchPicker.tsx`](../apps/web/src/features/board/NoteDetail/ColorSwatchPicker.tsx), [`tailwind.config.ts`](../apps/web/tailwind.config.ts), [`globals.css`](../apps/web/src/styles/globals.css) | Design-token attributions reworded to "the design system". The apricot rationale — functional accents only, never decoration — is preserved verbatim; only the company name went.                                                                                           |
+| [`apps/web/src/i18n/de.ts`](../apps/web/src/i18n/de.ts), [`en.ts`](../apps/web/src/i18n/en.ts)                                                                                                                                                                             | **User-visible.** The invite field's placeholder read `name@<company>.de` in both catalogues; now `name@example.com`.                                                                                                                                                       |
+| [`apps/api/src/seed.ts`](../apps/api/src/seed.ts)                                                                                                                                                                                                                          | Four seeded people replaced with invented names on `@example.com` — see GAP-10                                                                                                                                                                                              |
+| 14 test files across api and web                                                                                                                                                                                                                                           | Every fixture, mock and assertion address moved to `@example.com`, preserving the deliberate case variations that exercise email normalisation (`INVITEE@EXAMPLE.COM`, `INVITEE@Example.com`)                                                                               |
+| [`apps/web/e2e/README.md`](../apps/web/e2e/README.md), [`share.spec.ts`](../apps/web/e2e/share.spec.ts)                                                                                                                                                                    | E2E account placeholder and the generated invite address                                                                                                                                                                                                                    |
 
 Verified after the change: `grep -ri` over the working tree returns nothing, all 106 web
 unit tests pass, and all three packages typecheck clean. The API integration suite needs the
