@@ -8,6 +8,7 @@ import {
 } from '@wally/shared';
 import { notesCol, shareLinksCol, whiteboardsCol, withId } from '../db/collections.js';
 import { AppError } from '../errors.js';
+import type { NoteDoc, WithId } from '../db/types.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
 import { canSeeNote } from '../notes.js';
 import { executeNoteCommand } from './notes.js';
@@ -29,11 +30,25 @@ function canonical(value: unknown): string {
       .join(',')}}`;
   return JSON.stringify(value);
 }
-function rolesFor(command: BoardCommand): EffectiveRole[] {
-  if (command.type === 'link.redeem') return ['OWNER', 'EDIT', 'VIEW'];
-  return command.type.startsWith('note.') || command.type.startsWith('subtask.')
-    ? ['OWNER', 'EDIT']
-    : ['OWNER'];
+const ANY_ROLE: EffectiveRole[] = ['OWNER', 'EDIT', 'VIEW'];
+const EDITORS: EffectiveRole[] = ['OWNER', 'EDIT'];
+
+/**
+ * Who may run `command`. A member's own private note is theirs whatever their board role,
+ * so a VIEW member can keep private notes. Changing who sees a note is the exception: it
+ * adds to or removes from what the shared board shows, so it always needs EDIT or OWNER.
+ */
+function rolesFor(
+  command: BoardCommand,
+  note: WithId<NoteDoc> | null,
+  actorId: string,
+): EffectiveRole[] {
+  if (command.type === 'link.redeem') return ANY_ROLE;
+  if (!command.type.startsWith('note.') && !command.type.startsWith('subtask.')) return ['OWNER'];
+  if (command.type === 'note.create')
+    return command.input.visibility === 'PRIVATE' ? ANY_ROLE : EDITORS;
+  if (command.type === 'note.update' && command.input.visibility !== undefined) return EDITORS;
+  return note?.visibility === 'PRIVATE' && note.createdById === actorId ? ANY_ROLE : EDITORS;
 }
 
 /** The emulator can report an aborted query as INVALID_ARGUMENT with a closed
@@ -91,7 +106,8 @@ export async function executeBoardCommand(
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
         const board = withId(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
-        requireAccess(board, actor.id, rolesFor(command));
+        // Receipts written before roles were stored fall back to the note-free rule.
+        requireAccess(board, actor.id, receipt.roles ?? rolesFor(command, null, actor.id));
         if (receipt.fingerprint !== fingerprint)
           throw new AppError(
             409,
@@ -116,9 +132,10 @@ export async function executeBoardCommand(
         notFound();
       const board = withId(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
+      const roles = rolesFor(command, note, actor.id);
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();
-      } else requireAccess(board, actor.id, rolesFor(command));
+      } else requireAccess(board, actor.id, roles);
 
       if (command.type !== 'note.create' && command.type !== 'link.redeem') {
         if (expectedRevision === undefined)
@@ -146,6 +163,7 @@ export async function executeBoardCommand(
       tx.create(receiptRef, {
         fingerprint,
         boardId,
+        roles,
         result,
         createdAt: Timestamp.now(),
         expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),

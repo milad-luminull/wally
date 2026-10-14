@@ -13,6 +13,7 @@ import { toNoteDto, toSubtaskDto } from '../dto.js';
 import {
   applyFieldChanges,
   applyTagChanges,
+  assertPrivateAssignee,
   assertValidAssignee,
   computeMoveUpdate,
   isValidAssignee,
@@ -57,12 +58,15 @@ export async function executeNoteCommand(
     let note: NoteDoc;
     if (command.type === 'note.create') {
       const body = command.input;
-      assertValidAssignee(board, body.assigneeId ?? null);
+      const isPrivate = body.visibility === 'PRIVATE';
+      if (isPrivate) {
+        if (body.assigneeId != null) assertPrivateAssignee(actor.id, body.assigneeId);
+      } else assertValidAssignee(board, body.assigneeId ?? null);
       note = {
         ...body,
         whiteboardId: board.id,
         dueDate: body.dueDate ?? null,
-        assigneeId: body.assigneeId ?? null,
+        assigneeId: isPrivate ? actor.id : (body.assigneeId ?? null),
         status: 'OPEN',
         completedAt: null,
         createdById: actor.id,
@@ -75,7 +79,14 @@ export async function executeNoteCommand(
       note = {
         ...stripId(source!),
         ...command.input,
-        assigneeId: isValidAssignee(board, source!.assigneeId) ? source!.assigneeId : null,
+        visibility: source!.visibility ?? 'SHARED',
+        // Only the creator can reach a private source, so the copy is theirs too.
+        assigneeId:
+          source!.visibility === 'PRIVATE'
+            ? actor.id
+            : isValidAssignee(board, source!.assigneeId)
+              ? source!.assigneeId
+              : null,
         status: 'OPEN',
         completedAt: null,
         createdById: actor.id,
@@ -175,9 +186,14 @@ export async function executeNoteCommand(
   let moveMetadata: Record<string, unknown> | undefined;
   switch (command.type) {
     case 'note.update': {
-      const { fieldChanges, tagChanges, ...fields } = command.input;
+      const { fieldChanges, tagChanges, visibility, ...fields } = command.input;
+      if (visibility !== undefined && note.createdById !== actor.id)
+        throw new AppError(403, 'FORBIDDEN', 'Only the creator can change who sees a note');
       changes = {
         ...fields,
+        ...(visibility !== undefined ? { visibility } : {}),
+        // Same change set, so one revision, receipt and rollback cover both fields.
+        ...(visibility === 'PRIVATE' ? { assigneeId: actor.id } : {}),
         ...(fieldChanges
           ? { customFields: applyFieldChanges(note.customFields ?? {}, fieldChanges) }
           : {}),
@@ -192,7 +208,9 @@ export async function executeNoteCommand(
       break;
     }
     case 'note.assign':
-      assertValidAssignee(board, command.input.assigneeId);
+      if (note.visibility === 'PRIVATE')
+        assertPrivateAssignee(note.createdById, command.input.assigneeId);
+      else assertValidAssignee(board, command.input.assigneeId);
       changes = { assigneeId: command.input.assigneeId };
       break;
     case 'note.complete':
