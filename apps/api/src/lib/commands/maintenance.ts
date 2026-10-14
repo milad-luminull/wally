@@ -53,7 +53,16 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
     const board = (await boardRef.get()).data();
     if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');
     const notes = await notesCol(db).where('whiteboardId', '==', job.boardId).get();
-    for (const row of notes.docs) await db.recursiveDelete(row.ref);
+    // One BulkWriter for every note: batched, parallel deletes instead of one round trip per
+    // note, so a large board does not hold the DELETE request open for long. Every deletion is
+    // attempted before a failure is reported; the job stays and a rerun finishes the rest.
+    const writer = db.bulkWriter();
+    const results = await Promise.allSettled(
+      notes.docs.map((row) => db.recursiveDelete(row.ref, writer)),
+    );
+    await writer.close();
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
     // Takes the members subcollection with the board document.
     await db.recursiveDelete(boardRef);
   } else throw new Error('Unknown cleanup kind');

@@ -152,6 +152,41 @@ describe('board.delete', () => {
     expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
   });
 
+  it('deletes a board with many notes, and a rerun finishes what a failure left', async () => {
+    const owner = ctx.authHeader(fx.ownerToken);
+    const ids: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const note = (
+        await ctx.inject({
+          method: 'POST',
+          url: `/whiteboards/${fx.boardId}/notes`,
+          headers: owner,
+          payload: { title: `Notiz ${i}` },
+        })
+      ).json();
+      ids.push(note.id);
+      if (i % 3 === 0)
+        await ctx.inject({
+          method: 'POST',
+          url: `/notes/${note.id}/subtasks`,
+          headers: owner,
+          payload: { text: 'Teil' },
+        });
+    }
+    // One note's deletion fails; the others go through.
+    vi.spyOn(ctx.db, 'recursiveDelete').mockRejectedValueOnce(new Error('interrupted'));
+    expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
+    expect((await ctx.db.collection('boardCleanup').get()).size).toBe(1);
+    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(true);
+
+    expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
+    const left = await notesCol(ctx.db).where('whiteboardId', '==', fx.boardId).get();
+    expect(left.size).toBe(0);
+    for (const id of ids)
+      expect((await notesCol(ctx.db).doc(id).collection('subtasks').get()).size).toBe(0);
+    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+  });
+
   it('refuses a stale revision and answers a retry after completion with 404', async () => {
     const key = randomUUID();
     await ctx.inject({

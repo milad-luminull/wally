@@ -44,7 +44,10 @@ concurrent rename cannot turn it into a conflict the member cannot resolve; it r
 `boardCleanup` holds note deletion, member-removal and board deletion jobs without TTL. A
 tombstoned note is hidden before physical recursive deletion. A tombstoned board (`deletedAt`,
 read through `liveWhiteboard`) is absent for every query, command and access check from the
-commit on; its job deletes the notes recursively, then the board with its members. A replay
+commit on; its job deletes every note recursively through one `BulkWriter`, in parallel, then the
+board with its members. The job runs inside the DELETE request, so a board with many notes
+takes correspondingly longer to answer; the board is hidden from the commit on either way, and
+a request that times out leaves the job for a retry or maintenance to finish. A replay
 of `board.delete` or `board.leave` after it succeeded answers 404, because the board or the
 membership no longer exists for the caller. A retry or maintenance run resumes outstanding
 work. Assignment cleanup reads each candidate again with current board access, preserving
