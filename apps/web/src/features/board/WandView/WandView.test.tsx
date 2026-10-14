@@ -14,7 +14,8 @@ vi.mock('@/features/auth/AuthProvider', async () => {
   return { ...actual, useAuth: () => ({ status: 'unauthenticated', user: null }) };
 });
 
-vi.mock('@/lib/resources', () => ({
+vi.mock('@/lib/resources', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/resources')>()),
   notesApi: { create: vi.fn(), list: vi.fn(), move: vi.fn() },
   meApi: { get: vi.fn(), update: vi.fn() },
 }));
@@ -100,6 +101,17 @@ describe('WandView: every create path sends the note’s visibility', () => {
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
         expect.objectContaining({ visibility: 'SHARED', horizon: 'HEUTE' }),
+      );
+    });
+
+    it('sends SHARED from a double-click on a zone', async () => {
+      renderWall('priority', owner);
+      await userEvent.dblClick(screen.getByRole('region', { name: /^Hoch/ }));
+
+      await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
+      expect(notesApi.create).toHaveBeenCalledWith(
+        'board-1',
+        expect.objectContaining({ visibility: 'SHARED', priority: 'HOCH' }),
       );
     });
 

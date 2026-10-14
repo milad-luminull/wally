@@ -237,6 +237,13 @@ describe('private notes: writes', () => {
     });
     expect(refused.statusCode).toBe(403);
     expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).data()!.done).toBe(false);
+    const refusedDelete = await ctx.inject({
+      method: 'DELETE',
+      url: `/notes/${shared.id}/subtasks/${sharedSub.id}`,
+      headers: as(fx.viewToken),
+    });
+    expect(refusedDelete.statusCode).toBe(403);
+    expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).exists).toBe(true);
   });
 
   it('never lets a viewer change who sees a note', async () => {
