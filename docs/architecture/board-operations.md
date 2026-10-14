@@ -5,13 +5,13 @@ return authorized snapshots. `routes/boards.ts` supplies authenticated identity 
 HTTP, while `packages/shared/src/schemas/command.ts` defines strict application inputs.
 Future tools must invoke these functions, never the underlying mutation helpers or Firestore.
 
-| Aggregate                  | Commands                                                                     | Permission                             | Expected revision                         |
-| -------------------------- | ---------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------- |
-| New note                   | `note.create`                                                                | EDIT or OWNER; any role if private     | None                                      |
-| Existing note and subtasks | update, move, assign, complete, reopen, delete; subtask create/update/delete | EDIT or OWNER; any role if own private | Parent note                               |
-| Copy                       | `note.duplicate`                                                             | EDIT or OWNER; any role if own private | Source note; source revision is unchanged |
-| Board administration       | rename; member invite/update/delete; link create/update/rotate/delete        | OWNER                                  | Board                                     |
-| Share redemption           | `link.redeem`                                                                | Authenticated holder of current token  | None                                      |
+| Aggregate                  | Commands                                                                     | Permission                                                           | Expected revision                         |
+| -------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- |
+| New note                   | `note.create`                                                                | EDIT or OWNER; any role if private                                   | None                                      |
+| Existing note and subtasks | update, move, assign, complete, reopen, delete; subtask create/update/delete | EDIT or OWNER; any role if own private, except changing `visibility` | Parent note                               |
+| Copy                       | `note.duplicate`                                                             | EDIT or OWNER; any role if own private                               | Source note; source revision is unchanged |
+| Board administration       | rename; member invite/update/delete; link create/update/rotate/delete        | OWNER                                                                | Board                                     |
+| Share redemption           | `link.redeem`                                                                | Authenticated holder of current token                                | None                                      |
 
 A member's own private note accepts every note and subtask command from OWNER, EDIT or VIEW, and any member may create a note with `visibility: PRIVATE`; creating a shared note still needs EDIT or OWNER. Changing a note's `visibility`, in either direction, requires EDIT or OWNER and being its creator. Another member's private note answers 404 on reads and commands, before any role check. A private note can be assigned only to its creator. Receipts store the roles that authorized them, and replay re-checks the caller's current role against that set.
 
