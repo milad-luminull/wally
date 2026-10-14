@@ -291,7 +291,7 @@ days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). 
 Cloud Run job is the natural home — there is no scheduler in the stack yet, so this gap
 carries infrastructure work, not just a query.
 
-### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket of unconfirmed location · **Medium** · Art. 5(1)(c), (e), 44
+### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44
 
 The API's own log no longer records who called it (§3, "The API's request log names no
 caller"; fixed in `df717400`, pinned by a test). What is left is outside the code, in Google
@@ -317,12 +317,15 @@ Cloud.
 - The rate limiter keys requests without a signed-in user by IP address, in process memory, per
   instance, for its one-minute window; it stores and logs nothing (`buildApp`).
 
-**Not verified first-hand:** the `luminull-wally` project's own bucket location and retention,
-and whether Hosting logs are linked. The first is read-only to check:
+**Checked on the project, 2026-10-14:** `luminull-wally`'s `_Default` bucket is
+`projects/luminull-wally/locations/global/buckets/_Default`, with `retentionDays: 30` — so
+request logs with client IP addresses are kept 30 days, in the `global` location:
 
 ```bash
 gcloud logging buckets describe _Default --location=global --project=luminull-wally
 ```
+
+**Not verified first-hand:** whether Firebase Hosting request logs are linked to Cloud Logging.
 
 **Plan.** These are project settings for whoever deploys, in this order, not code changes.
 
