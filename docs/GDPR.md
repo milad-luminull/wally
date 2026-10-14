@@ -291,7 +291,7 @@ days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). 
 Cloud Run job is the natural home — there is no scheduler in the stack yet, so this gap
 carries infrastructure work, not just a query.
 
-### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44
+### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44 · **deferred**
 
 The API's own log no longer records who called it (§3, "The API's request log names no
 caller"; fixed in `df717400`, pinned by a test). What is left is outside the code, in Google
@@ -326,6 +326,17 @@ gcloud logging buckets describe _Default --location=global --project=luminull-wa
 ```
 
 **Not verified first-hand:** whether Firebase Hosting request logs are linked to Cloud Logging.
+
+**Deferred** by the controller on 2026-10-14, to be done later. Until then, Cloud Run's request
+logs, with client IP addresses, are kept 30 days in the `global` bucket. Nothing else in this
+document waits on it.
+
+**Cost:** none extra. Cloud Logging charges for logs stored (the first 50 GiB per project and
+month are free) and for retention beyond 30 days, the same for the `_Default` bucket and
+user-defined ones; excluded logs are never stored, so step 1 lowers the volume, and step 2
+keeps the free 30 days ([Observability pricing](https://cloud.google.com/products/observability/pricing),
+[estimating bills](https://docs.cloud.google.com/stackdriver/estimating-bills)). The pricing
+page only renders in a browser; its figures were read from Google's search listing.
 
 **Plan.** These are project settings for whoever deploys, in this order, not code changes.
 
@@ -445,21 +456,22 @@ These block implementation. They are product and legal calls, not engineering on
 Ordered by dependency, not by severity — §6 and the notice gate the rest, and the retention
 job needs a scheduler that does not exist yet.
 
-| #     | Item                                   | Gap            | Depends on        |
-| ----- | -------------------------------------- | -------------- | ----------------- |
-| 1     | Answer the four decisions              | —              | §6                |
-| 2     | Platform request log and EU log bucket | GAP-05         | —                 |
-| 3     | Data export endpoint                   | GAP-02         | —                 |
-| 4     | Account deletion                       | GAP-01         | 1                 |
-| 5     | Share-link expiry                      | GAP-06         | —                 |
-| 6     | Retention job + invite expiry          | GAP-04, GAP-07 | 1, scheduler      |
-| 7     | Privacy notice route, DE + EN          | GAP-03         | controller's text |
-| 8     | History purpose in spec + notice       | GAP-08         | —                 |
-| ~~9~~ | ~~Seed data cleanup~~ — **done**       | GAP-10         | —                 |
-| 10    | TOM register                           | GAP-09         | —                 |
+| #     | Item                                                  | Gap            | Depends on        |
+| ----- | ----------------------------------------------------- | -------------- | ----------------- |
+| 1     | Answer the four decisions                             | —              | §6                |
+| 2     | Platform request log and EU log bucket — **deferred** | GAP-05         | —                 |
+| 3     | Data export endpoint                                  | GAP-02         | —                 |
+| 4     | Account deletion                                      | GAP-01         | 1                 |
+| 5     | Share-link expiry                                     | GAP-06         | —                 |
+| 6     | Retention job + invite expiry                         | GAP-04, GAP-07 | 1, scheduler      |
+| 7     | Privacy notice route, DE + EN                         | GAP-03         | controller's text |
+| 8     | History purpose in spec + notice                      | GAP-08         | —                 |
+| ~~9~~ | ~~Seed data cleanup~~ — **done**                      | GAP-10         | —                 |
+| 10    | TOM register                                          | GAP-09         | —                 |
 
-Items 2, 3 and 5 have no external dependency and can start immediately. Item 2 is the
-smallest: the API's own log is already clean, and what remains is two `gcloud` commands. Item 9 is done.
+Items 2, 3 and 5 have no external dependency. Items 3 and 5 can start immediately; item 2 is
+deferred (GAP-05) and, when picked up, is three `gcloud` commands with no code change and no
+extra cost. Item 9 is done.
 
 > The API integration tests run against the Firestore emulator and were not run for the §9
 > cleanup — the working tree currently also carries unrelated in-flight CI and tooling
@@ -471,7 +483,7 @@ smallest: the API's own log is already clean, and what remains is two `gcloud` c
 - [ ] GAP-02 Data export (Art. 15, 20)
 - [ ] GAP-03 Privacy notice (Art. 13)
 - [ ] GAP-04 Retention policy (Art. 5(1)(e))
-- [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — the API's own log is done
+- [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done
 - [ ] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
 - [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14)
 - [ ] GAP-08 History purpose (Art. 5(1)(b))
