@@ -788,6 +788,7 @@ pushes to `main`, in four parallel jobs:
 | **Typecheck & build**        | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
 | **Unit & integration tests** | The Vitest suites, with a Firestore emulator started by `firebase emulators:exec` so CI reads this repo's own `firebase.json`.                                     |
 | **E2E (full stack)**         | Playwright against a real `docker compose` stack.                                                                                                                  |
+| **Detect docs-only changes** | Whether a pull request changes anything besides `*.md` files and `docs/`. Only the E2E job reads it.                                                               |
 
 ### Two things about the E2E job that are easy to get wrong
 
@@ -801,6 +802,14 @@ is disposable. Production only ever gets read-only smoke checks.
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
 nothing. The workflow parses Playwright's JSON report and fails if any test reported
 `skipped`, if fewer than six executed, or if fewer than two projects produced results.
+
+### Documentation-only pull requests
+
+When every file a pull request changes is a `*.md` file or sits under `docs/`, the E2E job is
+skipped and `E2E gate` passes, saying why. Everything else still runs, so Markdown is still
+format-checked. Pushes to `main` always run E2E, because the release workflow requires `main`'s
+full CI run before it deploys. The reasoning is in
+[ADR-0012](adr/0012-skip-e2e-on-documentation-only-pull-requests.md).
 
 ### Pull requests from forks
 
