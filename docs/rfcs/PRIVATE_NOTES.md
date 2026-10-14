@@ -1,7 +1,6 @@
 # Private notes — requirements
 
-**Status:** proposal, not yet approved. Decisions already taken are in §3; nothing is left
-open for "later".
+**Status:** accepted and built on 2026-10-14. `SPEC.md` §5a is the reference; this file keeps the reasoning (§3, §4, §10).
 **Last revised:** 2026-10-14.
 
 Read next to [`SPEC.md`](../SPEC.md) (the accepted product requirements this extends) and

@@ -5,13 +5,15 @@ return authorized snapshots. `routes/boards.ts` supplies authenticated identity 
 HTTP, while `packages/shared/src/schemas/command.ts` defines strict application inputs.
 Future tools must invoke these functions, never the underlying mutation helpers or Firestore.
 
-| Aggregate                  | Commands                                                                     | Permission                            | Expected revision                         |
-| -------------------------- | ---------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------- |
-| New note                   | `note.create`                                                                | EDIT or OWNER                         | None                                      |
-| Existing note and subtasks | update, move, assign, complete, reopen, delete; subtask create/update/delete | EDIT or OWNER                         | Parent note                               |
-| Copy                       | `note.duplicate`                                                             | EDIT or OWNER                         | Source note; source revision is unchanged |
-| Board administration       | rename; member invite/update/delete; link create/update/rotate/delete        | OWNER                                 | Board                                     |
-| Share redemption           | `link.redeem`                                                                | Authenticated holder of current token | None                                      |
+| Aggregate                  | Commands                                                                     | Permission                             | Expected revision                         |
+| -------------------------- | ---------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------- |
+| New note                   | `note.create`                                                                | EDIT or OWNER; any role if private     | None                                      |
+| Existing note and subtasks | update, move, assign, complete, reopen, delete; subtask create/update/delete | EDIT or OWNER; any role if own private | Parent note                               |
+| Copy                       | `note.duplicate`                                                             | EDIT or OWNER; any role if own private | Source note; source revision is unchanged |
+| Board administration       | rename; member invite/update/delete; link create/update/rotate/delete        | OWNER                                  | Board                                     |
+| Share redemption           | `link.redeem`                                                                | Authenticated holder of current token  | None                                      |
+
+A member's own private note accepts every note and subtask command from OWNER, EDIT or VIEW, and any member may create a note with `visibility: PRIVATE`; creating a shared note still needs EDIT or OWNER. Changing a note's `visibility`, in either direction, requires EDIT or OWNER and being its creator. Another member's private note answers 404 on reads and commands, before any role check. A private note can be assigned only to its creator. Receipts store the roles that authorized them, and replay re-checks the caller's current role against that set.
 
 Every command requires a UUID `Idempotency-Key`. Existing aggregates also require a
 nonnegative integer `X-Expected-Revision`. Successful writes, including 204, return
@@ -20,7 +22,7 @@ reads return the matching board revision in the header. These headers are expose
 New records start at one, legacy records at zero. No-op writes can keep their revision.
 
 The existing `{ error, message }` envelope includes `409 STALE_REVISION`,
-`409 IDEMPOTENCY_KEY_REUSED` and `428 PRECONDITION_REQUIRED`. A stale write applies nothing.
+`409 IDEMPOTENCY_KEY_REUSED`, `422 PRIVATE_NOTE_NOT_ASSIGNABLE` and `428 PRECONDITION_REQUIRED`. A stale write applies nothing.
 The client must preserve the proposed change, display current data, and submit reviewed
 changes as a new operation against the exact reviewed revision. Merely fetching a later
 revision must never silently rebase an old draft. Note creation and intentional independent
