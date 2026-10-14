@@ -1,4 +1,5 @@
-import type { BoardCommand, WhiteboardRole } from '@wally/shared';
+import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import { MAX_OWN_BOARDS, type BoardCommand, type WhiteboardRole } from '@wally/shared';
 import {
   docsWithId,
   isEmailVerified,
@@ -11,12 +12,18 @@ import {
   whiteboardsCol,
   withId,
 } from '../db/collections.js';
-import type { MemberDoc, WithId } from '../db/types.js';
+import type { MemberDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { ownerMemberDto, toMemberDto, toShareLinkDto, toWhiteboardDto } from '../dto.js';
 import { AppError } from '../errors.js';
 import { strongestRole } from '../members.js';
 import { generateShareToken } from '../tokens.js';
-import { notFound, revisionOf, type CommandContext, type CommandResult } from './context.js';
+import {
+  notFound,
+  revisionOf,
+  type Actor,
+  type CommandContext,
+  type CommandResult,
+} from './context.js';
 
 export function rolesFromMembers(
   rows: WithId<MemberDoc>[],
@@ -30,6 +37,41 @@ export function rolesFromMembers(
         row.role,
       ])!;
   return roles;
+}
+
+/**
+ * board.create has no board to authorize against: any signed-in user may create one, up to
+ * MAX_OWN_BOARDS live boards (RFC BOARD_HOME §8, §12.4). The owned-board query runs inside the
+ * command transaction so the count and the write commit together. New boards get generated
+ * ids; only the first board, provisioned with the user record, shares the user's uid.
+ */
+export async function createBoard(
+  db: Firestore,
+  tx: Transaction,
+  actor: Actor,
+  name: string,
+): Promise<CommandResult> {
+  const owned = docsWithId(await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)));
+  if (owned.filter((board) => !board.deletedAt).length >= MAX_OWN_BOARDS)
+    throw new AppError(422, 'BOARD_LIMIT_REACHED', `You can own at most ${MAX_OWN_BOARDS} boards`);
+  const ref = whiteboardsCol(db).doc();
+  const timestamp = now();
+  const doc: WhiteboardDoc = {
+    name,
+    ownerId: actor.id,
+    revision: 1,
+    memberRoles: {},
+    shareLinkToken: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  tx.create(ref, doc);
+  return {
+    data: toWhiteboardDto({ ...doc, id: ref.id }, 'OWNER'),
+    revision: 1,
+    status: 201,
+    boardId: ref.id,
+  };
 }
 
 export async function executeAdminCommand(

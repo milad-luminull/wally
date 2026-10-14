@@ -82,6 +82,14 @@ export default async function boardRoutes(app: FastifyInstance) {
       type: 'subtask.delete',
       status: 204,
     },
+    // No per-route limit: MAX_OWN_BOARDS bounds it, and the global limit still applies.
+    {
+      method: 'POST',
+      url: '/whiteboards',
+      type: 'board.create',
+      response: whiteboardDtoSchema,
+      status: 201,
+    },
     {
       method: 'PATCH',
       url: '/whiteboards/:id',
@@ -146,11 +154,13 @@ export default async function boardRoutes(app: FastifyInstance) {
       },
       handler: async (request, reply) => {
         const target =
-          route.type === 'link.redeem'
-            ? { token: request.params.token }
-            : route.url.startsWith('/notes/')
-              ? { noteId: request.params.id }
-              : { boardId: request.params.id };
+          route.type === 'board.create'
+            ? {}
+            : route.type === 'link.redeem'
+              ? { token: request.params.token }
+              : route.url.startsWith('/notes/')
+                ? { noteId: request.params.id }
+                : { boardId: request.params.id };
         const result = await executeBoardCommand(
           request.server.db,
           request.user,

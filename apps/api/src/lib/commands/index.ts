@@ -16,7 +16,7 @@ import {
 import { AppError } from '../errors.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
 import { executeNoteCommand } from './notes.js';
-import { executeAdminCommand } from './administration.js';
+import { createBoard, executeAdminCommand } from './administration.js';
 import { drainCleanupJob } from './maintenance.js';
 
 export type { Actor, CommandResult } from './context.js';
@@ -91,6 +91,14 @@ export async function executeBoardCommand(
     .doc(operationId);
   try {
     const { result, replayed } = await runCommandTransaction(db, async (tx) => {
+      const writeReceipt = (boardId: string, result: CommandResult) =>
+        tx.create(receiptRef, {
+          fingerprint,
+          boardId,
+          result,
+          createdAt: Timestamp.now(),
+          expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
+        });
       const receipt = (await tx.get(receiptRef)).data();
       // A committed deletion no longer has a target. Receipts carry its board so we can
       // re-authorize BEFORE replaying, without depending on the deleted document.
@@ -104,6 +112,14 @@ export async function executeBoardCommand(
             'Operation ID was already used for different input',
           );
         return { result: receipt.result as CommandResult, replayed: true };
+      }
+
+      // The only command with no existing board to resolve, authorize or check a revision on.
+      // Its receipt names the new board, so a replay re-authorizes the caller as its owner.
+      if (command.type === 'board.create') {
+        const result = await createBoard(db, tx, actor, command.input.name);
+        writeReceipt(result.boardId, result);
+        return { result, replayed: false };
       }
 
       const note =
@@ -146,13 +162,7 @@ export async function executeBoardCommand(
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
           ? await executeNoteCommand(context, command)
           : await executeAdminCommand(context, command);
-      tx.create(receiptRef, {
-        fingerprint,
-        boardId,
-        result,
-        createdAt: Timestamp.now(),
-        expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
-      });
+      writeReceipt(boardId, result);
       return { result, replayed: false };
     });
     options.logger?.info({
