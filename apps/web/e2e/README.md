@@ -25,3 +25,7 @@ No more." — they intentionally don't chase edge cases; that's what the Vitest 
 `boards.spec.ts` creates a board named `E2E <timestamp>` on the test account and deletes it
 again; an `afterEach` removes any `E2E …` board a failed run left behind, because a second
 board makes sign-in land on the board home instead of the board.
+
+Do not rename the test account's first board. It must stay "Meine Wand": when sign-in lands on
+the board home, `signIn()` in `support.ts` opens the board by that name, and every spec
+works on it.

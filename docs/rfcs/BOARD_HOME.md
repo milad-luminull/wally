@@ -360,6 +360,10 @@ Cons, and what is done about them:
   and a resumable cleanup that cannot strand content.
 - Users with one board now see a switcher popover they did not have before. Accepted: it
   is the only discoverable path to "New board" on desktop short of visiting the home.
+- `board.create` has no per-route rate limit (a deviation from §12.1). A script can create and
+  delete boards up to the global limit of 300 requests a minute, each deletion enqueuing a
+  cleanup job. Accepted: `MAX_OWN_BOARDS` caps what exists at any time, cleanup is idempotent,
+  and a per-route bucket can be added if abuse shows up.
 
 ## 14. Non-goals
 
