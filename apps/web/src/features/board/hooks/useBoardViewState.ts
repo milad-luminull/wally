@@ -32,6 +32,7 @@ export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
   done: true,
   mine: false,
   priority: [],
+  visibility: 'all',
 };
 
 /** The URL params that carry a remembered setting — dropped once it is saved. */
@@ -111,6 +112,7 @@ export function useBoardViewState(boardId: string) {
         done: state.done,
         mine: state.mine,
         priority: state.priority,
+        visibility: DEFAULT_BOARD_PREFERENCES.visibility,
         ...change,
       };
       savePreferences({ boards: { [boardId]: next } });

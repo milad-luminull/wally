@@ -220,8 +220,16 @@ describe('/me', () => {
       done: false,
       mine: true,
       priority: ['HOCH'],
+      visibility: 'all',
     } as const;
-    const WALL_FREE = { view: 'wand', axis: 'free', done: true, mine: false, priority: [] };
+    const WALL_FREE = {
+      view: 'wand',
+      axis: 'free',
+      done: true,
+      mine: false,
+      priority: [],
+      visibility: 'all',
+    };
 
     function patch(token: string, payload: unknown) {
       return ctx.inject({

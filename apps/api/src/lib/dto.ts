@@ -114,6 +114,7 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
     customFields: note.customFields ?? {},
     tags: note.tags,
     colour: note.colour,
+    visibility: note.visibility ?? 'SHARED',
     subtaskSummary: note.subtaskSummary,
     createdBy: lookup(users, note.createdById),
     createdAt: toIso(note.createdAt),

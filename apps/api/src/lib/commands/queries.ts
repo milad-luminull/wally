@@ -21,6 +21,7 @@ import {
   toShareLinkDto,
   toWhiteboardDto,
 } from '../dto.js';
+import { canSeeNote } from '../notes.js';
 import { requireAccess, notFound, revisionOf, type Actor } from './context.js';
 
 function byDueDateThenCreated(a: WithId<NoteDoc>, b: WithId<NoteDoc>): number {
@@ -84,7 +85,7 @@ export async function listNotes(db: Firestore, actor: Actor, boardId: string, ra
       await boardSnapshot(db, tx, actor, boardId);
       let notes = docsWithId(
         await tx.get(notesCol(db).where('whiteboardId', '==', boardId)),
-      ).filter((n) => !n.deletedAt);
+      ).filter((n) => !n.deletedAt && canSeeNote(n, actor.id));
       if (query.status !== 'ALL') notes = notes.filter((n) => n.status === query.status);
       if (query.priority?.length) {
         notes = notes.filter((n) => query.priority!.includes(n.priority));
@@ -93,6 +94,8 @@ export async function listNotes(db: Firestore, actor: Actor, boardId: string, ra
         notes = notes.filter((n) => query.horizon!.includes(n.horizon));
       }
       if (query.assignedToMe) notes = notes.filter((n) => n.assigneeId === actor.id);
+      if (query.visibility)
+        notes = notes.filter((n) => (n.visibility ?? 'SHARED') === query.visibility);
 
       if (query.q) {
         const needle = query.q.toLowerCase();
@@ -146,7 +149,12 @@ export async function getNote(
   return db.runTransaction(
     async (tx) => {
       const note = withId(await tx.get(notesCol(db).doc(noteId)));
-      if (!note || note.deletedAt || (expectedBoardId && note.whiteboardId !== expectedBoardId))
+      if (
+        !note ||
+        note.deletedAt ||
+        !canSeeNote(note, actor.id) ||
+        (expectedBoardId && note.whiteboardId !== expectedBoardId)
+      )
         notFound();
       await boardSnapshot(db, tx, actor, note.whiteboardId);
       const tasks = docsWithId(await tx.get(subtasksCol(db, noteId)));

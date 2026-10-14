@@ -25,6 +25,7 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
     customFields: input.customFields ?? {},
     tags: input.tags ?? [],
     colour: input.colour ?? 'WEISS',
+    visibility: input.visibility ?? 'SHARED',
     subtaskSummary: { done: 0, total: 0 },
     createdBy: null,
     createdAt: now,

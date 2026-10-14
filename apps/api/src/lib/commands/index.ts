@@ -9,6 +9,7 @@ import {
 import { notesCol, shareLinksCol, whiteboardsCol, withId } from '../db/collections.js';
 import { AppError } from '../errors.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
+import { canSeeNote } from '../notes.js';
 import { executeNoteCommand } from './notes.js';
 import { executeAdminCommand } from './administration.js';
 import { drainCleanupJob } from './maintenance.js';
@@ -103,6 +104,8 @@ export async function executeBoardCommand(
       const note =
         'noteId' in command ? withId(await tx.get(notesCol(db).doc(command.noteId))) : null;
       if ('noteId' in command && (!note || note.deletedAt)) notFound();
+      // Before any role check, so a non-creator learns nothing from a private note's id.
+      if (note && !canSeeNote(note, actor.id)) notFound();
       const link =
         command.type === 'link.redeem'
           ? withId(await tx.get(shareLinksCol(db).doc(command.token)))

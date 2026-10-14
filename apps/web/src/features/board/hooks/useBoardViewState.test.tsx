@@ -29,7 +29,14 @@ const PROFILE: MeDto = {
   preferences: {
     ...DEFAULT_PREFERENCES,
     boards: {
-      b1: { view: 'list', axis: 'priority', done: false, mine: true, priority: ['HOCH'] },
+      b1: {
+        view: 'list',
+        axis: 'priority',
+        done: false,
+        mine: true,
+        priority: ['HOCH'],
+        visibility: 'all',
+      },
     },
   },
 };
@@ -109,6 +116,7 @@ describe('useBoardViewState', () => {
       done: false,
       mine: true,
       priority: ['HOCH'],
+      visibility: 'all',
     });
     expect(result.current.location.search).toBe('?q=report');
     expect(result.current.view.axis).toBe('free');
@@ -121,7 +129,16 @@ describe('useBoardViewState', () => {
     });
     expect(meApi.updatePreferences).toHaveBeenCalledTimes(1);
     expect(meApi.updatePreferences).toHaveBeenCalledWith({
-      boards: { b1: { view: 'wand', axis: 'free', done: true, mine: true, priority: ['HOCH'] } },
+      boards: {
+        b1: {
+          view: 'wand',
+          axis: 'free',
+          done: true,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'all',
+        },
+      },
     });
   });
 
