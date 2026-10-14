@@ -6,6 +6,7 @@ import type {
   NoteColour,
   NoteHorizon,
   NotePriority,
+  NoteVisibility,
   WhiteboardRole,
 } from '@wally/shared';
 
@@ -59,6 +60,10 @@ export function enumLabels(t: T) {
       EDIT: t('enums.effectiveRole.EDIT'),
       VIEW: t('enums.effectiveRole.VIEW'),
     } satisfies Record<EffectiveRole, string>,
+    visibility: {
+      PRIVATE: t('enums.visibility.PRIVATE'),
+      SHARED: t('enums.visibility.SHARED'),
+    } satisfies Record<NoteVisibility, string>,
   };
 }
 

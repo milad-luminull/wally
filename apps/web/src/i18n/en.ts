@@ -475,5 +475,9 @@ export const en = {
       EDIT: 'Can edit',
       VIEW: 'Can view',
     },
+    visibility: {
+      PRIVATE: 'Private',
+      SHARED: 'Everyone',
+    },
   },
 } as const;

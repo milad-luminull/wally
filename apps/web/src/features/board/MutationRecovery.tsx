@@ -67,7 +67,7 @@ function ChangeValues({ value, field }: { value: unknown; field?: string }) {
   }
   const category = field === 'role' ? 'effectiveRole' : field;
   const label =
-    category && ['effectiveRole', 'colour', 'horizon', 'priority'].includes(category)
+    category && ['effectiveRole', 'colour', 'horizon', 'priority', 'visibility'].includes(category)
       ? t(`enums.${category}.${value}` as MessageKey, { defaultValue: String(value) })
       : field === 'status'
         ? t(`safety.status.${value}` as MessageKey, { defaultValue: String(value) })

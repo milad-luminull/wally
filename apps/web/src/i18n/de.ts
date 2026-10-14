@@ -502,5 +502,9 @@ export const de = {
       EDIT: 'Bearbeiten',
       VIEW: 'Ansehen',
     },
+    visibility: {
+      PRIVATE: 'Privat',
+      SHARED: 'Für alle',
+    },
   },
 } as const;
