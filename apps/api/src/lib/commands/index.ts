@@ -6,11 +6,17 @@ import {
   type BoardCommand,
   type EffectiveRole,
 } from '@wally/shared';
-import { notesCol, shareLinksCol, whiteboardsCol, withId } from '../db/collections.js';
+import {
+  liveWhiteboard,
+  notesCol,
+  shareLinksCol,
+  whiteboardsCol,
+  withId,
+} from '../db/collections.js';
 import { AppError } from '../errors.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
 import { executeNoteCommand } from './notes.js';
-import { executeAdminCommand } from './administration.js';
+import { createBoard, executeAdminCommand } from './administration.js';
 import { drainCleanupJob } from './maintenance.js';
 
 export type { Actor, CommandResult } from './context.js';
@@ -30,6 +36,8 @@ function canonical(value: unknown): string {
 }
 function rolesFor(command: BoardCommand): EffectiveRole[] {
   if (command.type === 'link.redeem') return ['OWNER', 'EDIT', 'VIEW'];
+  // A member leaves; the owner cannot (they delete instead), so OWNER is a 403 here.
+  if (command.type === 'board.leave') return ['EDIT', 'VIEW'];
   return command.type.startsWith('note.') || command.type.startsWith('subtask.')
     ? ['OWNER', 'EDIT']
     : ['OWNER'];
@@ -85,11 +93,19 @@ export async function executeBoardCommand(
     .doc(operationId);
   try {
     const { result, replayed } = await runCommandTransaction(db, async (tx) => {
+      const writeReceipt = (boardId: string, result: CommandResult) =>
+        tx.create(receiptRef, {
+          fingerprint,
+          boardId,
+          result,
+          createdAt: Timestamp.now(),
+          expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
+        });
       const receipt = (await tx.get(receiptRef)).data();
       // A committed deletion no longer has a target. Receipts carry its board so we can
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
-        const board = withId(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
+        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
         requireAccess(board, actor.id, rolesFor(command));
         if (receipt.fingerprint !== fingerprint)
           throw new AppError(
@@ -98,6 +114,14 @@ export async function executeBoardCommand(
             'Operation ID was already used for different input',
           );
         return { result: receipt.result as CommandResult, replayed: true };
+      }
+
+      // The only command with no existing board to resolve, authorize or check a revision on.
+      // Its receipt names the new board, so a replay re-authorizes the caller as its owner.
+      if (command.type === 'board.create') {
+        const result = await createBoard(db, tx, actor, command.input.name);
+        writeReceipt(result.boardId, result);
+        return { result, replayed: false };
       }
 
       const note =
@@ -111,13 +135,19 @@ export async function executeBoardCommand(
         note?.whiteboardId ?? ('boardId' in command ? command.boardId : link?.whiteboardId);
       if (!boardId || ('boardId' in command && command.boardId && command.boardId !== boardId))
         notFound();
-      const board = withId(await tx.get(whiteboardsCol(db).doc(boardId)));
+      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();
       } else requireAccess(board, actor.id, rolesFor(command));
 
-      if (command.type !== 'note.create' && command.type !== 'link.redeem') {
+      // board.leave states a fact about the caller, not an edit of the board: a concurrent
+      // rename by the owner must not turn it into a 409 the member cannot resolve.
+      if (
+        command.type !== 'note.create' &&
+        command.type !== 'link.redeem' &&
+        command.type !== 'board.leave'
+      ) {
         if (expectedRevision === undefined)
           throw new AppError(428, 'PRECONDITION_REQUIRED', 'Expected revision is required');
         if (expectedRevision !== revisionOf(note ?? board))
@@ -140,13 +170,7 @@ export async function executeBoardCommand(
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
           ? await executeNoteCommand(context, command)
           : await executeAdminCommand(context, command);
-      tx.create(receiptRef, {
-        fingerprint,
-        boardId,
-        result,
-        createdAt: Timestamp.now(),
-        expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
-      });
+      writeReceipt(boardId, result);
       return { result, replayed: false };
     });
     options.logger?.info({

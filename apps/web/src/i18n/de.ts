@@ -42,8 +42,11 @@ export const de = {
       subtask: 'Teilaufgabe ändern',
       member: 'Mitgliedschaft ändern',
       shareLink: 'Freigabelink ändern',
+      deleteBoard: 'Wand löschen',
+      leaveBoard: 'Wand verlassen',
     },
     fields: {
+      change: 'Änderung',
       assignee: 'Zuständig',
       status: 'Status',
       subtasks: 'Teilaufgaben',
@@ -238,8 +241,10 @@ export const de = {
     },
     switcher: {
       ownRole: 'Deine Wand',
+      all: 'Alle Wände',
     },
     topBar: {
+      home: 'Zu deinen Wänden',
       axis: {
         ariaLabel: 'Organisation',
         horizon: { label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
@@ -383,10 +388,51 @@ export const de = {
       remove: '{{tag}} entfernen',
     },
   },
+  /** The board home at /boards (RFC BOARD_HOME §7–§10). */
+  home: {
+    title: 'Deine Wände',
+    shared: 'Mit dir geteilt',
+    continue: 'Weitermachen',
+    open: '{{name}} öffnen',
+    openShared: '{{name}} öffnen, {{role}}',
+    rowMenu: 'Optionen für {{name}}',
+    newBoard: 'Neue Wand',
+    empty: {
+      title: 'Noch keine Wände',
+      hint: 'Lege eine an, um Notizen zu platzieren.',
+    },
+    create: {
+      title: 'Neue Wand',
+      nameLabel: 'Name',
+      submit: 'Anlegen',
+      limitReached: 'Du hast die Grenze von {{max}} Wänden erreicht.',
+      failed: 'Die Wand konnte nicht angelegt werden. Bitte versuche es noch einmal.',
+    },
+    delete: {
+      action: 'Wand löschen',
+      title: '„{{name}}“ löschen?',
+      body_one:
+        'Das entfernt die Wand, ihre {{count}} Notiz und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      body_other:
+        'Das entfernt die Wand, ihre {{count}} Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      bodyCounting:
+        'Das entfernt die Wand, ihre Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      confirm: 'Wand löschen',
+    },
+    leave: {
+      action: 'Wand verlassen',
+      title: '„{{name}}“ verlassen?',
+      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Deine Zuweisungen auf dieser Wand werden aufgehoben.',
+      confirm: 'Wand verlassen',
+    },
+  },
   routes: {
+    home: {
+      loadFailed: 'Deine Wände konnten nicht geladen werden.',
+    },
     login: {
       title: 'Willkommen zurück',
-      subtitle: 'Melde dich an, um deine Wand zu sehen.',
+      subtitle: 'Melde dich an, um deine Wände zu sehen.',
     },
     signup: {
       title: 'Konto erstellen',
@@ -395,12 +441,7 @@ export const de = {
     notFound: {
       title: 'Diese Seite gibt es nicht',
       body: 'Der Link ist vermutlich veraltet, oder die Wand wurde inzwischen gelöscht.',
-      action: 'Zurück zur Wand',
-    },
-    root: {
-      loadFailed: 'Deine Wand konnte nicht geladen werden.',
-      noBoardTitle: 'Keine Wand gefunden.',
-      noBoardBody: 'Bitte wende dich an den Support.',
+      action: 'Zurück zu deinen Wänden',
     },
     redeem: {
       gone: {
@@ -417,7 +458,7 @@ export const de = {
         title: 'Einen Moment',
         subtitle: 'Du wirst gerade zur Wand hinzugefügt.',
       },
-      toBoard: 'Zu deiner Wand',
+      toBoard: 'Zu deinen Wänden',
     },
     board: {
       loadFailed: 'Die Wand konnte nicht geladen werden.',

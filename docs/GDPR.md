@@ -67,6 +67,19 @@ file must be kept in step — a new personal-data field is a change to both.
 | `invitedEmail`                               | Yes — **and it may belong to someone who has no account** | See GAP-07                           |
 | `role`, `status`, `invitedAt`, `activatedAt` | Yes, indirectly                                           | Reveals when a person joined a board |
 
+### Boards — `whiteboards/{id}`
+
+| Field                     | Personal data                                 | Deleted when                                                             |
+| ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `name`                    | Possibly — free text the owner typed          | The owner deletes the board (`board.delete`)                             |
+| `ownerId`, `memberRoles`  | Yes, pseudonymous                             | The owner deletes the board; a `memberRoles` key when that member leaves |
+| `createdAt` / `updatedAt` | Yes, indirectly                               | The owner deletes the board                                              |
+| `deletedAt`               | No — marks a board whose cleanup is under way | With the board document, when its cleanup job finishes                   |
+
+Deleting a board removes its notes (with their subtasks and history), its members and its
+share link; the board reads as absent from the commit on, and a durable cleanup job finishes
+the physical deletion.
+
 `whiteboards/{id}.memberRoles` is a denormalised `uid -> role` cache of the same facts. Any
 erasure work has to clear both, in one transaction — the invariant is already documented on
 `WhiteboardDoc.memberRoles` and enforced in [`apps/api/src/lib/members.ts`](apps/api/src/lib/members.ts).
@@ -195,9 +208,9 @@ signed-in users. _(Art. 5(1)(c))_
 
 ### GAP-01 — No way to delete an account or its data · **High** · Art. 17
 
-No `DELETE /me`, and no delete route for a whiteboard at all — the only deletions are notes,
-subtasks, members and share links (`grep 'app.delete' apps/api/src/routes`). A departing
-employee's `users/{uid}` document, their board, their `createdById` and `assigneeId`
+No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
+can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
+employee's `users/{uid}` document, any board they did not delete, their `createdById` and `assigneeId`
 references and their `history.actorId` entries persist forever. Firebase Auth holds a second
 copy of the identity that is independent of Firestore.
 

@@ -112,9 +112,15 @@ async function request<T>(
   const method = options.method ?? 'GET';
   const resource = resourceForPath(path);
   const isBoardMutation =
-    method !== 'GET' && (resource !== undefined || path.startsWith('/share-links/'));
+    method !== 'GET' &&
+    (resource !== undefined || path.startsWith('/share-links/') || path === '/whiteboards');
   const createsNote = method === 'POST' && /^\/whiteboards\/[^/]+\/notes$/.test(path);
   const redeemsLink = path.startsWith('/share-links/');
+  // Account-level board operations (RFC BOARD_HOME §12.1). Create and leave never carry a
+  // revision; delete carries the board's.
+  const createsBoard = method === 'POST' && path === '/whiteboards';
+  const deletesBoard = method === 'DELETE' && /^\/whiteboards\/[^/]+$/.test(path);
+  const leavesBoard = method === 'POST' && /^\/whiteboards\/[^/]+\/leave$/.test(path);
 
   const perform = async (metadata?: OperationMetadata): Promise<{ data: T; revision: number }> => {
     const doFetch = async (forceRefresh: boolean) => {
@@ -129,7 +135,13 @@ async function request<T>(
       if (encodedBody !== undefined) headers['Content-Type'] = 'application/json';
       if (metadata) {
         headers['Idempotency-Key'] = metadata.operationId;
-        if (metadata.expectedRevision !== undefined && !createsNote && !redeemsLink)
+        if (
+          metadata.expectedRevision !== undefined &&
+          !createsNote &&
+          !redeemsLink &&
+          !createsBoard &&
+          !leavesBoard
+        )
           headers['X-Expected-Revision'] = String(metadata.expectedRevision);
       }
       return fetch(buildUrl(path, options.query), { method, headers, body: encodedBody, signal });
@@ -137,6 +149,10 @@ async function request<T>(
     let res = await doFetch(false);
     if (res.status === 401) res = await doFetch(true);
     assertCurrentSession(generation);
+    // A board that is already gone (deleted from another tab, membership already removed, or
+    // the retry of a request that did succeed) is the end state delete and leave ask for.
+    if (res.status === 404 && (deletesBoard || leavesBoard))
+      return { data: undefined as T, revision: metadata?.expectedRevision ?? 0 };
     if (!res.ok) {
       let body: unknown = null;
       try {
@@ -166,9 +182,13 @@ async function request<T>(
   if (!isBoardMutation) return (await perform()).data;
   const ticket =
     options.ticket ??
-    captureMutation(createsNote || redeemsLink ? `create:${crypto.randomUUID()}` : resource!, {
-      advance: !path.endsWith('/duplicate'),
-    });
+    captureMutation(
+      createsNote || redeemsLink || createsBoard ? `create:${crypto.randomUUID()}` : resource!,
+      { advance: !path.endsWith('/duplicate') },
+    );
+  // Create carries no draft to recover, and the dialog shows its own error: no lane, no
+  // unsaved-changes entry. It keeps the ticket's operation id, so a retry replays.
+  if (createsBoard) return (await perform({ operationId: ticket.operationId })).data;
   const boardPath = `/whiteboards/${resource?.slice(6)}`;
   const reviewPath = resource?.startsWith('note:')
     ? `/notes/${resource.slice(5)}`
@@ -186,19 +206,23 @@ async function request<T>(
           ? 'member'
           : path.includes('/share-link')
             ? 'shareLink'
-            : method === 'DELETE'
-              ? 'delete'
-              : path.endsWith('/move')
-                ? 'move'
-                : path.endsWith('/assign')
-                  ? 'assign'
-                  : path.endsWith('/complete')
-                    ? 'complete'
-                    : path.endsWith('/reopen')
-                      ? 'reopen'
-                      : createsNote
-                        ? 'create'
-                        : 'update',
+            : deletesBoard
+              ? 'deleteBoard'
+              : leavesBoard
+                ? 'leaveBoard'
+                : method === 'DELETE'
+                  ? 'delete'
+                  : path.endsWith('/move')
+                    ? 'move'
+                    : path.endsWith('/assign')
+                      ? 'assign'
+                      : path.endsWith('/complete')
+                        ? 'complete'
+                        : path.endsWith('/reopen')
+                          ? 'reopen'
+                          : createsNote
+                            ? 'create'
+                            : 'update',
     input: options.body ?? {},
     loadLatest: async () => {
       assertCurrentSession(generation);
@@ -206,6 +230,8 @@ async function request<T>(
       try {
         data = await request<unknown>(reviewPath);
       } catch (error) {
+        if (error instanceof ApiError && error.status === 404 && (deletesBoard || leavesBoard))
+          return { data: null, revision: 0 };
         if (!(
           error instanceof ApiError &&
           error.status === 404 &&
@@ -228,6 +254,21 @@ async function request<T>(
           proposed: {
             name: member?.displayName ?? member?.email ?? i18n.t('safety.missingTarget'),
             ...input,
+          },
+        };
+      }
+      if (deletesBoard || leavesBoard) {
+        // Delete and leave send no body; name the board and the change so the review says what
+        // is about to happen rather than showing an empty proposal.
+        const board = data as { name?: string } | null;
+        return {
+          data,
+          revision,
+          proposed: {
+            name: board?.name ?? i18n.t('safety.missingTarget'),
+            change: i18n.t(
+              deletesBoard ? 'safety.actions.deleteBoard' : 'safety.actions.leaveBoard',
+            ),
           },
         };
       }
