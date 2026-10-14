@@ -377,8 +377,6 @@ export const en = {
     },
     root: {
       loadFailed: 'Your board could not be loaded.',
-      noBoardTitle: 'No board found.',
-      noBoardBody: 'Please get in touch with support.',
     },
     redeem: {
       gone: {

@@ -399,8 +399,6 @@ export const de = {
     },
     root: {
       loadFailed: 'Deine Wand konnte nicht geladen werden.',
-      noBoardTitle: 'Keine Wand gefunden.',
-      noBoardBody: 'Bitte wende dich an den Support.',
     },
     redeem: {
       gone: {
