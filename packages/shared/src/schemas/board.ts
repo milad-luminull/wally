@@ -7,6 +7,10 @@ export const whiteboardRenameSchema = z.object({
 });
 export type WhiteboardRenameInput = z.infer<typeof whiteboardRenameSchema>;
 
+/** Same rule as rename: one trimmed, non-empty name. Kept separate so the two can diverge. */
+export const whiteboardCreateSchema = whiteboardRenameSchema;
+export type WhiteboardCreateInput = z.infer<typeof whiteboardCreateSchema>;
+
 export const whiteboardDtoSchema = z.object({
   revision: z.number().int().nonnegative(),
   id: z.string(),

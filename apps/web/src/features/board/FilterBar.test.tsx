@@ -12,6 +12,7 @@ function baseView(overrides: Partial<BoardViewState> = {}): BoardViewState {
     priority: [],
     mine: false,
     done: true,
+    visibility: 'all',
     fieldKey: null,
     fieldValue: null,
     noteId: null,
@@ -31,6 +32,9 @@ describe('FilterBar', () => {
         setDone={vi.fn()}
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
+        setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
+        showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
         isBelowTablet={false}
@@ -57,6 +61,9 @@ describe('FilterBar', () => {
         setDone={vi.fn()}
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
+        setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
+        showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
         isBelowTablet={false}
@@ -75,6 +82,9 @@ describe('FilterBar', () => {
         setDone={vi.fn()}
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
+        setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
+        showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
         isBelowTablet={false}
@@ -96,6 +106,9 @@ describe('FilterBar', () => {
         setDone={setDone}
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
+        setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
+        showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
         isBelowTablet={false}
@@ -119,6 +132,9 @@ describe('FilterBar', () => {
         setDone={vi.fn()}
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
+        setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
+        showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
         isBelowTablet
@@ -128,5 +144,76 @@ describe('FilterBar', () => {
     expect(
       screen.queryByRole('button', { name: 'Nach Priorität Hoch filtern' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('visibility chips', () => {
+    function renderBar(
+      overrides: Partial<BoardViewState> = {},
+      props: { showVisibility?: boolean; isBelowTablet?: boolean; resetFilters?: () => void } = {},
+      setVisibility = vi.fn(),
+    ) {
+      render(
+        <FilterBar
+          view={baseView(overrides)}
+          setQuery={vi.fn()}
+          setPriority={vi.fn()}
+          setMine={vi.fn()}
+          setDone={vi.fn()}
+          setFieldKey={vi.fn()}
+          setFieldValue={vi.fn()}
+          setVisibility={setVisibility}
+          resetFilters={props.resetFilters ?? vi.fn()}
+          showVisibility={props.showVisibility ?? false}
+          fieldKeys={[]}
+          fieldValues={[]}
+          isBelowTablet={props.isBelowTablet ?? false}
+        />,
+      );
+      return setVisibility;
+    }
+
+    it('hides the chips when showVisibility is false', () => {
+      renderBar();
+      expect(screen.queryByRole('radio', { name: 'Nur private' })).not.toBeInTheDocument();
+    });
+
+    it('sets the filter on click', async () => {
+      const setVisibility = renderBar({}, { showVisibility: true });
+      await userEvent.click(screen.getByRole('radio', { name: 'Nur private' }));
+      expect(setVisibility).toHaveBeenCalledWith('private');
+    });
+
+    it('clears the filter when the active chip is clicked again', async () => {
+      const setVisibility = renderBar({ visibility: 'private' }, { showVisibility: true });
+      await userEvent.click(screen.getByRole('radio', { name: 'Nur private' }));
+      expect(setVisibility).toHaveBeenCalledWith('all');
+    });
+
+    it('counts an active visibility filter in the mobile Filter button, and resets it', async () => {
+      const resetFilters = vi.fn();
+      const setVisibility = renderBar(
+        { visibility: 'private' },
+        { showVisibility: true, isBelowTablet: true, resetFilters },
+      );
+      const trigger = screen.getByRole('button', { name: /Filter/ });
+      expect(trigger).toHaveTextContent('1');
+      await userEvent.click(trigger);
+      await userEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
+      // One call that resets every filter together — not a setter per filter, which would
+      // each save over the other.
+      expect(resetFilters).toHaveBeenCalledTimes(1);
+      expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('resets every filter with one call from the inline Reset button', async () => {
+      const resetFilters = vi.fn();
+      const setVisibility = renderBar(
+        { visibility: 'shared', mine: true, done: false, priority: ['HOCH'] },
+        { showVisibility: true, resetFilters },
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Zurücksetzen' }));
+      expect(resetFilters).toHaveBeenCalledTimes(1);
+      expect(setVisibility).not.toHaveBeenCalled();
+    });
   });
 });

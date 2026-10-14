@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { makeNote } from '@/test/fixtures';
+import { boardAccess } from '../util/permissions';
 import { ListView } from './ListView';
+
+const owner = boardAccess('OWNER', 'user-1', 'all');
 
 const notes = [
   makeNote({
@@ -37,7 +40,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -62,7 +65,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -81,7 +84,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -99,7 +102,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -118,7 +121,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -134,7 +137,7 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop={false}
       />,
     );
@@ -150,10 +153,85 @@ describe('ListView', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={owner}
         isBelowDesktop
       />,
     );
     expect(screen.getByText(/Notizen frei verschieben geht am Rechner/)).toBeInTheDocument();
+  });
+
+  describe('as a viewer', () => {
+    const viewer = boardAccess('VIEW', 'me', 'all');
+
+    function renderViewerList(listNotes: typeof notes, totalNoteCount = listNotes.length) {
+      render(
+        <ListView
+          notes={listNotes}
+          totalNoteCount={totalNoteCount}
+          axis="horizon"
+          currentUserId="me"
+          onOpenNote={vi.fn()}
+          onToggleDone={vi.fn()}
+          access={viewer}
+          isBelowDesktop={false}
+        />,
+      );
+    }
+
+    it('can only tick off their own private notes', () => {
+      renderViewerList([
+        makeNote({ id: 'shared', title: 'Geteilte Notiz', visibility: 'SHARED', horizon: 'HEUTE' }),
+        makeNote({
+          id: 'mine',
+          title: 'Meine private Notiz',
+          visibility: 'PRIVATE',
+          createdBy: { id: 'me', displayName: 'Ich', email: 'ich@example.com' },
+          horizon: 'HEUTE',
+        }),
+      ]);
+
+      const checkboxOf = (title: string) =>
+        within(screen.getByText(title).closest('[role="button"]') as HTMLElement).getByRole(
+          'checkbox',
+        );
+      expect(checkboxOf('Geteilte Notiz')).toBeDisabled();
+      expect(checkboxOf('Meine private Notiz')).toBeEnabled();
+    });
+
+    it('explains an empty board with the private-note copy', () => {
+      renderViewerList([], 0);
+      expect(
+        screen.getByText(
+          'Du kannst diese Wand ansehen. Notizen, die du hier anlegst, sind privat.',
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('marks a private row with a lock and leaves the assignee out of its meta line', () => {
+    const me = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
+    render(
+      <ListView
+        notes={[
+          makeNote({ id: 'p1', title: 'Privat-Notiz', visibility: 'PRIVATE', assignee: me }),
+          makeNote({ id: 's1', title: 'Geteilt-Notiz', assignee: me }),
+        ]}
+        totalNoteCount={2}
+        axis="horizon"
+        currentUserId="user-1"
+        onOpenNote={vi.fn()}
+        onToggleDone={vi.fn()}
+        access={owner}
+        isBelowDesktop={false}
+      />,
+    );
+
+    const privateRow = screen.getByText('Privat-Notiz').closest('[role="button"]') as HTMLElement;
+    expect(within(privateRow).getByRole('img', { name: 'Private Notiz' })).toBeInTheDocument();
+    expect(privateRow).not.toHaveTextContent('Du');
+
+    const sharedRow = screen.getByText('Geteilt-Notiz').closest('[role="button"]') as HTMLElement;
+    expect(within(sharedRow).queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+    expect(sharedRow).toHaveTextContent('Du');
   });
 });

@@ -23,7 +23,8 @@ interface WandCanvasProps {
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
   onCreateAt: (x: number, y: number) => void;
-  canEdit: boolean;
+  /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
+  canEditShared: boolean;
   /** True when the board has notes but the active filter hides all of them. */
   filtered: boolean;
   activeDragId: string | null;
@@ -43,13 +44,13 @@ const CANVAS_PATTERN_CLASS: Record<CanvasPattern, string> = {
   none: 'canvas-none',
 };
 
-function emptyStateKeys(filtered: boolean, canEdit: boolean) {
+function emptyStateKeys(filtered: boolean, canEditShared: boolean) {
   if (filtered) {
     return { title: 'board.empty.filtered.title', body: 'board.empty.filtered.body' } as const;
   }
   return {
     title: 'board.empty.free.title',
-    body: canEdit ? 'board.empty.free.canEdit' : 'board.empty.free.readOnly',
+    body: canEditShared ? 'board.empty.free.canEdit' : 'board.empty.free.viewer',
   } as const;
 }
 
@@ -59,18 +60,17 @@ export function WandCanvas({
   selectedNoteId,
   onOpenNote,
   onCreateAt,
-  canEdit,
+  canEditShared,
   filtered,
   activeDragId,
 }: WandCanvasProps) {
   const { t } = useTranslation();
   const { setNodeRef } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
-  const keys = emptyStateKeys(filtered, canEdit);
+  const keys = emptyStateKeys(filtered, canEditShared);
   const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
-    if (!canEdit) return;
     if ((e.target as HTMLElement).closest('[data-note-id]')) return;
     const el = scrollRef.current;
     if (!el) return;

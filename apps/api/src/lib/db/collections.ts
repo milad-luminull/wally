@@ -143,6 +143,18 @@ export function docsWithId<T>(snapshot: QuerySnapshot<T>): WithId<T>[] {
   return snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
 }
 
+/**
+ * A whiteboard read that treats a tombstoned board as missing. Every board read in a query,
+ * command or access check goes through this; only the board.delete cleanup job may see the
+ * tombstone.
+ */
+export function liveWhiteboard(
+  snapshot: DocumentSnapshot<WhiteboardDoc>,
+): WithId<WhiteboardDoc> | null {
+  const board = withId(snapshot);
+  return board && !board.deletedAt ? board : null;
+}
+
 /** Drops the read-side `id` again so a value can be written back as document data. */
 export function stripId<T>(value: WithId<T>): T {
   return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'id')) as T;

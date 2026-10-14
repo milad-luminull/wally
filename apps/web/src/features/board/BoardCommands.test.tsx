@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -31,10 +32,12 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
 
+const PALETTE = isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}';
 const MOD = isMac ? '{Meta>}d{/Meta}' : '{Control>}d{/Control}';
 
 function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> = {}) {
   const onDuplicateNote = vi.fn();
+  const onNewNote = vi.fn();
   renderWithProviders(
     <BoardCommands
       boardId="board-1"
@@ -44,9 +47,10 @@ function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> 
       done={false}
       mine={false}
       isDesktop
-      canEdit
+      newNoteVisibility="SHARED"
+      canDuplicateOpenNote
       noteOpen
-      onNewNote={vi.fn()}
+      onNewNote={onNewNote}
       onDuplicateNote={onDuplicateNote}
       onOpenNote={vi.fn()}
       onCloseNote={vi.fn()}
@@ -58,7 +62,7 @@ function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> 
       {...overrides}
     />,
   );
-  return { onDuplicateNote };
+  return { onDuplicateNote, onNewNote };
 }
 
 describe('BoardCommands', () => {
@@ -76,9 +80,24 @@ describe('BoardCommands', () => {
     expect(closed.onDuplicateNote).not.toHaveBeenCalled();
   });
 
-  it('does nothing for a member who cannot edit', async () => {
-    const viewer = renderCommands({ canEdit: false });
+  it('does not duplicate a note the member cannot edit', async () => {
+    const viewer = renderCommands({ canDuplicateOpenNote: false });
     await userEvent.keyboard(MOD);
     expect(viewer.onDuplicateNote).not.toHaveBeenCalled();
+  });
+
+  it('lets a viewer press n to add a private note, and names it so in the palette', async () => {
+    const { onNewNote } = renderCommands({
+      newNoteVisibility: 'PRIVATE',
+      canDuplicateOpenNote: false,
+    });
+
+    await userEvent.keyboard('n');
+    expect(onNewNote).toHaveBeenCalledTimes(1);
+
+    await userEvent.keyboard(PALETTE);
+    expect(await screen.findByText('Neue private Notiz')).toBeInTheDocument();
+    expect(screen.queryByText('Neue Notiz')).not.toBeInTheDocument();
+    expect(screen.queryByText('Notiz duplizieren')).not.toBeInTheDocument();
   });
 });

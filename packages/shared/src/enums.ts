@@ -65,6 +65,16 @@ export const noteStatusValues = ['OPEN', 'DONE'] as const;
 export const noteStatusSchema = z.enum(noteStatusValues);
 export type NoteStatus = z.infer<typeof noteStatusSchema>;
 
+/** Who sees a note. `PRIVATE` notes are visible to, and always assigned to, their creator. */
+export const noteVisibilityValues = ['SHARED', 'PRIVATE'] as const;
+export const noteVisibilitySchema = z.enum(noteVisibilityValues);
+export type NoteVisibility = z.infer<typeof noteVisibilitySchema>;
+
+/** The board's visibility filter: every note, only your private ones, or none of them. */
+export const boardVisibilityFilterValues = ['all', 'private', 'shared'] as const;
+export const boardVisibilityFilterSchema = z.enum(boardVisibilityFilterValues);
+export type BoardVisibilityFilter = z.infer<typeof boardVisibilityFilterSchema>;
+
 export const whiteboardRoleValues = ['VIEW', 'EDIT'] as const;
 export const whiteboardRoleSchema = z.enum(whiteboardRoleValues);
 export type WhiteboardRole = z.infer<typeof whiteboardRoleSchema>;

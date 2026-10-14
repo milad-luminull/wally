@@ -29,7 +29,14 @@ const PROFILE: MeDto = {
   preferences: {
     ...DEFAULT_PREFERENCES,
     boards: {
-      b1: { view: 'list', axis: 'priority', done: false, mine: true, priority: ['HOCH'] },
+      b1: {
+        view: 'list',
+        axis: 'priority',
+        done: false,
+        mine: true,
+        priority: ['HOCH'],
+        visibility: 'all',
+      },
     },
   },
 };
@@ -109,6 +116,7 @@ describe('useBoardViewState', () => {
       done: false,
       mine: true,
       priority: ['HOCH'],
+      visibility: 'all',
     });
     expect(result.current.location.search).toBe('?q=report');
     expect(result.current.view.axis).toBe('free');
@@ -121,7 +129,16 @@ describe('useBoardViewState', () => {
     });
     expect(meApi.updatePreferences).toHaveBeenCalledTimes(1);
     expect(meApi.updatePreferences).toHaveBeenCalledWith({
-      boards: { b1: { view: 'wand', axis: 'free', done: true, mine: true, priority: ['HOCH'] } },
+      boards: {
+        b1: {
+          view: 'wand',
+          axis: 'free',
+          done: true,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'all',
+        },
+      },
     });
   });
 
@@ -138,6 +155,51 @@ describe('useBoardViewState', () => {
     expect(meApi.updatePreferences).toHaveBeenCalledWith({ boards: { b1: null } });
   });
 
+  it('reset filters saves all four filter defaults in one payload and clears the property filter', async () => {
+    // Every filter non-default: done, mine and priority from the saved profile, visibility
+    // and the property filter from the URL.
+    const { result, queryClient } = setup(
+      '/boards/b1?visibility=private&field=Kunde&fieldValue=ACME&q=report',
+    );
+    expect(result.current.view).toMatchObject({
+      done: false,
+      mine: true,
+      priority: ['HOCH'],
+      visibility: 'private',
+      fieldKey: 'Kunde',
+    });
+
+    act(() => result.current.view.resetFilters());
+
+    const expected = {
+      view: 'list',
+      axis: 'priority',
+      done: true,
+      mine: false,
+      priority: [],
+      visibility: 'all',
+    };
+    expect(queryClient.getQueryData<MeDto>(queryKeys.profile())?.preferences.boards.b1).toEqual(
+      expected,
+    );
+    expect(result.current.view).toMatchObject({
+      done: true,
+      mine: false,
+      priority: [],
+      visibility: 'all',
+      fieldKey: null,
+      fieldValue: null,
+      q: 'report',
+    });
+    expect(result.current.location.search).toBe('?q=report');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledTimes(1);
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({ boards: { b1: expected } });
+  });
+
   it('clears the property value together with its key', () => {
     const { result } = setup('/boards/b1?field=Kunde&fieldValue=ACME');
 
@@ -145,5 +207,79 @@ describe('useBoardViewState', () => {
 
     expect(result.current.view.fieldKey).toBe('Phase');
     expect(result.current.view.fieldValue).toBeNull();
+  });
+
+  it('reads a visibility filter from the URL without saving it', () => {
+    const { result } = setup('/boards/b1?visibility=private');
+
+    expect(result.current.view.visibility).toBe('private');
+    expect(meApi.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unknown visibility param', () => {
+    const { result } = setup('/boards/b1?visibility=bogus');
+
+    expect(result.current.view.visibility).toBe('all');
+  });
+
+  it('saves the visibility filter and drops its URL param', async () => {
+    const { result } = setup('/boards/b1?visibility=private&q=report');
+
+    act(() => result.current.view.setVisibility('shared'));
+
+    expect(result.current.location.search).toBe('?q=report');
+    expect(result.current.view.visibility).toBe('shared');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({
+      boards: {
+        b1: {
+          view: 'list',
+          axis: 'priority',
+          done: false,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'shared',
+        },
+      },
+    });
+  });
+
+  it('keeps the visibility filter when another remembered setting changes', async () => {
+    const { result } = setup('/boards/b1?visibility=private');
+
+    act(() => result.current.view.setDone(true));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({
+      boards: {
+        b1: {
+          view: 'list',
+          axis: 'priority',
+          done: true,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'private',
+        },
+      },
+    });
+  });
+
+  it('counts a visibility filter as a customized view and reset clears it', () => {
+    const { result } = setup('/boards/b1?visibility=private');
+    expect(result.current.view.isCustomized).toBe(true);
+
+    act(() => result.current.view.resetView());
+
+    expect(result.current.view.visibility).toBe('all');
+    expect(result.current.location.search).toBe('');
+  });
+
+  it('is not customized on a default visibility', () => {
+    const { result } = setup('/boards/b2');
+    expect(result.current.view.isCustomized).toBe(false);
   });
 });

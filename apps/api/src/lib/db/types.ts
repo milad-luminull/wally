@@ -9,6 +9,7 @@ import type {
   NoteHorizon,
   NotePriority,
   NoteStatus,
+  NoteVisibility,
   ThemePreference,
   WhiteboardRole,
 } from '@wally/shared';
@@ -67,6 +68,11 @@ export type StoredPreferences = {
 
 export type WhiteboardDoc = {
   revision?: number;
+  /**
+   * Set by board.delete. From that moment the board reads as absent for everyone — read it
+   * through liveWhiteboard(), never withId(), except in the cleanup job that finishes it.
+   */
+  deletedAt?: Timestamp;
   name: string;
   ownerId: string;
   /**
@@ -115,6 +121,9 @@ export type NoteDoc = {
   /** Free-form key/value properties. See packages/shared's customFieldsSchema. */
   customFields: Record<string, string>;
   colour: NoteColour;
+  /** Missing on notes written before private notes existed; read it as `'SHARED'`.
+   *  Invariant: `'PRIVATE'` implies `createdById !== null && assigneeId === createdById`. */
+  visibility?: NoteVisibility;
   createdById: string | null;
   /**
    * Denormalized count of this note's subtasks. NoteDto carries it for every note in a

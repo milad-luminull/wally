@@ -2,10 +2,11 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Columns3, List, Plus, Command, RotateCcw, SlidersHorizontal } from 'lucide-react';
-import type { NoteDto, WhiteboardDto } from '@wally/shared';
+import type { NoteDto, NoteVisibility, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Link } from 'react-router';
 import { BrandMark } from '@/components/BrandMark';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
@@ -67,7 +68,8 @@ interface TopBarProps {
   axis: BoardAxis;
   isDesktop: boolean;
   isBelowTablet: boolean;
-  canEdit: boolean;
+  /** What the New button would create — viewers, and "Only private", add private notes. */
+  newNoteVisibility: NoteVisibility;
   isOwner: boolean;
   /** The view differs from the defaults, so "Reset view" has something to do. */
   isCustomized: boolean;
@@ -151,7 +153,7 @@ export function TopBar({
   axis,
   isDesktop,
   isBelowTablet,
-  canEdit,
+  newNoteVisibility,
   isOwner,
   isCustomized,
   onSetView,
@@ -160,6 +162,9 @@ export function TopBar({
   onNewNote,
 }: TopBarProps) {
   const { t } = useTranslation();
+  const newNoteLabel = t(
+    newNoteVisibility === 'PRIVATE' ? 'board.topBar.newPrivateNote' : 'board.topBar.newNote',
+  );
   const { activeMembers } = useActiveMembers(boardId);
   const { user } = useAuth();
   const renameBoard = useBoardRename(boardId);
@@ -202,7 +207,14 @@ export function TopBar({
   return (
     <header className="z-header flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
       <div className="flex min-w-0 items-center gap-2">
-        <BrandMark size={20} className="shrink-0" />
+        <Link
+          to="/boards"
+          aria-label={t('board.topBar.home')}
+          title={t('board.topBar.home')}
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+        >
+          <BrandMark size={20} />
+        </Link>
         <span aria-hidden className="text-16 font-light text-fg-faint">
           /
         </span>
@@ -322,14 +334,12 @@ export function TopBar({
         isBelowTablet={isBelowTablet}
       />
 
-      {canEdit && (
-        <IconTooltip label={t('board.topBar.newNote')} shortcut={['N']}>
-          <Button variant="accent" aria-label={t('board.topBar.newNote')} onClick={onNewNote}>
-            <Plus strokeWidth={2} />
-            <span className="hidden md:inline">{t('board.topBar.newNote')}</span>
-          </Button>
-        </IconTooltip>
-      )}
+      <IconTooltip label={newNoteLabel} shortcut={['N']}>
+        <Button variant="accent" aria-label={newNoteLabel} onClick={onNewNote}>
+          <Plus strokeWidth={2} />
+          <span className="hidden md:inline">{newNoteLabel}</span>
+        </Button>
+      </IconTooltip>
 
       <div className="ml-1 flex items-center border-l border-border-subtle pl-2.5">
         <AccountMenu />

@@ -61,6 +61,13 @@ async function openShareSheet() {
 }
 
 describe('ShareSheet', () => {
+  it('tells members that private notes stay with their author', async () => {
+    await openShareSheet();
+    expect(
+      screen.getByText('Mitglieder können private Notizen anlegen, die nur sie selbst sehen.'),
+    ).toBeInTheDocument();
+  });
+
   it('rejects an invalid email address without calling the invite mutation', async () => {
     const user = await openShareSheet();
     const input = screen.getByLabelText('E-Mail-Adresse einladen');

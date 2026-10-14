@@ -19,6 +19,7 @@ describe('applyPreferencesUpdate', () => {
       done: true,
       mine: false,
       priority: [],
+      visibility: 'all',
     };
     const current = { ...DEFAULT_PREFERENCES, boards: { a: board, b: board } };
 

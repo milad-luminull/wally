@@ -24,14 +24,17 @@ export function renderWithProviders(
   ui: ReactElement,
   {
     route = '/',
+    state,
     queryClient = createTestQueryClient(),
-  }: { route?: string; queryClient?: QueryClient } = {},
+  }: { route?: string; state?: unknown; queryClient?: QueryClient } = {},
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          <MemoryRouter initialEntries={[state === undefined ? route : { pathname: route, state }]}>
+            {children}
+          </MemoryRouter>
         </TooltipProvider>
       </QueryClientProvider>
     );

@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { NoteDetailDto, NoteDto } from '@wally/shared';
+import type { NoteDetailDto, NoteDto, WhiteboardSummaryDto } from '@wally/shared';
 import { captureMutation, isMutationPending } from '@/lib/mutationQueue';
 import type { QueryKeys } from '../queryKeys';
 
@@ -119,4 +119,39 @@ export function captureBoardMutation(
   return captureMutation(`board:${boardId}`, {
     revision: datum?.boardRevision ?? datum?.revision ?? board?.revision ?? 0,
   });
+}
+
+/**
+ * Takes a board out of the board list at once and returns the list as it was, for a rollback.
+ * Used when the caller deletes or leaves a board (RFC BOARD_HOME §9, §10).
+ */
+export function hideBoardInList(queryClient: QueryClient, keys: QueryKeys, boardId: string) {
+  void queryClient.cancelQueries({ queryKey: keys.meBoards() });
+  const previous = queryClient.getQueryData<WhiteboardSummaryDto[]>(keys.meBoards());
+  queryClient.setQueryData<WhiteboardSummaryDto[]>(keys.meBoards(), (list) =>
+    list?.filter((board) => board.id !== boardId),
+  );
+  return previous;
+}
+
+/** Puts a hidden board back where it was, unless a refetch has already settled the list. */
+export function restoreBoardInList(
+  queryClient: QueryClient,
+  keys: QueryKeys,
+  boardId: string,
+  previous: WhiteboardSummaryDto[] | undefined,
+) {
+  const board = previous?.find((item) => item.id === boardId);
+  if (!board) return;
+  queryClient.setQueryData<WhiteboardSummaryDto[]>(keys.meBoards(), (list) => {
+    if (!list || list.some((item) => item.id === boardId)) return list;
+    const next = [...list];
+    next.splice(Math.min(previous!.indexOf(board), next.length), 0, board);
+    return next;
+  });
+}
+
+/** Drops every cache under a board that is gone: the board, its notes, members, invites, link. */
+export function forgetBoard(queryClient: QueryClient, keys: QueryKeys, boardId: string) {
+  queryClient.removeQueries({ queryKey: keys.board(boardId) });
 }

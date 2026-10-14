@@ -67,18 +67,32 @@ file must be kept in step — a new personal-data field is a change to both.
 | `invitedEmail`                               | Yes — **and it may belong to someone who has no account** | See GAP-07                           |
 | `role`, `status`, `invitedAt`, `activatedAt` | Yes, indirectly                                           | Reveals when a person joined a board |
 
+### Boards — `whiteboards/{id}`
+
+| Field                     | Personal data                                 | Deleted when                                                             |
+| ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `name`                    | Possibly — free text the owner typed          | The owner deletes the board (`board.delete`)                             |
+| `ownerId`, `memberRoles`  | Yes, pseudonymous                             | The owner deletes the board; a `memberRoles` key when that member leaves |
+| `createdAt` / `updatedAt` | Yes, indirectly                               | The owner deletes the board                                              |
+| `deletedAt`               | No — marks a board whose cleanup is under way | With the board document, when its cleanup job finishes                   |
+
+Deleting a board removes its notes (with their subtasks and history), its members and its
+share link; the board reads as absent from the commit on, and a durable cleanup job finishes
+the physical deletion.
+
 `whiteboards/{id}.memberRoles` is a denormalised `uid -> role` cache of the same facts. Any
 erasure work has to clear both, in one transaction — the invariant is already documented on
 `WhiteboardDoc.memberRoles` and enforced in [`apps/api/src/lib/members.ts`](apps/api/src/lib/members.ts).
 
 ### Content — `notes/{id}` and subcollections
 
-| Field                                          | Personal data                         | Notes                                        |
-| ---------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `title`, `tags`, `customFields`                | Free text — **may contain anything**  | Not translated, stored as typed              |
-| `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board |
-| `subtasks/{id}.text`                           | Free text                             |                                              |
-| `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                   |
+| Field                                          | Personal data                         | Notes                                                                     |
+| ---------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
+| `title`, `tags`, `customFields`                | Free text — **may contain anything**  | Not translated, stored as typed                                           |
+| `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board                              |
+| `visibility`                                   | No                                    | Decides who sees the note; a private note is readable only by its creator |
+| `subtasks/{id}.text`                           | Free text                             |                                                                           |
+| `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                                                |
 
 ### Mutation receipts and cleanup jobs
 
@@ -114,6 +128,8 @@ board, including invitees who have not signed up — see `toMemberDto`
 ([`apps/api/src/lib/dto.ts:183`](apps/api/src/lib/dto.ts:183)). This is necessary for the
 assignee picker and is not a defect, but it is a disclosure that belongs in the privacy
 notice (GAP-03).
+
+Private notes are the exception: only their creator receives them from the API.
 
 ---
 
@@ -171,6 +187,7 @@ rows pointing at a person. _(Art. 17(1))_
 
 Their notes fall back to unassigned, but only once they have genuinely lost all access —
 [`apps/api/src/routes/members.ts:170`](apps/api/src/routes/members.ts:170). _(Art. 5(1)(c))_
+A removed member's private notes are kept, hidden from everyone, and become visible to them again if they rejoin. They are deleted with the rest of the account once account deletion (GAP-01) exists.
 
 ### Browser locale is not used as an ongoing tracking signal
 
@@ -195,9 +212,9 @@ signed-in users. _(Art. 5(1)(c))_
 
 ### GAP-01 — No way to delete an account or its data · **High** · Art. 17
 
-No `DELETE /me`, and no delete route for a whiteboard at all — the only deletions are notes,
-subtasks, members and share links (`grep 'app.delete' apps/api/src/routes`). A departing
-employee's `users/{uid}` document, their board, their `createdById` and `assigneeId`
+No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
+can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
+employee's `users/{uid}` document, any board they did not delete, their `createdById` and `assigneeId`
 references and their `history.actorId` entries persist forever. Firebase Auth holds a second
 copy of the identity that is independent of Firestore.
 

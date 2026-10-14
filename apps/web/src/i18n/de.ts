@@ -42,8 +42,11 @@ export const de = {
       subtask: 'Teilaufgabe ändern',
       member: 'Mitgliedschaft ändern',
       shareLink: 'Freigabelink ändern',
+      deleteBoard: 'Wand löschen',
+      leaveBoard: 'Wand verlassen',
     },
     fields: {
+      change: 'Änderung',
       assignee: 'Zuständig',
       status: 'Status',
       subtasks: 'Teilaufgaben',
@@ -60,6 +63,7 @@ export const de = {
       colour: 'Farbe',
       priority: 'Priorität',
       horizon: 'Zeitraum',
+      visibility: 'Sichtbarkeit',
       tags: 'Tags',
       customFields: 'Eigenschaften',
       fieldChanges: 'Eigenschaftsänderungen',
@@ -175,6 +179,8 @@ export const de = {
     memberRemoved: '{{name}} entfernt',
     undo: 'Rückgängig',
     inviteSent: 'Einladung an {{email}} gesendet',
+    notePrivate: 'Jetzt privat. Nur du siehst diese Notiz.',
+    noteShared: 'Jetzt für alle auf der Wand sichtbar.',
   },
   palette: {
     aria: 'Befehle',
@@ -238,8 +244,10 @@ export const de = {
     },
     switcher: {
       ownRole: 'Deine Wand',
+      all: 'Alle Wände',
     },
     topBar: {
+      home: 'Zu deinen Wänden',
       axis: {
         ariaLabel: 'Organisation',
         horizon: { label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
@@ -261,6 +269,7 @@ export const de = {
       membersAria_other: '{{count}} Mitglieder',
       // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
       newNote: 'Neue Notiz',
+      newPrivateNote: 'Neue private Notiz',
       display: {
         label: 'Anzeige',
         remembered: 'Wally merkt sich die Ansicht pro Wand.',
@@ -285,13 +294,16 @@ export const de = {
       done: 'Erledigte ausblenden',
       reset: 'Zurücksetzen',
       resetLong: 'Filter zurücksetzen',
+      onlyPrivate: 'Nur private',
+      hidePrivate: 'Private ausblenden',
+      visibilityAria: 'Private Notizen',
     },
     empty: {
       board: {
         title: 'Deine Wand ist noch leer',
         // Quotes the top bar's own button label — keep in step with board.topBar.newNote.
         canEdit: 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.',
-        readOnly: 'Sobald jemand eine Notiz anlegt, erscheint sie hier.',
+        viewer: 'Du kannst diese Wand ansehen. Notizen, die du hier anlegst, sind privat.',
       },
       filtered: {
         title: 'Keine Notiz passt zum Filter',
@@ -300,7 +312,7 @@ export const de = {
       free: {
         title: 'Freie Wand',
         canEdit: 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.',
-        readOnly: 'Auf dieser Wand liegt noch nichts.',
+        viewer: 'Doppelklicke auf die Wand für eine private Notiz. Nur du siehst sie.',
       },
     },
     hint: {
@@ -339,6 +351,14 @@ export const de = {
     priorityLabel: 'Priorität',
     dueLabel: 'Fällig',
     assigneeLabel: 'Zuständig',
+    private: {
+      label: 'Privat',
+      hintOff: 'Nur du siehst eine private Notiz.',
+      hintOn: 'Nur du siehst diese Notiz.',
+      needsEdit: 'Zum Teilen brauchst du Bearbeitungsrechte.',
+      assigneeLocked: 'Private Notizen gehören immer dir.',
+      badge: 'Private Notiz',
+    },
     noAssignee: 'Niemand',
     assignedTo: 'Zuständig: {{name}}',
     assignedToYou: 'Dir zugewiesen',
@@ -383,10 +403,51 @@ export const de = {
       remove: '{{tag}} entfernen',
     },
   },
+  /** The board home at /boards (RFC BOARD_HOME §7–§10). */
+  home: {
+    title: 'Deine Wände',
+    shared: 'Mit dir geteilt',
+    continue: 'Weitermachen',
+    open: '{{name}} öffnen',
+    openShared: '{{name}} öffnen, {{role}}',
+    rowMenu: 'Optionen für {{name}}',
+    newBoard: 'Neue Wand',
+    empty: {
+      title: 'Noch keine Wände',
+      hint: 'Lege eine an, um Notizen zu platzieren.',
+    },
+    create: {
+      title: 'Neue Wand',
+      nameLabel: 'Name',
+      submit: 'Anlegen',
+      limitReached: 'Du hast die Grenze von {{max}} Wänden erreicht.',
+      failed: 'Die Wand konnte nicht angelegt werden. Bitte versuche es noch einmal.',
+    },
+    delete: {
+      action: 'Wand löschen',
+      title: '„{{name}}“ löschen?',
+      body_one:
+        'Das entfernt die Wand, ihre {{count}} Notiz und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      body_other:
+        'Das entfernt die Wand, ihre {{count}} Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      bodyCounting:
+        'Das entfernt die Wand, ihre Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      confirm: 'Wand löschen',
+    },
+    leave: {
+      action: 'Wand verlassen',
+      title: '„{{name}}“ verlassen?',
+      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Deine Zuweisungen auf dieser Wand werden aufgehoben.',
+      confirm: 'Wand verlassen',
+    },
+  },
   routes: {
+    home: {
+      loadFailed: 'Deine Wände konnten nicht geladen werden.',
+    },
     login: {
       title: 'Willkommen zurück',
-      subtitle: 'Melde dich an, um deine Wand zu sehen.',
+      subtitle: 'Melde dich an, um deine Wände zu sehen.',
     },
     signup: {
       title: 'Konto erstellen',
@@ -395,12 +456,7 @@ export const de = {
     notFound: {
       title: 'Diese Seite gibt es nicht',
       body: 'Der Link ist vermutlich veraltet, oder die Wand wurde inzwischen gelöscht.',
-      action: 'Zurück zur Wand',
-    },
-    root: {
-      loadFailed: 'Deine Wand konnte nicht geladen werden.',
-      noBoardTitle: 'Keine Wand gefunden.',
-      noBoardBody: 'Bitte wende dich an den Support.',
+      action: 'Zurück zu deinen Wänden',
     },
     redeem: {
       gone: {
@@ -417,7 +473,7 @@ export const de = {
         title: 'Einen Moment',
         subtitle: 'Du wirst gerade zur Wand hinzugefügt.',
       },
-      toBoard: 'Zu deiner Wand',
+      toBoard: 'Zu deinen Wänden',
     },
     board: {
       loadFailed: 'Die Wand konnte nicht geladen werden.',
@@ -435,6 +491,7 @@ export const de = {
       VIEW: 'Jeder mit dem Link kann die Wand ansehen.',
     },
     ownerOnly: 'Nur der Eigentümer kann Freigaben verwalten.',
+    privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
     members: {
       pending: 'Ausstehend',
       roleAria: 'Rolle von {{name}}',
@@ -489,6 +546,10 @@ export const de = {
       OWNER: 'Eigentümer',
       EDIT: 'Bearbeiten',
       VIEW: 'Ansehen',
+    },
+    visibility: {
+      PRIVATE: 'Privat',
+      SHARED: 'Für alle',
     },
   },
 } as const;

@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import {
   docsWithId,
+  liveWhiteboard,
   membersCol,
   notesCol,
   now,
@@ -32,12 +33,14 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
       .get();
     for (const row of assigned.docs)
       await db.runTransaction(async (tx) => {
-        const board = withId(await tx.get(whiteboardsCol(db).doc(job.boardId)));
+        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(job.boardId)));
         const note = withId(await tx.get(row.ref));
         if (
           !board ||
           !note ||
           note.deletedAt ||
+          // A private note stays its creator's, hidden, until they rejoin (PRIVATE_NOTES §3).
+          note.visibility === 'PRIVATE' ||
           note.whiteboardId !== board.id ||
           note.assigneeId !== job.userId ||
           board.ownerId === job.userId ||
@@ -46,6 +49,24 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
           return;
         tx.update(row.ref, { assigneeId: null, updatedAt: now(), revision: revisionOf(note) + 1 });
       });
+  } else if (job.kind === 'board.delete') {
+    // Every step deletes something that may already be gone, so a rerun after a failure is safe.
+    const boardRef = whiteboardsCol(db).doc(job.boardId);
+    const board = (await boardRef.get()).data();
+    if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');
+    const notes = await notesCol(db).where('whiteboardId', '==', job.boardId).get();
+    // One BulkWriter for every note: batched, parallel deletes instead of one round trip per
+    // note, so a large board does not hold the DELETE request open for long. Every deletion is
+    // attempted before a failure is reported; the job stays and a rerun finishes the rest.
+    const writer = db.bulkWriter();
+    const results = await Promise.allSettled(
+      notes.docs.map((row) => db.recursiveDelete(row.ref, writer)),
+    );
+    await writer.close();
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
+    // Takes the members subcollection with the board document.
+    await db.recursiveDelete(boardRef);
   } else throw new Error('Unknown cleanup kind');
   await ref.delete();
 }
@@ -73,7 +94,8 @@ export async function reconcileBoards(
     orphanLinks = 0;
   for (const ref of await whiteboardsCol(db).listDocuments()) {
     const changed = await db.runTransaction(async (tx) => {
-      const board = withId(await tx.get(ref));
+      // A tombstoned board is finished by its own cleanup job, not repaired here.
+      const board = liveWhiteboard(await tx.get(ref));
       if (!board) return false;
       const roles = rolesFromMembers(
         docsWithId(await tx.get(membersCol(db, board.id))),
@@ -92,7 +114,7 @@ export async function reconcileBoards(
     const orphan = await db.runTransaction(async (tx) => {
       const link = withId(await tx.get(ref));
       if (!link) return false;
-      const board = withId(await tx.get(whiteboardsCol(db).doc(link.whiteboardId)));
+      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(link.whiteboardId)));
       if (board?.shareLinkToken === link.id) return false;
       if (apply) tx.delete(ref);
       return true;

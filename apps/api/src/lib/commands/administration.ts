@@ -1,4 +1,5 @@
-import type { BoardCommand, WhiteboardRole } from '@wally/shared';
+import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import { MAX_OWN_BOARDS, type BoardCommand, type WhiteboardRole } from '@wally/shared';
 import {
   docsWithId,
   isEmailVerified,
@@ -11,12 +12,18 @@ import {
   whiteboardsCol,
   withId,
 } from '../db/collections.js';
-import type { MemberDoc, WithId } from '../db/types.js';
+import type { MemberDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { ownerMemberDto, toMemberDto, toShareLinkDto, toWhiteboardDto } from '../dto.js';
 import { AppError } from '../errors.js';
 import { strongestRole } from '../members.js';
 import { generateShareToken } from '../tokens.js';
-import { notFound, revisionOf, type CommandContext, type CommandResult } from './context.js';
+import {
+  notFound,
+  revisionOf,
+  type Actor,
+  type CommandContext,
+  type CommandResult,
+} from './context.js';
 
 export function rolesFromMembers(
   rows: WithId<MemberDoc>[],
@@ -30,6 +37,41 @@ export function rolesFromMembers(
         row.role,
       ])!;
   return roles;
+}
+
+/**
+ * board.create has no board to authorize against: any signed-in user may create one, up to
+ * MAX_OWN_BOARDS live boards (RFC BOARD_HOME §8, §12.4). The owned-board query runs inside the
+ * command transaction so the count and the write commit together. New boards get generated
+ * ids; only the first board, provisioned with the user record, shares the user's uid.
+ */
+export async function createBoard(
+  db: Firestore,
+  tx: Transaction,
+  actor: Actor,
+  name: string,
+): Promise<CommandResult> {
+  const owned = docsWithId(await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)));
+  if (owned.filter((board) => !board.deletedAt).length >= MAX_OWN_BOARDS)
+    throw new AppError(422, 'BOARD_LIMIT_REACHED', `You can own at most ${MAX_OWN_BOARDS} boards`);
+  const ref = whiteboardsCol(db).doc();
+  const timestamp = now();
+  const doc: WhiteboardDoc = {
+    name,
+    ownerId: actor.id,
+    revision: 1,
+    memberRoles: {},
+    shareLinkToken: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  tx.create(ref, doc);
+  return {
+    data: toWhiteboardDto({ ...doc, id: ref.id }, 'OWNER'),
+    revision: 1,
+    status: 201,
+    boardId: ref.id,
+  };
 }
 
 export async function executeAdminCommand(
@@ -66,10 +108,26 @@ export async function executeAdminCommand(
     );
   }
 
+  // Tombstone, withdraw the share link and enqueue the physical deletion, all in this commit.
+  // From here the board reads as absent for everyone (liveWhiteboard); the cleanup job removes
+  // its notes, members and document and can be resumed by maintenance (RFC BOARD_HOME §12.2).
+  if (command.type === 'board.delete') {
+    const cleanupId = `${actor.id}_${ctx.operationId}`;
+    if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));
+    updateBoard({ deletedAt: timestamp, shareLinkToken: null });
+    tx.create(db.collection('boardCleanup').doc(cleanupId), {
+      kind: 'board.delete',
+      boardId: board.id,
+      createdAt: timestamp,
+    });
+    return result(null, 204, revision, cleanupId);
+  }
+
   if (
     command.type === 'member.invite' ||
     command.type === 'member.update' ||
     command.type === 'member.delete' ||
+    command.type === 'board.leave' ||
     command.type === 'link.redeem'
   ) {
     const members = membersCol(db, board.id);
@@ -127,6 +185,13 @@ export async function executeAdminCommand(
         deletedUser = existing.userId;
         tx.delete(members.doc(existing.id));
       }
+    } else if (command.type === 'board.leave') {
+      // The caller's own ACTIVE rows only; requireAccess already proved they hold one.
+      const own = rows.filter((row) => row.userId === actor.id && row.status === 'ACTIVE');
+      if (own.length === 0) notFound();
+      nextRows = rows.filter((row) => !own.includes(row));
+      for (const row of own) tx.delete(members.doc(row.id));
+      deletedUser = actor.id;
     } else {
       const link = withId(await tx.get(shareLinksCol(db).doc(command.token)));
       if (!link || link.whiteboardId !== board.id || board.shareLinkToken !== command.token)
@@ -171,7 +236,8 @@ export async function executeAdminCommand(
         createdAt: timestamp,
       });
     }
-    if (command.type === 'member.delete') return result(null, 204, revision, cleanupId);
+    if (command.type === 'member.delete' || command.type === 'board.leave')
+      return result(null, 204, revision, cleanupId);
     if (command.type === 'link.redeem') return result({ whiteboardId: board.id, role: next!.role });
     return result(toMemberDto(next!, await loadUsers(db, [next!.userId])));
   }

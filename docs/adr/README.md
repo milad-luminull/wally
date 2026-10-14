@@ -57,3 +57,4 @@ A guide changes by normal PR as long as it stays inside its ADR. Changing the de
 | [0008](0008-tag-triggered-release-to-hosting-and-cloud-run.md)       | Tag-triggered release to Firebase Hosting and Cloud Run, keyless, with smoke test and rollback | accepted |
 | [0009](0009-docker-compose-with-firestore-emulator-and-real-auth.md) | Local dev and CI run in Docker Compose against the Firestore emulator, with real Firebase Auth | accepted |
 | [0010](0010-board-commands-revisions-and-receipts.md)                | Board commands with transactional permissions, revisions and receipts                          | proposed |
+| [0011](0011-boards-as-independent-aggregates.md)                     | Boards as independent aggregates: several per owner, deletable, with a tombstone               | proposed |

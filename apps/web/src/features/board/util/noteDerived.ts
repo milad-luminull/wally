@@ -1,6 +1,7 @@
 import {
   notePriorityValues,
   type NoteColour,
+  type BoardVisibilityFilter,
   type NoteDto,
   type NoteHorizon,
   type NotePriority,
@@ -165,6 +166,8 @@ export function filterNotes(
   return notes.filter((n) => {
     if (!view.done && n.status === 'DONE') return false;
     if (view.mine && n.assignee?.id !== currentUserId) return false;
+    if (view.visibility === 'private' && n.visibility !== 'PRIVATE') return false;
+    if (view.visibility === 'shared' && n.visibility === 'PRIVATE') return false;
     if (view.priority.length && !view.priority.includes(n.priority)) return false;
     if (fieldKey) {
       const match = Object.entries(n.customFields ?? {}).some(
@@ -209,4 +212,13 @@ export function displayName(
 ): string {
   if (!user) return '';
   return user.displayName ?? user.email;
+}
+
+/** The chips appear once there is something to filter, and stay while a filter is on so
+ *  it can always be switched off again. */
+export function showsVisibilityFilter(
+  notes: Pick<NoteDto, 'visibility'>[],
+  filter: BoardVisibilityFilter,
+): boolean {
+  return filter !== 'all' || notes.some((n) => n.visibility === 'PRIVATE');
 }

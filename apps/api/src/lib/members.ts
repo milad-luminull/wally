@@ -3,6 +3,7 @@ import type { WhiteboardRole } from '@wally/shared';
 import {
   docsWithId,
   isEmailVerified,
+  liveWhiteboard,
   membersCol,
   membersGroup,
   normalizeEmail,
@@ -95,7 +96,7 @@ export async function activatePendingInvitesForEmail(
 
       // The board may be gone. tx.update against a missing document fails the write, so
       // this has to be a read-and-bail rather than an optimistic update.
-      const board = withId(await tx.get(boardRef));
+      const board = liveWhiteboard(await tx.get(boardRef));
       const user = withId(await tx.get(usersCol(db).doc(userId)));
       if (!board || !isEmailVerified(user) || user?.email !== invitedEmail) return false;
 

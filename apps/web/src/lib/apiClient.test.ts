@@ -5,10 +5,12 @@ import { getFreshIdToken } from '@/features/auth/AuthProvider';
 import {
   captureMutation,
   getRecoveries,
+  isMutationPending,
   rememberResource,
   resetMutationSession,
   retryMutation,
 } from './mutationQueue';
+import { boardsApi } from './resources';
 vi.mock('@/features/auth/AuthProvider', () => ({ getFreshIdToken: vi.fn() }));
 const response = (data: unknown, revision = 1) =>
   new Response(JSON.stringify(data), {
@@ -134,4 +136,90 @@ it('resolves the proposed assignee and target subtask for review', async () => {
     data: { text: 'Target task', done: false },
     proposed: { text: 'Target task', done: true },
   });
+});
+
+const failure = (status: number, error: string) =>
+  new Response(JSON.stringify({ error, message: error }), { status });
+const headersOf = (fetcher: ReturnType<typeof vi.fn>, call = -1) =>
+  fetcher.mock.calls.at(call)![1].headers as Record<string, string>;
+
+// RFC BOARD_HOME §8: the create dialog shows its own errors. A failed create must not leave an
+// "unsaved change" behind, and it never carries a revision.
+it('creates a board with an operation id, no expected revision and no recovery on failure', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(failure(422, 'BOARD_LIMIT_REACHED'));
+  vi.stubGlobal('fetch', fetcher);
+  await expect(boardsApi.create('Zu viel')).rejects.toMatchObject({
+    code: 'BOARD_LIMIT_REACHED',
+  });
+  expect(headersOf(fetcher)['Idempotency-Key']).toMatch(/^[0-9a-f-]{36}$/);
+  expect(headersOf(fetcher)['X-Expected-Revision']).toBeUndefined();
+  expect(getRecoveries()).toEqual([]);
+});
+
+it('sends no expected revision when leaving, even when the board revision is known', async () => {
+  rememberResource('board:b', 3);
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetcher);
+  await boardsApi.leave('b');
+  expect(headersOf(fetcher)['Idempotency-Key']).toBeDefined();
+  expect(headersOf(fetcher)['X-Expected-Revision']).toBeUndefined();
+});
+
+it('sends the board revision when deleting a board', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetcher);
+  await boardsApi.remove('b', captureMutation('board:b', { revision: 3 }));
+  expect(fetcher.mock.calls[0]![0]).toContain('/whiteboards/b');
+  expect(fetcher.mock.calls[0]![1].method).toBe('DELETE');
+  expect(headersOf(fetcher)['X-Expected-Revision']).toBe('3');
+});
+
+it('treats 404 on delete or leave as already gone and leaves no recovery', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(failure(404, 'NOT_FOUND'))
+    .mockResolvedValueOnce(failure(404, 'NOT_FOUND'));
+  vi.stubGlobal('fetch', fetcher);
+  await expect(
+    boardsApi.remove('b', captureMutation('board:b', { revision: 3 })),
+  ).resolves.toBeUndefined();
+  await expect(boardsApi.leave('c')).resolves.toBeUndefined();
+  expect(getRecoveries()).toEqual([]);
+  expect(isMutationPending('board:b')).toBe(false);
+});
+
+it('clears the recovery when a retried delete finds the board already gone', async () => {
+  const fetcher = vi
+    .fn()
+    .mockRejectedValueOnce(new TypeError('lost response'))
+    .mockResolvedValueOnce(failure(404, 'NOT_FOUND'))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetcher);
+  const ticket = captureMutation('board:b', { revision: 3 });
+  await expect(boardsApi.remove('b', ticket)).rejects.toThrow('lost');
+  const [recovery] = getRecoveries();
+  expect(recovery?.description?.action).toBe('deleteBoard');
+  await retryMutation(ticket.operationId);
+  expect(getRecoveries()).toEqual([]);
+  // The lane is free again: a later board write goes out.
+  await api.patch('/whiteboards/b', { name: 'x' }, undefined, captureMutation('board:b'));
+  expect(fetcher).toHaveBeenCalledTimes(3);
+});
+
+// A delete refused as stale opens the review dialog. Without a proposal it showed an empty
+// "your change" column; it should say which board and what would happen to it.
+it('reviews a stale board deletion with the board name and the change spelled out', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(failure(409, 'STALE_REVISION'))
+    .mockResolvedValueOnce(
+      response({ id: 'b', name: 'Projekt Nord', ownerId: 'u', revision: 4 }, 4),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  await boardsApi.remove('b', captureMutation('board:b', { revision: 3 })).catch(() => {});
+
+  const reviewed = await getRecoveries()[0]!.description!.loadLatest();
+
+  expect(reviewed.revision).toBe(4);
+  expect(reviewed.proposed).toEqual({ name: 'Projekt Nord', change: 'Wand löschen' });
 });

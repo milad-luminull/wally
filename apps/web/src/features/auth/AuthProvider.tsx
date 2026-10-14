@@ -53,6 +53,12 @@ interface AuthContextValue {
    * only safe source of truth for verification state.
    */
   emailVerified: boolean;
+  /**
+   * True from the moment a signed-in account became signed out in this page, false once
+   * someone is authenticated again. ProtectedRoute uses it to drop the previous account's
+   * location instead of handing it to whoever signs in next.
+   */
+  signedOut: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -73,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [emailVerified, setEmailVerified] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   // Firebase can fire onAuthStateChanged before the token is attached; track it so we
   // never flip to "authenticated" without a usable token.
   const tokenRef = useRef<string | null>(null);
@@ -106,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       const previousUid = onIdentityChange(firebaseUser?.uid ?? null);
       if (!firebaseUser) {
+        setSignedOut(typeof previousUid === 'string');
         tokenRef.current = null;
         setUser(null);
         setIdToken(null);
@@ -129,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(firebaseUser);
         setIdToken(token);
         setEmailVerified(firebaseUser.emailVerified);
+        setSignedOut(false);
         setStatus('authenticated');
       } catch {
         if (uidRef.current !== firebaseUser.uid) return;
@@ -198,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       idToken,
       status,
       emailVerified,
+      signedOut,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,
@@ -210,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       idToken,
       status,
       emailVerified,
+      signedOut,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,

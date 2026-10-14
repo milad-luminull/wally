@@ -4,6 +4,7 @@ import {
   noteHorizonSchema,
   notePrioritySchema,
   noteStatusSchema,
+  noteVisibilitySchema,
   noteHistoryEventTypeSchema,
 } from '../enums.js';
 import { userSummarySchema } from './user.js';
@@ -56,6 +57,7 @@ export const noteCreateSchema = z.object({
   /** Bare, not `.optional()`, for the same reason as `tags` above. */
   customFields: customFieldsSchema,
   colour: noteColourSchema.default('WEISS'),
+  visibility: noteVisibilitySchema.default('SHARED'),
 });
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 
@@ -100,6 +102,8 @@ export const noteUpdateSchema = z
       })
       .optional(),
     colour: noteColourSchema.optional(),
+    /** Only the creator, with EDIT or OWNER, may change it. */
+    visibility: noteVisibilitySchema.optional(),
   })
   .strict()
   .refine((val) => Object.keys(val).length > 0, { message: 'Empty update body' })
@@ -163,6 +167,7 @@ export const noteListQuerySchema = z.object({
     .trim()
     .max(FIELD_KEY_MAX_LENGTH + FIELD_VALUE_MAX_LENGTH + 1)
     .optional(),
+  visibility: noteVisibilitySchema.optional(),
 });
 export type NoteListQuery = z.infer<typeof noteListQuerySchema>;
 
@@ -194,6 +199,7 @@ export const noteDtoSchema = z.object({
   /** Permissive on the way out — the write schemas are what enforce the rules. */
   customFields: z.record(z.string(), z.string()),
   colour: noteColourSchema,
+  visibility: noteVisibilitySchema,
   subtaskSummary: subtaskSummarySchema,
   createdBy: userSummarySchema.nullable(),
   createdAt: z.string().datetime(),

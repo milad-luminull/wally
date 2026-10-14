@@ -7,6 +7,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeMember, makeNote, makeNoteDetail } from '@/test/fixtures';
 import { Toaster } from '@/components/ui/toaster';
 import { resetToasts } from '@/lib/toast';
+import { boardAccess } from '../util/permissions';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
 vi.mock('@/lib/resources', () => ({
@@ -45,7 +46,7 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
     <NoteDetailPanel
       noteId="note-1"
       boardId="board-1"
-      canEdit
+      access={boardAccess('OWNER', 'user-1', 'all')}
       axis="horizon"
       isBelowDesktop={false}
       onClose={onClose}
@@ -118,7 +119,7 @@ describe('NoteDetailPanel', () => {
     });
 
     it('does not offer the checkbox to a member who cannot edit', async () => {
-      renderPanel({ canEdit: false });
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
       await screen.findByLabelText('Titel');
 
       expect(screen.getByRole('checkbox', { name: 'Erledigt' })).toBeDisabled();
@@ -280,7 +281,7 @@ describe('NoteDetailPanel', () => {
     });
 
     it('is not offered to a member who cannot edit', async () => {
-      renderPanel({ canEdit: false });
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
       await screen.findByLabelText('Titel');
 
       expect(screen.queryByRole('button', { name: 'Duplizieren' })).not.toBeInTheDocument();
@@ -314,6 +315,100 @@ describe('NoteDetailPanel', () => {
       await screen.findByLabelText('Titel');
 
       expect(screen.getByRole('combobox', { name: 'Zuständig' })).toHaveTextContent('Ex Kollegin');
+    });
+  });
+
+  describe('the Private switch', () => {
+    const me = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
+    const someoneElse = { id: 'user-2', email: 'jonas@example.com', displayName: 'Jonas Weber' };
+
+    it('is offered, off and enabled, on your own shared note', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      expect(toggle).not.toBeChecked();
+      expect(toggle).toBeEnabled();
+      expect(toggle).toHaveAccessibleDescription('Nur du siehst eine private Notiz.');
+    });
+
+    it("is not offered on someone else's shared note", async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: someoneElse, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      expect(screen.queryByRole('switch', { name: 'Privat' })).not.toBeInTheDocument();
+    });
+
+    it("is on and locked for a viewer's own private note, which they can still edit", async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, assignee: me, visibility: 'PRIVATE' }),
+      );
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
+      const title = await screen.findByLabelText('Titel');
+
+      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      expect(toggle).toBeChecked();
+      expect(toggle).toBeDisabled();
+      expect(toggle).toHaveAccessibleDescription('Zum Teilen brauchst du Bearbeitungsrechte.');
+      expect(title).toBeEnabled();
+      // The locked assignee row names the assignee in words, with the reason after it.
+      const helper = screen.getByText('Private Notizen gehören immer dir.');
+      expect(within(helper.parentElement!).getByText('Du')).toBeVisible();
+      expect(screen.queryByRole('combobox', { name: 'Zuständig' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the assignee picker for a shared note', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      expect(screen.getByRole('combobox', { name: 'Zuständig' })).toBeInTheDocument();
+      expect(screen.queryByText('Private Notizen gehören immer dir.')).not.toBeInTheDocument();
+    });
+
+    it('makes the note private when clicked', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'n1', createdBy: me, visibility: 'SHARED' }),
+      );
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
+      const user = userEvent.setup();
+      renderPanel({ noteId: 'n1' });
+      await screen.findByLabelText('Titel');
+
+      await user.click(screen.getByRole('switch', { name: 'Privat' }));
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenCalledWith(
+          'n1',
+          { visibility: 'PRIVATE' },
+          expect.anything(),
+        ),
+      );
+    });
+
+    it('works from the keyboard', async () => {
+      // Mocks are not reset between tests; count only this test's calls.
+      vi.mocked(notesApi.update).mockClear();
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'n1', createdBy: me, visibility: 'SHARED' }),
+      );
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
+      const user = userEvent.setup();
+      renderPanel({ noteId: 'n1' });
+      await screen.findByLabelText('Titel');
+
+      screen.getByRole('switch', { name: 'Privat' }).focus();
+      await user.keyboard(' ');
+
+      await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
     });
   });
 
@@ -395,7 +490,7 @@ describe('NoteDetailPanel', () => {
       <NoteDetailPanel
         noteId="note-1"
         boardId="board-1"
-        canEdit
+        access={boardAccess('OWNER', 'user-1', 'all')}
         axis="free"
         isBelowDesktop={false}
         onClose={vi.fn()}
@@ -421,7 +516,7 @@ describe('NoteDetailPanel', () => {
   });
 
   it('disables every field and hides the delete action for a VIEW-role member', async () => {
-    renderPanel({ canEdit: false });
+    renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
     await screen.findByLabelText('Titel');
 
     expect(screen.getByLabelText('Titel')).toBeDisabled();
@@ -448,7 +543,7 @@ describe('NoteDetailPanel', () => {
           <NoteDetailPanel
             noteId="note-1"
             boardId="board-1"
-            canEdit
+            access={boardAccess('OWNER', 'user-1', 'all')}
             axis="horizon"
             isBelowDesktop={false}
             onClose={onClose}

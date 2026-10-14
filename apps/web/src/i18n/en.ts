@@ -35,8 +35,11 @@ export const en = {
       subtask: 'Change subtask',
       member: 'Change membership',
       shareLink: 'Change share link',
+      deleteBoard: 'Delete board',
+      leaveBoard: 'Leave board',
     },
     fields: {
+      change: 'Change',
       assignee: 'Assignee',
       status: 'Status',
       subtasks: 'Subtasks',
@@ -53,6 +56,7 @@ export const en = {
       colour: 'Colour',
       priority: 'Priority',
       horizon: 'Horizon',
+      visibility: 'Visibility',
       tags: 'Tags',
       customFields: 'Properties',
       fieldChanges: 'Property changes',
@@ -164,6 +168,8 @@ export const en = {
     memberRemoved: '{{name}} removed',
     undo: 'Undo',
     inviteSent: 'Invite sent to {{email}}',
+    notePrivate: 'Now private. Only you can see it.',
+    noteShared: 'Now visible to everyone on the board.',
   },
   palette: {
     aria: 'Commands',
@@ -224,8 +230,10 @@ export const en = {
     },
     switcher: {
       ownRole: 'Your board',
+      all: 'All boards',
     },
     topBar: {
+      home: 'To your boards',
       axis: {
         ariaLabel: 'Grouping',
         horizon: { label: 'Horizon', hint: 'Order by time frame' },
@@ -246,6 +254,7 @@ export const en = {
       membersAria_one: '{{count}} member',
       membersAria_other: '{{count}} members',
       newNote: 'New note',
+      newPrivateNote: 'New private note',
       display: {
         label: 'Display',
         remembered: 'Wally remembers your view for each board.',
@@ -270,12 +279,15 @@ export const en = {
       done: 'Hide completed',
       reset: 'Reset',
       resetLong: 'Reset filters',
+      onlyPrivate: 'Only private',
+      hidePrivate: 'Hide private',
+      visibilityAria: 'Private notes',
     },
     empty: {
       board: {
         title: 'Your board is still empty',
         canEdit: 'Use “New note” at the top right to add your first one.',
-        readOnly: 'As soon as someone adds a note, it will show up here.',
+        viewer: 'You can view this board. Notes you add here are private.',
       },
       filtered: {
         title: 'No note matches the filter',
@@ -284,7 +296,7 @@ export const en = {
       free: {
         title: 'Free canvas',
         canEdit: 'Double-click anywhere on the board to add a note right there.',
-        readOnly: 'There is nothing on this board yet.',
+        viewer: 'Double-click the wall to add a private note. Only you can see it.',
       },
     },
     hint: {
@@ -321,6 +333,14 @@ export const en = {
     priorityLabel: 'Priority',
     dueLabel: 'Due',
     assigneeLabel: 'Assignee',
+    private: {
+      label: 'Private',
+      hintOff: 'Only you can see a private note.',
+      hintOn: 'Only you can see this note.',
+      needsEdit: 'You need edit rights to share it.',
+      assigneeLocked: 'A private note is always yours.',
+      badge: 'Private note',
+    },
     noAssignee: 'Nobody',
     assignedTo: 'Assigned to {{name}}',
     assignedToYou: 'Assigned to you',
@@ -361,10 +381,50 @@ export const en = {
       remove: 'Remove {{tag}}',
     },
   },
+  home: {
+    title: 'Your boards',
+    shared: 'Shared with you',
+    continue: 'Continue',
+    open: 'Open {{name}}',
+    openShared: 'Open {{name}}, {{role}}',
+    rowMenu: 'Options for {{name}}',
+    newBoard: 'New board',
+    empty: {
+      title: 'No boards yet',
+      hint: 'Create one to start placing notes.',
+    },
+    create: {
+      title: 'New board',
+      nameLabel: 'Name',
+      submit: 'Create',
+      limitReached: 'You have reached the limit of {{max}} boards.',
+      failed: 'The board could not be created. Please try again.',
+    },
+    delete: {
+      action: 'Delete board',
+      title: 'Delete “{{name}}”?',
+      body_one:
+        'This removes the board, its {{count}} note and every member’s access. This cannot be undone.',
+      body_other:
+        'This removes the board, its {{count}} notes and every member’s access. This cannot be undone.',
+      bodyCounting:
+        'This removes the board, its notes and every member’s access. This cannot be undone.',
+      confirm: 'Delete board',
+    },
+    leave: {
+      action: 'Leave board',
+      title: 'Leave “{{name}}”?',
+      body: 'You will need a new invitation or share link to come back. Notes assigned to you on this board are unassigned.',
+      confirm: 'Leave board',
+    },
+  },
   routes: {
+    home: {
+      loadFailed: 'Your boards could not be loaded.',
+    },
     login: {
       title: 'Welcome back',
-      subtitle: 'Sign in to see your board.',
+      subtitle: 'Sign in to see your boards.',
     },
     signup: {
       title: 'Create an account',
@@ -373,12 +433,7 @@ export const en = {
     notFound: {
       title: 'This page does not exist',
       body: 'The link is probably out of date, or the board has since been deleted.',
-      action: 'Back to your board',
-    },
-    root: {
-      loadFailed: 'Your board could not be loaded.',
-      noBoardTitle: 'No board found.',
-      noBoardBody: 'Please get in touch with support.',
+      action: 'Back to your boards',
     },
     redeem: {
       gone: {
@@ -395,7 +450,7 @@ export const en = {
         title: 'One moment',
         subtitle: 'You are being added to the board.',
       },
-      toBoard: 'Go to your board',
+      toBoard: 'Go to your boards',
     },
     board: {
       loadFailed: 'This board could not be loaded.',
@@ -413,6 +468,7 @@ export const en = {
       VIEW: 'Anyone with the link can view the board.',
     },
     ownerOnly: 'Only the owner can manage sharing.',
+    privateNotesHint: 'Members can keep private notes that only they can see.',
     members: {
       pending: 'Pending',
       roleAria: "{{name}}'s role",
@@ -462,6 +518,10 @@ export const en = {
       OWNER: 'Owner',
       EDIT: 'Can edit',
       VIEW: 'Can view',
+    },
+    visibility: {
+      PRIVATE: 'Private',
+      SHARED: 'Everyone',
     },
   },
 } as const;
