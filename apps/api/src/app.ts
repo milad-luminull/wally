@@ -27,21 +27,25 @@ export interface BuildAppOptions {
   logger?: boolean;
 }
 
+/**
+ * What a request log line may say about a request: its method and path, nothing else. Fastify's
+ * default request serializer also writes the client's address, port and host header; an IP
+ * address is personal data, and the request log has no use for it (GDPR.md, GAP-05). The query
+ * string is dropped and share-link tokens are redacted, since either can grant or reveal access.
+ */
+export const requestLogSerializers = {
+  req: (request: { method: string; url: string }) => ({
+    method: request.method,
+    url: request.url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]'),
+  }),
+};
+
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = loadEnv();
 
   const app = Fastify({
     logger:
-      (options.logger ?? env.NODE_ENV !== 'test')
-        ? {
-            serializers: {
-              req: (request: { method: string; url: string }) => ({
-                method: request.method,
-                url: request.url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]'),
-              }),
-            },
-          }
-        : false,
+      (options.logger ?? env.NODE_ENV !== 'test') ? { serializers: requestLogSerializers } : false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

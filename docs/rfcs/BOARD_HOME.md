@@ -31,7 +31,8 @@ as it does now.
 ### 2.1 The bug
 
 Today `/` sends the caller to the board they last opened, falling back to the board they own
-([`RootRedirect.tsx`](../../apps/web/src/routes/RootRedirect.tsx)). That part is correct: the
+(`RootRedirect.tsx`, since renamed
+[`LandingPage.tsx`](../../apps/web/src/routes/LandingPage.tsx)). That part is correct: the
 remembered board is stored per user on the profile and checked against the user's own board
 list before it is used.
 
