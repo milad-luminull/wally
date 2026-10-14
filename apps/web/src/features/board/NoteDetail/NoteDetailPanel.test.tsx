@@ -318,6 +318,98 @@ describe('NoteDetailPanel', () => {
     });
   });
 
+  describe('the Private switch', () => {
+    const me = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
+    const someoneElse = { id: 'user-2', email: 'jonas@example.com', displayName: 'Jonas Weber' };
+
+    it('is offered, off and enabled, on your own shared note', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      expect(toggle).not.toBeChecked();
+      expect(toggle).toBeEnabled();
+      expect(toggle).toHaveAccessibleDescription('Nur du siehst eine private Notiz.');
+    });
+
+    it("is not offered on someone else's shared note", async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: someoneElse, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      expect(screen.queryByRole('switch', { name: 'Privat' })).not.toBeInTheDocument();
+    });
+
+    it("is on and locked for a viewer's own private note, which they can still edit", async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, assignee: me, visibility: 'PRIVATE' }),
+      );
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
+      const title = await screen.findByLabelText('Titel');
+
+      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      expect(toggle).toBeChecked();
+      expect(toggle).toBeDisabled();
+      expect(toggle).toHaveAccessibleDescription('Zum Teilen brauchst du Bearbeitungsrechte.');
+      expect(title).toBeEnabled();
+      expect(screen.getByText('Private Notizen gehören immer dir.')).toBeInTheDocument();
+      expect(screen.queryByRole('combobox', { name: 'Zuständig' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the assignee picker for a shared note', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
+      );
+      renderPanel();
+      await screen.findByLabelText('Titel');
+
+      expect(screen.getByRole('combobox', { name: 'Zuständig' })).toBeInTheDocument();
+      expect(screen.queryByText('Private Notizen gehören immer dir.')).not.toBeInTheDocument();
+    });
+
+    it('makes the note private when clicked', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'n1', createdBy: me, visibility: 'SHARED' }),
+      );
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
+      const user = userEvent.setup();
+      renderPanel({ noteId: 'n1' });
+      await screen.findByLabelText('Titel');
+
+      await user.click(screen.getByRole('switch', { name: 'Privat' }));
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenCalledWith(
+          'n1',
+          { visibility: 'PRIVATE' },
+          expect.anything(),
+        ),
+      );
+    });
+
+    it('works from the keyboard', async () => {
+      // Mocks are not reset between tests; count only this test's calls.
+      vi.mocked(notesApi.update).mockClear();
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ id: 'n1', createdBy: me, visibility: 'SHARED' }),
+      );
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
+      const user = userEvent.setup();
+      renderPanel({ noteId: 'n1' });
+      await screen.findByLabelText('Titel');
+
+      screen.getByRole('switch', { name: 'Privat' }).focus();
+      await user.keyboard(' ');
+
+      await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
+    });
+  });
+
   describe('closing the panel', () => {
     it('closes on Escape', async () => {
       const { onClose } = renderPanel();

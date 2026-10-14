@@ -32,6 +32,7 @@ import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
 import { useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useToggleNoteStatus } from '../hooks/mutations/useToggleNoteStatus';
 import { useAssignNote } from '../hooks/mutations/useAssignNote';
+import { useSetNoteVisibility } from '../hooks/mutations/useSetNoteVisibility';
 import { useDeleteNote } from '../hooks/mutations/useDeleteNote';
 import {
   useAddSubtask,
@@ -55,6 +56,7 @@ import { SubtaskChecklist } from './SubtaskChecklist';
 import { ColorSwatchPicker } from './ColorSwatchPicker';
 import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
+import { VisibilityRow } from './VisibilityRow';
 import { useLiveNoteText } from './useLiveNoteText';
 
 const NO_ASSIGNEE = '__none__';
@@ -202,6 +204,7 @@ function NoteDetailContent({
   const moveNote = useMoveNote(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
   const assignNote = useAssignNote(boardId);
+  const setVisibility = useSetNoteVisibility(boardId);
   const { deleteNote } = useDeleteNote(boardId);
   const addSubtask = useAddSubtask(boardId);
   const toggleSubtask = useToggleSubtask(boardId);
@@ -290,6 +293,7 @@ function NoteDetailContent({
   // priority, and the Priority row above already moves it.
   const showZone = axis === 'horizon';
   const isDone = note.status === 'DONE';
+  const isPrivate = note.visibility === 'PRIVATE';
 
   function handlePriorityChange(value: string) {
     if (!value) return;
@@ -477,32 +481,53 @@ function NoteDetailContent({
             />
           </PropertyRow>
 
+          {access.showsVisibilitySwitch(note) && (
+            <VisibilityRow
+              visibility={note.visibility}
+              canChange={access.canEditShared}
+              onChange={(visibility) =>
+                setVisibility.mutate({ noteId: note.id, visibility, creator: note.createdBy })
+              }
+            />
+          )}
+
           <PropertyRow label={t('note.assigneeLabel')}>
-            <Select
-              value={note.assignee?.id ?? NO_ASSIGNEE}
-              onValueChange={handleAssigneeChange}
-              disabled={disabled}
-            >
-              <SelectTrigger
-                aria-label={t('note.assigneeLabel')}
-                className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+            {isPrivate ? (
+              <span className="flex min-w-0 items-center gap-2 text-12 text-fg-3">
+                {note.assignee && <AssigneeAvatar user={note.assignee} isYou size="sm" />}
+                <span className="truncate">{t('note.private.assigneeLocked')}</span>
+              </span>
+            ) : (
+              <Select
+                value={note.assignee?.id ?? NO_ASSIGNEE}
+                onValueChange={handleAssigneeChange}
+                disabled={disabled}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
-                {assigneeOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    <span className="flex items-center gap-2">
-                      <AssigneeAvatar user={option} isYou={option.id === currentUserId} size="sm" />
-                      {option.id === currentUserId
-                        ? t('note.youSuffix', { name: displayName(option) })
-                        : displayName(option)}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  aria-label={t('note.assigneeLabel')}
+                  className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
+                  {assigneeOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <span className="flex items-center gap-2">
+                        <AssigneeAvatar
+                          user={option}
+                          isYou={option.id === currentUserId}
+                          size="sm"
+                        />
+                        {option.id === currentUserId
+                          ? t('note.youSuffix', { name: displayName(option) })
+                          : displayName(option)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </PropertyRow>
 
           <PropertyRow label={t('note.colourLabel')}>
