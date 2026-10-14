@@ -70,7 +70,8 @@ a product designer would choose; each is explained where it appears:
 `PRIVATE`. Reads filter on it; one role rule changes. No new collection, no new Firestore
 index (the notes query already loads a board's notes and filters in memory), no migration
 (a missing field reads as `SHARED`). The whole note feature set, subtasks, history,
-properties, duplicate, moves, mutation recovery and receipts, works unchanged.
+properties, duplicate, moves, mutation recovery and receipts, works unchanged; a receipt
+only gains the roles that authorized its command (§7).
 
 **B. A separate personal collection per board.** `users/{uid}/privateNotes` overlaid onto
 the board in the browser. Cleaner separation on paper. Rejected: it duplicates the note
@@ -263,12 +264,13 @@ enforced in the command layer and asserted in tests: `visibility === 'PRIVATE'` 
 - A receipt stores the roles that authorized its command. Replay re-checks the caller's current role against that stored set, so a viewer's retried private write replays instead of failing.
 
 **Documentation that ships in the same pull request:** `SPEC.md` §7 and §9 gain the
-qualifier that a VIEW member can create and change only their own private notes; §5 lists
+qualifier that a VIEW member can create and change only their own private notes (never visibility); §5 lists
 visibility among a note's fields; §8 lists the visibility filter. `board-operations.md`
 gets the role rule from R4 in its table. `GDPR.md` gets the two edits in §8 below.
 
 **Nothing else moves.** No new collection, no new index in `firestore.indexes.json`, no
-change to receipts, revisions, idempotency or `firestore.rules`. The web client's
+change to revisions, idempotency or `firestore.rules`; receipts gain only the stored
+authorizing roles (§7 Writes). The web client's
 `mutationQueue.ts` and `noteDrafts.ts` are untouched: the switch is an ordinary
 `note.update` whose optimistic fields are `visibility` and `assignee`.
 
@@ -375,6 +377,7 @@ member:
   private note, and is refused when changing the visibility of any note.
 - R5 and R8: duplicate keeps visibility; the member-removal job leaves private notes
   untouched and still releases shared assignments; a rejoined member sees their notes.
+- Receipts: a viewer's retried private write with the same Idempotency-Key replays its result instead of failing with 403.
 - Invariant check on every write path: `PRIVATE` implies `assigneeId === createdById`.
 
 **Web tests** (`apps/web`, Vitest): panel row states from §6.2 including the disabled
