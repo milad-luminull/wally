@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastif
 import type { Firestore } from 'firebase-admin/firestore';
 import type { EffectiveRole } from '@wally/shared';
 import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
-import { notesCol, whiteboardsCol, withId } from './db/collections.js';
+import { liveWhiteboard, notesCol, whiteboardsCol, withId } from './db/collections.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -43,7 +43,7 @@ export async function getEffectiveRole(
   userId: string,
   whiteboardId: string,
 ): Promise<EffectiveRole | null> {
-  const board = withId(await whiteboardsCol(db).doc(whiteboardId).get());
+  const board = liveWhiteboard(await whiteboardsCol(db).doc(whiteboardId).get());
   return board ? resolveRole(board, userId) : null;
 }
 
@@ -82,7 +82,7 @@ export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHoo
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
     }
 
-    const board = withId(await whiteboardsCol(db).doc(whiteboardId).get());
+    const board = liveWhiteboard(await whiteboardsCol(db).doc(whiteboardId).get());
     const role = board ? resolveRole(board, request.user.id) : null;
     if (!board || !role) {
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });

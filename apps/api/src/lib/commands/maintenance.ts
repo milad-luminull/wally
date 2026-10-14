@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import {
   docsWithId,
+  liveWhiteboard,
   membersCol,
   notesCol,
   now,
@@ -32,7 +33,7 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
       .get();
     for (const row of assigned.docs)
       await db.runTransaction(async (tx) => {
-        const board = withId(await tx.get(whiteboardsCol(db).doc(job.boardId)));
+        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(job.boardId)));
         const note = withId(await tx.get(row.ref));
         if (
           !board ||
@@ -73,7 +74,8 @@ export async function reconcileBoards(
     orphanLinks = 0;
   for (const ref of await whiteboardsCol(db).listDocuments()) {
     const changed = await db.runTransaction(async (tx) => {
-      const board = withId(await tx.get(ref));
+      // A tombstoned board is finished by its own cleanup job, not repaired here.
+      const board = liveWhiteboard(await tx.get(ref));
       if (!board) return false;
       const roles = rolesFromMembers(
         docsWithId(await tx.get(membersCol(db, board.id))),
@@ -92,7 +94,7 @@ export async function reconcileBoards(
     const orphan = await db.runTransaction(async (tx) => {
       const link = withId(await tx.get(ref));
       if (!link) return false;
-      const board = withId(await tx.get(whiteboardsCol(db).doc(link.whiteboardId)));
+      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(link.whiteboardId)));
       if (board?.shareLinkToken === link.id) return false;
       if (apply) tx.delete(ref);
       return true;

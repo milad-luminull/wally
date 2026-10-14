@@ -6,7 +6,13 @@ import {
   type BoardCommand,
   type EffectiveRole,
 } from '@wally/shared';
-import { notesCol, shareLinksCol, whiteboardsCol, withId } from '../db/collections.js';
+import {
+  liveWhiteboard,
+  notesCol,
+  shareLinksCol,
+  whiteboardsCol,
+  withId,
+} from '../db/collections.js';
 import { AppError } from '../errors.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
 import { executeNoteCommand } from './notes.js';
@@ -89,7 +95,7 @@ export async function executeBoardCommand(
       // A committed deletion no longer has a target. Receipts carry its board so we can
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
-        const board = withId(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
+        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
         requireAccess(board, actor.id, rolesFor(command));
         if (receipt.fingerprint !== fingerprint)
           throw new AppError(
@@ -111,7 +117,7 @@ export async function executeBoardCommand(
         note?.whiteboardId ?? ('boardId' in command ? command.boardId : link?.whiteboardId);
       if (!boardId || ('boardId' in command && command.boardId && command.boardId !== boardId))
         notFound();
-      const board = withId(await tx.get(whiteboardsCol(db).doc(boardId)));
+      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();
