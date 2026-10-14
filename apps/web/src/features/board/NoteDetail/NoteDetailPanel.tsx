@@ -493,9 +493,13 @@ function NoteDetailContent({
 
           <PropertyRow label={t('note.assigneeLabel')}>
             {isPrivate ? (
-              <span className="flex min-w-0 items-center gap-2 text-12 text-fg-3">
+              // Only its creator ever opens a private note, and it is always theirs: "You".
+              <span className="flex min-w-0 items-center gap-2">
                 {note.assignee && <AssigneeAvatar user={note.assignee} isYou size="sm" />}
-                <span className="truncate">{t('note.private.assigneeLocked')}</span>
+                <span className="shrink-0 text-13 text-fg-1">{t('common.you')}</span>
+                <span className="truncate text-12 text-fg-3">
+                  {t('note.private.assigneeLocked')}
+                </span>
               </span>
             ) : (
               <Select

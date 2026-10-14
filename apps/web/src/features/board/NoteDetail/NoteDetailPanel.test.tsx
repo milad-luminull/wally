@@ -357,7 +357,9 @@ describe('NoteDetailPanel', () => {
       expect(toggle).toBeDisabled();
       expect(toggle).toHaveAccessibleDescription('Zum Teilen brauchst du Bearbeitungsrechte.');
       expect(title).toBeEnabled();
-      expect(screen.getByText('Private Notizen gehören immer dir.')).toBeInTheDocument();
+      // The locked assignee row names the assignee in words, with the reason after it.
+      const helper = screen.getByText('Private Notizen gehören immer dir.');
+      expect(within(helper.parentElement!).getByText('Du')).toBeVisible();
       expect(screen.queryByRole('combobox', { name: 'Zuständig' })).not.toBeInTheDocument();
     });
 
