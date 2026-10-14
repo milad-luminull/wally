@@ -35,6 +35,8 @@ export const en = {
       subtask: 'Change subtask',
       member: 'Change membership',
       shareLink: 'Change share link',
+      deleteBoard: 'Delete board',
+      leaveBoard: 'Leave board',
     },
     fields: {
       assignee: 'Assignee',

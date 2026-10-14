@@ -42,6 +42,8 @@ export const de = {
       subtask: 'Teilaufgabe ändern',
       member: 'Mitgliedschaft ändern',
       shareLink: 'Freigabelink ändern',
+      deleteBoard: 'Wand löschen',
+      leaveBoard: 'Wand verlassen',
     },
     fields: {
       assignee: 'Zuständig',
