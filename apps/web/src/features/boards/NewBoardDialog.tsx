@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { INITIAL_BOARD_NAME, MAX_OWN_BOARDS } from '@wally/shared';
+import { BOARD_NAME_MAX_LENGTH, INITIAL_BOARD_NAME, MAX_OWN_BOARDS } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -74,7 +74,7 @@ export function NewBoardDialog({
             <Input
               id="new-board-name"
               value={name}
-              maxLength={120}
+              maxLength={BOARD_NAME_MAX_LENGTH}
               autoFocus
               onFocus={(event) => event.currentTarget.select()}
               onChange={(event) => setName(event.target.value)}

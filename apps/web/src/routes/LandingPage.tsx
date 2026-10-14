@@ -28,7 +28,7 @@ export function LandingPage() {
       <div className="flex h-[100dvh] items-center justify-center bg-background px-4">
         <EmptyState
           icon={<CloudOff strokeWidth={1.75} />}
-          title={t('routes.root.loadFailed')}
+          title={t('routes.home.loadFailed')}
           action={
             <Button variant="outline" onClick={() => void refetch()}>
               <RotateCcw strokeWidth={1.75} />

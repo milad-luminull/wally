@@ -432,7 +432,7 @@ export const de = {
     },
     login: {
       title: 'Willkommen zurück',
-      subtitle: 'Melde dich an, um deine Wand zu sehen.',
+      subtitle: 'Melde dich an, um deine Wände zu sehen.',
     },
     signup: {
       title: 'Konto erstellen',
@@ -442,9 +442,6 @@ export const de = {
       title: 'Diese Seite gibt es nicht',
       body: 'Der Link ist vermutlich veraltet, oder die Wand wurde inzwischen gelöscht.',
       action: 'Zurück zu deinen Wänden',
-    },
-    root: {
-      loadFailed: 'Deine Wand konnte nicht geladen werden.',
     },
     redeem: {
       gone: {
@@ -461,7 +458,7 @@ export const de = {
         title: 'Einen Moment',
         subtitle: 'Du wirst gerade zur Wand hinzugefügt.',
       },
-      toBoard: 'Zu deiner Wand',
+      toBoard: 'Zu deinen Wänden',
     },
     board: {
       loadFailed: 'Die Wand konnte nicht geladen werden.',

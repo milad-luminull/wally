@@ -84,5 +84,7 @@ describe('LandingPage', () => {
     vi.mocked(boardsApi.list).mockRejectedValue(new Error('offline'));
     renderLanding();
     expect(await screen.findByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument();
+    // It loads the list of boards, not one board.
+    expect(screen.getByText('Deine Wände konnten nicht geladen werden.')).toBeInTheDocument();
   });
 });

@@ -409,7 +409,7 @@ export const en = {
     },
     login: {
       title: 'Welcome back',
-      subtitle: 'Sign in to see your board.',
+      subtitle: 'Sign in to see your boards.',
     },
     signup: {
       title: 'Create an account',
@@ -419,9 +419,6 @@ export const en = {
       title: 'This page does not exist',
       body: 'The link is probably out of date, or the board has since been deleted.',
       action: 'Back to your boards',
-    },
-    root: {
-      loadFailed: 'Your board could not be loaded.',
     },
     redeem: {
       gone: {
@@ -438,7 +435,7 @@ export const en = {
         title: 'One moment',
         subtitle: 'You are being added to the board.',
       },
-      toBoard: 'Go to your board',
+      toBoard: 'Go to your boards',
     },
     board: {
       loadFailed: 'This board could not be loaded.',
