@@ -196,9 +196,9 @@ describe('/me', () => {
     expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
   });
 
-  // A returning user whose board was deleted must be renamed from their PROFILE, not from
-  // whatever locale today's browser reports.
-  it('recreates a deleted board from the stored language, not the header', async () => {
+  // Deleting your last board is allowed (RFC BOARD_HOME §3); the next request must not quietly
+  // hand you a fresh "Meine Wand".
+  it('does not recreate a board that was deleted', async () => {
     const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
     await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
     await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
@@ -209,8 +209,13 @@ describe('/me', () => {
       headers: { ...ctx.authHeader(token), ...EN_HEADER },
     });
 
-    const board = await whiteboardsCol(ctx.db).doc('me-rebuild').get();
-    expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
+    expect((await whiteboardsCol(ctx.db).doc('me-rebuild').get()).exists).toBe(false);
+    const list = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(token),
+    });
+    expect(list.json()).toEqual([]);
   });
 
   describe('preferences', () => {
