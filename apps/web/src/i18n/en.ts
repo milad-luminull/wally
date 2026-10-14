@@ -226,8 +226,10 @@ export const en = {
     },
     switcher: {
       ownRole: 'Your board',
+      all: 'All boards',
     },
     topBar: {
+      home: 'To your boards',
       axis: {
         ariaLabel: 'Grouping',
         horizon: { label: 'Horizon', hint: 'Order by time frame' },
@@ -414,7 +416,7 @@ export const en = {
     notFound: {
       title: 'This page does not exist',
       body: 'The link is probably out of date, or the board has since been deleted.',
-      action: 'Back to your board',
+      action: 'Back to your boards',
     },
     root: {
       loadFailed: 'Your board could not be loaded.',

@@ -240,8 +240,10 @@ export const de = {
     },
     switcher: {
       ownRole: 'Deine Wand',
+      all: 'Alle Wände',
     },
     topBar: {
+      home: 'Zu deinen Wänden',
       axis: {
         ariaLabel: 'Organisation',
         horizon: { label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
@@ -437,7 +439,7 @@ export const de = {
     notFound: {
       title: 'Diese Seite gibt es nicht',
       body: 'Der Link ist vermutlich veraltet, oder die Wand wurde inzwischen gelöscht.',
-      action: 'Zurück zur Wand',
+      action: 'Zurück zu deinen Wänden',
     },
     root: {
       loadFailed: 'Deine Wand konnte nicht geladen werden.',
