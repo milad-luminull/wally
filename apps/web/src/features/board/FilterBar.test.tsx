@@ -177,7 +177,7 @@ describe('FilterBar', () => {
       expect(screen.queryByRole('radio', { name: 'Nur private' })).not.toBeInTheDocument();
     });
 
-    it('sets the filter on click, and clears it on a second click', async () => {
+    it('sets the filter on click', async () => {
       const setVisibility = renderBar({}, { showVisibility: true });
       await userEvent.click(screen.getByRole('radio', { name: 'Nur private' }));
       expect(setVisibility).toHaveBeenCalledWith('private');
