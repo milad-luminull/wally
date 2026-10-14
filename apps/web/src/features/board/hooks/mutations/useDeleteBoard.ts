@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
+import { ApiError } from '@/lib/apiClient';
 import { boardsApi } from '@/lib/resources';
 import { useQueryKeys } from '../queryKeys';
 import { captureBoardMutation, forgetBoard, hideBoardInList, restoreBoardInList } from './shared';
@@ -19,10 +20,16 @@ export function useDeleteBoard(boardId: string) {
   return useMutation({
     mutationFn: async () => {
       // The board list carries no revision; without the board itself every delete would 409.
-      await queryClient.ensureQueryData({
-        queryKey: keys.board(boardId),
-        queryFn: () => boardsApi.get(boardId),
-      });
+      try {
+        await queryClient.ensureQueryData({
+          queryKey: keys.board(boardId),
+          queryFn: () => boardsApi.get(boardId),
+        });
+      } catch (error) {
+        // Deleted elsewhere (or access gone) before this tab ever loaded it: already done.
+        if (error instanceof ApiError && error.status === 404) return;
+        throw error;
+      }
       return boardsApi.remove(boardId, captureBoardMutation(queryClient, keys, boardId));
     },
     onMutate: () => ({ previous: hideBoardInList(queryClient, keys, boardId) }),

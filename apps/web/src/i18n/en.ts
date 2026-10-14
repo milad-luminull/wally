@@ -370,6 +370,7 @@ export const en = {
     shared: 'Shared with you',
     continue: 'Continue',
     open: 'Open {{name}}',
+    openShared: 'Open {{name}}, {{role}}',
     rowMenu: 'Options for {{name}}',
     newBoard: 'New board',
     empty: {

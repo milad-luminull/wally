@@ -393,6 +393,7 @@ export const de = {
     shared: 'Mit dir geteilt',
     continue: 'Weitermachen',
     open: '{{name}} öffnen',
+    openShared: '{{name}} öffnen, {{role}}',
     rowMenu: 'Optionen für {{name}}',
     newBoard: 'Neue Wand',
     empty: {
@@ -420,7 +421,7 @@ export const de = {
     leave: {
       action: 'Wand verlassen',
       title: '„{{name}}“ verlassen?',
-      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Dir zugewiesene Notizen auf dieser Wand werden freigegeben.',
+      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Deine Zuweisungen auf dieser Wand werden aufgehoben.',
       confirm: 'Wand verlassen',
     },
   },

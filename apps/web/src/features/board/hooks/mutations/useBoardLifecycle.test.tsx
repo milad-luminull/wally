@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type { WhiteboardSummaryDto } from '@wally/shared';
 import { createTestQueryClient } from '@/test/renderWithProviders';
+import { ApiError } from '@/lib/apiClient';
 import { makeBoard } from '@/test/fixtures';
 import { scopedQueryKeys } from '../queryKeys';
 
@@ -78,6 +79,19 @@ describe('board lifecycle hooks', () => {
     expect(listed(queryClient)).toEqual(['shared']);
     expect(queryClient.getQueryData(keys.board('own'))).toBeUndefined();
     expect(queryClient.getQueryData(keys.notes('own'))).toBeUndefined();
+  });
+
+  // Deleted from another tab before this one ever loaded it: the board is gone, which is
+  // exactly what delete asks for. No error, no row coming back.
+  it('useDeleteBoard treats a board that is already gone as deleted', async () => {
+    vi.mocked(boardsApi.get).mockRejectedValue(new ApiError(404, null));
+    vi.mocked(boardsApi.list).mockResolvedValue([shared]);
+    const { queryClient, result } = setup(() => useDeleteBoard('own'));
+
+    await act(() => result.current.mutateAsync());
+
+    expect(boardsApi.remove).not.toHaveBeenCalled();
+    expect(listed(queryClient)).toEqual(['shared']);
   });
 
   it('useDeleteBoard brings the row back when the request fails', async () => {

@@ -42,7 +42,7 @@ function renderHome(boards: WhiteboardSummaryDto[], lastBoardId: string | null =
 }
 
 const rowLinks = () =>
-  screen.getAllByRole('link', { name: / öffnen$/ }).map((link) => link.getAttribute('aria-label'));
+  screen.getAllByRole('link', { name: / öffnen/ }).map((link) => link.getAttribute('aria-label'));
 
 describe('BoardHome', () => {
   beforeEach(() => {
@@ -52,13 +52,14 @@ describe('BoardHome', () => {
   it('lists own boards first, then shared ones with their role, each group by name', async () => {
     renderHome([zeta, beta, alpha]);
     await screen.findByRole('heading', { level: 1, name: 'Deine Wände' });
-    await waitFor(() => expect(rowLinks()).toEqual(['Alpha öffnen', 'Zeta öffnen', 'Beta öffnen']));
-    expect(screen.getByRole('heading', { level: 2, name: 'Mit dir geteilt' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Beta öffnen' })).toHaveTextContent('Ansehen');
-    expect(screen.getByRole('link', { name: 'Beta öffnen' })).toHaveAttribute(
-      'href',
-      '/boards/beta',
+    await waitFor(() =>
+      expect(rowLinks()).toEqual(['Alpha öffnen', 'Zeta öffnen', 'Beta öffnen, Ansehen']),
     );
+    expect(screen.getByRole('heading', { level: 2, name: 'Mit dir geteilt' })).toBeInTheDocument();
+    // A screen reader announces the role too, not only the sighted user's label.
+    const betaRow = screen.getByRole('link', { name: 'Beta öffnen, Ansehen' });
+    expect(betaRow).toHaveTextContent('Ansehen');
+    expect(betaRow).toHaveAttribute('href', '/boards/beta');
   });
 
   it('offers to continue on the remembered board when it is on the list', async () => {
@@ -66,6 +67,32 @@ describe('BoardHome', () => {
     const card = await screen.findByRole('link', { name: /Weitermachen/ });
     expect(card).toHaveTextContent('Beta');
     expect(card).toHaveAttribute('href', '/boards/beta');
+  });
+
+  // The continue card sits above the list. Painting the list first and the card a moment later
+  // shifts every row down under the pointer.
+  it('waits for the profile before showing the boards, so the continue card does not pop in', async () => {
+    let resolveMe: (value: MeDto) => void = () => {};
+    vi.mocked(boardsApi.list).mockResolvedValue([alpha, beta]);
+    vi.mocked(meApi.get).mockReturnValue(new Promise((resolve) => (resolveMe = resolve)));
+    renderWithProviders(<BoardHome />, { route: '/boards' });
+
+    await waitFor(() => expect(boardsApi.list).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('link', { name: /Alpha/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Lädt…' })).toBeInTheDocument();
+
+    resolveMe(me('beta'));
+    expect(await screen.findByRole('link', { name: /Weitermachen/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Alpha/ })).toBeInTheDocument();
+  });
+
+  it('shows the boards without a continue card when the profile cannot be loaded', async () => {
+    vi.mocked(boardsApi.list).mockResolvedValue([alpha]);
+    vi.mocked(meApi.get).mockRejectedValue(new Error('offline'));
+    renderWithProviders(<BoardHome />, { route: '/boards' });
+    expect(await screen.findByRole('link', { name: /Alpha/ })).toBeInTheDocument();
+    expect(screen.queryByText('Weitermachen')).not.toBeInTheDocument();
   });
 
   it('shows no continue card when the remembered board is gone', async () => {
@@ -128,6 +155,10 @@ describe('BoardHome', () => {
     await user.click(await screen.findByRole('button', { name: 'Wand verlassen' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('„Beta“ verlassen?')).toBeInTheDocument();
+    // "freigegeben" would read as "shared" here, where Freigabe means a share link.
+    expect(
+      within(dialog).getByText(/Deine Zuweisungen auf dieser Wand werden aufgehoben\./),
+    ).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: 'Wand verlassen' }));
     await waitFor(() => expect(boardsApi.leave).toHaveBeenCalledWith('beta'));

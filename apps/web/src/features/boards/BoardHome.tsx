@@ -46,7 +46,9 @@ export function BoardHome() {
   const openCreate = () => setDialog({ kind: 'create', open: true });
 
   let content;
-  if (boards.isLoading) {
+  // Waits for the profile too: the continue card sits above the list, and painting it a moment
+  // later would shift every row. A failed profile load just means no continue card.
+  if (boards.isLoading || me.isLoading) {
     content = (
       <div role="status" aria-label={t('common.loading')} className="flex flex-col gap-2">
         <Skeleton className="h-11 w-full" />

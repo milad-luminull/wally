@@ -30,7 +30,15 @@ export function BoardRow({
     <li className="group flex items-center gap-1 rounded-lg transition-colors duration-100 hover:bg-inset focus-within:bg-inset">
       <Link
         to={`/boards/${board.id}`}
-        aria-label={t('home.open', { name: board.name })}
+        // The role is part of the name, so a screen reader hears what the sighted user sees.
+        aria-label={
+          own
+            ? t('home.open', { name: board.name })
+            : t('home.openShared', {
+                name: board.name,
+                role: effectiveRole[board.currentUserRole],
+              })
+        }
         title={board.name}
         className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-14 text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] [@media(pointer:coarse)]:h-12"
       >
