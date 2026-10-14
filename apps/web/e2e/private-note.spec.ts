@@ -14,6 +14,18 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
       (r) => r.url().endsWith('/me') && r.request().method() === 'PATCH' && r.ok(),
     );
 
+  // An aborted earlier run can leave "Nur private" remembered, which turns the New button into
+  // "Neue private Notiz". Wait for the button in either form, so the saved view has loaded,
+  // then switch the filter off before starting.
+  await expect(page.getByRole('button', { name: /^Neue (private )?Notiz/ })).toBeVisible();
+  const leftOn = page.getByRole('radio', { name: 'Nur private' });
+  if ((await leftOn.isVisible()) && (await leftOn.getAttribute('aria-checked')) === 'true') {
+    const cleared = preferenceSaved();
+    await leftOn.click();
+    await cleared;
+    await expect(leftOn).toHaveAttribute('aria-checked', 'false');
+  }
+
   const title = `E2E-Privat ${Date.now()}`;
   await page.getByRole('button', { name: 'Neue Notiz' }).click();
   const titleField = page.getByLabel('Titel');
