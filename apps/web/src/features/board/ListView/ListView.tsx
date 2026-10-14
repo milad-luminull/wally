@@ -6,6 +6,7 @@ import type { BoardAxis } from '../hooks/useBoardViewState';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { groupByAxis } from '../util/noteDerived';
+import type { BoardAccess } from '../util/permissions';
 import { NoteRow } from './NoteRow';
 
 const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
@@ -48,7 +49,7 @@ interface ListViewProps {
   currentUserId: string | undefined;
   onOpenNote: (id: string) => void;
   onToggleDone: (noteId: string, currentStatus: NoteStatus) => void;
-  canEdit: boolean;
+  access: BoardAccess;
   isBelowDesktop: boolean;
 }
 
@@ -58,13 +59,13 @@ interface ListViewProps {
  * show up in both instantly without a second fetch.
  */
 /** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */
-function emptyStateKeys(boardIsEmpty: boolean, canEdit: boolean) {
+function emptyStateKeys(boardIsEmpty: boolean, canEditShared: boolean) {
   if (!boardIsEmpty) {
     return { title: 'board.empty.filtered.title', body: 'board.empty.filtered.body' } as const;
   }
   return {
     title: 'board.empty.board.title',
-    body: canEdit ? 'board.empty.board.canEdit' : 'board.empty.board.readOnly',
+    body: canEditShared ? 'board.empty.board.canEdit' : 'board.empty.board.viewer',
   } as const;
 }
 
@@ -75,7 +76,7 @@ export function ListView({
   currentUserId,
   onOpenNote,
   onToggleDone,
-  canEdit,
+  access,
   isBelowDesktop,
 }: ListViewProps) {
   const { t } = useTranslation();
@@ -88,7 +89,7 @@ export function ListView({
   const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
   if (notes.length === 0) {
-    const keys = emptyStateKeys(totalNoteCount === 0, canEdit);
+    const keys = emptyStateKeys(totalNoteCount === 0, access.canEditShared);
     return (
       <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
         <EmptyState
@@ -133,7 +134,7 @@ export function ListView({
                   currentUserId={currentUserId}
                   onOpen={() => onOpenNote(note.id)}
                   onToggleDone={() => onToggleDone(note.id, note.status)}
-                  canEdit={canEdit}
+                  canEdit={access.canEditNote(note)}
                 />
               ))}
             </div>

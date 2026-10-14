@@ -261,6 +261,7 @@ export const de = {
       membersAria_other: '{{count}} Mitglieder',
       // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
       newNote: 'Neue Notiz',
+      newPrivateNote: 'Neue private Notiz',
       display: {
         label: 'Anzeige',
         remembered: 'Wally merkt sich die Ansicht pro Wand.',
@@ -291,7 +292,7 @@ export const de = {
         title: 'Deine Wand ist noch leer',
         // Quotes the top bar's own button label — keep in step with board.topBar.newNote.
         canEdit: 'Lege mit „Neue Notiz“ oben rechts deine erste Notiz an.',
-        readOnly: 'Sobald jemand eine Notiz anlegt, erscheint sie hier.',
+        viewer: 'Du kannst diese Wand ansehen. Notizen, die du hier anlegst, sind privat.',
       },
       filtered: {
         title: 'Keine Notiz passt zum Filter',
@@ -300,7 +301,7 @@ export const de = {
       free: {
         title: 'Freie Wand',
         canEdit: 'Doppelklicke irgendwo auf die Wand, um eine Notiz genau dort anzulegen.',
-        readOnly: 'Auf dieser Wand liegt noch nichts.',
+        viewer: 'Doppelklicke auf die Wand für eine private Notiz. Nur du siehst sie.',
       },
     },
     hint: {

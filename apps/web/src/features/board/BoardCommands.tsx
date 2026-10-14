@@ -25,7 +25,7 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
-import type { NoteDto, ThemePreference } from '@wally/shared';
+import type { NoteDto, NoteVisibility, ThemePreference } from '@wally/shared';
 import {
   Command,
   CommandEmpty,
@@ -68,7 +68,10 @@ interface BoardCommandsProps {
   done: boolean;
   mine: boolean;
   isDesktop: boolean;
-  canEdit: boolean;
+  /** What a new note becomes: viewers add private ones, and the New label says so. */
+  newNoteVisibility: NoteVisibility;
+  /** The open note is one this member may duplicate. */
+  canDuplicateOpenNote: boolean;
   noteOpen: boolean;
   onNewNote: () => void;
   /** Duplicates the open note. */
@@ -94,7 +97,7 @@ function Kbd({ children }: { children: string }) {
 export function BoardCommands(props: BoardCommandsProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const { isDesktop, canEdit } = props;
+  const { isDesktop } = props;
 
   useOpenRequest('palette', () => setPaletteOpen(true));
   useOpenRequest('shortcuts', () => setHelpOpen(true));
@@ -103,14 +106,14 @@ export function BoardCommands(props: BoardCommandsProps) {
     { keys: 'mod+k', allowInInputs: true, handler: () => setPaletteOpen((open) => !open) },
     { keys: '?', handler: () => setHelpOpen(true) },
     { keys: '/', handler: () => document.getElementById(SEARCH_INPUT_ID)?.focus() },
-    { keys: 'n', handler: () => canEdit && props.onNewNote() },
+    { keys: 'n', handler: () => props.onNewNote() },
     {
       // Works from inside the title or description too: duplicating what you are writing
       // is the common case. Without an open note it still swallows the key, so the
       // browser's bookmark dialog never opens on the board.
       keys: 'mod+d',
       allowInInputs: true,
-      handler: () => canEdit && props.noteOpen && props.onDuplicateNote(),
+      handler: () => props.noteOpen && props.canDuplicateOpenNote && props.onDuplicateNote(),
     },
     {
       keys: 'v',
@@ -147,7 +150,8 @@ function CommandPalette({
   done,
   mine,
   isDesktop,
-  canEdit,
+  newNoteVisibility,
+  canDuplicateOpenNote,
   noteOpen,
   onNewNote,
   onDuplicateNote,
@@ -229,14 +233,18 @@ function CommandPalette({
             )}
 
             <CommandGroup heading={t('palette.groups.actions')}>
-              {canEdit && (
-                <CommandItem value="new note" onSelect={() => run(onNewNote)}>
-                  <Plus strokeWidth={1.75} />
-                  <span className="flex-1">{t('board.topBar.newNote')}</span>
-                  <Kbd>N</Kbd>
-                </CommandItem>
-              )}
-              {canEdit && noteOpen && (
+              <CommandItem value="new note" onSelect={() => run(onNewNote)}>
+                <Plus strokeWidth={1.75} />
+                <span className="flex-1">
+                  {t(
+                    newNoteVisibility === 'PRIVATE'
+                      ? 'board.topBar.newPrivateNote'
+                      : 'board.topBar.newNote',
+                  )}
+                </span>
+                <Kbd>N</Kbd>
+              </CommandItem>
+              {noteOpen && canDuplicateOpenNote && (
                 <CommandItem value="duplicate copy note" onSelect={() => run(onDuplicateNote)}>
                   <Copy strokeWidth={1.75} />
                   <span className="flex-1">{t('palette.duplicateNote')}</span>

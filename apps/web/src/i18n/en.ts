@@ -246,6 +246,7 @@ export const en = {
       membersAria_one: '{{count}} member',
       membersAria_other: '{{count}} members',
       newNote: 'New note',
+      newPrivateNote: 'New private note',
       display: {
         label: 'Display',
         remembered: 'Wally remembers your view for each board.',
@@ -275,7 +276,7 @@ export const en = {
       board: {
         title: 'Your board is still empty',
         canEdit: 'Use “New note” at the top right to add your first one.',
-        readOnly: 'As soon as someone adds a note, it will show up here.',
+        viewer: 'You can view this board. Notes you add here are private.',
       },
       filtered: {
         title: 'No note matches the filter',
@@ -284,7 +285,7 @@ export const en = {
       free: {
         title: 'Free canvas',
         canEdit: 'Double-click anywhere on the board to add a note right there.',
-        readOnly: 'There is nothing on this board yet.',
+        viewer: 'Double-click the wall to add a private note. Only you can see it.',
       },
     },
     hint: {

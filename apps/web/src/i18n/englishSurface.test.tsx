@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { ListView } from '@/features/board/ListView/ListView';
+import { boardAccess } from '@/features/board/util/permissions';
 import { i18n } from './index';
 import { de } from './de';
 import { en } from './en';
@@ -32,7 +33,7 @@ describe('the English surface', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={boardAccess('OWNER', 'user-1', 'all')}
         isBelowDesktop={false}
       />,
     );
@@ -55,7 +56,7 @@ describe('the English surface', () => {
         currentUserId="user-1"
         onOpenNote={vi.fn()}
         onToggleDone={vi.fn()}
-        canEdit
+        access={boardAccess('OWNER', 'user-1', 'all')}
         isBelowDesktop={false}
       />,
     );

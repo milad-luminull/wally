@@ -44,6 +44,7 @@ import {
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
 import { collectFieldKeys, displayName } from '../util/noteDerived';
+import type { BoardAccess } from '../util/permissions';
 import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
@@ -69,7 +70,7 @@ const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0
 interface NoteDetailPanelProps {
   noteId: string | null;
   boardId: string;
-  canEdit: boolean;
+  access: BoardAccess;
   axis: BoardAxis;
   isBelowDesktop: boolean;
   onClose: () => void;
@@ -110,7 +111,7 @@ function useEscapeToClose(onClose: () => void, enabled: boolean) {
 export function NoteDetailPanel({
   noteId,
   boardId,
-  canEdit,
+  access,
   axis,
   isBelowDesktop,
   onClose,
@@ -128,7 +129,7 @@ export function NoteDetailPanel({
             <NoteDetailContent
               noteId={noteId}
               boardId={boardId}
-              canEdit={canEdit}
+              access={access}
               axis={axis}
               onClose={onClose}
               onDuplicate={onDuplicate}
@@ -157,7 +158,7 @@ export function NoteDetailPanel({
         key={noteId}
         noteId={noteId}
         boardId={boardId}
-        canEdit={canEdit}
+        access={access}
         axis={axis}
         onClose={onClose}
         onDuplicate={onDuplicate}
@@ -171,7 +172,7 @@ export function NoteDetailPanel({
 interface ContentProps {
   noteId: string;
   boardId: string;
-  canEdit: boolean;
+  access: BoardAccess;
   axis: BoardAxis;
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
@@ -182,7 +183,7 @@ interface ContentProps {
 function NoteDetailContent({
   noteId,
   boardId,
-  canEdit,
+  access,
   axis,
   onClose,
   onDuplicate,
@@ -274,7 +275,7 @@ function NoteDetailContent({
     );
   }
 
-  const disabled = !canEdit;
+  const disabled = !access.canEditNote(note);
   // Active members, plus the current assignee if they are not among them (a pending or
   // since-removed member) — otherwise the trigger has no item to show and goes blank.
   const assigneeOptions: UserSummary[] = activeMembers.map((m) => ({

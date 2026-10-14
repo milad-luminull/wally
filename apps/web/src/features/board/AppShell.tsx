@@ -11,7 +11,7 @@ import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useCreateNote } from './hooks/mutations/useCreateNote';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
-import { canEdit as canEditRole, isOwner as isOwnerRole } from './util/permissions';
+import { boardAccess, isOwner as isOwnerRole } from './util/permissions';
 import { collectFieldKeys, collectFieldValues, filterNotes } from './util/noteDerived';
 import { TopBar } from './TopBar';
 import { FilterBar } from './FilterBar';
@@ -33,7 +33,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
 
-  const canEdit = canEditRole(board.currentUserRole);
+  const access = useMemo(
+    () => boardAccess(board.currentUserRole, user?.uid, viewState.visibility),
+    [board.currentUserRole, user?.uid, viewState.visibility],
+  );
   const isOwner = isOwnerRole(board.currentUserRole);
   const notes = notesQuery.data ?? EMPTY_NOTES;
 
@@ -56,11 +59,11 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
   const createNote = useCreateNote(boardId);
   const newNote = useCallback(() => {
-    if (!canEdit) return;
-    createNote.mutate(nextFreeNotePosition(notes), {
-      onSuccess: (n) => viewState.openNote(n.id),
-    });
-  }, [canEdit, createNote, notes, viewState]);
+    createNote.mutate(
+      { ...nextFreeNotePosition(notes), visibility: access.newNoteVisibility },
+      { onSuccess: (n) => viewState.openNote(n.id) },
+    );
+  }, [access.newNoteVisibility, createNote, notes, viewState]);
 
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
@@ -75,11 +78,13 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
    * leaves the panel alone, since the user is busy arranging cards. */
   const duplicateNote = useCallback(
     (noteId: string, placement?: DuplicatePlacement) => {
-      if (!canEdit) return;
+      const source = notes.find((n) => n.id === noteId);
+      if (!source || !access.canEditNote(source)) return;
       duplicate(noteId, placement, placement ? undefined : { onSuccess: (n) => openNote(n.id) });
     },
-    [canEdit, duplicate, openNote],
+    [access, duplicate, notes, openNote],
   );
+  const openedNote = notes.find((n) => n.id === viewState.noteId);
 
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
@@ -94,7 +99,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         axis={viewState.axis}
         isDesktop={isDesktop}
         isBelowTablet={isBelowTablet}
-        canEdit={canEdit}
+        newNoteVisibility={access.newNoteVisibility}
         isOwner={isOwner}
         isCustomized={viewState.isCustomized}
         onSetView={viewState.setView}
@@ -128,7 +133,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             selectedNoteId={viewState.noteId}
             onOpenNote={viewState.openNote}
             onDuplicateNote={duplicateNote}
-            canEdit={canEdit}
+            access={access}
           />
         ) : (
           <ListView
@@ -140,7 +145,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onToggleDone={(noteId, status) =>
               toggleStatus.mutate({ noteId, currentStatus: status })
             }
-            canEdit={canEdit}
+            access={access}
             isBelowDesktop={isBelowDesktop}
           />
         )}
@@ -148,7 +153,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         <NoteDetailPanel
           noteId={viewState.noteId}
           boardId={boardId}
-          canEdit={canEdit}
+          access={access}
           axis={viewState.axis}
           isBelowDesktop={isBelowDesktop}
           onClose={() => viewState.openNote(null)}
@@ -165,7 +170,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         done={viewState.done}
         mine={viewState.mine}
         isDesktop={isDesktop}
-        canEdit={canEdit}
+        newNoteVisibility={access.newNoteVisibility}
+        canDuplicateOpenNote={Boolean(openedNote && access.canEditNote(openedNote))}
         noteOpen={viewState.noteId !== null}
         onNewNote={newNote}
         onDuplicateNote={() => viewState.noteId && duplicateNote(viewState.noteId)}

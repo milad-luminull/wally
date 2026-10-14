@@ -7,6 +7,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeMember, makeNote, makeNoteDetail } from '@/test/fixtures';
 import { Toaster } from '@/components/ui/toaster';
 import { resetToasts } from '@/lib/toast';
+import { boardAccess } from '../util/permissions';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
 vi.mock('@/lib/resources', () => ({
@@ -45,7 +46,7 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
     <NoteDetailPanel
       noteId="note-1"
       boardId="board-1"
-      canEdit
+      access={boardAccess('OWNER', 'user-1', 'all')}
       axis="horizon"
       isBelowDesktop={false}
       onClose={onClose}
@@ -118,7 +119,7 @@ describe('NoteDetailPanel', () => {
     });
 
     it('does not offer the checkbox to a member who cannot edit', async () => {
-      renderPanel({ canEdit: false });
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
       await screen.findByLabelText('Titel');
 
       expect(screen.getByRole('checkbox', { name: 'Erledigt' })).toBeDisabled();
@@ -280,7 +281,7 @@ describe('NoteDetailPanel', () => {
     });
 
     it('is not offered to a member who cannot edit', async () => {
-      renderPanel({ canEdit: false });
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
       await screen.findByLabelText('Titel');
 
       expect(screen.queryByRole('button', { name: 'Duplizieren' })).not.toBeInTheDocument();
@@ -395,7 +396,7 @@ describe('NoteDetailPanel', () => {
       <NoteDetailPanel
         noteId="note-1"
         boardId="board-1"
-        canEdit
+        access={boardAccess('OWNER', 'user-1', 'all')}
         axis="free"
         isBelowDesktop={false}
         onClose={vi.fn()}
@@ -421,7 +422,7 @@ describe('NoteDetailPanel', () => {
   });
 
   it('disables every field and hides the delete action for a VIEW-role member', async () => {
-    renderPanel({ canEdit: false });
+    renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
     await screen.findByLabelText('Titel');
 
     expect(screen.getByLabelText('Titel')).toBeDisabled();
@@ -448,7 +449,7 @@ describe('NoteDetailPanel', () => {
           <NoteDetailPanel
             noteId="note-1"
             boardId="board-1"
-            canEdit
+            access={boardAccess('OWNER', 'user-1', 'all')}
             axis="horizon"
             isBelowDesktop={false}
             onClose={onClose}
