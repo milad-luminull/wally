@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { LogOut, MoreHorizontal, Trash2 } from 'lucide-react';
@@ -18,9 +18,11 @@ export function BoardRow({
   onLeave,
 }: {
   board: WhiteboardSummaryDto;
-  onDelete: () => void;
-  onLeave: () => void;
+  /** Each receives the row's menu button, for focus to return to on cancel. */
+  onDelete: (trigger: HTMLElement | null) => void;
+  onLeave: (trigger: HTMLElement | null) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { t } = useTranslation();
   const { effectiveRole } = useEnumLabels();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,6 +53,7 @@ export function BoardRow({
       </Link>
       <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger
+          ref={triggerRef}
           aria-label={t('home.rowMenu', { name: board.name })}
           className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors duration-100 hover:bg-surface hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] data-[state=open]:bg-surface data-[state=open]:text-fg-1 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
         >
@@ -63,7 +66,7 @@ export function BoardRow({
               icon={<Trash2 strokeWidth={1.75} />}
               onClick={() => {
                 setMenuOpen(false);
-                onDelete();
+                onDelete(triggerRef.current);
               }}
             >
               {t('home.delete.action')}
@@ -74,7 +77,7 @@ export function BoardRow({
               icon={<LogOut strokeWidth={1.75} />}
               onClick={() => {
                 setMenuOpen(false);
-                onLeave();
+                onLeave(triggerRef.current);
               }}
             >
               {t('home.leave.action')}

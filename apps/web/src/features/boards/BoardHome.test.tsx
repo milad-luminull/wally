@@ -164,3 +164,42 @@ describe('BoardHome', () => {
     await waitFor(() => expect(boardsApi.leave).toHaveBeenCalledWith('beta'));
   }, 60_000);
 });
+
+describe('BoardHome focus after a confirmation', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  // The row and its menu button are gone after a delete; focus must land somewhere a keyboard
+  // user can continue from, not on <body>.
+  it('moves focus to the page heading once the board is gone', async () => {
+    const user = userEvent.setup();
+    vi.mocked(boardsApi.get).mockResolvedValue(makeBoard({ id: 'alpha', revision: 4 }));
+    vi.mocked(notesApi.list).mockResolvedValue([]);
+    vi.mocked(boardsApi.remove).mockResolvedValue(undefined);
+    renderHome([alpha, beta]);
+
+    await user.click(await screen.findByRole('button', { name: 'Optionen für Alpha' }));
+    await user.click(await screen.findByRole('button', { name: 'Wand löschen' }));
+    const dialog = await screen.findByRole('alertdialog');
+    vi.mocked(boardsApi.list).mockResolvedValue([beta]);
+    await user.click(within(dialog).getByRole('button', { name: 'Wand löschen' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: 'Deine Wände' })).toHaveFocus(),
+    );
+  }, 60_000);
+
+  it('returns focus to the row’s menu button when the confirmation is cancelled', async () => {
+    const user = userEvent.setup();
+    renderHome([alpha, beta]);
+
+    const trigger = await screen.findByRole('button', { name: 'Optionen für Beta' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('button', { name: 'Wand verlassen' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+
+    await waitFor(() => expect(trigger).toHaveFocus());
+  }, 60_000);
+});

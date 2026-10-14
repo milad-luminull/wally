@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, CloudOff, LayoutGrid, Plus, RotateCcw } from 'lucide-react';
@@ -16,7 +16,13 @@ import { NewBoardDialog } from './NewBoardDialog';
 
 type Dialog =
   | { kind: 'create'; open: boolean }
-  | { kind: 'delete' | 'leave'; board: WhiteboardSummaryDto; open: boolean };
+  | {
+      kind: 'delete' | 'leave';
+      board: WhiteboardSummaryDto;
+      open: boolean;
+      /** The row's menu button, for focus to return to when the confirmation is cancelled. */
+      opener: HTMLElement | null;
+    };
 
 /**
  * Every board the caller can open, in one place (RFC BOARD_HOME §7): a continue card for the
@@ -29,6 +35,7 @@ export function BoardHome() {
   const boards = useBoards();
   const me = useMe();
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const { own, shared, continueBoard } = useMemo(() => {
     const collator = new Intl.Collator(i18n.language, { sensitivity: 'base', numeric: true });
@@ -44,6 +51,12 @@ export function BoardHome() {
   // Keeps the dialog mounted while it animates out.
   const close = (open: boolean) => setDialog((current) => (current ? { ...current, open } : null));
   const openCreate = () => setDialog({ kind: 'create', open: true });
+  // After a delete or leave the row and its button are gone: continue from the heading.
+  const restoreFocus = (confirmed: boolean) => {
+    const opener = dialog && dialog.kind !== 'create' ? dialog.opener : null;
+    if (!confirmed && opener?.isConnected) opener.focus();
+    else headingRef.current?.focus();
+  };
 
   let content;
   // Waits for the profile too: the continue card sits above the list, and painting it a moment
@@ -88,8 +101,8 @@ export function BoardHome() {
       <BoardRow
         key={board.id}
         board={board}
-        onDelete={() => setDialog({ kind: 'delete', board, open: true })}
-        onLeave={() => setDialog({ kind: 'leave', board, open: true })}
+        onDelete={(opener) => setDialog({ kind: 'delete', board, open: true, opener })}
+        onLeave={(opener) => setDialog({ kind: 'leave', board, open: true, opener })}
       />
     );
     content = (
@@ -142,7 +155,13 @@ export function BoardHome() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-12">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-20 font-semibold text-fg-1 sm:text-28">{t('home.title')}</h1>
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-20 font-semibold text-fg-1 focus:outline-none sm:text-28"
+        >
+          {t('home.title')}
+        </h1>
         {/* Reached first when tabbing through the page; the empty state has its own. */}
         {boards.data && boards.data.length > 0 && (
           <Button variant="outline" size="sm" onClick={openCreate}>
@@ -155,10 +174,20 @@ export function BoardHome() {
 
       {dialog?.kind === 'create' && <NewBoardDialog open={dialog.open} onOpenChange={close} />}
       {dialog?.kind === 'delete' && (
-        <DeleteBoardDialog board={dialog.board} open={dialog.open} onOpenChange={close} />
+        <DeleteBoardDialog
+          board={dialog.board}
+          open={dialog.open}
+          onOpenChange={close}
+          onRestoreFocus={restoreFocus}
+        />
       )}
       {dialog?.kind === 'leave' && (
-        <LeaveBoardDialog board={dialog.board} open={dialog.open} onOpenChange={close} />
+        <LeaveBoardDialog
+          board={dialog.board}
+          open={dialog.open}
+          onOpenChange={close}
+          onRestoreFocus={restoreFocus}
+        />
       )}
     </div>
   );
