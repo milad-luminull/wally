@@ -47,6 +47,15 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
           return;
         tx.update(row.ref, { assigneeId: null, updatedAt: now(), revision: revisionOf(note) + 1 });
       });
+  } else if (job.kind === 'board.delete') {
+    // Every step deletes something that may already be gone, so a rerun after a failure is safe.
+    const boardRef = whiteboardsCol(db).doc(job.boardId);
+    const board = (await boardRef.get()).data();
+    if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');
+    const notes = await notesCol(db).where('whiteboardId', '==', job.boardId).get();
+    for (const row of notes.docs) await db.recursiveDelete(row.ref);
+    // Takes the members subcollection with the board document.
+    await db.recursiveDelete(boardRef);
   } else throw new Error('Unknown cleanup kind');
   await ref.delete();
 }

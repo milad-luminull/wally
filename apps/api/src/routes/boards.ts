@@ -90,6 +90,7 @@ export default async function boardRoutes(app: FastifyInstance) {
       response: whiteboardDtoSchema,
       status: 201,
     },
+    { method: 'DELETE', url: '/whiteboards/:id', type: 'board.delete', status: 204 },
     {
       method: 'PATCH',
       url: '/whiteboards/:id',

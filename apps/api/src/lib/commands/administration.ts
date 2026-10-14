@@ -108,6 +108,21 @@ export async function executeAdminCommand(
     );
   }
 
+  // Tombstone, withdraw the share link and enqueue the physical deletion, all in this commit.
+  // From here the board reads as absent for everyone (liveWhiteboard); the cleanup job removes
+  // its notes, members and document and can be resumed by maintenance (RFC BOARD_HOME §12.2).
+  if (command.type === 'board.delete') {
+    const cleanupId = `${actor.id}_${ctx.operationId}`;
+    if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));
+    updateBoard({ deletedAt: timestamp, shareLinkToken: null });
+    tx.create(db.collection('boardCleanup').doc(cleanupId), {
+      kind: 'board.delete',
+      boardId: board.id,
+      createdAt: timestamp,
+    });
+    return result(null, 204, revision, cleanupId);
+  }
+
   if (
     command.type === 'member.invite' ||
     command.type === 'member.update' ||

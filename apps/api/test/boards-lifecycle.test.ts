@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_OWN_BOARDS } from '@wally/shared';
+import { drainCleanup } from '../src/lib/commands/maintenance.js';
+import { membersCol, notesCol, shareLinksCol, whiteboardsCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 /** RFC BOARD_HOME §8–§10, §12: creating, deleting and leaving boards. */
@@ -79,5 +81,105 @@ describe('board.create', () => {
     const over = await create(fx.ownerToken, 'Eine zu viel');
     expect(over.statusCode).toBe(422);
     expect(over.json().error).toBe('BOARD_LIMIT_REACHED');
+  });
+});
+
+const del = (token: string, boardId: string, key = randomUUID()) =>
+  ctx.inject({
+    method: 'DELETE',
+    url: `/whiteboards/${boardId}`,
+    headers: { ...ctx.authHeader(token), 'idempotency-key': key },
+  });
+
+describe('board.delete', () => {
+  it('is for the owner only', async () => {
+    expect((await del(fx.editToken, fx.boardId)).statusCode).toBe(403);
+    expect((await del(fx.outsiderToken, fx.boardId)).statusCode).toBe(404);
+  });
+
+  it('hides the board at once and finishes the physical deletion in cleanup', async () => {
+    const owner = ctx.authHeader(fx.ownerToken);
+    const note = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: owner,
+        payload: { title: 'Weg damit' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/notes/${note.id}/subtasks`,
+      headers: owner,
+      payload: { text: 'Teil' },
+    });
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/share-link`,
+      headers: owner,
+      payload: { role: 'VIEW' },
+    });
+    const token = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()!.shareLinkToken!;
+    expect(token).toBeTruthy();
+
+    expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
+
+    for (const t of [fx.ownerToken, fx.editToken]) {
+      expect((await listIds(t)).map((b) => b.id)).not.toContain(fx.boardId);
+      const get = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}`,
+        headers: ctx.authHeader(t),
+      });
+      expect(get.statusCode).toBe(404);
+    }
+    expect((await shareLinksCol(ctx.db).doc(token).get()).exists).toBe(false);
+    // Cleanup ran inline after the commit; nothing is left for maintenance.
+    expect(await drainCleanup(ctx.db)).toEqual({ completed: 0, pending: 0 });
+    expect((await notesCol(ctx.db).doc(note.id).get()).exists).toBe(false);
+    expect((await notesCol(ctx.db).doc(note.id).collection('subtasks').get()).size).toBe(0);
+    expect((await membersCol(ctx.db, fx.boardId).get()).size).toBe(0);
+    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+  });
+
+  it('keeps the job and the tombstone when cleanup fails, and a later drain finishes it', async () => {
+    vi.spyOn(ctx.db, 'recursiveDelete').mockRejectedValueOnce(new Error('interrupted'));
+    expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
+    expect((await ctx.db.collection('boardCleanup').get()).size).toBe(1);
+    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.deletedAt).toBeTruthy();
+    expect((await listIds(fx.ownerToken)).map((b) => b.id)).not.toContain(fx.boardId);
+    expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
+    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+  });
+
+  it('refuses a stale revision and answers a retry after completion with 404', async () => {
+    const key = randomUUID();
+    await ctx.inject({
+      method: 'PATCH',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { name: 'Umbenannt' },
+    });
+    const stale = await ctx.app.inject({
+      method: 'DELETE',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: {
+        ...ctx.authHeader(fx.ownerToken),
+        'idempotency-key': key,
+        'x-expected-revision': '0',
+      },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect((await del(fx.ownerToken, fx.boardId, key)).statusCode).toBe(204);
+    // The receipt exists, but re-authorization against a board that now reads as absent fails.
+    expect((await del(fx.ownerToken, fx.boardId, key)).statusCode).toBe(404);
+  });
+
+  it('frees a slot under MAX_OWN_BOARDS', async () => {
+    for (let i = 1; i < MAX_OWN_BOARDS; i++)
+      expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
+    expect((await create(fx.ownerToken, 'Zu viel')).statusCode).toBe(422);
+    expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
+    expect((await create(fx.ownerToken, 'Passt wieder')).statusCode).toBe(201);
   });
 });
