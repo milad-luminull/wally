@@ -6,6 +6,14 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
 
   await signIn(page);
 
+  // The filter is saved through a debounced PATCH /me (preferencesQueue.ts). Start waiting for
+  // that response before each click that changes it, so a reload or the next click cannot
+  // race the save.
+  const preferenceSaved = () =>
+    page.waitForResponse(
+      (r) => r.url().endsWith('/me') && r.request().method() === 'PATCH' && r.ok(),
+    );
+
   const title = `E2E-Privat ${Date.now()}`;
   await page.getByRole('button', { name: 'Neue Notiz' }).click();
   const titleField = page.getByLabel('Titel');
@@ -15,20 +23,31 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
   await page.getByRole('switch', { name: 'Privat' }).click();
   await expect(page.getByText('Jetzt privat. Nur du siehst diese Notiz.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Schließen' }).click();
+  // Scoped to the note panel: the toast on screen has its own "Schließen" button.
+  await page
+    .getByRole('complementary', { name: 'Notizdetails' })
+    .getByRole('button', { name: 'Schließen' })
+    .click();
   await expect(titleField).toBeHidden();
 
   const onlyPrivate = page.getByRole('radio', { name: 'Nur private' });
+  const saved = preferenceSaved();
   await onlyPrivate.click();
+  await saved;
   await expect(page.getByText(title)).toBeVisible();
-  await expect(page.getByRole('img', { name: 'Private Notiz' }).first()).toBeVisible();
+  await expect(
+    page.locator('[data-note-id]', { hasText: title }).getByRole('img', { name: 'Private Notiz' }),
+  ).toBeVisible();
 
   // Remembered per board, so it survives a reload.
   await page.reload();
   await expect(onlyPrivate).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByText(title)).toBeVisible();
 
-  // Leave the board's view as the other specs expect it.
+  // Leave the board's view as the other specs expect it. Awaiting the save keeps the shared
+  // E2E board from being left filtered for later specs.
+  const reset = preferenceSaved();
   await onlyPrivate.click();
+  await reset;
   await expect(onlyPrivate).toHaveAttribute('aria-checked', 'false');
 });
