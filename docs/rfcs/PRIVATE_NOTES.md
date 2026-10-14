@@ -189,11 +189,13 @@ is the personal to-do list. Both are one change away from the default.
 
 The filter is remembered per board and per user like **Mine** and **Done** (SPEC §4a): a
 new `visibility` key in `boardPreferencesSchema` with the same query-string and reset
-behaviour. `private` sends `visibility=PRIVATE` to the API, `shared` sends
-`visibility=SHARED`, and `all` sends nothing. It is shown when the filter is not `all` or when at least one note in the current
-response is private, following the precedent of the property filter, which also hides
-itself when it has nothing to offer. The first condition guarantees that "Hide private" can
-always be switched back.
+behaviour. The web app applies it in the browser, like **Mine** and **Done**, to the notes it
+has already loaded: `private` keeps only private notes, `shared` keeps only shared ones, and
+`all` keeps everything. The API's `visibility=PRIVATE|SHARED` parameter (R7) exists for other
+clients; the web app does not send it. The chips are shown when the filter is not `all` or
+when at least one loaded note is private, following the precedent of the property filter,
+which also hides itself when it has nothing to offer. The first condition guarantees that
+"Hide private" can always be switched back.
 
 While "Only private" is active, a note created from the board (the **New** button or a
 canvas double-click) is created private, so it does not vanish from the view the user is
