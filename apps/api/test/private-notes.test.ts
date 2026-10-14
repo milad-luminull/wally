@@ -182,6 +182,70 @@ describe('private notes: writes', () => {
     ).toBe(204);
   });
 
+  it('lets a viewer update and delete subtasks on their own private note only', async () => {
+    const note = (await createNote(fx.viewToken, { visibility: 'PRIVATE' })).json();
+    const sub = (path = '') => `/notes/${note.id}/subtasks${path}`;
+    const added = await ctx.inject({
+      method: 'POST',
+      url: sub(),
+      headers: as(fx.viewToken),
+      payload: { text: 'Anrufen' },
+    });
+    expect(added.statusCode).toBe(201);
+    const subtaskId = added.json().id;
+    const stored = async () => (await subtasksCol(ctx.db, note.id).doc(subtaskId).get()).data();
+
+    const done = await ctx.inject({
+      method: 'PATCH',
+      url: sub(`/${subtaskId}`),
+      headers: as(fx.viewToken),
+      payload: { done: true },
+    });
+    expect(done.statusCode).toBe(200);
+    expect(await stored()).toMatchObject({ done: true, text: 'Anrufen' });
+    const edited = await ctx.inject({
+      method: 'PATCH',
+      url: sub(`/${subtaskId}`),
+      headers: as(fx.viewToken),
+      payload: { text: 'Zurückrufen' },
+    });
+    expect(edited.statusCode).toBe(200);
+    expect(await stored()).toMatchObject({ done: true, text: 'Zurückrufen' });
+    const removed = await ctx.inject({
+      method: 'DELETE',
+      url: sub(`/${subtaskId}`),
+      headers: as(fx.viewToken),
+    });
+    expect(removed.statusCode).toBe(204);
+    expect(await stored()).toBeUndefined();
+
+    // The same viewer has no such right on a shared note's subtask.
+    const shared = (await createNote(fx.ownerToken)).json();
+    const sharedSub = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/notes/${shared.id}/subtasks`,
+        headers: as(fx.ownerToken),
+        payload: { text: 'Für alle' },
+      })
+    ).json();
+    const refused = await ctx.inject({
+      method: 'PATCH',
+      url: `/notes/${shared.id}/subtasks/${sharedSub.id}`,
+      headers: as(fx.viewToken),
+      payload: { done: true },
+    });
+    expect(refused.statusCode).toBe(403);
+    expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).data()!.done).toBe(false);
+    const refusedDelete = await ctx.inject({
+      method: 'DELETE',
+      url: `/notes/${shared.id}/subtasks/${sharedSub.id}`,
+      headers: as(fx.viewToken),
+    });
+    expect(refusedDelete.statusCode).toBe(403);
+    expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).exists).toBe(true);
+  });
+
   it('never lets a viewer change who sees a note', async () => {
     const own = (await createNote(fx.viewToken, { visibility: 'PRIVATE' })).json();
     expect((await patch(fx.viewToken, own.id, { visibility: 'SHARED' })).statusCode).toBe(403);
@@ -266,6 +330,60 @@ describe('private notes: writes', () => {
       });
     expect((await edit()).statusCode).toBe(200);
     expect((await edit()).statusCode).toBe(200);
+  });
+});
+
+describe('private notes: replay after a role change', () => {
+  const demote = () =>
+    ctx.inject({
+      method: 'PATCH',
+      url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
+      headers: as(fx.ownerToken),
+      payload: { role: 'VIEW' },
+    });
+
+  it('refuses to replay a shared write once its author was demoted to viewer', async () => {
+    const shared = (await createNote(fx.ownerToken)).json();
+    const key = randomUUID();
+    const edit = () =>
+      ctx.app.inject({
+        method: 'PATCH',
+        url: `/notes/${shared.id}`,
+        headers: { ...as(fx.editToken), 'idempotency-key': key, 'x-expected-revision': '1' },
+        payload: { title: 'Vom Bearbeiter' },
+      });
+    expect((await edit()).statusCode).toBe(200);
+
+    const demoted = await demote();
+    expect(demoted.statusCode).toBe(200);
+    expect(demoted.json().role).toBe('VIEW');
+    const before = (await notesCol(ctx.db).doc(shared.id).get()).data()!;
+    // Replaying with the same key would otherwise return the stored 200; the role is re-checked.
+    expect((await edit()).statusCode).toBe(403);
+    const after = (await notesCol(ctx.db).doc(shared.id).get()).data()!;
+    expect(after.title).toBe('Vom Bearbeiter');
+    expect(after.revision).toBe(before.revision);
+  });
+
+  it('still replays a private create after its author was demoted to viewer', async () => {
+    const key = randomUUID();
+    const send = () =>
+      ctx.app.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: { ...as(fx.editToken), 'idempotency-key': key },
+        payload: { title: 'Nur für mich', visibility: 'PRIVATE' },
+      });
+    const first = await send();
+    expect(first.statusCode).toBe(201);
+
+    expect((await demote()).statusCode).toBe(200);
+    const second = await send();
+    expect(second.statusCode).toBe(201);
+    expect(second.json().id).toBe(first.json().id);
+    expect((await list(fx.editToken, '?visibility=PRIVATE')).map((n) => n.id)).toEqual([
+      first.json().id,
+    ]);
   });
 });
 
