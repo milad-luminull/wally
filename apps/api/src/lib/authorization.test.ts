@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { NoteVisibility } from '@wally/shared';
-import { notesCol, now } from './db/collections.js';
+import { notesCol, now, whiteboardsCol } from './db/collections.js';
 import {
   createTestBoard,
   createTestMembership,
@@ -9,6 +9,7 @@ import {
   getTestDb,
   resetDatabase,
 } from '../../test/helpers.js';
+import { Timestamp } from 'firebase-admin/firestore';
 import { getEffectiveRole, requireWhiteboardAccess } from './authorization.js';
 
 const PROJECT_ID = 'wally-test-authorization';
@@ -59,6 +60,12 @@ describe('getEffectiveRole', () => {
   it('returns null for a non-member', async () => {
     const { board } = await makeFixture();
     await expect(getEffectiveRole(db, 'u-stranger', board)).resolves.toBeNull();
+  });
+
+  it('returns null for a tombstoned whiteboard, even for its owner', async () => {
+    const { board } = await makeFixture();
+    await whiteboardsCol(db).doc(board).update({ deletedAt: Timestamp.now() });
+    await expect(getEffectiveRole(db, 'u-owner', board)).resolves.toBeNull();
   });
 
   it('returns null for a nonexistent whiteboard', async () => {

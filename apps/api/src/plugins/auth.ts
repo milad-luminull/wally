@@ -58,11 +58,11 @@ interface ProvisionResult {
 }
 
 /**
- * Writes the user record and their own whiteboard in one transaction, so a brand-new
- * identity can't end up with one and not the other, and two concurrent first requests
- * can't both create a board. The board's document id IS the owner's uid, which is what
- * makes "one whiteboard per owner" a property of the key space rather than a constraint
- * that has to be enforced.
+ * Writes the user record and, for a brand-new identity only, their first whiteboard, in one
+ * transaction, so a new user can't end up with one and not the other, and two concurrent first
+ * requests can't both create a board. The first board shares the user's uid as its id; later
+ * boards (board.create) get generated ids, and nothing reads meaning into the uid-keyed one
+ * any more. A board the user deleted is never recreated here (RFC BOARD_HOME §12.3).
  */
 async function provisionUser(
   db: Firestore,
@@ -81,9 +81,13 @@ async function provisionUser(
   const boardRef = whiteboardsCol(db).doc(uid);
 
   return db.runTransaction(async (tx) => {
-    const [userSnapshot, boardSnapshot] = await Promise.all([tx.get(userRef), tx.get(boardRef)]);
+    const existing = withId(await tx.get(userRef));
+    // Read only for a new identity, and only so a leftover board under this uid (a user record
+    // removed by hand) is kept rather than overwritten. That includes a tombstoned board still
+    // being cleaned up: its notes still point at this id, so a fresh board here would show them
+    // again. Such a user starts with no board and creates one from the home.
+    const boardExists = existing ? true : (await tx.get(boardRef)).exists;
     const timestamp = now();
-    const existing = withId(userSnapshot);
     let changed = false;
 
     const user: WithId<UserDoc> = existing
@@ -125,13 +129,9 @@ async function provisionUser(
       changed = true;
     }
 
-    if (!boardSnapshot.exists) {
-      // signupLanguage only speaks for a genuinely new identity. This branch also fires for
-      // an EXISTING user whose board was deleted, and there the profile's stored language is
-      // the right answer — not whatever locale today's browser happens to report.
-      const boardLanguage = existing ? userLanguage(existing) : signupLanguage;
+    if (!boardExists) {
       tx.set(boardRef, {
-        name: INITIAL_BOARD_NAME[boardLanguage],
+        name: INITIAL_BOARD_NAME[signupLanguage],
         ownerId: uid,
         revision: 1,
         memberRoles: {},
@@ -149,10 +149,10 @@ async function provisionUser(
 /**
  * Global auth preHandler. Verifies the bearer token via the injectable
  * `fastify.authVerifier` (see plugins/firebase.ts), then makes sure the local user record
- * and their own whiteboard exist, and auto-activates any pending invite addressed to
- * their email.
+ * exists (with a first whiteboard for a brand-new identity), and auto-activates any pending
+ * invite addressed to their email.
  *
- * The steady-state path is two document reads, no writes and no collection-group query:
+ * The steady-state path is one document read, no writes and no collection-group query:
  * provisioning only runs on a user's first request or when their Firebase profile has
  * actually changed, and the pending-invite sweep only runs when provisioning wrote.
  */
@@ -186,10 +186,7 @@ export default fp(
       const email = normalizeEmail(decoded.email);
       const displayName = decoded.name ?? null;
 
-      const [userSnapshot, boardSnapshot] = await Promise.all([
-        usersCol(db).doc(decoded.uid).get(),
-        whiteboardsCol(db).doc(decoded.uid).get(),
-      ]);
+      const userSnapshot = await usersCol(db).doc(decoded.uid).get();
       const emailVerified = decoded.emailVerified;
       const existing = withId(userSnapshot);
 
@@ -199,7 +196,6 @@ export default fp(
       // deliberate — see provisionUser.
       const upToDate =
         existing !== null &&
-        boardSnapshot.exists &&
         existing.email === email &&
         existing.displayName === displayName &&
         existing.emailVerified === emailVerified;

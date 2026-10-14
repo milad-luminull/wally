@@ -1,4 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Timestamp } from 'firebase-admin/firestore';
+import { whiteboardsCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-whiteboards';
@@ -222,6 +224,55 @@ describe('whiteboard routes', () => {
       const editBoards = editRes.json();
       const membered = editBoards.find((b: { id: string }) => b.id === fx.boardId);
       expect(membered.currentUserRole).toBe('EDIT');
+    });
+  });
+  // RFC BOARD_HOME §12.2: from the moment board.delete commits, the board reads as absent for
+  // everyone, exactly like a board the caller was never a member of.
+  describe('a tombstoned board', () => {
+    async function tombstoned() {
+      const fx = await createBoardFixture(ctx);
+      await whiteboardsCol(ctx.db).doc(fx.boardId).update({ deletedAt: Timestamp.now() });
+      return fx;
+    }
+
+    it('is absent from the owner’s and a member’s board list', async () => {
+      const fx = await tombstoned();
+      for (const token of [fx.ownerToken, fx.editToken]) {
+        const res = await ctx.inject({
+          method: 'GET',
+          url: '/whiteboards',
+          headers: ctx.authHeader(token),
+        });
+        // Each fixture user also owns their own provisioned board; only this one must go.
+        expect(res.json().map((b: { id: string }) => b.id)).not.toContain(fx.boardId);
+      }
+    });
+
+    it('reads as 404 for the owner, exactly like a board that never existed', async () => {
+      const fx = await tombstoned();
+      const headers = ctx.authHeader(fx.ownerToken);
+      const get = await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}`, headers });
+      expect(get.statusCode).toBe(404);
+      const notes = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers,
+      });
+      expect(notes.statusCode).toBe(404);
+      const rename = await ctx.inject({
+        method: 'PATCH',
+        url: `/whiteboards/${fx.boardId}`,
+        headers,
+        payload: { name: 'Nope' },
+      });
+      expect(rename.statusCode).toBe(404);
+      const note = await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers,
+        payload: { title: 'Nope' },
+      });
+      expect(note.statusCode).toBe(404);
     });
   });
 });

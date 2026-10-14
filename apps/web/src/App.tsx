@@ -3,8 +3,9 @@ import { BrowserRouter, Route, Routes } from 'react-router';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/routes/LoginPage';
 import { SignupPage } from '@/routes/SignupPage';
-import { RootRedirect } from '@/routes/RootRedirect';
+import { LandingPage } from '@/routes/LandingPage';
 import { BoardPage } from '@/routes/BoardPage';
+import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
 import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
 
@@ -19,7 +20,15 @@ export function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <RootRedirect />
+              <LandingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boards"
+          element={
+            <ProtectedRoute>
+              <BoardsPage />
             </ProtectedRoute>
           }
         />

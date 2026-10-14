@@ -3,6 +3,7 @@ import { DEFAULT_LANGUAGE, normalizeFieldKey, noteListQuerySchema } from '@wally
 import {
   docsWithId,
   historyCol,
+  liveWhiteboard,
   loadUsers,
   membersCol,
   membersGroup,
@@ -36,7 +37,7 @@ function byDueDateThenCreated(a: WithId<NoteDoc>, b: WithId<NoteDoc>): number {
 export async function getBoard(db: Firestore, actor: Actor, boardId: string) {
   return db.runTransaction(
     async (tx) => {
-      const board = withId(await tx.get(whiteboardsCol(db).doc(boardId)));
+      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       const role = requireAccess(board, actor.id, ['OWNER', 'EDIT', 'VIEW']);
       return toWhiteboardDto(board!, role);
     },
@@ -46,7 +47,9 @@ export async function getBoard(db: Firestore, actor: Actor, boardId: string) {
 export async function listBoards(db: Firestore, actor: Actor) {
   return db.runTransaction(
     async (tx) => {
-      const owned = docsWithId(await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)));
+      const owned = docsWithId(
+        await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)),
+      ).filter((board) => !board.deletedAt);
       const memberships = docsWithId(
         await tx.get(
           membersGroup(db).where('userId', '==', actor.id).where('status', '==', 'ACTIVE'),
@@ -57,7 +60,7 @@ export async function listBoards(db: Firestore, actor: Actor) {
       ];
       const results = [];
       for (const id of ids) {
-        const board = withId(await tx.get(whiteboardsCol(db).doc(id)));
+        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(id)));
         if (!board) continue;
         const role = board.ownerId === actor.id ? ('OWNER' as const) : board.memberRoles[actor.id];
         if (role) results.push({ id, name: board.name, currentUserRole: role });
@@ -74,7 +77,7 @@ async function boardSnapshot(
   boardId: string,
   ownerOnly = false,
 ) {
-  const board = withId(await tx.get(whiteboardsCol(db).doc(boardId)));
+  const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
   requireAccess(board, actor.id, ownerOnly ? ['OWNER'] : ['OWNER', 'EDIT', 'VIEW']);
   return board!;
 }

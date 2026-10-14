@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn() } }));
+vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn(), create: vi.fn() } }));
 // Imported after the mock so it resolves to the mocked module.
 import { boardsApi } from '@/lib/resources';
 
@@ -15,15 +15,19 @@ describe('BoardSwitcher', () => {
     vi.clearAllMocks();
   });
 
-  it('stays out of the way while the caller only has their own board', async () => {
+  // RFC BOARD_HOME §11: even with one board, the switcher is the way to the board home and
+  // the only hint on a board that more boards are possible.
+  it('offers all boards and a new board even when the caller has only one', async () => {
+    const user = userEvent.setup();
     vi.mocked(boardsApi.list).mockResolvedValue([makeBoard({ id: 'own' })]);
 
-    const { container } = renderWithProviders(<BoardSwitcher boardId="own" />);
+    renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });
+    await user.click(await screen.findByRole('button', { name: 'Wand wechseln' }));
 
-    // Nothing to switch to, so the title keeps the plain look it has today.
-    await vi.waitFor(() => expect(boardsApi.list).toHaveBeenCalled());
-    expect(container.querySelector('button')).toBeNull();
-  });
+    expect(screen.getByRole('link', { name: 'Alle Wände' })).toHaveAttribute('href', '/boards');
+    await user.click(screen.getByRole('button', { name: 'Neue Wand' }));
+    expect(await screen.findByRole('dialog', { name: 'Neue Wand' })).toBeInTheDocument();
+  }, 60_000);
 
   /**
    * Until this existed, useBoards was consumed only by RootRedirect — which always prefers

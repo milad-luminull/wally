@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   meDtoSchema,
   meUpdateSchema,
+  whiteboardCreateSchema,
   whiteboardDtoSchema,
   whiteboardSummaryDtoSchema,
   noteDtoSchema,
@@ -63,6 +64,14 @@ export const boardsApi = {
     api.get(`/whiteboards/${boardId}`, whiteboardDtoSchema),
   rename: (boardId: string, name: string, ticket?: MutationTicket): Promise<WhiteboardDto> =>
     api.patch(`/whiteboards/${boardId}`, { name }, whiteboardDtoSchema, ticket),
+  /** No lane and no recovery entry: the New board dialog reports its own errors. */
+  create: (name: string, ticket?: MutationTicket): Promise<WhiteboardDto> =>
+    api.post('/whiteboards', whiteboardCreateSchema.parse({ name }), whiteboardDtoSchema, ticket),
+  /** Owner only, against the board revision. A 404 means already gone and resolves. */
+  remove: (boardId: string, ticket?: MutationTicket): Promise<void> =>
+    api.delete(`/whiteboards/${boardId}`, undefined, ticket),
+  /** No revision: leaving states a fact about the caller. A 404 means already gone. */
+  leave: (boardId: string): Promise<void> => api.post(`/whiteboards/${boardId}/leave`, {}),
 };
 
 /**

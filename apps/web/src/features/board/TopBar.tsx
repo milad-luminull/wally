@@ -6,6 +6,7 @@ import type { NoteDto, NoteVisibility, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Link } from 'react-router';
 import { BrandMark } from '@/components/BrandMark';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
@@ -206,7 +207,14 @@ export function TopBar({
   return (
     <header className="z-header flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
       <div className="flex min-w-0 items-center gap-2">
-        <BrandMark size={20} className="shrink-0" />
+        <Link
+          to="/boards"
+          aria-label={t('board.topBar.home')}
+          title={t('board.topBar.home')}
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+        >
+          <BrandMark size={20} />
+        </Link>
         <span aria-hidden className="text-16 font-light text-fg-faint">
           /
         </span>

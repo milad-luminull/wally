@@ -1,6 +1,6 @@
 # ADR-0004: Firebase ID tokens verified by the API; user and board provisioned on the first request
 
-- **Status:** accepted
+- **Status:** accepted; the board-provisioning rule is superseded by [ADR-0011](0011-boards-as-independent-aggregates.md)
 - **Date:** 2026-09-18
 - **Deciders:** Milad Rezazadeh
 

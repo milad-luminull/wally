@@ -179,6 +179,28 @@ describe('AuthProvider', () => {
     expect(order).toEqual(['reload', 'getIdToken']);
   });
 
+  it('is not "signed out" when the page opens with nobody signed in', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(null);
+    expect(result.current.status).toBe('unauthenticated');
+    expect(result.current.signedOut).toBe(false);
+  });
+
+  it('marks a sign-out of a signed-in account, and clears it when someone signs in', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(makeUser({ uid: 'u-1' }));
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    expect(result.current.signedOut).toBe(false);
+
+    await signIn(null);
+    expect(result.current.status).toBe('unauthenticated');
+    expect(result.current.signedOut).toBe(true);
+
+    await signIn(makeUser({ uid: 'u-2' }));
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    expect(result.current.signedOut).toBe(false);
+  });
+
   it('clears the verification flag on sign-out', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await signIn(makeUser({ emailVerified: true }));

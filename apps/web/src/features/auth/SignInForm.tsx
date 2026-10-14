@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { z } from 'zod';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
+import { landingWithReturn, readReturnPath } from './returnPath';
 import { Button } from '@/components/ui/button';
 import { GoogleMark } from '@/components/GoogleMark';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,11 @@ export function SignInForm() {
   const { signInWithEmail, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const from = readReturnPath(location.state);
+  const goOn = () => {
+    const target = landingWithReturn(from);
+    navigate(target.pathname, { replace: true, state: target.state });
+  };
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,7 +74,7 @@ export function SignInForm() {
     setLoading('email');
     try {
       await signInWithEmail(parsed.data.email, parsed.data.password);
-      navigate(from, { replace: true });
+      goOn();
     } catch (err) {
       setFormError(authErrorKey(err));
     } finally {
@@ -82,7 +87,7 @@ export function SignInForm() {
     setLoading('google');
     try {
       await signInWithGoogle();
-      navigate(from, { replace: true });
+      goOn();
     } catch (err) {
       setFormError(authErrorKey(err));
     } finally {

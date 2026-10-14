@@ -68,6 +68,11 @@ export type StoredPreferences = {
 
 export type WhiteboardDoc = {
   revision?: number;
+  /**
+   * Set by board.delete. From that moment the board reads as absent for everyone — read it
+   * through liveWhiteboard(), never withId(), except in the cleanup job that finishes it.
+   */
+  deletedAt?: Timestamp;
   name: string;
   ownerId: string;
   /**

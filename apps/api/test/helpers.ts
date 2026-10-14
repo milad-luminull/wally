@@ -94,7 +94,8 @@ export async function buildTestApp(projectId: string): Promise<TestContext> {
       let revision: number | undefined;
       if (parts[1] === 'notes')
         revision = (await notesCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
-      else if (parts[1] === 'whiteboards')
+      // POST /whiteboards (board.create) names no board and takes no expected revision.
+      else if (parts[1] === 'whiteboards' && parts[2])
         revision = (await whiteboardsCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
       return app.inject({
         ...options,

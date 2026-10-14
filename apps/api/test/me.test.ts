@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Timestamp } from 'firebase-admin/firestore';
 import { INITIAL_BOARD_NAME, MAX_REMEMBERED_BOARDS } from '@wally/shared';
-import { usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
+import { notesCol, usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
 import {
   buildTestApp,
   createTestUser,
@@ -196,9 +197,9 @@ describe('/me', () => {
     expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
   });
 
-  // A returning user whose board was deleted must be renamed from their PROFILE, not from
-  // whatever locale today's browser reports.
-  it('recreates a deleted board from the stored language, not the header', async () => {
+  // Deleting your last board is allowed (RFC BOARD_HOME §3); the next request must not quietly
+  // hand you a fresh "Meine Wand".
+  it('does not recreate a board that was deleted', async () => {
     const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
     await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
     await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
@@ -209,8 +210,44 @@ describe('/me', () => {
       headers: { ...ctx.authHeader(token), ...EN_HEADER },
     });
 
-    const board = await whiteboardsCol(ctx.db).doc('me-rebuild').get();
-    expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
+    expect((await whiteboardsCol(ctx.db).doc('me-rebuild').get()).exists).toBe(false);
+    const list = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(token),
+    });
+    expect(list.json()).toEqual([]);
+  });
+
+  // A brand-new identity whose uid still names a board awaiting cleanup (its user record removed
+  // by hand) must not get a fresh board under that id: the deleted board's notes still point at
+  // it, and would reappear on the new one before cleanup reached them.
+  it('does not provision over a deleted board that is still being cleaned up', async () => {
+    const deletedAt = Timestamp.now();
+    await whiteboardsCol(ctx.db).doc('me-ghost').set({
+      name: 'Alt',
+      ownerId: 'me-ghost',
+      revision: 2,
+      memberRoles: {},
+      shareLinkToken: null,
+      createdAt: deletedAt,
+      updatedAt: deletedAt,
+      deletedAt,
+    });
+    await notesCol(ctx.db)
+      .doc('ghost-note')
+      .set({ whiteboardId: 'me-ghost', title: 'Alt' } as never);
+    const token = registerTestUser(ctx, 'me-ghost', 'ghost@example.com');
+
+    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+
+    expect((await whiteboardsCol(ctx.db).doc('me-ghost').get()).data()?.deletedAt).toBeTruthy();
+    const list = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(token),
+    });
+    expect(list.json()).toEqual([]);
   });
 
   describe('preferences', () => {
