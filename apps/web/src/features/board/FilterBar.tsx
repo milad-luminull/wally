@@ -29,6 +29,8 @@ interface FilterBarProps {
   setFieldKey: (key: string | null) => void;
   setFieldValue: (value: string | null) => void;
   setVisibility: (v: BoardVisibilityFilter) => void;
+  /** Puts every filter back to its default in one saved write — see useBoardViewState. */
+  resetFilters: () => void;
   /** Whether the private/shared chips are offered — see showsVisibilityFilter. */
   showVisibility: boolean;
   /** Every custom-property key/value in use on this board — see collectFieldKeys. */
@@ -245,6 +247,7 @@ export function FilterBar({
   setFieldKey,
   setFieldValue,
   setVisibility,
+  resetFilters,
   showVisibility,
   fieldKeys,
   fieldValues,
@@ -258,14 +261,6 @@ export function FilterBar({
     (view.fieldKey ? 1 : 0) +
     (view.visibility !== 'all' ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
-
-  function resetFilters() {
-    setPriority([]);
-    setMine(false);
-    setDone(true);
-    setFieldKey(null);
-    setVisibility('all');
-  }
 
   if (isBelowTablet) {
     return (

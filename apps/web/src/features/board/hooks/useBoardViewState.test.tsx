@@ -155,6 +155,51 @@ describe('useBoardViewState', () => {
     expect(meApi.updatePreferences).toHaveBeenCalledWith({ boards: { b1: null } });
   });
 
+  it('reset filters saves all four filter defaults in one payload and clears the property filter', async () => {
+    // Every filter non-default: done, mine and priority from the saved profile, visibility
+    // and the property filter from the URL.
+    const { result, queryClient } = setup(
+      '/boards/b1?visibility=private&field=Kunde&fieldValue=ACME&q=report',
+    );
+    expect(result.current.view).toMatchObject({
+      done: false,
+      mine: true,
+      priority: ['HOCH'],
+      visibility: 'private',
+      fieldKey: 'Kunde',
+    });
+
+    act(() => result.current.view.resetFilters());
+
+    const expected = {
+      view: 'list',
+      axis: 'priority',
+      done: true,
+      mine: false,
+      priority: [],
+      visibility: 'all',
+    };
+    expect(queryClient.getQueryData<MeDto>(queryKeys.profile())?.preferences.boards.b1).toEqual(
+      expected,
+    );
+    expect(result.current.view).toMatchObject({
+      done: true,
+      mine: false,
+      priority: [],
+      visibility: 'all',
+      fieldKey: null,
+      fieldValue: null,
+      q: 'report',
+    });
+    expect(result.current.location.search).toBe('?q=report');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledTimes(1);
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({ boards: { b1: expected } });
+  });
+
   it('clears the property value together with its key', () => {
     const { result } = setup('/boards/b1?field=Kunde&fieldValue=ACME');
 

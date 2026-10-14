@@ -112,8 +112,14 @@ export function useBoardViewState(boardId: string) {
     [setSearchParams],
   );
 
+  /**
+   * Saves `change` on top of the current remembered settings, in ONE write: the entry is
+   * built from this render's state, so two calls in the same handler would each overwrite
+   * the other's field — anything that changes several settings at once must pass them all
+   * here together. `alsoClear` names transient URL params to drop in the same navigation.
+   */
   const remember = useCallback(
-    (change: Partial<BoardPreferences>) => {
+    (change: Partial<BoardPreferences>, alsoClear: readonly string[] = []) => {
       const next: BoardPreferences = {
         view: state.view,
         axis: state.axis,
@@ -124,10 +130,15 @@ export function useBoardViewState(boardId: string) {
         ...change,
       };
       savePreferences({ boards: { [boardId]: next } });
-      // Only touch the URL if it actually carries a remembered param; otherwise a no-op
-      // navigation would still re-render every route consumer.
-      if (REMEMBERED_PARAMS.some((key) => searchParams.has(key))) {
-        setParams(Object.fromEntries(REMEMBERED_PARAMS.map((key) => [key, null])), 'replace');
+      // Only touch the URL if it actually carries a param to drop; otherwise a no-op
+      // navigation would still re-render every route consumer. Dropping a transient filter
+      // is a step worth a Back, as it is in setFieldKey; dropping a saved one is not.
+      const keys = [...REMEMBERED_PARAMS, ...alsoClear];
+      if (keys.some((key) => searchParams.has(key))) {
+        setParams(
+          Object.fromEntries(keys.map((key) => [key, null])),
+          alsoClear.some((key) => searchParams.has(key)) ? 'push' : 'replace',
+        );
       }
     },
     [boardId, savePreferences, searchParams, setParams, state],
@@ -149,6 +160,14 @@ export function useBoardViewState(boardId: string) {
     setMine: (mine: boolean) => remember({ mine }),
     setDone: (done: boolean) => remember({ done }),
     setVisibility: (visibility: BoardVisibilityFilter) => remember({ visibility }),
+    /** Puts every filter back to its default — priority, mine, done, visibility and the
+     *  property filter — in one saved write and one navigation. View, grouping and search
+     *  are left alone; resetView is the one that forgets those too. */
+    resetFilters: () =>
+      remember({ priority: [], mine: false, done: true, visibility: 'all' }, [
+        'field',
+        'fieldValue',
+      ]),
     /** Forgets this board's saved settings and clears every filter. */
     resetView: () => {
       savePreferences({ boards: { [boardId]: null } });

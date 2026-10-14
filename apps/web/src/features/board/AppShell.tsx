@@ -121,6 +121,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         setFieldKey={viewState.setFieldKey}
         setFieldValue={viewState.setFieldValue}
         setVisibility={viewState.setVisibility}
+        resetFilters={viewState.resetFilters}
         showVisibility={showsVisibilityFilter(notes, viewState.visibility)}
         fieldKeys={fieldKeys}
         fieldValues={fieldValues}

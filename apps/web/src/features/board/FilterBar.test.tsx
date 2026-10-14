@@ -33,6 +33,7 @@ describe('FilterBar', () => {
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
         setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
         showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
@@ -61,6 +62,7 @@ describe('FilterBar', () => {
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
         setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
         showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
@@ -81,6 +83,7 @@ describe('FilterBar', () => {
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
         setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
         showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
@@ -104,6 +107,7 @@ describe('FilterBar', () => {
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
         setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
         showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
@@ -129,6 +133,7 @@ describe('FilterBar', () => {
         setFieldKey={vi.fn()}
         setFieldValue={vi.fn()}
         setVisibility={vi.fn()}
+        resetFilters={vi.fn()}
         showVisibility={false}
         fieldKeys={[]}
         fieldValues={[]}
@@ -144,7 +149,7 @@ describe('FilterBar', () => {
   describe('visibility chips', () => {
     function renderBar(
       overrides: Partial<BoardViewState> = {},
-      props: { showVisibility?: boolean; isBelowTablet?: boolean } = {},
+      props: { showVisibility?: boolean; isBelowTablet?: boolean; resetFilters?: () => void } = {},
       setVisibility = vi.fn(),
     ) {
       render(
@@ -157,6 +162,7 @@ describe('FilterBar', () => {
           setFieldKey={vi.fn()}
           setFieldValue={vi.fn()}
           setVisibility={setVisibility}
+          resetFilters={props.resetFilters ?? vi.fn()}
           showVisibility={props.showVisibility ?? false}
           fieldKeys={[]}
           fieldValues={[]}
@@ -184,15 +190,30 @@ describe('FilterBar', () => {
     });
 
     it('counts an active visibility filter in the mobile Filter button, and resets it', async () => {
+      const resetFilters = vi.fn();
       const setVisibility = renderBar(
         { visibility: 'private' },
-        { showVisibility: true, isBelowTablet: true },
+        { showVisibility: true, isBelowTablet: true, resetFilters },
       );
       const trigger = screen.getByRole('button', { name: /Filter/ });
       expect(trigger).toHaveTextContent('1');
       await userEvent.click(trigger);
       await userEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
-      expect(setVisibility).toHaveBeenCalledWith('all');
+      // One call that resets every filter together — not a setter per filter, which would
+      // each save over the other.
+      expect(resetFilters).toHaveBeenCalledTimes(1);
+      expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('resets every filter with one call from the inline Reset button', async () => {
+      const resetFilters = vi.fn();
+      const setVisibility = renderBar(
+        { visibility: 'shared', mine: true, done: false, priority: ['HOCH'] },
+        { showVisibility: true, resetFilters },
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Zurücksetzen' }));
+      expect(resetFilters).toHaveBeenCalledTimes(1);
+      expect(setVisibility).not.toHaveBeenCalled();
     });
   });
 });
