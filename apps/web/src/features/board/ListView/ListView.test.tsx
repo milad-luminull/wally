@@ -207,4 +207,31 @@ describe('ListView', () => {
       ).toBeInTheDocument();
     });
   });
+
+  it('marks a private row with a lock and leaves the assignee out of its meta line', () => {
+    const me = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
+    render(
+      <ListView
+        notes={[
+          makeNote({ id: 'p1', title: 'Privat-Notiz', visibility: 'PRIVATE', assignee: me }),
+          makeNote({ id: 's1', title: 'Geteilt-Notiz', assignee: me }),
+        ]}
+        totalNoteCount={2}
+        axis="horizon"
+        currentUserId="user-1"
+        onOpenNote={vi.fn()}
+        onToggleDone={vi.fn()}
+        access={owner}
+        isBelowDesktop={false}
+      />,
+    );
+
+    const privateRow = screen.getByText('Privat-Notiz').closest('[role="button"]') as HTMLElement;
+    expect(within(privateRow).getByRole('img', { name: 'Private Notiz' })).toBeInTheDocument();
+    expect(privateRow).not.toHaveTextContent('Du');
+
+    const sharedRow = screen.getByText('Geteilt-Notiz').closest('[role="button"]') as HTMLElement;
+    expect(within(sharedRow).queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+    expect(sharedRow).toHaveTextContent('Du');
+  });
 });

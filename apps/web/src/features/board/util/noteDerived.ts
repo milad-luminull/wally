@@ -1,6 +1,7 @@
 import {
   notePriorityValues,
   type NoteColour,
+  type BoardVisibilityFilter,
   type NoteDto,
   type NoteHorizon,
   type NotePriority,
@@ -211,4 +212,13 @@ export function displayName(
 ): string {
   if (!user) return '';
   return user.displayName ?? user.email;
+}
+
+/** The chips appear once there is something to filter, and stay while a filter is on so
+ *  it can always be switched off again. */
+export function showsVisibilityFilter(
+  notes: Pick<NoteDto, 'visibility'>[],
+  filter: BoardVisibilityFilter,
+): boolean {
+  return filter !== 'all' || notes.some((n) => n.visibility === 'PRIVATE');
 }

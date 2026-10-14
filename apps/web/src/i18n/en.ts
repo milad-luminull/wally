@@ -274,6 +274,9 @@ export const en = {
       done: 'Hide completed',
       reset: 'Reset',
       resetLong: 'Reset filters',
+      onlyPrivate: 'Only private',
+      hidePrivate: 'Hide private',
+      visibilityAria: 'Private notes',
     },
     empty: {
       board: {
@@ -425,6 +428,7 @@ export const en = {
       VIEW: 'Anyone with the link can view the board.',
     },
     ownerOnly: 'Only the owner can manage sharing.',
+    privateNotesHint: 'Members can keep private notes that only they can see.',
     members: {
       pending: 'Pending',
       roleAria: "{{name}}'s role",

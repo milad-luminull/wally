@@ -12,7 +12,12 @@ import { useCreateNote } from './hooks/mutations/useCreateNote';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
 import { boardAccess, isOwner as isOwnerRole } from './util/permissions';
-import { collectFieldKeys, collectFieldValues, filterNotes } from './util/noteDerived';
+import {
+  collectFieldKeys,
+  collectFieldValues,
+  filterNotes,
+  showsVisibilityFilter,
+} from './util/noteDerived';
 import { TopBar } from './TopBar';
 import { FilterBar } from './FilterBar';
 import { WandView } from './WandView/WandView';
@@ -115,6 +120,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         setDone={viewState.setDone}
         setFieldKey={viewState.setFieldKey}
         setFieldValue={viewState.setFieldValue}
+        setVisibility={viewState.setVisibility}
+        showVisibility={showsVisibilityFilter(notes, viewState.visibility)}
         fieldKeys={fieldKeys}
         fieldValues={fieldValues}
         isBelowTablet={isBelowTablet}

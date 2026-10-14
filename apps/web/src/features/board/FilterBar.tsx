@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListFilter, Search, X } from 'lucide-react';
-import { notePriorityValues, type NotePriority } from '@wally/shared';
+import { ListFilter, Lock, Search, X } from 'lucide-react';
+import { notePriorityValues, type BoardVisibilityFilter, type NotePriority } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
@@ -28,6 +28,9 @@ interface FilterBarProps {
   setDone: (done: boolean) => void;
   setFieldKey: (key: string | null) => void;
   setFieldValue: (value: string | null) => void;
+  setVisibility: (v: BoardVisibilityFilter) => void;
+  /** Whether the private/shared chips are offered — see showsVisibilityFilter. */
+  showVisibility: boolean;
   /** Every custom-property key/value in use on this board — see collectFieldKeys. */
   fieldKeys: string[];
   fieldValues: string[];
@@ -206,6 +209,31 @@ function BooleanToggles({
   );
 }
 
+function VisibilityChips({
+  visibility,
+  setVisibility,
+}: {
+  visibility: BoardVisibilityFilter;
+  setVisibility: (v: BoardVisibilityFilter) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <ToggleGroup
+      type="single"
+      variant="chip"
+      aria-label={t('board.filter.visibilityAria')}
+      value={visibility === 'all' ? '' : visibility}
+      onValueChange={(v) => setVisibility((v || 'all') as BoardVisibilityFilter)}
+    >
+      <ToggleGroupItem value="private">
+        <Lock strokeWidth={1.75} />
+        {t('board.filter.onlyPrivate')}
+      </ToggleGroupItem>
+      <ToggleGroupItem value="shared">{t('board.filter.hidePrivate')}</ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
 /** Below 720px only (the one place mobile and tablet legitimately differ — tablet still
  * has room for the inline row per the plan's responsive table). */
 export function FilterBar({
@@ -216,13 +244,19 @@ export function FilterBar({
   setDone,
   setFieldKey,
   setFieldValue,
+  setVisibility,
+  showVisibility,
   fieldKeys,
   fieldValues,
   isBelowTablet,
 }: FilterBarProps) {
   const { t } = useTranslation();
   const activeFilterCount =
-    view.priority.length + (view.mine ? 1 : 0) + (view.done ? 0 : 1) + (view.fieldKey ? 1 : 0);
+    view.priority.length +
+    (view.mine ? 1 : 0) +
+    (view.done ? 0 : 1) +
+    (view.fieldKey ? 1 : 0) +
+    (view.visibility !== 'all' ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   function resetFilters() {
@@ -230,6 +264,7 @@ export function FilterBar({
     setMine(false);
     setDone(true);
     setFieldKey(null);
+    setVisibility('all');
   }
 
   if (isBelowTablet) {
@@ -284,6 +319,9 @@ export function FilterBar({
                     done={view.done}
                     setDone={setDone}
                   />
+                  {showVisibility && (
+                    <VisibilityChips visibility={view.visibility} setVisibility={setVisibility} />
+                  )}
                 </div>
               </div>
               {hasActiveFilters && (
@@ -305,6 +343,9 @@ export function FilterBar({
         <PriorityChips priority={view.priority} setPriority={setPriority} />
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
         <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
+        {showVisibility && (
+          <VisibilityChips visibility={view.visibility} setVisibility={setVisibility} />
+        )}
         <FieldFilter
           view={view}
           fieldKeys={fieldKeys}

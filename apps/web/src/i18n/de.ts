@@ -289,6 +289,9 @@ export const de = {
       done: 'Erledigte ausblenden',
       reset: 'Zurücksetzen',
       resetLong: 'Filter zurücksetzen',
+      onlyPrivate: 'Nur private',
+      hidePrivate: 'Private ausblenden',
+      visibilityAria: 'Private Notizen',
     },
     empty: {
       board: {
@@ -447,6 +450,7 @@ export const de = {
       VIEW: 'Jeder mit dem Link kann die Wand ansehen.',
     },
     ownerOnly: 'Nur der Eigentümer kann Freigaben verwalten.',
+    privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
     members: {
       pending: 'Ausstehend',
       roleAria: 'Rolle von {{name}}',

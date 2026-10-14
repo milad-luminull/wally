@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
 import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
 import { PriorityIcon } from '../PriorityIcon';
+import { PrivateBadge } from '../PrivateBadge';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -21,14 +22,18 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const isDone = note.status === 'DONE';
+  const isPrivate = note.visibility === 'PRIVATE';
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
   // exactly like "assigned to nobody".
-  const assigneeName = note.assignee
-    ? note.assignee.id === currentUserId
-      ? t('common.you')
-      : (note.assignee.displayName ?? note.assignee.email)
-    : undefined;
+  // A private note shows a lock instead: it is always its author's, so naming them says nothing.
+  const assigneeName = isPrivate
+    ? undefined
+    : note.assignee
+      ? note.assignee.id === currentUserId
+        ? t('common.you')
+        : (note.assignee.displayName ?? note.assignee.email)
+      : undefined;
   // First property alphabetically, so the meta line is stable rather than following
   // whatever order Firestore returns the map in.
   const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) =>
@@ -95,6 +100,8 @@ export function NoteRow({ note, currentUserId, onOpen, onToggleDone, canEdit }: 
         >
           {note.title || t('common.untitled')}
         </span>
+
+        {isPrivate && <PrivateBadge className="text-fg-3" />}
 
         {metaParts.length > 0 && (
           <span className="truncate text-12 text-fg-3">{metaParts.join(' · ')}</span>

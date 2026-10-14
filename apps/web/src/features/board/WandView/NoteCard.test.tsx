@@ -116,4 +116,18 @@ describe('NoteCard content', () => {
     const { container } = renderCard(makeNote({ description: '   ' }));
     expect(container.querySelector('.line-clamp-1')).toBeNull();
   });
+
+  it('shows a lock instead of the assignee on a private note', () => {
+    renderCard(makeNote({ visibility: 'PRIVATE', assignee: nora, createdBy: nora }));
+
+    expect(screen.getByRole('img', { name: 'Private Notiz' })).toBeInTheDocument();
+    expect(screen.queryByText('Dir zugewiesen')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Du')).not.toBeInTheDocument();
+  });
+
+  it('shows no lock on a shared note', () => {
+    renderCard(makeNote({ assignee: nora }));
+
+    expect(screen.queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+  });
 });
