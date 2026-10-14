@@ -363,7 +363,46 @@ export const en = {
       remove: 'Remove {{tag}}',
     },
   },
+  home: {
+    title: 'Your boards',
+    shared: 'Shared with you',
+    continue: 'Continue',
+    open: 'Open {{name}}',
+    rowMenu: 'Options for {{name}}',
+    newBoard: 'New board',
+    empty: {
+      title: 'No boards yet',
+      hint: 'Create one to start placing notes.',
+    },
+    create: {
+      title: 'New board',
+      nameLabel: 'Name',
+      submit: 'Create',
+      limitReached: 'You have reached the limit of {{max}} boards.',
+      failed: 'The board could not be created. Please try again.',
+    },
+    delete: {
+      action: 'Delete board',
+      title: 'Delete “{{name}}”?',
+      body_one:
+        'This removes the board, its {{count}} note and every member’s access. This cannot be undone.',
+      body_other:
+        'This removes the board, its {{count}} notes and every member’s access. This cannot be undone.',
+      bodyCounting:
+        'This removes the board, its notes and every member’s access. This cannot be undone.',
+      confirm: 'Delete board',
+    },
+    leave: {
+      action: 'Leave board',
+      title: 'Leave “{{name}}”?',
+      body: 'You will need a new invitation or share link to come back. Notes assigned to you on this board are unassigned.',
+      confirm: 'Leave board',
+    },
+  },
   routes: {
+    home: {
+      loadFailed: 'Your boards could not be loaded.',
+    },
     login: {
       title: 'Welcome back',
       subtitle: 'Sign in to see your board.',

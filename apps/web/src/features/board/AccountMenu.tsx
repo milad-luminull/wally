@@ -34,7 +34,8 @@ const LANGUAGE_ENDONYMS: Record<AppLocale, string> = {
   en: 'English',
 };
 
-export function AccountMenu() {
+/** `shortcuts`: off where no board's command layer is mounted to show the help. */
+export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { language, setLanguage, isSaving, saveFailed } = useLanguage();
@@ -151,9 +152,11 @@ export function AccountMenu() {
         </div>
 
         <MenuSeparator />
-        <MenuItem icon={<Keyboard strokeWidth={1.75} />} shortcut="?" onClick={onShowShortcuts}>
-          {t('account.shortcuts')}
-        </MenuItem>
+        {shortcuts && (
+          <MenuItem icon={<Keyboard strokeWidth={1.75} />} shortcut="?" onClick={onShowShortcuts}>
+            {t('account.shortcuts')}
+          </MenuItem>
+        )}
         <MenuItem icon={<LogOut strokeWidth={1.75} />} onClick={() => void signOut()}>
           {t('account.signOut')}
         </MenuItem>

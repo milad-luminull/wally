@@ -385,7 +385,47 @@ export const de = {
       remove: '{{tag}} entfernen',
     },
   },
+  /** The board home at /boards (RFC BOARD_HOME §7–§10). */
+  home: {
+    title: 'Deine Wände',
+    shared: 'Mit dir geteilt',
+    continue: 'Weitermachen',
+    open: '{{name}} öffnen',
+    rowMenu: 'Optionen für {{name}}',
+    newBoard: 'Neue Wand',
+    empty: {
+      title: 'Noch keine Wände',
+      hint: 'Lege eine an, um Notizen zu platzieren.',
+    },
+    create: {
+      title: 'Neue Wand',
+      nameLabel: 'Name',
+      submit: 'Anlegen',
+      limitReached: 'Du hast die Grenze von {{max}} Wänden erreicht.',
+      failed: 'Die Wand konnte nicht angelegt werden. Bitte versuche es noch einmal.',
+    },
+    delete: {
+      action: 'Wand löschen',
+      title: '„{{name}}“ löschen?',
+      body_one:
+        'Das entfernt die Wand, ihre {{count}} Notiz und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      body_other:
+        'Das entfernt die Wand, ihre {{count}} Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      bodyCounting:
+        'Das entfernt die Wand, ihre Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      confirm: 'Wand löschen',
+    },
+    leave: {
+      action: 'Wand verlassen',
+      title: '„{{name}}“ verlassen?',
+      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Dir zugewiesene Notizen auf dieser Wand werden freigegeben.',
+      confirm: 'Wand verlassen',
+    },
+  },
   routes: {
+    home: {
+      loadFailed: 'Deine Wände konnten nicht geladen werden.',
+    },
     login: {
       title: 'Willkommen zurück',
       subtitle: 'Melde dich an, um deine Wand zu sehen.',

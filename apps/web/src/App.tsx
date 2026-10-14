@@ -5,6 +5,7 @@ import { LoginPage } from '@/routes/LoginPage';
 import { SignupPage } from '@/routes/SignupPage';
 import { LandingPage } from '@/routes/LandingPage';
 import { BoardPage } from '@/routes/BoardPage';
+import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
 import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
 
@@ -20,6 +21,14 @@ export function App() {
           element={
             <ProtectedRoute>
               <LandingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/boards"
+          element={
+            <ProtectedRoute>
+              <BoardsPage />
             </ProtectedRoute>
           }
         />
