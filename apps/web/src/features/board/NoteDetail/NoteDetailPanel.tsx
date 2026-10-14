@@ -494,10 +494,14 @@ function NoteDetailContent({
           <PropertyRow label={t('note.assigneeLabel')}>
             {isPrivate ? (
               // Only its creator ever opens a private note, and it is always theirs: "You".
-              <span className="flex min-w-0 items-center gap-2">
-                {note.assignee && <AssigneeAvatar user={note.assignee} isYou size="sm" />}
+              // The helper wraps rather than truncating, so on a narrow screen the rule stays
+              // readable. Items align to the top so a wrapped line sits beside the avatar.
+              <span className="flex min-w-0 items-start gap-2">
+                {note.assignee && (
+                  <AssigneeAvatar user={note.assignee} isYou size="sm" className="shrink-0" />
+                )}
                 <span className="shrink-0 text-13 text-fg-1">{t('common.you')}</span>
-                <span className="truncate text-12 text-fg-3">
+                <span className="min-w-0 text-12 leading-snug text-fg-3">
                   {t('note.private.assigneeLocked')}
                 </span>
               </span>
