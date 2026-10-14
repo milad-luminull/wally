@@ -153,8 +153,9 @@ never changes a note's visibility, so a private note they created stays private.
 copy of a shared note is shared.
 
 **Leaving and rejoining.** When a member is removed or leaves, their private notes stay on the
-board, hidden from everyone, and their assignments are not released. If the person rejoins, with
-any role, the notes are visible to them again.
+board, keep their assignment to that member and stay hidden from everyone, while the member's
+assignments on shared notes are released as before, leaving those notes unassigned. If the
+person rejoins, with any role, the notes are visible to them again.
 
 **The lock.** On the wall and in the list a private note shows a small lock in place of the
 assignee avatar, labelled "Private Notiz" / "Private note". Colour, border and opacity do not

@@ -5,8 +5,8 @@
 
 Read next to [`SPEC.md`](../SPEC.md) (the accepted product requirements this extends) and
 [Board operations](../architecture/board-operations.md) (the command layer every write
-below goes through). Once approved, §5 to §9 move into `SPEC.md` as a new section and this
-file is marked outdated, as [`docs/README.md`](../README.md) asks.
+below goes through). The requirements of §5 to §9 moved into `SPEC.md` §5a, as
+[`docs/README.md`](../README.md) asks; this file keeps the reasoning behind them.
 
 ---
 
