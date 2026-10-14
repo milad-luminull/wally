@@ -38,6 +38,8 @@ export async function drainCleanupJob(db: Firestore, id: string): Promise<void> 
           !board ||
           !note ||
           note.deletedAt ||
+          // A private note stays its creator's, hidden, until they rejoin (PRIVATE_NOTES §3).
+          note.visibility === 'PRIVATE' ||
           note.whiteboardId !== board.id ||
           note.assigneeId !== job.userId ||
           board.ownerId === job.userId ||

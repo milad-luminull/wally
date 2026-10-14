@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { boardPreferencesSchema } from '@wally/shared';
-import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+import {
+  addTestMember,
+  buildTestApp,
+  createBoardFixture,
+  resetDatabase,
+  type TestContext,
+} from './helpers.js';
 import { notesCol, subtasksCol } from '../src/lib/db/collections.js';
 
 const projectId = 'wally-private-notes';
@@ -260,5 +266,28 @@ describe('private notes: writes', () => {
       });
     expect((await edit()).statusCode).toBe(200);
     expect((await edit()).statusCode).toBe(200);
+  });
+});
+
+describe('private notes: leaving the board', () => {
+  it('keeps a removed member’s private notes hidden and returns them on rejoin', async () => {
+    const priv = (await createNote(fx.editToken, { visibility: 'PRIVATE' })).json();
+    const shared = (await createNote(fx.editToken, { assigneeId: fx.editorId })).json();
+
+    const removed = await ctx.inject({
+      method: 'DELETE',
+      url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
+      headers: as(fx.ownerToken),
+    });
+    expect(removed.statusCode).toBe(204);
+
+    const privDoc = (await notesCol(ctx.db).doc(priv.id).get()).data()!;
+    expect(privDoc.assigneeId).toBe(fx.editorId);
+    expect(privDoc.revision).toBe(priv.revision);
+    expect((await notesCol(ctx.db).doc(shared.id).get()).data()!.assigneeId).toBeNull();
+    expect((await list(fx.ownerToken)).map((n) => n.id)).toEqual([shared.id]);
+
+    await addTestMember(ctx.db, fx.boardId, fx.editorId, 'VIEW');
+    expect((await list(fx.editToken, '?visibility=PRIVATE')).map((n) => n.id)).toEqual([priv.id]);
   });
 });
