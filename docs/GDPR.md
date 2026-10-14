@@ -112,8 +112,8 @@ change. Command outcome logs omit note contents and share tokens; redemption URL
 - **Firebase Authentication** holds the credential record, and Google's own sign-in metadata
   (last login, provider) that Wally never reads. Deleting a Firestore user document does not
   touch it — erasure has to address both stores (GAP-01).
-- **Cloud Logging** receives Fastify's request log, which includes client IP addresses
-  (GAP-05).
+- **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
+  request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
   ([`apps/web/src/i18n/storage.ts`](../apps/web/src/i18n/storage.ts)), `wally.theme`
   ([`apps/web/src/lib/theme.tsx`](../apps/web/src/lib/theme.tsx)) and a list-view hint flag
@@ -144,6 +144,23 @@ Firestore is `europe-west3` (Frankfurt) and everything else `europe-west1` (Belg
 [`DEPLOY.md`, Which database this project actually uses](DEPLOY.md#which-database-this-project-actually-uses) and [`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout). No
 third-country transfer to assess under Chapter V, and `DEPLOY.md` already warns that a
 database's location is permanent. _(Art. 44 ff.)_
+
+Logs are the exception: Cloud Logging creates its default log buckets in the `global`
+location, which Google does not tie to a region (GAP-05).
+
+### The API's request log names no caller
+
+Each request log line records the method and the path, and nothing else: no client address,
+port, host or header. The query string is dropped and share-link tokens are redacted —
+`requestLogSerializers` in [`apps/api/src/app.ts`](../apps/api/src/app.ts), replacing
+Fastify's default serializer, which writes the client's address. Pinned by
+[`apps/api/test/logging.test.ts`](../apps/api/test/logging.test.ts). Checked on 2026-10-14
+against 2,000 lines from the running development API: no IP address, no authorization or
+cookie header. Board-command lines add the command, operation ID, board ID and outcome.
+
+Paths and command lines do carry resource IDs, and a user's first board has their Firebase uid
+as its ID — a pseudonymous identifier, accepted because it identifies no one without the
+`users` collection. _(Art. 5(1)(c))_
 
 ### No third-party processors beyond Google
 
@@ -274,18 +291,73 @@ days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). 
 Cloud Run job is the natural home — there is no scheduler in the stack yet, so this gap
 carries infrastructure work, not just a query.
 
-### GAP-05 — Request logs contain IP addresses, unredacted and unbounded · **Medium** · Art. 5(1)(c), (e)
+### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket of unconfirmed location · **Medium** · Art. 5(1)(c), (e), 44
 
-`buildApp` in [`apps/api/src/app.ts`](../apps/api/src/app.ts) enables Fastify's logger with no `redact`
-configuration, so the default serializers write `remoteAddress` — a personal datum — into
-Cloud Logging, which keeps `_Default` entries for 30 days unless the bucket says otherwise.
-Authorization headers are not logged by default, but nothing in the config guarantees that
-as the log grows.
+The API's own log no longer records who called it (§3, "The API's request log names no
+caller"; fixed in `df717400`, pinned by a test). What is left is outside the code, in Google
+Cloud.
 
-**Plan.** Add an explicit `redact` list (`req.headers.authorization`, `req.headers.cookie`,
-`req.remoteAddress`, `req.remotePort`). Confirm the Cloud Logging retention on the project and
-state it in `DEPLOY.md`. Keep IP logging only if there is a stated security purpose, and then
-say so in the privacy notice.
+**Evidence**, from Google's documentation on 2026-10-14:
+
+- Cloud Run writes a request log for every request to a service: "These logs are created
+  automatically." Cloud Run cannot turn them off; a Cloud Logging exclusion filter can
+  ([Cloud Run logging](https://docs.cloud.google.com/run/docs/logging)).
+- Each entry's `httpRequest.remoteIp` is, in Google's words, "The IP address (IPv4 or IPv6)
+  of the client that issued the HTTP request." Entries also carry `userAgent`, `referer` and `requestUrl` with the
+  query ([LogEntry reference](https://docs.cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry)). Google's own parser for Cloud Run logs reads
+  `httpRequest.remoteIp` from them ([Cloud Run log parser](https://docs.cloud.google.com/chronicle/docs/ingestion/default-parsers/cloudrun)). IP addresses are online
+  identifiers that can identify a person ([Recital 30](https://gdpr-info.eu/recitals/no-30/)).
+- They are kept in the project's `_Default` log bucket: 30 days by default, configurable from 1
+  to 3,650 days ([Logging quotas](https://docs.cloud.google.com/logging/quotas)).
+- The `_Default` and `_Required` buckets "are in the `global` location", and "You can't change
+  the location of existing buckets" ([regionalized logs](https://docs.cloud.google.com/logging/docs/regionalized-logs)). Google does not say where
+  `global` data is stored, so the EU-only statement in §3 does not cover logs.
+- Firebase Hosting can export its request logs, with client IP, city and country, but only
+  once the integration is linked in the Firebase console ([Hosting logs](https://firebase.google.com/docs/hosting/web-request-logs-and-metrics)).
+- The rate limiter keys requests without a signed-in user by IP address, in process memory, per
+  instance, for its one-minute window; it stores and logs nothing (`buildApp`).
+
+**Not verified first-hand:** the `luminull-wally` project's own bucket location and retention,
+and whether Hosting logs are linked. The first is read-only to check:
+
+```bash
+gcloud logging buckets describe _Default --location=global --project=luminull-wally
+```
+
+**Plan.** These are project settings for whoever deploys, in this order, not code changes.
+
+1. **Exclude Cloud Run's request log.** The API's own log already records method, path, status
+   and response time for every request it answers, without the caller's address, so the
+   platform log adds mainly the IP address and user agent. An exclusion on the `_Default` sink
+   stops it being stored ([`gcloud logging sinks update`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/sinks/update)):
+
+   ```bash
+   gcloud logging sinks update _Default --project=luminull-wally \
+     --add-exclusion=name=cloud-run-requests,filter='logName="projects/luminull-wally/logs/run.googleapis.com%2Frequests"'
+   ```
+
+   The cost: a request Cloud Run rejects before the API answers it, for example when no
+   instance can start, no longer leaves a request log line.
+
+2. **Keep the remaining logs in the EU.** Create a log bucket in `europe-west1` and point the
+   `_Default` sink at it ([`gcloud logging buckets create`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/buckets/create), [bucket destinations](https://docs.cloud.google.com/logging/docs/export/configure_export_v2)):
+
+   ```bash
+   gcloud logging buckets create wally-eu --location=europe-west1 --retention-days=30 --project=luminull-wally
+   gcloud logging sinks update _Default logging.googleapis.com/projects/luminull-wally/locations/europe-west1/buckets/wally-eu --project=luminull-wally
+   ```
+
+   Entries already in the `global` bucket stay there until its retention expires them. The
+   `_Required` bucket cannot move; it holds Admin Activity, System Event and Access
+   Transparency audit logs ([routing overview](https://docs.cloud.google.com/logging/docs/routing/overview)), which record administrators' actions,
+   not app users'.
+
+3. **Then record it.** Put the exclusion, the bucket and its retention in `DEPLOY.md`, and
+   close this gap. If request logs with IP addresses are kept instead, the privacy notice
+   (GAP-03) has to say so, with the security purpose ([Recital 49](https://gdpr-info.eu/recitals/no-49/)) and the retention.
+   That is the controller's decision.
+
+The recitals were read on gdpr-info.eu; the official EUR-Lex page did not load for checking.
 
 ### GAP-06 — Share links never expire and are not auditable · **Medium** · Art. 5(1)(e), 32
 
@@ -370,21 +442,21 @@ These block implementation. They are product and legal calls, not engineering on
 Ordered by dependency, not by severity — §6 and the notice gate the rest, and the retention
 job needs a scheduler that does not exist yet.
 
-| #     | Item                             | Gap            | Depends on        |
-| ----- | -------------------------------- | -------------- | ----------------- |
-| 1     | Answer the four decisions        | —              | §6                |
-| 2     | Log redaction                    | GAP-05         | —                 |
-| 3     | Data export endpoint             | GAP-02         | —                 |
-| 4     | Account deletion                 | GAP-01         | 1                 |
-| 5     | Share-link expiry                | GAP-06         | —                 |
-| 6     | Retention job + invite expiry    | GAP-04, GAP-07 | 1, scheduler      |
-| 7     | Privacy notice route, DE + EN    | GAP-03         | controller's text |
-| 8     | History purpose in spec + notice | GAP-08         | —                 |
-| ~~9~~ | ~~Seed data cleanup~~ — **done** | GAP-10         | —                 |
-| 10    | TOM register                     | GAP-09         | —                 |
+| #     | Item                                   | Gap            | Depends on        |
+| ----- | -------------------------------------- | -------------- | ----------------- |
+| 1     | Answer the four decisions              | —              | §6                |
+| 2     | Platform request log and EU log bucket | GAP-05         | —                 |
+| 3     | Data export endpoint                   | GAP-02         | —                 |
+| 4     | Account deletion                       | GAP-01         | 1                 |
+| 5     | Share-link expiry                      | GAP-06         | —                 |
+| 6     | Retention job + invite expiry          | GAP-04, GAP-07 | 1, scheduler      |
+| 7     | Privacy notice route, DE + EN          | GAP-03         | controller's text |
+| 8     | History purpose in spec + notice       | GAP-08         | —                 |
+| ~~9~~ | ~~Seed data cleanup~~ — **done**       | GAP-10         | —                 |
+| 10    | TOM register                           | GAP-09         | —                 |
 
 Items 2, 3 and 5 have no external dependency and can start immediately. Item 2 is the
-smallest and is a sensible first cut. Item 9 is done.
+smallest: the API's own log is already clean, and what remains is two `gcloud` commands. Item 9 is done.
 
 > The API integration tests run against the Firestore emulator and were not run for the §9
 > cleanup — the working tree currently also carries unrelated in-flight CI and tooling
@@ -396,7 +468,7 @@ smallest and is a sensible first cut. Item 9 is done.
 - [ ] GAP-02 Data export (Art. 15, 20)
 - [ ] GAP-03 Privacy notice (Art. 13)
 - [ ] GAP-04 Retention policy (Art. 5(1)(e))
-- [ ] GAP-05 Log redaction (Art. 5(1)(c))
+- [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — the API's own log is done
 - [ ] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
 - [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14)
 - [ ] GAP-08 History purpose (Art. 5(1)(b))
