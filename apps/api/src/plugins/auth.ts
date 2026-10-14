@@ -83,7 +83,9 @@ async function provisionUser(
   return db.runTransaction(async (tx) => {
     const existing = withId(await tx.get(userRef));
     // Read only for a new identity, and only so a leftover board under this uid (a user record
-    // removed by hand) is kept rather than overwritten.
+    // removed by hand) is kept rather than overwritten. That includes a tombstoned board still
+    // being cleaned up: its notes still point at this id, so a fresh board here would show them
+    // again. Such a user starts with no board and creates one from the home.
     const boardExists = existing ? true : (await tx.get(boardRef)).exists;
     const timestamp = now();
     let changed = false;
