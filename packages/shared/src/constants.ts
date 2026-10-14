@@ -4,8 +4,8 @@ import type { Language } from './enums.js';
 export const DEFAULT_LANGUAGE: Language = 'de';
 
 /**
- * Name given to the board auto-provisioned on a user's first request, fixed then from the
- * client's Accept-Language and never re-derived.
+ * Name of the board provisioned together with a new user record, fixed then from the client's
+ * Accept-Language and never re-derived. Also the prefilled name in the New board dialog.
  *
  * Persisted data, not rendered copy — a board name is user-editable, so resolving it through
  * the UI catalogue instead would silently rename every untouched board on a language switch.
@@ -36,3 +36,6 @@ export const NOTE_CARD_HEIGHT = 104;
 
 /** Per-board view settings kept on a profile; the least recently touched are pruned past this. */
 export const MAX_REMEMBERED_BOARDS = 50;
+
+/** Boards one user may own. A guard against runaway scripts, not a product tier. */
+export const MAX_OWN_BOARDS = 20;
