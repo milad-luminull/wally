@@ -20,6 +20,44 @@ env:
   DO_NOT_TRACK: 1
 
 jobs:
+  # Decides whether a pull request touches anything but documentation. Only the E2E job reads
+  # it: lint, format, typecheck and the unit suites are cheap and still run on every change,
+  # so Markdown stays prettier-checked. See ADR-0012.
+  changes:
+    name: Detect docs-only changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      # A pull_request run checks out the merge commit refs/pull/N/merge. Its first parent is
+      # the base branch tip, so depth 2 is all the diff below needs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, fetch-depth: 2 }
+      - name: Classify the changed files
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Pushes to main always count as code: release.yml requires main's CI run, E2E
+          # included, before it deploys a tag.
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            echo "changed: $file"
+            # In a case pattern `*` also matches `/`, so `*.md` covers Markdown at any depth.
+            case "$file" in
+              docs/* | *.md) ;;
+              *) code=true ;;
+            esac
+          done < <(git diff --name-only HEAD^1 HEAD)
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
   static:
     name: Lint & format
     runs-on: ubuntu-24.04
@@ -94,12 +132,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Only run where the secrets actually exist. `github.event.pull_request` is null for
-    # push, so the first clause short-circuits and the job runs on main, whose result
+    # push, so the event check short-circuits and the job runs on main, whose result
     # release.yml requires before deploying. Comparing full_name (rather than `.fork`) also
     # covers a PR opened from a fork of a fork.
+    #
+    # It is also skipped when a pull request changes only documentation (the `changes` job);
+    # the gate below accepts exactly that skip.
+    needs: [changes]
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -268,18 +311,24 @@ jobs:
     name: E2E gate
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: [e2e]
+    needs: [changes, e2e]
     if: always()
     steps:
       - name: Require E2E to have actually passed
         env:
           RESULT: ${{ needs.e2e.result }}
+          # Exactly 'false' only when the changes job ran and found documentation alone. If
+          # that job failed, its output is empty and this stays false, so the gate fails.
+          DOCS_ONLY: ${{ needs.changes.outputs.code == 'false' }}
           IS_FORK: >-
             ${{ github.event_name == 'pull_request' &&
                 github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
           set -euo pipefail
           if [ "$RESULT" = "success" ]; then echo "E2E passed."; exit 0; fi
+          if [ "$DOCS_ONLY" = "true" ] && [ "$RESULT" = "skipped" ]; then
+            echo "E2E skipped: this pull request changes documentation only."; exit 0
+          fi
           if [ "$IS_FORK" = "true" ] && [ "$RESULT" = "skipped" ]; then
             echo "::error title=E2E not run::This PR is from a fork, so it cannot access the E2E credentials. A maintainer must push the branch to this repository (gh pr checkout N && git push origin HEAD:pr-N) and merge from there."
             exit 1
