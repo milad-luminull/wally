@@ -12,6 +12,7 @@ function baseView(overrides: Partial<BoardViewState> = {}): BoardViewState {
     priority: [],
     mine: false,
     done: true,
+    visibility: 'all',
     fieldKey: null,
     fieldValue: null,
     noteId: null,

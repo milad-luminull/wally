@@ -85,6 +85,7 @@ export const notesApi = {
       horizon: query.horizon?.join(','),
       assignedToMe: query.assignedToMe,
       status: query.status,
+      visibility: query.visibility,
     }),
   get: (noteId: string): Promise<NoteDetailDto> => api.get(`/notes/${noteId}`, noteDetailDtoSchema),
   create: (boardId: string, input: Partial<NoteCreateInput>): Promise<NoteDto> =>

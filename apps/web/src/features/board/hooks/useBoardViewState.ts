@@ -2,10 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   boardAxisValues,
+  boardVisibilityFilterValues,
   notePriorityValues,
   type BoardAxis,
   type BoardPreferences,
   type BoardView,
+  type BoardVisibilityFilter,
   type NotePriority,
 } from '@wally/shared';
 import { usePreferences, useSavePreferences } from '@/lib/preferences';
@@ -19,6 +21,8 @@ export interface BoardViewState {
   priority: NotePriority[];
   mine: boolean;
   done: boolean;
+  /** Which notes show: everything, only the user's private notes, or only shared ones. */
+  visibility: BoardVisibilityFilter;
   /** Custom-property filter. A key alone matches any note carrying it; with a value it
    *  matches that exact value. */
   fieldKey: string | null;
@@ -36,7 +40,7 @@ export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
 };
 
 /** The URL params that carry a remembered setting — dropped once it is saved. */
-const REMEMBERED_PARAMS = ['view', 'axis', 'done', 'mine', 'priority'] as const;
+const REMEMBERED_PARAMS = ['view', 'axis', 'done', 'mine', 'priority', 'visibility'] as const;
 
 type Params = Record<string, string | null>;
 
@@ -47,7 +51,7 @@ type Params = Record<string, string | null>;
  *   2. what this user last chose on this board, saved to their profile;
  *   3. the built-in defaults.
  *
- * Changing a remembered setting (view, grouping, done, mine, priority) saves it to the
+ * Changing a remembered setting (view, grouping, done, mine, priority, visibility) saves it to the
  * profile and clears those params from the URL, so the next visit — from any entry point, on
  * any device — opens the board the way it was left. Search, the property filter and the open
  * note stay URL-only: they are transient, and `q` uses `replace` so typing doesn't push one
@@ -65,6 +69,7 @@ export function useBoardViewState(boardId: string) {
     const priorityParam = searchParams.get('priority');
     const mineParam = searchParams.get('mine');
     const doneParam = searchParams.get('done');
+    const visibilityParam = searchParams.get('visibility');
     return {
       view: viewParam === 'list' || viewParam === 'wand' ? viewParam : base.view,
       axis: (boardAxisValues as readonly string[]).includes(axisParam ?? '')
@@ -81,6 +86,9 @@ export function useBoardViewState(boardId: string) {
               ),
       mine: mineParam === null ? base.mine : mineParam === '1',
       done: doneParam === null ? base.done : doneParam !== '0',
+      visibility: (boardVisibilityFilterValues as readonly string[]).includes(visibilityParam ?? '')
+        ? (visibilityParam as BoardVisibilityFilter)
+        : base.visibility,
       fieldKey: searchParams.get('field'),
       fieldValue: searchParams.get('fieldValue'),
       noteId: searchParams.get('note'),
@@ -112,7 +120,7 @@ export function useBoardViewState(boardId: string) {
         done: state.done,
         mine: state.mine,
         priority: state.priority,
-        visibility: DEFAULT_BOARD_PREFERENCES.visibility,
+        visibility: state.visibility,
         ...change,
       };
       savePreferences({ boards: { [boardId]: next } });
@@ -133,12 +141,14 @@ export function useBoardViewState(boardId: string) {
       state.axis !== DEFAULT_BOARD_PREFERENCES.axis ||
       state.done !== DEFAULT_BOARD_PREFERENCES.done ||
       state.mine !== DEFAULT_BOARD_PREFERENCES.mine ||
-      state.priority.length > 0,
+      state.priority.length > 0 ||
+      state.visibility !== DEFAULT_BOARD_PREFERENCES.visibility,
     setView: (view: BoardView) => remember({ view }),
     setAxis: (axis: BoardAxis) => remember({ axis }),
     setPriority: (priority: NotePriority[]) => remember({ priority }),
     setMine: (mine: boolean) => remember({ mine }),
     setDone: (done: boolean) => remember({ done }),
+    setVisibility: (visibility: BoardVisibilityFilter) => remember({ visibility }),
     /** Forgets this board's saved settings and clears every filter. */
     resetView: () => {
       savePreferences({ boards: { [boardId]: null } });

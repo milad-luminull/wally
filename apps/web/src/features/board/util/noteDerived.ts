@@ -165,6 +165,8 @@ export function filterNotes(
   return notes.filter((n) => {
     if (!view.done && n.status === 'DONE') return false;
     if (view.mine && n.assignee?.id !== currentUserId) return false;
+    if (view.visibility === 'private' && n.visibility !== 'PRIVATE') return false;
+    if (view.visibility === 'shared' && n.visibility === 'PRIVATE') return false;
     if (view.priority.length && !view.priority.includes(n.priority)) return false;
     if (fieldKey) {
       const match = Object.entries(n.customFields ?? {}).some(

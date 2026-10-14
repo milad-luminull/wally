@@ -163,4 +163,78 @@ describe('useBoardViewState', () => {
     expect(result.current.view.fieldKey).toBe('Phase');
     expect(result.current.view.fieldValue).toBeNull();
   });
+
+  it('reads a visibility filter from the URL without saving it', () => {
+    const { result } = setup('/boards/b1?visibility=private');
+
+    expect(result.current.view.visibility).toBe('private');
+    expect(meApi.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unknown visibility param', () => {
+    const { result } = setup('/boards/b1?visibility=bogus');
+
+    expect(result.current.view.visibility).toBe('all');
+  });
+
+  it('saves the visibility filter and drops its URL param', async () => {
+    const { result } = setup('/boards/b1?visibility=private&q=report');
+
+    act(() => result.current.view.setVisibility('shared'));
+
+    expect(result.current.location.search).toBe('?q=report');
+    expect(result.current.view.visibility).toBe('shared');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({
+      boards: {
+        b1: {
+          view: 'list',
+          axis: 'priority',
+          done: false,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'shared',
+        },
+      },
+    });
+  });
+
+  it('keeps the visibility filter when another remembered setting changes', async () => {
+    const { result } = setup('/boards/b1?visibility=private');
+
+    act(() => result.current.view.setDone(true));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
+    });
+    expect(meApi.updatePreferences).toHaveBeenCalledWith({
+      boards: {
+        b1: {
+          view: 'list',
+          axis: 'priority',
+          done: true,
+          mine: true,
+          priority: ['HOCH'],
+          visibility: 'private',
+        },
+      },
+    });
+  });
+
+  it('counts a visibility filter as a customized view and reset clears it', () => {
+    const { result } = setup('/boards/b1?visibility=private');
+    expect(result.current.view.isCustomized).toBe(true);
+
+    act(() => result.current.view.resetView());
+
+    expect(result.current.view.visibility).toBe('all');
+    expect(result.current.location.search).toBe('');
+  });
+
+  it('is not customized on a default visibility', () => {
+    const { result } = setup('/boards/b2');
+    expect(result.current.view.isCustomized).toBe(false);
+  });
 });
