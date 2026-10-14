@@ -257,6 +257,21 @@ async function request<T>(
           },
         };
       }
+      if (deletesBoard || leavesBoard) {
+        // Delete and leave send no body; name the board and the change so the review says what
+        // is about to happen rather than showing an empty proposal.
+        const board = data as { name?: string } | null;
+        return {
+          data,
+          revision,
+          proposed: {
+            name: board?.name ?? i18n.t('safety.missingTarget'),
+            change: i18n.t(
+              deletesBoard ? 'safety.actions.deleteBoard' : 'safety.actions.leaveBoard',
+            ),
+          },
+        };
+      }
       if (path.includes('/subtasks')) {
         const note = data as {
           title: string;

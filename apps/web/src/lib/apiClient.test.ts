@@ -205,3 +205,21 @@ it('clears the recovery when a retried delete finds the board already gone', asy
   await api.patch('/whiteboards/b', { name: 'x' }, undefined, captureMutation('board:b'));
   expect(fetcher).toHaveBeenCalledTimes(3);
 });
+
+// A delete refused as stale opens the review dialog. Without a proposal it showed an empty
+// "your change" column; it should say which board and what would happen to it.
+it('reviews a stale board deletion with the board name and the change spelled out', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(failure(409, 'STALE_REVISION'))
+    .mockResolvedValueOnce(
+      response({ id: 'b', name: 'Projekt Nord', ownerId: 'u', revision: 4 }, 4),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  await boardsApi.remove('b', captureMutation('board:b', { revision: 3 })).catch(() => {});
+
+  const reviewed = await getRecoveries()[0]!.description!.loadLatest();
+
+  expect(reviewed.revision).toBe(4);
+  expect(reviewed.proposed).toEqual({ name: 'Projekt Nord', change: 'Wand löschen' });
+});

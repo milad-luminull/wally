@@ -39,6 +39,7 @@ export const en = {
       leaveBoard: 'Leave board',
     },
     fields: {
+      change: 'Change',
       assignee: 'Assignee',
       status: 'Status',
       subtasks: 'Subtasks',

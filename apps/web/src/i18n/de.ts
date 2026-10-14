@@ -46,6 +46,7 @@ export const de = {
       leaveBoard: 'Wand verlassen',
     },
     fields: {
+      change: 'Änderung',
       assignee: 'Zuständig',
       status: 'Status',
       subtasks: 'Teilaufgaben',
