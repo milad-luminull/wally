@@ -183,3 +183,60 @@ describe('board.delete', () => {
     expect((await create(fx.ownerToken, 'Passt wieder')).statusCode).toBe(201);
   });
 });
+
+const leave = (token: string, boardId: string, key = randomUUID()) =>
+  ctx.app.inject({
+    method: 'POST',
+    url: `/whiteboards/${boardId}/leave`,
+    headers: { ...ctx.authHeader(token), 'idempotency-key': key },
+    payload: {},
+  });
+
+describe('board.leave', () => {
+  it('lets a member leave without an expected revision, and clears their assignments', async () => {
+    const owner = ctx.authHeader(fx.ownerToken);
+    const note = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: owner,
+        payload: { title: 'Für Editor' },
+      })
+    ).json();
+    const assigned = await ctx.inject({
+      method: 'POST',
+      url: `/notes/${note.id}/assign`,
+      headers: owner,
+      payload: { assigneeId: fx.editorId },
+    });
+    expect(assigned.statusCode).toBe(200);
+
+    expect((await leave(fx.editToken, fx.boardId)).statusCode).toBe(204);
+
+    expect((await listIds(fx.editToken)).map((b) => b.id)).not.toContain(fx.boardId);
+    const get = await ctx.inject({
+      method: 'GET',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: ctx.authHeader(fx.editToken),
+    });
+    expect(get.statusCode).toBe(404);
+    const members = (
+      await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}/members`, headers: owner })
+    ).json() as { userId: string | null }[];
+    expect(members.some((m) => m.userId === fx.editorId)).toBe(false);
+    expect((await notesCol(ctx.db).doc(note.id).get()).data()?.assigneeId).toBeNull();
+    const board = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data();
+    expect(board?.memberRoles[fx.editorId]).toBeUndefined();
+  });
+
+  it('is refused for the owner and unknown for an outsider', async () => {
+    expect((await leave(fx.ownerToken, fx.boardId)).statusCode).toBe(403);
+    expect((await leave(fx.outsiderToken, fx.boardId)).statusCode).toBe(404);
+  });
+
+  it('answers a retry after leaving with 404', async () => {
+    const key = randomUUID();
+    expect((await leave(fx.viewToken, fx.boardId, key)).statusCode).toBe(204);
+    expect((await leave(fx.viewToken, fx.boardId, key)).statusCode).toBe(404);
+  });
+});

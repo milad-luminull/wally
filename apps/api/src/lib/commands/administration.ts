@@ -127,6 +127,7 @@ export async function executeAdminCommand(
     command.type === 'member.invite' ||
     command.type === 'member.update' ||
     command.type === 'member.delete' ||
+    command.type === 'board.leave' ||
     command.type === 'link.redeem'
   ) {
     const members = membersCol(db, board.id);
@@ -184,6 +185,13 @@ export async function executeAdminCommand(
         deletedUser = existing.userId;
         tx.delete(members.doc(existing.id));
       }
+    } else if (command.type === 'board.leave') {
+      // The caller's own ACTIVE rows only; requireAccess already proved they hold one.
+      const own = rows.filter((row) => row.userId === actor.id && row.status === 'ACTIVE');
+      if (own.length === 0) notFound();
+      nextRows = rows.filter((row) => !own.includes(row));
+      for (const row of own) tx.delete(members.doc(row.id));
+      deletedUser = actor.id;
     } else {
       const link = withId(await tx.get(shareLinksCol(db).doc(command.token)));
       if (!link || link.whiteboardId !== board.id || board.shareLinkToken !== command.token)
@@ -228,7 +236,8 @@ export async function executeAdminCommand(
         createdAt: timestamp,
       });
     }
-    if (command.type === 'member.delete') return result(null, 204, revision, cleanupId);
+    if (command.type === 'member.delete' || command.type === 'board.leave')
+      return result(null, 204, revision, cleanupId);
     if (command.type === 'link.redeem') return result({ whiteboardId: board.id, role: next!.role });
     return result(toMemberDto(next!, await loadUsers(db, [next!.userId])));
   }

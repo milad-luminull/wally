@@ -36,6 +36,8 @@ function canonical(value: unknown): string {
 }
 function rolesFor(command: BoardCommand): EffectiveRole[] {
   if (command.type === 'link.redeem') return ['OWNER', 'EDIT', 'VIEW'];
+  // A member leaves; the owner cannot (they delete instead), so OWNER is a 403 here.
+  if (command.type === 'board.leave') return ['EDIT', 'VIEW'];
   return command.type.startsWith('note.') || command.type.startsWith('subtask.')
     ? ['OWNER', 'EDIT']
     : ['OWNER'];
@@ -139,7 +141,13 @@ export async function executeBoardCommand(
         if (!link || board.shareLinkToken !== command.token) notFound();
       } else requireAccess(board, actor.id, rolesFor(command));
 
-      if (command.type !== 'note.create' && command.type !== 'link.redeem') {
+      // board.leave states a fact about the caller, not an edit of the board: a concurrent
+      // rename by the owner must not turn it into a 409 the member cannot resolve.
+      if (
+        command.type !== 'note.create' &&
+        command.type !== 'link.redeem' &&
+        command.type !== 'board.leave'
+      ) {
         if (expectedRevision === undefined)
           throw new AppError(428, 'PRECONDITION_REQUIRED', 'Expected revision is required');
         if (expectedRevision !== revisionOf(note ?? board))

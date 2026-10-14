@@ -91,6 +91,7 @@ export default async function boardRoutes(app: FastifyInstance) {
       status: 201,
     },
     { method: 'DELETE', url: '/whiteboards/:id', type: 'board.delete', status: 204 },
+    { method: 'POST', url: '/whiteboards/:id/leave', type: 'board.leave', status: 204 },
     {
       method: 'PATCH',
       url: '/whiteboards/:id',
