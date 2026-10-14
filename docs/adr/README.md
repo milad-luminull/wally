@@ -58,3 +58,4 @@ A guide changes by normal PR as long as it stays inside its ADR. Changing the de
 | [0009](0009-docker-compose-with-firestore-emulator-and-real-auth.md) | Local dev and CI run in Docker Compose against the Firestore emulator, with real Firebase Auth | accepted |
 | [0010](0010-board-commands-revisions-and-receipts.md)                | Board commands with transactional permissions, revisions and receipts                          | proposed |
 | [0011](0011-boards-as-independent-aggregates.md)                     | Boards as independent aggregates: several per owner, deletable, with a tombstone               | proposed |
+| [0012](0012-skip-e2e-on-documentation-only-pull-requests.md)         | Skip E2E on documentation-only pull requests                                                   | proposed |
