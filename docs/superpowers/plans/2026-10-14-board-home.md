@@ -40,26 +40,26 @@ User A signs out while on their board; the protected route stores that board pat
 
 ## File map
 
-| Area | File | Responsibility |
-| --- | --- | --- |
-| shared | `packages/shared/src/schemas/command.ts` | three new union members |
-| shared | `packages/shared/src/schemas/board.ts` | `whiteboardCreateSchema` |
-| shared | `packages/shared/src/constants.ts` | `MAX_OWN_BOARDS` |
-| api | `src/lib/db/types.ts` | `WhiteboardDoc.deletedAt?` |
-| api | `src/lib/db/collections.ts` | `liveWhiteboard()` read helper |
-| api | `src/lib/commands/queries.ts`, `index.ts`, `administration.ts`, `maintenance.ts`, `members.ts`, `authorization.ts` | tombstone awareness, three commands, cleanup kind |
-| api | `src/routes/boards.ts` | three routes |
-| api | `src/plugins/auth.ts` | provisioning change |
-| api | `test/boards-lifecycle.test.ts` (new), `test/helpers.ts`, `test/me.test.ts`, `test/whiteboards.test.ts`, `src/lib/authorization.test.ts` | tests |
-| web | `features/auth/AuthProvider.tsx`, `ProtectedRoute.tsx`, `SignInForm.tsx`, `SignUpForm.tsx`, `returnPath.ts` (new) | sign-out clears the return path; sign-in hands it to the landing |
-| web | `routes/LoginPage.tsx`, `SignupPage.tsx`, `LandingPage.tsx` (renamed from `RootRedirect.tsx`), `BoardsPage.tsx` (new), `NotFoundPage.tsx`, `App.tsx` | routes |
-| web | `lib/apiClient.ts`, `lib/resources.ts` | create bypasses the queue; delete/leave 404 as gone; `boardsApi.create/remove/leave` |
-| web | `features/board/hooks/mutations/useCreateBoard.ts`, `useDeleteBoard.ts`, `useLeaveBoard.ts` (new) | mutations |
-| web | `features/boards/BoardHome.tsx`, `BoardRow.tsx`, `HomeShell.tsx`, `NewBoardDialog.tsx`, `DeleteBoardDialog.tsx`, `LeaveBoardDialog.tsx` (new) | home page |
-| web | `features/board/TopBar.tsx`, `BoardSwitcher.tsx`, `AccountMenu.tsx` | in-board navigation |
-| web | `i18n/de.ts`, `i18n/en.ts` | copy |
-| web | `e2e/support.ts`, `e2e/boards.spec.ts` (new), `e2e/README.md`, `.github/workflows/ci.yml` | E2E |
-| docs | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/BOARD_HOME.md`, `adr/0011-…` (new) | documentation |
+| Area   | File                                                                                                                                                 | Responsibility                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| shared | `packages/shared/src/schemas/command.ts`                                                                                                             | three new union members                                                              |
+| shared | `packages/shared/src/schemas/board.ts`                                                                                                               | `whiteboardCreateSchema`                                                             |
+| shared | `packages/shared/src/constants.ts`                                                                                                                   | `MAX_OWN_BOARDS`                                                                     |
+| api    | `src/lib/db/types.ts`                                                                                                                                | `WhiteboardDoc.deletedAt?`                                                           |
+| api    | `src/lib/db/collections.ts`                                                                                                                          | `liveWhiteboard()` read helper                                                       |
+| api    | `src/lib/commands/queries.ts`, `index.ts`, `administration.ts`, `maintenance.ts`, `members.ts`, `authorization.ts`                                   | tombstone awareness, three commands, cleanup kind                                    |
+| api    | `src/routes/boards.ts`                                                                                                                               | three routes                                                                         |
+| api    | `src/plugins/auth.ts`                                                                                                                                | provisioning change                                                                  |
+| api    | `test/boards-lifecycle.test.ts` (new), `test/helpers.ts`, `test/me.test.ts`, `test/whiteboards.test.ts`, `src/lib/authorization.test.ts`             | tests                                                                                |
+| web    | `features/auth/AuthProvider.tsx`, `ProtectedRoute.tsx`, `SignInForm.tsx`, `SignUpForm.tsx`, `returnPath.ts` (new)                                    | sign-out clears the return path; sign-in hands it to the landing                     |
+| web    | `routes/LoginPage.tsx`, `SignupPage.tsx`, `LandingPage.tsx` (renamed from `RootRedirect.tsx`), `BoardsPage.tsx` (new), `NotFoundPage.tsx`, `App.tsx` | routes                                                                               |
+| web    | `lib/apiClient.ts`, `lib/resources.ts`                                                                                                               | create bypasses the queue; delete/leave 404 as gone; `boardsApi.create/remove/leave` |
+| web    | `features/board/hooks/mutations/useCreateBoard.ts`, `useDeleteBoard.ts`, `useLeaveBoard.ts` (new)                                                    | mutations                                                                            |
+| web    | `features/boards/BoardHome.tsx`, `BoardRow.tsx`, `HomeShell.tsx`, `NewBoardDialog.tsx`, `DeleteBoardDialog.tsx`, `LeaveBoardDialog.tsx` (new)        | home page                                                                            |
+| web    | `features/board/TopBar.tsx`, `BoardSwitcher.tsx`, `AccountMenu.tsx`                                                                                  | in-board navigation                                                                  |
+| web    | `i18n/de.ts`, `i18n/en.ts`                                                                                                                           | copy                                                                                 |
+| web    | `e2e/support.ts`, `e2e/boards.spec.ts` (new), `e2e/README.md`, `.github/workflows/ci.yml`                                                            | E2E                                                                                  |
+| docs   | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/BOARD_HOME.md`, `adr/0011-…` (new)          | documentation                                                                        |
 
 Note on plan location: this file lives in the plan directory the host chose. Task 0 copies it into the repo at `docs/superpowers/plans/2026-10-14-board-home.md` so it travels with the branch.
 
@@ -68,6 +68,7 @@ Note on plan location: this file lives in the plan directory the host chose. Tas
 ### Task 0: Branch and plan copy
 
 **Files:**
+
 - Create: `docs/superpowers/plans/2026-10-14-board-home.md`
 
 - [ ] **Step 1: Create the worktree branch** (the main checkout is bind-mounted into Docker; never switch branches there, see memory `project_wally_live_checkout`)
@@ -88,32 +89,40 @@ git commit -m "docs: add the board home implementation plan"
 ### Task 1: Shared contract
 
 **Files:**
+
 - Modify: `packages/shared/src/schemas/command.ts` (union, after `board.rename` at line ~59)
 - Modify: `packages/shared/src/schemas/board.ts`
 - Modify: `packages/shared/src/constants.ts`
 
 **Interfaces:**
+
 - Produces: `BoardCommand` members `{ type: 'board.create', input: { name } }`, `{ type: 'board.delete', boardId, input: {} }`, `{ type: 'board.leave', boardId, input: {} }`; `whiteboardCreateSchema`; `MAX_OWN_BOARDS = 20`.
 
 - [ ] **Step 1: Add the schema and constant**
 
 `board.ts`, after `whiteboardRenameSchema`:
+
 ```ts
 /** Same rule as rename: one trimmed, non-empty name. Kept separate so the two can diverge. */
 export const whiteboardCreateSchema = whiteboardRenameSchema;
 export type WhiteboardCreateInput = z.infer<typeof whiteboardCreateSchema>;
 ```
+
 `constants.ts`, next to `MAX_REMEMBERED_BOARDS`:
+
 ```ts
 /** Boards one user may own. A guard against runaway scripts, not a product tier. */
 export const MAX_OWN_BOARDS = 20;
 ```
+
 `command.ts`, inside the discriminated union after the `board.rename` member:
+
 ```ts
   z.object({ type: z.literal('board.create'), input: whiteboardCreateSchema.strict() }).strict(),
   z.object({ type: z.literal('board.delete'), ...board, input: empty }).strict(),
   z.object({ type: z.literal('board.leave'), ...board, input: empty }).strict(),
 ```
+
 Import `whiteboardCreateSchema` from `./board.js`. Also update the doc comment on `INITIAL_BOARD_NAME` in `constants.ts` to "the name of the board provisioned with a new user record, and the prefilled name in the New board dialog".
 
 - [ ] **Step 2: Typecheck**
@@ -133,6 +142,7 @@ git commit -m "feat(shared): board.create, board.delete and board.leave commands
 ### Task 2: API: board tombstone read helper
 
 **Files:**
+
 - Modify: `apps/api/src/lib/db/types.ts` (`WhiteboardDoc`)
 - Modify: `apps/api/src/lib/db/collections.ts` (next to `withId`)
 - Modify: `apps/api/src/lib/commands/queries.ts` (`getBoard`, `listBoards`, `boardSnapshot`)
@@ -143,11 +153,13 @@ git commit -m "feat(shared): board.create, board.delete and board.leave commands
 - Test: `apps/api/test/whiteboards.test.ts`, `apps/api/src/lib/authorization.test.ts`
 
 **Interfaces:**
+
 - Produces: `liveWhiteboard(snapshot: DocumentSnapshot<WhiteboardDoc>): WithId<WhiteboardDoc> | null` — `withId` plus `null` when `deletedAt` is set. `WhiteboardDoc.deletedAt?: Timestamp`.
 
 - [ ] **Step 1: Write the failing tests**
 
 In `apps/api/test/whiteboards.test.ts` (uses `createBoardFixture`; follow its existing `beforeAll/beforeEach` setup) add:
+
 ```ts
 describe('a tombstoned board', () => {
   beforeEach(async () => {
@@ -156,29 +168,49 @@ describe('a tombstoned board', () => {
 
   it('is absent from the owner’s and a member’s board list', async () => {
     for (const token of [fx.ownerToken, fx.editToken]) {
-      const res = await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+      const res = await ctx.inject({
+        method: 'GET',
+        url: '/whiteboards',
+        headers: ctx.authHeader(token),
+      });
       expect(res.json()).toEqual([]);
     }
   });
 
   it('reads as 404 for the owner, exactly like a board that never existed', async () => {
-    const get = await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}`, headers: ctx.authHeader(fx.ownerToken) });
+    const get = await ctx.inject({
+      method: 'GET',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+    });
     expect(get.statusCode).toBe(404);
-    const rename = await ctx.inject({ method: 'PATCH', url: `/whiteboards/${fx.boardId}`, headers: ctx.authHeader(fx.ownerToken), payload: { name: 'Nope' } });
+    const rename = await ctx.inject({
+      method: 'PATCH',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { name: 'Nope' },
+    });
     expect(rename.statusCode).toBe(404);
-    const note = await ctx.inject({ method: 'POST', url: `/whiteboards/${fx.boardId}/notes`, headers: ctx.authHeader(fx.ownerToken), payload: { title: 'Nope' } });
+    const note = await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/notes`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { title: 'Nope' },
+    });
     expect(note.statusCode).toBe(404);
   });
 });
 ```
+
 Import `Timestamp` from `firebase-admin/firestore` and `whiteboardsCol` from `../src/lib/db/collections.js` if not already imported.
 
 In `apps/api/src/lib/authorization.test.ts` add:
+
 ```ts
-  it('returns null for a tombstoned whiteboard, even for its owner', async () => {
-    await whiteboardsCol(db).doc(board).update({ deletedAt: Timestamp.now() });
-    await expect(getEffectiveRole(db, 'u-owner', board)).resolves.toBeNull();
-  });
+it('returns null for a tombstoned whiteboard, even for its owner', async () => {
+  await whiteboardsCol(db).doc(board).update({ deletedAt: Timestamp.now() });
+  await expect(getEffectiveRole(db, 'u-owner', board)).resolves.toBeNull();
+});
 ```
 
 - [ ] **Step 2: Run to verify they fail**
@@ -189,6 +221,7 @@ Expected: the new tests FAIL (list still contains the board, GET returns 200, ro
 - [ ] **Step 3: Implement**
 
 `types.ts`, in `WhiteboardDoc` after `revision?`:
+
 ```ts
   /**
    * Set by board.delete. From that moment the board reads as absent for everyone — read it
@@ -196,15 +229,20 @@ Expected: the new tests FAIL (list still contains the board, GET returns 200, ro
    */
   deletedAt?: Timestamp;
 ```
+
 `collections.ts`, after `withId`:
+
 ```ts
 /** A whiteboard read that treats a tombstoned board as missing. Every board read in a query
  * or command goes through this; only the board.delete cleanup job may see the tombstone. */
-export function liveWhiteboard(snapshot: DocumentSnapshot<WhiteboardDoc>): WithId<WhiteboardDoc> | null {
+export function liveWhiteboard(
+  snapshot: DocumentSnapshot<WhiteboardDoc>,
+): WithId<WhiteboardDoc> | null {
   const board = withId(snapshot);
   return board && !board.deletedAt ? board : null;
 }
 ```
+
 Replace `withId(await tx.get(whiteboardsCol(db).doc(...)))` with `liveWhiteboard(...)` in: `queries.ts` `getBoard` and `boardSnapshot`; `index.ts` lines ~92 and ~114; `maintenance.ts` inside the `member.remove` per-note transaction; `members.ts` in `activatePendingInvitesForEmail`; `authorization.ts` `getEffectiveRole` and the board read in `requireWhiteboardAccess`. In `listBoards` filter `owned` with `.filter((b) => !b.deletedAt)` and replace the per-id `withId` read with `liveWhiteboard`. In `reconcileBoards` skip documents whose data has `deletedAt` (both loops: the role-cache loop skips them; the orphan-link loop treats a tombstoned board as absent so its link is an orphan).
 
 - [ ] **Step 4: Run tests**
@@ -224,6 +262,7 @@ git commit -m "feat(api): a tombstoned whiteboard reads as absent everywhere"
 ### Task 3: API: board.create
 
 **Files:**
+
 - Modify: `apps/api/src/lib/commands/index.ts` (new branch before the note/board resolution, lines ~100–110)
 - Modify: `apps/api/src/lib/commands/administration.ts` (new exported `createBoard`)
 - Modify: `apps/api/src/routes/boards.ts` (command table + target selection in the loop)
@@ -231,6 +270,7 @@ git commit -m "feat(api): a tombstoned whiteboard reads as absent everywhere"
 - Test: `apps/api/test/boards-lifecycle.test.ts` (new)
 
 **Interfaces:**
+
 - Produces: `POST /whiteboards` → 201 `WhiteboardDto` with `currentUserRole: 'OWNER'`, `revision: 1`; header `X-Resource-Revision: 1`; `422 BOARD_LIMIT_REACHED`.
 - Produces: `createBoard(db, tx, actor, name, timestamp): Promise<CommandResult>` in `administration.ts`.
 
@@ -241,6 +281,7 @@ In `test/helpers.ts` `ctx.inject`, guard the lookup: `else if (parts[1] === 'whi
 - [ ] **Step 2: Write the failing tests**
 
 Create `apps/api/test/boards-lifecycle.test.ts`:
+
 ```ts
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -251,13 +292,21 @@ const projectId = 'wally-boards-lifecycle';
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
 
-beforeAll(async () => { ctx = await buildTestApp(projectId); });
-beforeEach(async () => { await resetDatabase(projectId); fx = await createBoardFixture(ctx); });
-afterAll(async () => { await ctx.app.close(); });
+beforeAll(async () => {
+  ctx = await buildTestApp(projectId);
+});
+beforeEach(async () => {
+  await resetDatabase(projectId);
+  fx = await createBoardFixture(ctx);
+});
+afterAll(async () => {
+  await ctx.app.close();
+});
 
 const create = (token: string, name = 'Projekt Nord', key = randomUUID()) =>
   ctx.app.inject({
-    method: 'POST', url: '/whiteboards',
+    method: 'POST',
+    url: '/whiteboards',
     headers: { ...ctx.authHeader(token), 'idempotency-key': key },
     payload: { name },
   });
@@ -267,11 +316,22 @@ describe('board.create', () => {
     const res = await create(fx.ownerToken);
     expect(res.statusCode).toBe(201);
     const dto = res.json();
-    expect(dto).toMatchObject({ name: 'Projekt Nord', ownerId: fx.ownerId, currentUserRole: 'OWNER', revision: 1 });
+    expect(dto).toMatchObject({
+      name: 'Projekt Nord',
+      ownerId: fx.ownerId,
+      currentUserRole: 'OWNER',
+      revision: 1,
+    });
     expect(dto.id).not.toBe(fx.ownerId);
     expect(res.headers['x-resource-revision']).toBe('1');
-    const list = await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(fx.ownerToken) });
-    expect(list.json()).toEqual(expect.arrayContaining([{ id: dto.id, name: 'Projekt Nord', currentUserRole: 'OWNER' }]));
+    const list = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(fx.ownerToken),
+    });
+    expect(list.json()).toEqual(
+      expect.arrayContaining([{ id: dto.id, name: 'Projekt Nord', currentUserRole: 'OWNER' }]),
+    );
   });
 
   it('replays the same operation id instead of creating twice', async () => {
@@ -281,25 +341,36 @@ describe('board.create', () => {
     expect(second.statusCode).toBe(201);
     expect(second.json()).toEqual(first.json());
     expect((await create(fx.ownerToken, 'Anders', key)).statusCode).toBe(409);
-    const list = await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(fx.ownerToken) });
+    const list = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(fx.ownerToken),
+    });
     expect(list.json().filter((b: { name: string }) => b.name === 'Einmal')).toHaveLength(1);
   });
 
   it('refuses a blank name and a missing operation id', async () => {
     expect((await create(fx.ownerToken, '   ')).statusCode).toBe(400);
-    const res = await ctx.app.inject({ method: 'POST', url: '/whiteboards', headers: ctx.authHeader(fx.ownerToken), payload: { name: 'x' } });
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/whiteboards',
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { name: 'x' },
+    });
     expect(res.statusCode).toBe(428);
   });
 
   it('stops at MAX_OWN_BOARDS live boards, not counting deleted ones', async () => {
     // The fixture owner already owns one board.
-    for (let i = 1; i < MAX_OWN_BOARDS; i++) expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
+    for (let i = 1; i < MAX_OWN_BOARDS; i++)
+      expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
     const over = await create(fx.ownerToken, 'Eine zu viel');
     expect(over.statusCode).toBe(422);
     expect(over.json().error).toBe('BOARD_LIMIT_REACHED');
   });
 });
 ```
+
 (The "not counting deleted ones" half is completed in Task 4, which adds a delete before the final create.) `board.create` gets **no** per-route rate limit: the own-board cap already bounds it, and a 20-per-minute bucket shared by every test in this file would 429 the limit tests. The global 300-per-minute limit still applies. This deviates from RFC §12.1 ("rate-limited like invites"); Task 13 records it in board-operations.md.
 
 - [ ] **Step 3: Run to verify they fail**
@@ -310,29 +381,56 @@ Expected: FAIL with 404 (route missing).
 - [ ] **Step 4: Implement `createBoard`**
 
 `administration.ts`:
+
 ```ts
 export async function createBoard(
-  db: Firestore, tx: Transaction, actor: Actor, name: string, operationBoardRef = whiteboardsCol(db).doc(),
+  db: Firestore,
+  tx: Transaction,
+  actor: Actor,
+  name: string,
+  operationBoardRef = whiteboardsCol(db).doc(),
 ): Promise<CommandResult> {
   const owned = docsWithId(await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)));
   if (owned.filter((b) => !b.deletedAt).length >= MAX_OWN_BOARDS)
     throw new AppError(422, 'BOARD_LIMIT_REACHED', `You can own at most ${MAX_OWN_BOARDS} boards`);
   const timestamp = now();
-  const doc: WhiteboardDoc = { name, ownerId: actor.id, revision: 1, memberRoles: {}, shareLinkToken: null, createdAt: timestamp, updatedAt: timestamp };
+  const doc: WhiteboardDoc = {
+    name,
+    ownerId: actor.id,
+    revision: 1,
+    memberRoles: {},
+    shareLinkToken: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
   tx.create(operationBoardRef, doc);
-  return { data: toWhiteboardDto({ ...doc, id: operationBoardRef.id }, 'OWNER'), revision: 1, status: 201, boardId: operationBoardRef.id };
+  return {
+    data: toWhiteboardDto({ ...doc, id: operationBoardRef.id }, 'OWNER'),
+    revision: 1,
+    status: 201,
+    boardId: operationBoardRef.id,
+  };
 }
 ```
+
 Imports: `MAX_OWN_BOARDS` from `@wally/shared`, `Firestore, Transaction` types, `Actor`, `AppError`, `docsWithId`, `now`, `whiteboardsCol`, `toWhiteboardDto`.
 
 `index.ts`: inside `runCommandTransaction`, right after the receipt block and before `const note = ...`:
+
 ```ts
-      if (command.type === 'board.create') {
-        const result = await createBoard(db, tx, actor, command.input.name);
-        tx.create(receiptRef, { fingerprint, boardId: result.boardId, result, createdAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000) });
-        return { result, replayed: false };
-      }
+if (command.type === 'board.create') {
+  const result = await createBoard(db, tx, actor, command.input.name);
+  tx.create(receiptRef, {
+    fingerprint,
+    boardId: result.boardId,
+    result,
+    createdAt: Timestamp.now(),
+    expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
+  });
+  return { result, replayed: false };
+}
 ```
+
 Extract the receipt write into a local `writeReceipt(boardId, result)` used by both places so the two stay identical. The receipt replay path already re-authorizes against `receipt.boardId`, which for a create is the new board, where the actor is OWNER.
 
 `rolesFor` needs no change (never reached for create).
@@ -355,23 +453,30 @@ git commit -m "feat(api): board.create with a per-owner limit"
 ### Task 4: API: board.delete and its cleanup job
 
 **Files:**
+
 - Modify: `apps/api/src/lib/commands/administration.ts` (new branch after `board.rename`)
 - Modify: `apps/api/src/lib/commands/maintenance.ts` (`drainCleanupJob` new kind)
 - Modify: `apps/api/src/routes/boards.ts` (route)
 - Test: `apps/api/test/boards-lifecycle.test.ts`
 
 **Interfaces:**
+
 - Produces: `DELETE /whiteboards/:id` → 204, OWNER only, expected revision = board. Cleanup job `{ kind: 'board.delete', boardId, createdAt }`.
 
 - [ ] **Step 1: Write the failing tests**
 
 Append to `boards-lifecycle.test.ts`:
+
 ```ts
 import { drainCleanup } from '../src/lib/commands/maintenance.js';
 import { membersCol, notesCol, shareLinksCol, whiteboardsCol } from '../src/lib/db/collections.js';
 
 const del = (token: string, boardId: string, key = randomUUID()) =>
-  ctx.inject({ method: 'DELETE', url: `/whiteboards/${boardId}`, headers: { ...ctx.authHeader(token), 'idempotency-key': key } });
+  ctx.inject({
+    method: 'DELETE',
+    url: `/whiteboards/${boardId}`,
+    headers: { ...ctx.authHeader(token), 'idempotency-key': key },
+  });
 
 describe('board.delete', () => {
   it('is for the owner only', async () => {
@@ -380,16 +485,45 @@ describe('board.delete', () => {
   });
 
   it('hides the board at once and finishes the physical deletion in cleanup', async () => {
-    const note = (await ctx.inject({ method: 'POST', url: `/whiteboards/${fx.boardId}/notes`, headers: ctx.authHeader(fx.ownerToken), payload: { title: 'Weg damit' } })).json();
-    await ctx.inject({ method: 'POST', url: `/notes/${note.id}/subtasks`, headers: ctx.authHeader(fx.ownerToken), payload: { text: 'Teil' } });
-    await ctx.inject({ method: 'POST', url: `/whiteboards/${fx.boardId}/share-link`, headers: ctx.authHeader(fx.ownerToken), payload: { role: 'VIEW' } });
+    const note = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'Weg damit' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/notes/${note.id}/subtasks`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { text: 'Teil' },
+    });
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/share-link`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { role: 'VIEW' },
+    });
     const token = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()!.shareLinkToken!;
 
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
 
     for (const t of [fx.ownerToken, fx.editToken]) {
-      expect((await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(t) })).json()).toEqual([]);
-      expect((await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}`, headers: ctx.authHeader(t) })).statusCode).toBe(404);
+      expect(
+        (
+          await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(t) })
+        ).json(),
+      ).toEqual([]);
+      expect(
+        (
+          await ctx.inject({
+            method: 'GET',
+            url: `/whiteboards/${fx.boardId}`,
+            headers: ctx.authHeader(t),
+          })
+        ).statusCode,
+      ).toBe(404);
     }
     expect((await shareLinksCol(ctx.db).doc(token).get()).exists).toBe(false);
 
@@ -411,8 +545,21 @@ describe('board.delete', () => {
 
   it('refuses a stale revision and answers a retry after completion with 404', async () => {
     const key = randomUUID();
-    await ctx.inject({ method: 'PATCH', url: `/whiteboards/${fx.boardId}`, headers: ctx.authHeader(fx.ownerToken), payload: { name: 'Umbenannt' } });
-    const stale = await ctx.app.inject({ method: 'DELETE', url: `/whiteboards/${fx.boardId}`, headers: { ...ctx.authHeader(fx.ownerToken), 'idempotency-key': key, 'x-expected-revision': '0' } });
+    await ctx.inject({
+      method: 'PATCH',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { name: 'Umbenannt' },
+    });
+    const stale = await ctx.app.inject({
+      method: 'DELETE',
+      url: `/whiteboards/${fx.boardId}`,
+      headers: {
+        ...ctx.authHeader(fx.ownerToken),
+        'idempotency-key': key,
+        'x-expected-revision': '0',
+      },
+    });
     expect(stale.statusCode).toBe(409);
     expect((await del(fx.ownerToken, fx.boardId, key)).statusCode).toBe(204);
     // The receipt exists, but re-authorization against a board that now reads as absent fails.
@@ -420,13 +567,15 @@ describe('board.delete', () => {
   });
 
   it('frees a slot under MAX_OWN_BOARDS', async () => {
-    for (let i = 1; i < MAX_OWN_BOARDS; i++) expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
+    for (let i = 1; i < MAX_OWN_BOARDS; i++)
+      expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
     expect((await create(fx.ownerToken, 'Zu viel')).statusCode).toBe(422);
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
     expect((await create(fx.ownerToken, 'Passt wieder')).statusCode).toBe(201);
   });
 });
 ```
+
 Import `vi` and add `afterEach(() => vi.restoreAllMocks())`. The 409 check uses `ctx.app.inject` directly because `ctx.inject` auto-fills the live revision.
 
 - [ ] **Step 2: Run to verify they fail**
@@ -437,16 +586,23 @@ Expected: FAIL (404 route missing).
 - [ ] **Step 3: Implement**
 
 `administration.ts`, after the `board.rename` branch:
+
 ```ts
-  if (command.type === 'board.delete') {
-    const cleanupId = `${actor.id}_${ctx.operationId}`;
-    if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));
-    updateBoard({ deletedAt: timestamp, shareLinkToken: null });
-    tx.create(db.collection('boardCleanup').doc(cleanupId), { kind: 'board.delete', boardId: board.id, createdAt: timestamp });
-    return result(null, 204, revision, cleanupId);
-  }
+if (command.type === 'board.delete') {
+  const cleanupId = `${actor.id}_${ctx.operationId}`;
+  if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));
+  updateBoard({ deletedAt: timestamp, shareLinkToken: null });
+  tx.create(db.collection('boardCleanup').doc(cleanupId), {
+    kind: 'board.delete',
+    boardId: board.id,
+    createdAt: timestamp,
+  });
+  return result(null, 204, revision, cleanupId);
+}
 ```
+
 `maintenance.ts`, new branch in `drainCleanupJob`:
+
 ```ts
   } else if (job.kind === 'board.delete') {
     const boardRef = whiteboardsCol(db).doc(job.boardId);
@@ -458,6 +614,7 @@ Expected: FAIL (404 route missing).
     await db.recursiveDelete(boardRef);
   }
 ```
+
 Every step is a delete of something that may already be gone, so a rerun is safe. `routes/boards.ts`: `{ method: 'DELETE', url: '/whiteboards/:id', type: 'board.delete', status: 204 }`.
 
 - [ ] **Step 4: Run tests, then the whole API package**
@@ -476,33 +633,76 @@ git commit -m "feat(api): board.delete tombstones the board and cleans it up dur
 ### Task 5: API: board.leave
 
 **Files:**
+
 - Modify: `apps/api/src/lib/commands/index.ts` (`rolesFor`, revision-check exclusion)
 - Modify: `apps/api/src/lib/commands/administration.ts` (member branch)
 - Modify: `apps/api/src/routes/boards.ts`
 - Test: `apps/api/test/boards-lifecycle.test.ts`
 
 **Interfaces:**
+
 - Produces: `POST /whiteboards/:id/leave` → 204 for an ACTIVE EDIT/VIEW member, 403 for the owner, 404 for a non-member; no expected revision; reuses the `member.remove` cleanup.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
 const leave = (token: string, boardId: string, key = randomUUID()) =>
-  ctx.app.inject({ method: 'POST', url: `/whiteboards/${boardId}/leave`, headers: { ...ctx.authHeader(token), 'idempotency-key': key }, payload: {} });
+  ctx.app.inject({
+    method: 'POST',
+    url: `/whiteboards/${boardId}/leave`,
+    headers: { ...ctx.authHeader(token), 'idempotency-key': key },
+    payload: {},
+  });
 
 describe('board.leave', () => {
   it('lets a member leave without an expected revision, and clears their assignments', async () => {
-    const note = (await ctx.inject({ method: 'POST', url: `/whiteboards/${fx.boardId}/notes`, headers: ctx.authHeader(fx.ownerToken), payload: { title: 'Für Editor' } })).json();
-    await ctx.inject({ method: 'POST', url: `/notes/${note.id}/assign`, headers: ctx.authHeader(fx.ownerToken), payload: { assigneeId: fx.editorId } });
+    const note = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'Für Editor' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/notes/${note.id}/assign`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { assigneeId: fx.editorId },
+    });
 
     expect((await leave(fx.editToken, fx.boardId)).statusCode).toBe(204);
 
-    expect((await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(fx.editToken) })).json()).toEqual([]);
-    expect((await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}`, headers: ctx.authHeader(fx.editToken) })).statusCode).toBe(404);
-    const members = (await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}/members`, headers: ctx.authHeader(fx.ownerToken) })).json();
+    expect(
+      (
+        await ctx.inject({
+          method: 'GET',
+          url: '/whiteboards',
+          headers: ctx.authHeader(fx.editToken),
+        })
+      ).json(),
+    ).toEqual([]);
+    expect(
+      (
+        await ctx.inject({
+          method: 'GET',
+          url: `/whiteboards/${fx.boardId}`,
+          headers: ctx.authHeader(fx.editToken),
+        })
+      ).statusCode,
+    ).toBe(404);
+    const members = (
+      await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/members`,
+        headers: ctx.authHeader(fx.ownerToken),
+      })
+    ).json();
     expect(members.some((m: { userId: string | null }) => m.userId === fx.editorId)).toBe(false);
     expect((await notesCol(ctx.db).doc(note.id).get()).data()?.assigneeId).toBeNull();
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.memberRoles[fx.editorId]).toBeUndefined();
+    expect(
+      (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.memberRoles[fx.editorId],
+    ).toBeUndefined();
   });
 
   it('is refused for the owner and unknown for an outsider', async () => {
@@ -527,6 +727,7 @@ Expected: FAIL (404 route missing).
 `index.ts` `rolesFor`: add `if (command.type === 'board.leave') return ['EDIT', 'VIEW'];` before the default. In the revision check condition add `&& command.type !== 'board.leave'`.
 
 `administration.ts`, in the member branch's `if/else` chain (the branch that reads `rows`), add before the `link.redeem` `else`:
+
 ```ts
     } else if (command.type === 'board.leave') {
       const own = rows.filter((row) => row.userId === actor.id && row.status === 'ACTIVE');
@@ -535,6 +736,7 @@ Expected: FAIL (404 route missing).
       for (const row of own) tx.delete(members.doc(row.id));
       deletedUser = actor.id;
 ```
+
 The branch condition at the top of the member block must include `'board.leave'`. The existing tail (`rolesFromMembers`, `updateBoard({ memberRoles })`, the `member.remove` job when `deletedUser` has no role left) already does the rest; add `if (command.type === 'board.leave') return result(null, 204, revision, cleanupId);` next to the `member.delete` return.
 
 `routes/boards.ts`: `{ method: 'POST', url: '/whiteboards/:id/leave', type: 'board.leave', status: 204 }`.
@@ -555,26 +757,36 @@ git commit -m "feat(api): board.leave removes the caller's own membership"
 ### Task 6: API: provisioning creates the first board only with the user record
 
 **Files:**
+
 - Modify: `apps/api/src/plugins/auth.ts` (`provisionUser`, the preHandler's reads and `upToDate`)
 - Test: `apps/api/test/me.test.ts` (the "recreates a deleted board…" test, lines ~199–214)
 
 - [ ] **Step 1: Rewrite the failing test**
 
 Replace that test with:
+
 ```ts
-  // Deleting your last board is allowed (RFC BOARD_HOME §3); the next request must not quietly
-  // hand you a fresh "Meine Wand".
-  it('does not recreate a board that was deleted', async () => {
-    const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
-    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
-    await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
+// Deleting your last board is allowed (RFC BOARD_HOME §3); the next request must not quietly
+// hand you a fresh "Meine Wand".
+it('does not recreate a board that was deleted', async () => {
+  const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
+  await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+  await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
 
-    await ctx.inject({ method: 'GET', url: '/me', headers: { ...ctx.authHeader(token), ...EN_HEADER } });
-
-    expect((await whiteboardsCol(ctx.db).doc('me-rebuild').get()).exists).toBe(false);
-    const list = await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
-    expect(list.json()).toEqual([]);
+  await ctx.inject({
+    method: 'GET',
+    url: '/me',
+    headers: { ...ctx.authHeader(token), ...EN_HEADER },
   });
+
+  expect((await whiteboardsCol(ctx.db).doc('me-rebuild').get()).exists).toBe(false);
+  const list = await ctx.inject({
+    method: 'GET',
+    url: '/whiteboards',
+    headers: ctx.authHeader(token),
+  });
+  expect(list.json()).toEqual([]);
+});
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -602,6 +814,7 @@ git commit -m "feat(api): provision the first board only with a new user record"
 ### Task 7: Web: sign-out clears the return path; sign-in hands it to the landing
 
 **Files:**
+
 - Create: `apps/web/src/features/auth/returnPath.ts`
 - Modify: `apps/web/src/features/auth/AuthProvider.tsx` (`signedOut` in context)
 - Modify: `apps/web/src/features/auth/ProtectedRoute.tsx`
@@ -610,19 +823,26 @@ git commit -m "feat(api): provision the first board only with a new user record"
 - Test: `apps/web/src/features/auth/ProtectedRoute.test.tsx`, `AuthProvider.test.tsx`, `apps/web/src/features/auth/returnPath.test.ts` (new)
 
 **Interfaces:**
+
 - Produces: `AuthContextValue.signedOut: boolean` — true from the moment a signed-in account became signed out in this page, false once someone is authenticated again.
 - Produces: `returnPath.ts`:
+
   ```ts
   /** The in-app path a visitor was sent to /login from, or null. Only absolute in-app paths count. */
   export function readReturnPath(state: unknown): string | null;
   /** Where sign-in and sign-up navigate: the landing, carrying the return path for it to validate. */
-  export function landingWithReturn(from: string | null): { pathname: '/'; state: { to: string | null } };
+  export function landingWithReturn(from: string | null): {
+    pathname: '/';
+    state: { to: string | null };
+  };
   ```
+
   `readReturnPath` returns the string only if it starts with a single `/` (not `//`) and is `/share/…` or `/boards/…`; everything else is null.
 
 - [ ] **Step 1: Write the failing tests**
 
 `returnPath.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { readReturnPath } from './returnPath';
@@ -633,13 +853,23 @@ describe('readReturnPath', () => {
     expect(readReturnPath({ from: '/boards/abc?view=list' })).toBe('/boards/abc?view=list');
   });
   it('ignores anything that is not one of those', () => {
-    for (const from of ['//evil.example', 'https://evil.example', 'javascript:alert(1)', '/login', '/', '', undefined])
+    for (const from of [
+      '//evil.example',
+      'https://evil.example',
+      'javascript:alert(1)',
+      '/login',
+      '/',
+      '',
+      undefined,
+    ])
       expect(readReturnPath({ from })).toBeNull();
     expect(readReturnPath(null)).toBeNull();
   });
 });
 ```
+
 `ProtectedRoute.test.tsx`: change the login stub to print the state and add:
+
 ```tsx
 function LoginStub() {
   const location = useLocation();
@@ -658,6 +888,7 @@ function LoginStub() {
     expect(screen.getByText('Login-Seite ohne Rückweg')).toBeInTheDocument();
   });
 ```
+
 `AuthProvider.test.tsx`: following its `listener.current(user)` style, add a test that reports a user, then `null`, and expects `result.current.signedOut` to be `true`; then reports a user again and expects `false`; and one that the initial `null` report leaves it `false`.
 
 - [ ] **Step 2: Run to verify they fail**
@@ -668,16 +899,23 @@ Expected: FAIL.
 - [ ] **Step 3: Implement**
 
 `returnPath.ts`:
+
 ```ts
 const ALLOWED = /^\/(share|boards)\/[^/]/;
 export function readReturnPath(state: unknown): string | null {
   const from = (state as { from?: unknown } | null)?.from;
-  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') && ALLOWED.test(from) ? from : null;
+  return typeof from === 'string' &&
+    from.startsWith('/') &&
+    !from.startsWith('//') &&
+    ALLOWED.test(from)
+    ? from
+    : null;
 }
 export function landingWithReturn(from: string | null) {
   return { pathname: '/' as const, state: { to: from } };
 }
 ```
+
 `AuthProvider.tsx`: `const [signedOut, setSignedOut] = useState(false);` In the `!firebaseUser` branch: `setSignedOut(typeof previousUid === 'string');` In the authenticated success path: `setSignedOut(false);` Add to the context value and its `useMemo` deps.
 
 `ProtectedRoute.tsx`: `const { status, signedOut } = useAuth();` and `state={signedOut ? null : { from: location.pathname + location.search }}`.
@@ -702,17 +940,20 @@ git commit -m "fix(web): a sign-out never hands the next account the previous bo
 ### Task 8: Web: landing resolver at `/`
 
 **Files:**
+
 - Rename: `apps/web/src/routes/RootRedirect.tsx` → `apps/web/src/routes/LandingPage.tsx` (`git mv`)
 - Modify: `apps/web/src/App.tsx`
 - Modify: `apps/web/src/i18n/de.ts`, `en.ts` (`routes.root.*`)
 - Test: `apps/web/src/routes/LandingPage.test.tsx` (new)
 
 **Interfaces:**
+
 - Produces: `LandingPage()` resolving per §5.3 and §6. Reads `location.state.to`.
 
 - [ ] **Step 1: Write the failing tests**
 
 Model on `ShareRedeemPage.test.tsx` (mock `boardsApi.list`, stub routes). Cases:
+
 ```tsx
 vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn() } }));
 import { boardsApi } from '@/lib/resources';
@@ -737,6 +978,7 @@ it('drops a board return path the caller cannot open', …)                   //
 it('drops a return path that is not an in-app path', …)                     // to:'https://evil.example' with 2 boards → /boards
 it('shows the retry state when the list fails', …)                          // list rejects → button 'Erneut versuchen'
 ```
+
 `renderWithProviders` gains an optional `state` that becomes `initialEntries={[{ pathname: route, state }]}`.
 
 - [ ] **Step 2: Run to verify they fail**
@@ -746,6 +988,7 @@ Expected: FAIL (file missing).
 - [ ] **Step 3: Implement**
 
 `LandingPage.tsx`:
+
 ```tsx
 /** `/` shows nothing itself. It waits for the board list and sends the caller on: to the
  * return path sign-in handed over if it is a share link or a board on the list, else by count
@@ -764,6 +1007,7 @@ export function LandingPage() {
   return <Navigate to="/boards" replace />;
 }
 ```
+
 `useMe` and the `noBoardTitle/noBoardBody` empty state are removed from this file; delete those two keys from both catalogues (the home owns the empty state now). `App.tsx`: import `LandingPage` in place of `RootRedirect`. Keep `/boards` out of `App.tsx` until Task 10 (the test stubs it).
 
 - [ ] **Step 4: Run tests** → PASS. Also `src/i18n/resources.test.ts`.
@@ -780,6 +1024,7 @@ git commit -m "feat(web): the landing validates the return path and routes by bo
 ### Task 9: Web: API client, resources and the three mutations
 
 **Files:**
+
 - Modify: `apps/web/src/lib/apiClient.ts` (`request()`: predicates after line ~117, `isBoardMutation`, header exclusion line ~132, the `!res.ok` throw line ~140, the ticket block lines ~167–171, the `action` ternary line ~181, `loadLatest`'s 404 catch line ~209)
 - Modify: `apps/web/src/lib/resources.ts` (`boardsApi`, lines 60–66)
 - Modify: `apps/web/src/features/board/hooks/mutations/shared.ts` (new `removeBoardFromCaches`)
@@ -787,11 +1032,13 @@ git commit -m "feat(web): the landing validates the return path and routes by bo
 - Modify: `apps/web/src/i18n/de.ts`, `en.ts` (`safety.actions.deleteBoard`, `safety.actions.leaveBoard`)
 - Test: `apps/web/src/lib/apiClient.test.ts` (exists; extend), `apps/web/src/lib/resources.test.ts` (exists; extend), `apps/web/src/features/board/hooks/mutations/useBoardLifecycle.test.tsx` (new)
 
-**Design decision (from the queue's actual behaviour):** `enqueueMutation` treats *every* thrown error, 4xx included, as an unsaved change: it blocks the `board:<id>` lane and shows the "Unsaved changes" chip with Retry.
+**Design decision (from the queue's actual behaviour):** `enqueueMutation` treats _every_ thrown error, 4xx included, as an unsaved change: it blocks the `board:<id>` lane and shows the "Unsaved changes" chip with Retry.
+
 - **Delete and leave go through the queue** on lane `board:<id>`. Delete carries the board revision by design (§12.1); `STALE_REVISION` must open the existing review dialog, and a delete queued behind an in-flight rename must be rebased by the lane's transitions. Re-implementing that in a hook would be a second copy. The one wart, a 404 on a retry after the first attempt succeeded, is mapped to success **inside `perform`** so the queue sees a resolved send and clears the recovery.
 - **Create bypasses the queue.** Its only interesting failure is `422 BOARD_LIMIT_REACHED`, which the dialog shows itself; a recovery chip with a Retry button would be wrong and would outlive the dialog. Create still mints a ticket so `Idempotency-Key` is sent, and the hook reuses the ticket while the typed name is unchanged, so a user-driven retry replays the receipt.
 
 **Interfaces:**
+
 - Produces in `apiClient.ts`: predicates `createsBoard` (`POST /whiteboards`), `deletesBoard` (`DELETE /whiteboards/:id`), `leavesBoard` (`POST /whiteboards/:id/leave`); `action` labels `'deleteBoard'` and `'leaveBoard'`.
 - Produces:
   ```ts
@@ -801,6 +1048,7 @@ git commit -m "feat(web): the landing validates the return path and routes by bo
   ```
 - Produces in `shared.ts`: `removeBoardFromCaches(queryClient, keys, boardId)` — removes the board from the `keys.meBoards()` list and `removeQueries({ queryKey: keys.board(boardId) })` (prefix match drops notes, members, invites, shareLink).
 - Produces hooks:
+
   ```ts
   useCreateBoard(): UseMutationResult<WhiteboardDto, ApiError, { name: string }>   // meta.silentError; ticket reused while name unchanged
   useDeleteBoard(boardId: string): UseMutationResult<void, Error, void>            // ensures keys.board(boardId) then captureBoardMutation(...)
@@ -810,6 +1058,7 @@ git commit -m "feat(web): the landing validates the return path and routes by bo
 - [ ] **Step 1: Write the failing tests**
 
 `apiClient.test.ts` (copy the file's existing fetch-spy setup):
+
 ```ts
 it('creates a board with an operation id, no expected revision, and no recovery on failure', async () => {
   fetchMock.mockResolvedValueOnce(json(422, { error: 'BOARD_LIMIT_REACHED', message: 'limit' }));
@@ -829,14 +1078,18 @@ it('sends no expected revision when leaving, even if the board revision is known
 it('treats 404 on delete or leave as already gone and leaves no recovery', async () => {
   rememberResource('board:b', 3);
   fetchMock.mockResolvedValueOnce(json(404, { error: 'NOT_FOUND', message: 'Not found' }));
-  await expect(boardsApi.remove('b', captureMutation('board:b', { revision: 3 }))).resolves.toBeUndefined();
+  await expect(
+    boardsApi.remove('b', captureMutation('board:b', { revision: 3 })),
+  ).resolves.toBeUndefined();
   expect(getRecoveries()).toEqual([]);
   expect(isMutationPending('board:b')).toBe(false);
 });
 it('unblocks the lane when a retried delete finds the board already gone', async () => {
   rememberResource('board:b', 3);
   fetchMock.mockRejectedValueOnce(new TypeError('offline'));
-  await expect(boardsApi.remove('b', captureMutation('board:b', { revision: 3 }))).rejects.toThrow();
+  await expect(
+    boardsApi.remove('b', captureMutation('board:b', { revision: 3 })),
+  ).rejects.toThrow();
   const [recovery] = getRecoveries();
   expect(recovery?.description?.action).toBe('deleteBoard');
   fetchMock.mockResolvedValueOnce(json(404, { error: 'NOT_FOUND', message: 'Not found' }));
@@ -844,9 +1097,11 @@ it('unblocks the lane when a retried delete finds the board already gone', async
   expect(getRecoveries()).toEqual([]);
 });
 ```
+
 `json(status, body)` and `lastHeaders()` are the file's own helpers (add them if the file names them differently).
 
 `useBoardLifecycle.test.tsx` (`renderHook` with a `QueryClientProvider`; `vi.mock('@/lib/resources')`):
+
 ```ts
 it('useCreateBoard adds the new board to the list and primes its board cache', …)   // list cache gains {id,name,currentUserRole:'OWNER'}; keys.board(id) set
 it('useCreateBoard reuses the ticket for the same name and mints a new one for a new name', …)  // two calls 'A','A' → same Idempotency ticket; 'B' → different
@@ -863,19 +1118,21 @@ Expected: FAIL.
 - [ ] **Step 3: Implement**
 
 `apiClient.ts`, after `redeemsLink`:
+
 ```ts
-  const createsBoard = method === 'POST' && path === '/whiteboards';
-  const deletesBoard = method === 'DELETE' && /^\/whiteboards\/[^/]+$/.test(path);
-  const leavesBoard = method === 'POST' && /^\/whiteboards\/[^/]+\/leave$/.test(path);
+const createsBoard = method === 'POST' && path === '/whiteboards';
+const deletesBoard = method === 'DELETE' && /^\/whiteboards\/[^/]+$/.test(path);
+const leavesBoard = method === 'POST' && /^\/whiteboards\/[^/]+\/leave$/.test(path);
 ```
+
 - `isBoardMutation`: append `|| createsBoard`.
 - Header exclusion: `!createsNote && !redeemsLink && !createsBoard && !leavesBoard`.
 - In `perform`, before `if (!res.ok)`:
   ```ts
-      // A board that is already gone (deleted from another tab, membership already removed, or
-      // the retry of a request that did succeed) is the end state delete and leave ask for.
-      if (res.status === 404 && (deletesBoard || leavesBoard))
-        return { data: undefined as T, revision: metadata?.expectedRevision ?? 0 };
+  // A board that is already gone (deleted from another tab, membership already removed, or
+  // the retry of a request that did succeed) is the end state delete and leave ask for.
+  if (res.status === 404 && (deletesBoard || leavesBoard))
+    return { data: undefined as T, revision: metadata?.expectedRevision ?? 0 };
   ```
 - Ticket block: lane `create:<uuid>` when `createsNote || redeemsLink || createsBoard`; then
   ```ts
@@ -887,21 +1144,27 @@ Expected: FAIL.
 - `loadLatest` catch: add `if (error instanceof ApiError && error.status === 404 && (deletesBoard || leavesBoard)) return { data: null, revision: 0 };` before the existing rethrow condition.
 
 `resources.ts`:
+
 ```ts
   create: (name, ticket) => api.post('/whiteboards', whiteboardCreateSchema.parse({ name }), whiteboardDtoSchema, ticket),
   remove: (boardId, ticket) => api.delete(`/whiteboards/${boardId}`, undefined, ticket),
   leave: (boardId) => api.post(`/whiteboards/${boardId}/leave`, {}),
 ```
+
 i18n `safety.actions`: `deleteBoard: 'Wand löschen'` / `'Delete board'`, `leaveBoard: 'Wand verlassen'` / `'Leave board'`.
 
 `shared.ts`:
+
 ```ts
 export function removeBoardFromCaches(queryClient: QueryClient, keys: QueryKeys, boardId: string) {
-  queryClient.setQueryData<WhiteboardSummaryDto[]>(keys.meBoards(), (prev) => prev?.filter((b) => b.id !== boardId));
+  queryClient.setQueryData<WhiteboardSummaryDto[]>(keys.meBoards(), (prev) =>
+    prev?.filter((b) => b.id !== boardId),
+  );
   queryClient.removeQueries({ queryKey: keys.board(boardId) });
 }
 ```
-`useCreateBoard.ts`: `attempt = useRef<{ name: string; ticket: MutationTicket } | null>(null)`; in `mutationFn({ name })` reuse `attempt.current.ticket` when the name matches and `isCurrentSession(ticket.generation)`, else `captureMutation(\`create:${crypto.randomUUID()}\`)`; `meta: { silentError: true }`; `onSuccess(board)`: clear the ref, append `{ id, name, currentUserRole: 'OWNER' }` to `keys.meBoards()`, `setQueryData(keys.board(board.id), board)`, invalidate `keys.meBoards()`.
+
+`useCreateBoard.ts`: `attempt = useRef<{ name: string; ticket: MutationTicket } | null>(null)`; in `mutationFn({ name })` reuse `attempt.current.ticket` when the name matches and `isCurrentSession(ticket.generation)`, else `captureMutation(\`create:${crypto.randomUUID()}\`)`; `meta: { silentError: true }`; `onSuccess(board)`: clear the ref, append `{ id, name, currentUserRole: 'OWNER' }`to`keys.meBoards()`, `setQueryData(keys.board(board.id), board)`, invalidate `keys.meBoards()`.
 
 `useDeleteBoard.ts`: `mutationFn: async () => { await queryClient.ensureQueryData({ queryKey: keys.board(boardId), queryFn: () => boardsApi.get(boardId) }); return boardsApi.remove(boardId, captureBoardMutation(queryClient, keys, boardId)); }` (without the ensure step an empty cache would send revision 0 and 409 every time); `onMutate`: cancel + filter the list; `onSuccess`: `removeBoardFromCaches`; `onSettled`: invalidate `keys.meBoards()`. No `silentError`: the chip and the global toast report failures like note delete.
 
@@ -921,6 +1184,7 @@ git commit -m "feat(web): create, delete and leave board mutations"
 ### Task 10: Web: the board home at `/boards`
 
 **Files:**
+
 - Create: `apps/web/src/routes/BoardsPage.tsx`, `apps/web/src/features/boards/HomeShell.tsx`, `BoardHome.tsx`, `BoardRow.tsx`, `NewBoardDialog.tsx`, `DeleteBoardDialog.tsx`, `LeaveBoardDialog.tsx`
 - Modify: `apps/web/src/App.tsx` (route `/boards` inside `ProtectedRoute`)
 - Modify: `apps/web/src/features/board/AccountMenu.tsx` (`shortcuts?: boolean` prop, default true)
@@ -928,6 +1192,7 @@ git commit -m "feat(web): create, delete and leave board mutations"
 - Test: `apps/web/src/features/boards/BoardHome.test.tsx`, `NewBoardDialog.test.tsx`
 
 **Interfaces:**
+
 - Produces: `NewBoardDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void })` — one field prefilled with `INITIAL_BOARD_NAME[language]`, submit disabled while trimmed name is empty, calls `useCreateBoard` (which reuses its ticket while the name is unchanged), navigates to `/boards/${id}` on success, shows `home.create.limitReached` on `ApiError.code === 'BOARD_LIMIT_REACHED'` and `home.create.failed` otherwise. Reused by Task 11.
 - Produces: `DeleteBoardDialog({ board, open, onOpenChange })` with `board: WhiteboardSummaryDto & { revision?: number }` — mounts `useBoard(board.id)` so the delete hook finds the revision cached, and `useNotes(open ? board.id : undefined)` for the count; `AlertDialog` with `AlertDialogAction variant="destructive"`; confirm calls `useDeleteBoard(board.id).mutate()`.
 - Produces: `LeaveBoardDialog({ board, open, onOpenChange })`.
@@ -935,6 +1200,7 @@ git commit -m "feat(web): create, delete and leave board mutations"
 - Produces: `HomeShell({ children })` — header with `BrandMark` (static here), spacer, `AccountMenu shortcuts={false}`; `flex h-[100dvh] flex-col` with a `wally-scroll overflow-y-auto` main.
 
 **Copy (de.ts is authoritative; en.ts mirrors):**
+
 ```ts
 home: {
   title: 'Deine Wände',                    // 'Your boards'
@@ -965,11 +1231,13 @@ home: {
   },
 },
 ```
+
 `routes.home.loadFailed: 'Deine Wände konnten nicht geladen werden.'`
 
 - [ ] **Step 1: Write the failing tests**
 
 `BoardHome.test.tsx` (mock `boardsApi.list`, `meApi.get` for `lastBoardId`, `notesApi.list`; language de):
+
 ```ts
 it('lists own boards first, then shared ones with their role', …)          // headings order; 'Ansehen' on VIEW row
 it('shows a continue card for the remembered board when it is on the list', …)
@@ -978,7 +1246,9 @@ it('shows the empty state with a create action when there are no boards', …)
 it('offers delete on own rows and leave on shared rows, never both', …)    // open row menu, assert the single item
 it('opens the delete confirmation with the board name and note count', …)  // notesApi.list resolves 3 notes → body contains '3 Notizen'
 ```
+
 `NewBoardDialog.test.tsx`:
+
 ```ts
 it('is prefilled with the initial board name and creates on Enter', …)     // create called with 'Meine Wand', navigates to /boards/new-id
 it('disables submit for a whitespace-only name', …)
@@ -1014,6 +1284,7 @@ git commit -m "feat(web): board home with create, delete and leave"
 ### Task 11: Web: in-board navigation and not-found copy
 
 **Files:**
+
 - Modify: `apps/web/src/features/board/TopBar.tsx` (lines ~202–209 brand mark; ~248 switcher)
 - Modify: `apps/web/src/features/board/BoardSwitcher.tsx`
 - Modify: `apps/web/src/routes/NotFoundPage.tsx` (no code change; copy only), `apps/web/src/i18n/de.ts`, `en.ts`
@@ -1049,6 +1320,7 @@ git commit -m "feat(web): reach the board home from every board"
 ### Task 12: E2E
 
 **Files:**
+
 - Modify: `apps/web/e2e/support.ts`
 - Create: `apps/web/e2e/boards.spec.ts`
 - Modify: `apps/web/e2e/README.md`, `.github/workflows/ci.yml` (line 209 `MIN_EXECUTED`)
@@ -1093,6 +1365,7 @@ test('creating, landing on, and deleting a second board', async ({ page }) => {
   await expect(page.getByRole('link', { name: `${name} öffnen` })).toHaveCount(0);
 });
 ```
+
 Put the delete in a `finally`-style cleanup (`test.afterEach` that deletes any row whose name starts with `E2E `) so a failed run does not leave the user on the home for the other specs.
 
 - [ ] **Step 3: CI and README**
@@ -1113,6 +1386,7 @@ git commit -m "test(e2e): create, land on and delete a second board"
 ### Task 13: Documentation and ADR
 
 **Files:**
+
 - Modify: `docs/SPEC.md` (§2, §4a, §9, §14; new §4b)
 - Modify: `docs/architecture/overview.md` (person description; `whiteboards/{id}` row)
 - Modify: `docs/architecture/board-operations.md` (table rows; `board.delete` cleanup kind)

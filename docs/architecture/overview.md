@@ -8,7 +8,7 @@ _Who uses Wally and which systems it talks to._
 
 ```mermaid
 flowchart LR
-  user["Wally user<br/>[Person]<br/>Owns one whiteboard, may be a member of others"]
+  user["Wally user<br/>[Person]<br/>Owns one or more whiteboards, may be a member of others"]
   wally["Wally<br/>[System]<br/>Whiteboard of movable to-do notes"]
   auth["Firebase Authentication<br/>[External]<br/>Email/password and Google sign-in"]
   store["Cloud Firestore<br/>[External]<br/>All application data"]
@@ -70,15 +70,15 @@ The monorepo is pnpm workspaces under Turborepo ([ADR-0002](../adr/0002-pnpm-tur
 
 Document shapes are declared in [`apps/api/src/lib/db/types.ts`](../../apps/api/src/lib/db/types.ts); there is no schema and no migration step.
 
-| Collection                      | Holds                                                                                                                                              |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users/{uid}`                   | Email (lowercase), display name, `emailVerified`, `language`, UI preferences including per-board view settings                                     |
-| `whiteboards/{id}`              | Name, owner, `memberRoles` (uid to role, a read cache of active members), the share-link token. The id of the owner's own board is the owner's uid |
-| `whiteboards/{id}/members/{id}` | Invited email or user, role (EDIT or VIEW), status. Source of truth for `memberRoles`                                                              |
-| `notes/{id}`                    | Title, description, status, horizon, priority, free position, due date, assignee, tags, custom fields, colour, `subtaskSummary`                    |
-| `notes/{id}/subtasks/{id}`      | Text, done, sort index                                                                                                                             |
-| `notes/{id}/history/{id}`       | CREATED and MOVED events with actor and metadata                                                                                                   |
-| `shareLinks/{token}`            | Board and the role the link grants                                                                                                                 |
+| Collection                      | Holds                                                                                                                                                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users/{uid}`                   | Email (lowercase), display name, `emailVerified`, `language`, UI preferences including per-board view settings                                                                                                       |
+| `whiteboards/{id}`              | Name, owner, `memberRoles` (uid to role, a read cache of active members), the share-link token. The first board's id is the owner's uid; later boards have generated ids. `deletedAt` marks a board awaiting cleanup |
+| `whiteboards/{id}/members/{id}` | Invited email or user, role (EDIT or VIEW), status. Source of truth for `memberRoles`                                                                                                                                |
+| `notes/{id}`                    | Title, description, status, horizon, priority, free position, due date, assignee, tags, custom fields, colour, `subtaskSummary`                                                                                      |
+| `notes/{id}/subtasks/{id}`      | Text, done, sort index                                                                                                                                                                                               |
+| `notes/{id}/history/{id}`       | CREATED and MOVED events with actor and metadata                                                                                                                                                                     |
+| `shareLinks/{token}`            | Board and the role the link grants                                                                                                                                                                                   |
 
 Notes are top-level rather than nested under their board because routes address a note by id alone. A note keeps three independent placements, one per board mode (horizon, priority, free), and a move changes only its own mode's field.
 

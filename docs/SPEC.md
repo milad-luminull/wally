@@ -17,7 +17,7 @@ The application consists of:
 - Filtering and search
 - Sharing and collaboration
 
-The whiteboard is owned by one user.
+Each whiteboard is owned by one user. A user may own several and be a member of others.
 
 ---
 
@@ -75,11 +75,45 @@ Changes made in either the whiteboard or list must be reflected in the other.
 
 Wally remembers, per user and per board, the view (wall or list), the grouping, and the
 done / mine / priority filters. They are saved to the user's profile, so the board opens the
-same way on every device. Opening the app returns to the board the user last had open.
+same way on every device. Opening the app goes straight into the user's only board, or to
+the board home when they have none or several; the home marks the board last opened (see §4b).
 
 A link that carries view settings in its query string shows those settings without saving
 them; they are saved only once the user changes something. Search text, the property filter
 and the open note are never remembered. "Reset view" forgets a board's saved settings.
+
+## 4b. Boards
+
+A user can own up to 20 boards and be a member of any number of boards shared with them.
+
+Signing in, or opening the app, lands:
+
+| Boards the user can open | Lands on               |
+| ------------------------ | ---------------------- |
+| 0                        | The board home (empty) |
+| 1                        | That board             |
+| 2 or more                | The board home         |
+
+A link the visitor arrived with while signed out (a board or a share link) is followed after
+sign-in, but a board only if the person who signed in can open it. Signing out never hands
+the board that was open to whoever signs in next.
+
+The board home lists every board the user can open: a "continue" card for the board last
+opened, the user's own boards, then the boards shared with them with their role. Each group
+is sorted by name. From the home a user can:
+
+- Create a board. One field, prefilled with "Meine Wand" / "My Board"; the app then opens the
+  new, empty board.
+- Delete a board they own, after a confirmation that names the board and how many notes go
+  with it. Its notes, members and share link go with it; members lose access at once.
+- Leave a board shared with them, after a confirmation. Notes assigned to them on that board
+  are unassigned. The owner cannot leave their own board; they delete it instead.
+
+Rename stays in the board's own top bar. A user may delete their last board; the home then
+shows an empty state with the create action.
+
+On a board, the Wally mark leads to the board home, and the board switcher ends in "All
+boards" and "New board".
 
 ---
 
@@ -183,6 +217,8 @@ Users with view permission can view the whiteboard and notes but cannot modify t
 
 Notes can be assigned to users who are members of the shared whiteboard.
 
+A member can leave a shared whiteboard. Notes assigned to them on it are unassigned.
+
 ---
 
 ## 10. History
@@ -249,7 +285,6 @@ The initial version does not require:
 - Notifications or reminders
 - Recurring tasks
 - Task dependencies
-- Multiple whiteboards per user
 - Workflow automation
 - Version restoration
 - Reporting or analytics

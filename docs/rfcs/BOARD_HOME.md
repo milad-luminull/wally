@@ -1,7 +1,10 @@
 # Board home and multiple boards — requirements
 
-**Status:** proposal, not yet approved. Decisions already taken are in §3; nothing is left
-open for "later".
+**Status:** approved 2026-10-14 and implemented on `feat/board-home`. §5 to §12 now live in
+[`SPEC.md` §4b](../SPEC.md) and [ADR-0011](../adr/0011-boards-as-independent-aggregates.md);
+this file is kept for the reasoning and the alternatives considered. One deviation:
+`board.create` has no per-route rate limit (§12.1 said "like invites"); `MAX_OWN_BOARDS` and
+the global limit bound it.
 **Last revised:** 2026-10-14.
 
 Read next to [`SPEC.md`](../SPEC.md) (the accepted product requirements this extends) and
