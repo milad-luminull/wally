@@ -9,5 +9,6 @@ export * from './schemas/customField.js';
 export * from './schemas/note.js';
 export * from './schemas/board.js';
 export * from './schemas/member.js';
+export * from './schemas/assistant.js';
 
 export * from './schemas/command.js';
