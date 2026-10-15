@@ -2,11 +2,15 @@ import { AppError } from '../../errors.js';
 
 /**
  * Prices for the deployment models only, in micro-USD per token, as conservative upper
- * bounds. Source: Google Cloud Vertex AI pricing, read 2026-10-15. Gemini 3.8 Flash is
- * listed at an introductory 0.75 USD input / 3.75 USD output per million tokens until
- * 2026-12-31, doubling on 2027-01-01; regional endpoints cost more than the global one.
- * The table carries the higher figures so a reservation can only overshoot. A user's own
- * key is never priced here; it counts tokens only.
+ * bounds. Source: Google Cloud Vertex AI generative AI pricing
+ * (cloud.google.com/vertex-ai/generative-ai/pricing), read 2026-10-15. Gemini 3.8 Flash,
+ * per 1M tokens, the same above and below 200K input tokens:
+ *   - through 2026-12-31 (introductory): global 0.75 in / 3.75 out; non-global 0.825 / 4.125
+ *   - from 2027-01-01 (standard): global 1.50 in / 7.50 out; non-global 1.65 / 8.25
+ * The deployment calls a regional endpoint (ASSISTANT_VERTEX_LOCATION, europe-west1 by
+ * default), which is non-global, so the table carries the highest row, the non-global
+ * standard price, and a reservation can only overshoot. A user's own key is never priced
+ * here; it counts tokens only.
  */
 export const PRICE_TABLE_VERSION = '2026-10-15';
 
@@ -16,7 +20,7 @@ export interface ModelPrice {
 }
 
 const PRICES: Record<string, ModelPrice> = {
-  'vertex:gemini-3.8-flash': { inputMicroUsdPerToken: 1.5, outputMicroUsdPerToken: 7.5 },
+  'vertex:gemini-3.8-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
 };
 
 export function priceFor(modelRef: string): ModelPrice {

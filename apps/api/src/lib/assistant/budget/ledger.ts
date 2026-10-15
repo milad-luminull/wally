@@ -64,6 +64,11 @@ function addDays(day: string, n: number): string {
  * deployment's month and the user's in-flight slots, refuses if any cap or the slot count
  * would be exceeded, and otherwise writes the worst case into all three. Nothing is
  * dispatched before this commits.
+ *
+ * The in-flight bound is per user, not per day: slots live on the day document they were
+ * reserved on, so within one lease of midnight the transaction also reads the previous
+ * day's document and counts its live slots. A slot from any earlier day has outlived its
+ * lease, since the lease is far shorter than a day.
  */
 export async function reserveAttempt(db: Firestore, input: ReserveInput): Promise<Reservation> {
   const { userId, now, estimate, price, caps } = input;
@@ -76,17 +81,31 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
   const spendRef = assistantSpendCol(db).doc(month);
   const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
 
+  // A slot reserved yesterday can still be live only while less than one lease has passed
+  // since today began.
+  const previousDayRef =
+    now.getTime() - Date.parse(`${day}T00:00:00.000Z`) < ATTEMPT_LEASE_MS
+      ? assistantUsageCol(db, userId).doc(addDays(day, -1))
+      : null;
+  const isLive = (startedAt: number) => now.getTime() - startedAt < ATTEMPT_LEASE_MS;
+
   await db.runTransaction(async (tx) => {
-    const [usageSnap, spendSnap] = await Promise.all([tx.get(usageRef), tx.get(spendRef)]);
+    const [usageSnap, spendSnap, previousDaySnap] = await Promise.all([
+      tx.get(usageRef),
+      tx.get(spendRef),
+      previousDayRef ? tx.get(previousDayRef) : null,
+    ]);
     const usage = usageSnap.data() ?? { tokens: 0, inFlight: {}, updatedAt: Timestamp.now() };
     const spend = spendSnap.data() ?? { microUsd: 0, updatedAt: Timestamp.now() };
     // Slots whose lease expired belong to calls that died; their charge stays, the slot goes.
     const inFlight = Object.fromEntries(
-      Object.entries(usage.inFlight).filter(
-        ([, startedAt]) => now.getTime() - startedAt < ATTEMPT_LEASE_MS,
-      ),
+      Object.entries(usage.inFlight).filter(([, startedAt]) => isLive(startedAt)),
     );
-    if (Object.keys(inFlight).length >= MAX_IN_FLIGHT)
+    // Yesterday's live slots count but stay where they are; their settlement frees them.
+    const liveYesterday = Object.values(previousDaySnap?.data()?.inFlight ?? {}).filter(
+      isLive,
+    ).length;
+    if (Object.keys(inFlight).length + liveYesterday >= MAX_IN_FLIGHT)
       throw new BudgetError('ASSISTANT_BUSY', null);
     if (usage.tokens + reservedTokens > caps.dailyTokens)
       throw new BudgetError('ASSISTANT_DAILY_CAP', nextDayStart(day));

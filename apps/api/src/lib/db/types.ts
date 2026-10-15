@@ -184,7 +184,10 @@ export type AssistantAuditDoc = {
 export type AssistantUsageDoc = {
   /** Reserved worst case, replaced by the actual usage on settlement. */
   tokens: number;
-  /** attemptId -> startedAt millis, for the model calls currently in flight. */
+  /**
+   * attemptId -> startedAt millis, for the model calls in flight that were reserved on this
+   * day. The per-user bound also counts the previous day's live slots (see reserveAttempt).
+   */
   inFlight: Record<string, number>;
   updatedAt: Timestamp;
 };

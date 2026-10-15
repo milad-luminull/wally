@@ -129,6 +129,37 @@ describe('assistant budget ledger', () => {
     expect(usage!.tokens).toBe(4 * 3000 - (3000 - 20));
   });
 
+  it('counts live slots from the previous day against the in-flight bound across midnight', async () => {
+    const lateEvening = new Date('2026-10-15T23:59:30.000Z');
+    const a = await reserve('u1', { now: lateEvening });
+    await reserve('u1', { now: lateEvening });
+    const justAfterMidnight = new Date('2026-10-16T00:00:05.000Z');
+    await expect(reserve('u1', { now: justAfterMidnight })).rejects.toMatchObject({
+      code: 'ASSISTANT_BUSY',
+      resetsAt: null,
+    });
+    // The refusal wrote nothing to the new day.
+    expect((await assistantUsageCol(ctx.db, 'u1').doc('2026-10-16').get()).exists).toBe(false);
+    // Settling one of yesterday's calls frees its slot for today.
+    await settleAttempt(
+      ctx.db,
+      'u1',
+      a.attemptId,
+      { inputTokens: 10, outputTokens: 10 },
+      justAfterMidnight,
+    );
+    const today = await reserve('u1', { now: justAfterMidnight });
+    expect(today.day).toBe('2026-10-16');
+    await expect(reserve('u1', { now: justAfterMidnight })).rejects.toMatchObject({
+      code: 'ASSISTANT_BUSY',
+    });
+    // Once yesterday's remaining lease (23:59:30 + 120 s) has run out, only today's slot counts.
+    const afterLease = new Date('2026-10-16T00:01:31.000Z');
+    const next = await reserve('u1', { now: afterLease });
+    const usage = (await assistantUsageCol(ctx.db, 'u1').doc('2026-10-16').get()).data();
+    expect(Object.keys(usage!.inFlight).sort()).toEqual([today.attemptId, next.attemptId].sort());
+  });
+
   it('a late settlement adjusts the day it was reserved on, not the current day', async () => {
     const r = await reserve();
     const nextDay = new Date('2026-10-16T01:00:00.000Z');

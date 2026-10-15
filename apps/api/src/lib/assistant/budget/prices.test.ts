@@ -8,6 +8,12 @@ describe('price table', () => {
     expect(price.inputMicroUsdPerToken).toBeGreaterThanOrEqual(1.5);
     expect(price.outputMicroUsdPerToken).toBeGreaterThanOrEqual(7.5);
   });
+  it('carries the non-global standard price, the highest listed for the default model', () => {
+    expect(priceFor('vertex:gemini-3.8-flash')).toEqual({
+      inputMicroUsdPerToken: 1.65,
+      outputMicroUsdPerToken: 8.25,
+    });
+  });
   it('refuses a model without a price', () => {
     expect(() => priceFor('vertex:unknown-model')).toThrow(/price/i);
   });
