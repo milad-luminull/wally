@@ -1,5 +1,6 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
+import { AppError } from '../errors.js';
 import {
   assistantConversationsCol,
   docsWithId,
@@ -81,16 +82,28 @@ function toEntryDoc(entry: AssistantEntry): AssistantEntryDoc {
   return { ...entry, at: Timestamp.fromDate(new Date(entry.at)) };
 }
 
+/** UTF-8 bytes of the stored history, the unit Firestore counts against its document limit. */
+export function messagesBytes(messages: readonly unknown[]): number {
+  return Buffer.byteLength(JSON.stringify(messages), 'utf8');
+}
+
 /**
  * Records one turn: both entries always; the model messages and usage only when the turn
  * completed (a stopped turn keeps the previous history). Closes the conversation at the
- * turn cap or when the stored messages approach the document limit.
+ * turn cap, or when the new history would exceed MAX_MESSAGES_BYTES: then the previous
+ * history is kept, so the document never grows past the bound.
+ *
+ * `expectedTurns` is the turn count the caller loaded before running the model. The
+ * transaction refuses with 409 ASSISTANT_CONVERSATION_CLOSED when the conversation is no
+ * longer OPEN or another turn was recorded since, so concurrent turns on one conversation
+ * cannot overwrite each other's history or record a turn past MAX_TURNS.
  */
 export async function appendTurn(
   db: Firestore,
   userId: string,
   id: string,
   turn: {
+    expectedTurns: number;
     user: AssistantEntry;
     assistant: AssistantEntry;
     messages: StoredMessage[] | null;
@@ -102,14 +115,16 @@ export async function appendTurn(
   const ref = assistantConversationsCol(db, userId).doc(id);
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
-    if (!current) throw new Error(`Conversation ${id} not found`);
-    const messages = turn.messages ?? current.messages;
+    if (!current) throw new AppError(404, 'NOT_FOUND', 'Not found');
+    if (current.status !== 'OPEN' || current.turns !== turn.expectedTurns)
+      throw new AppError(409, 'ASSISTANT_CONVERSATION_CLOSED', 'This conversation is closed');
+    const tooBig = turn.messages !== null && messagesBytes(turn.messages) > MAX_MESSAGES_BYTES;
+    const messages = tooBig ? current.messages : (turn.messages ?? current.messages);
     const usage = turn.usage ?? ZERO_USAGE;
     const turns = current.turns + 1;
-    const tooBig = JSON.stringify(messages).length > MAX_MESSAGES_BYTES;
     const next: WithId<AssistantConversationDoc> = {
       ...current,
-      status: turns >= MAX_TURNS || tooBig ? 'CLOSED' : current.status,
+      status: turns >= MAX_TURNS || tooBig ? 'CLOSED' : 'OPEN',
       turns,
       messages,
       entries: [...current.entries, toEntryDoc(turn.user), toEntryDoc(turn.assistant)],
