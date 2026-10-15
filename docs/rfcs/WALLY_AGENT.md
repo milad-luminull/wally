@@ -206,11 +206,10 @@ if latency makes the loading state uncomfortable.
    transactional audit record for every assistant write. _Engineering._
 2. **Shape.** One operation set over the command layer, shared with the MCP proposal, with
    every write approved before it runs? _Engineering / Product._
-3. **Model library.** Accept
-   [ADR-0013](../adr/0013-model-library-behind-an-owned-boundary.md), which picks the
-   library against the criteria in §3.5, and approve it, its provider adapters and a secret
-   store client as dependencies. SETUP.md ("Ask before you do") requires asking.
-   _Engineering._
+3. **Model library.** Accepted 2026-10-15:
+   [ADR-0013](../adr/0013-model-library-behind-an-owned-boundary.md), with the library,
+   its provider adapters and a secret store client approved as dependencies. Each PR that
+   adds one of them names it. _Engineering._
 4. **Production default processor.** Google-hosted route only at launch? _Controller._
 
 **Before own keys ship:**

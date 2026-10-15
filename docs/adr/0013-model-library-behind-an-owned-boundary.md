@@ -1,6 +1,6 @@
 # ADR-0013: The Vercel AI SDK as the model library, behind a boundary Wally owns
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-15
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** none
