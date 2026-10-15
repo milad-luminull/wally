@@ -161,6 +161,67 @@ describe('createTurnRunner', () => {
     expect(out.pendingApprovals).toEqual([]);
   });
 
+  it('announces the first attempt of an approving continuation before the write runs', async () => {
+    const t = tools();
+    const first = new MockLanguageModelV3({
+      doGenerate: [
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+      ],
+    });
+    const paused = await createTurnRunner(first)(input({}, t));
+    const second = new MockLanguageModelV3({ doGenerate: [text('Erledigt.')] });
+    const a = attempts();
+    await createTurnRunner(second)(
+      input(
+        {
+          history: paused.messages,
+          userMessage: undefined,
+          approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved: true }],
+          onAttempt: a.onAttempt,
+        },
+        t,
+      ),
+    );
+    // History, the approval message, and the tool message holding the write's result.
+    expect(a.seen).toEqual([
+      { stepNumber: 0, messageCount: paused.messages.length + 2, maxOutputTokens: 256 },
+    ]);
+    expect(a.settled).toHaveLength(1);
+    expect(a.onAttempt.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(t.create.execute).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('does not run an approved write when the first attempt is refused', async () => {
+    const t = tools();
+    const first = new MockLanguageModelV3({
+      doGenerate: [
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+      ],
+    });
+    const paused = await createTurnRunner(first)(input({}, t));
+    const second = new MockLanguageModelV3({ doGenerate: [text('never')] });
+    const onAttempt = vi.fn(async () => {
+      throw new Error('OVER_BUDGET');
+    });
+    await expect(
+      createTurnRunner(second)(
+        input(
+          {
+            history: paused.messages,
+            userMessage: undefined,
+            approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved: true }],
+            onAttempt,
+          },
+          t,
+        ),
+      ),
+    ).rejects.toThrow('OVER_BUDGET');
+    expect(onAttempt).toHaveBeenCalledTimes(1);
+    expect(t.create.execute).not.toHaveBeenCalled();
+    expect(second.doGenerateCalls).toHaveLength(0);
+  });
+
   it('never executes a denied write and lets the model reply', async () => {
     const t = tools();
     const first = new MockLanguageModelV3({

@@ -66,6 +66,17 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
     ];
 
     let lease: AttemptLease | undefined;
+    // On a continuation that approves a write, the library runs the write before the first
+    // model step, so before prepareStep. Take the step-0 attempt here instead: a refused
+    // attempt then stops the turn before the write runs, not after it. The count matches what
+    // prepareStep would report: the library adds one tool message holding the write's result.
+    if (input.approvals?.some((a) => a.approved)) {
+      lease = await input.onAttempt({
+        stepNumber: 0,
+        messageCount: messages.length + 1,
+        maxOutputTokens: input.maxOutputTokens,
+      });
+    }
     const settled: TurnUsage[] = [];
     const executed: ToolCallRecord[] = [];
     const result = await generateText({
@@ -79,6 +90,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       abortSignal: input.abortSignal,
       stopWhen: stepCountIs(input.maxSteps),
       prepareStep: async ({ stepNumber, messages: stepMessages }) => {
+        if (stepNumber === 0 && lease) return {};
         lease = await input.onAttempt({
           stepNumber,
           messageCount: stepMessages.length,
