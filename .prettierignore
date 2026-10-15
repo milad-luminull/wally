@@ -13,6 +13,8 @@ skills-lock.json
 coverage/
 playwright-report/
 test-results/
+# SDD orchestration scratch; git-ignored by its own .gitignore, which Prettier does not read.
+.superpowers/
 
 # Vendored agent skills — third-party content that happens to live in this repo. Not ours
 # to restyle, and reformatting them produces noisy diffs against upstream.

@@ -82,6 +82,8 @@ never a command argument. The command layer:
 - writes one document to the top-level `assistantAudit` collection, keyed by the operation
   id, in the same transaction as the change: actor, board, target note, command type,
   conversation and approval ids, committed revision, timestamp, and `expiresAt` 30 days
-  later for a Firestore TTL policy. It holds no note content. A replay writes no second record.
+  later for a Firestore TTL policy. `targetId` is the targeted note, or the created note for
+  `note.create`, and null for board, member and link commands. It holds no note content. A
+  replay writes no second record.
 
 Receipts keep their seven-day TTL independently.

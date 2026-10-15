@@ -29,7 +29,10 @@ export interface OperationCall {
 }
 export interface OperationResult {
   data: unknown;
-  /** The committed revision of a write, the note's revision for get_note, null otherwise. */
+  /**
+   * The committed revision of a write, the note revision for get_note, the board revision
+   * for list_members, null for list_notes.
+   */
   revision: number | null;
 }
 /** A compact row for the model: what a question needs, not the whole note. */
