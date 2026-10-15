@@ -23,6 +23,13 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
+  // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
+  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-3.8-flash'),
+  // Vertex region and project for the deployment route. The project falls back to
+  // FIREBASE_PROJECT_ID. The Cloud Run service account needs roles/aiplatform.user.
+  ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('europe-west1'),
+  ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
