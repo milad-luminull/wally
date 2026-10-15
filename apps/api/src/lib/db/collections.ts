@@ -19,6 +19,7 @@ import {
   type Preferences,
 } from '@wally/shared';
 import type {
+  AssistantAuditDoc,
   HistoryEventDoc,
   MemberDoc,
   NoteDoc,
@@ -67,6 +68,10 @@ export const historyCol = (db: Firestore, noteId: string): CollectionReference<H
 /** Keyed by the token itself, which replaces the old unique-token constraint. */
 export const shareLinksCol = (db: Firestore): CollectionReference<ShareLinkDoc> =>
   db.collection('shareLinks').withConverter(converter<ShareLinkDoc>());
+
+/** One contents-free record per command the assistant committed; the id is the operation id. */
+export const assistantAuditCol = (db: Firestore): CollectionReference<AssistantAuditDoc> =>
+  db.collection('assistantAudit').withConverter(converter<AssistantAuditDoc>());
 
 /**
  * Emails are compared with exact equality because Firestore has no case-insensitive

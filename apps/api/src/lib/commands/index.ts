@@ -7,6 +7,7 @@ import {
   type EffectiveRole,
 } from '@wally/shared';
 import {
+  assistantAuditCol,
   liveWhiteboard,
   notesCol,
   shareLinksCol,
@@ -14,6 +15,7 @@ import {
   withId,
 } from '../db/collections.js';
 import { AppError } from '../errors.js';
+import { ASSISTANT_AUDIT_RETENTION_DAYS, type Provenance } from '../assistant/provenance.js';
 import type { NoteDoc, WithId } from '../db/types.js';
 import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
 import { canSeeNote } from '../notes.js';
@@ -86,7 +88,7 @@ export async function executeBoardCommand(
   actor: Actor,
   rawCommand: unknown,
   rawMetadata: unknown,
-  options: { baseUrl?: string; logger?: CommandLogger } = {},
+  options: { baseUrl?: string; logger?: CommandLogger; provenance?: Provenance } = {},
 ): Promise<CommandResult> {
   const parsed = boardCommandSchema.safeParse(rawCommand);
   if (!parsed.success) throw new AppError(400, 'BAD_REQUEST', 'Invalid command input');
@@ -99,8 +101,15 @@ export async function executeBoardCommand(
     );
   const command = parsed.data;
   const { operationId, expectedRevision } = metadata.data;
+  const { provenance } = options;
+  // Provenance joins the fingerprint only when present, so receipts written before it
+  // existed still replay.
   const fingerprint = createHash('sha256')
-    .update(canonical({ command, expectedRevision }))
+    .update(
+      canonical(
+        provenance ? { command, expectedRevision, provenance } : { command, expectedRevision },
+      ),
+    )
     .digest('hex');
   const receiptRef = db
     .collection('users')
@@ -111,15 +120,38 @@ export async function executeBoardCommand(
     const { result, replayed } = await runCommandTransaction(db, async (tx) => {
       // `roles` are the ones that authorized the command; replay re-checks the caller's
       // current role against them, so a viewer's retried private-note write still replays.
-      const writeReceipt = (boardId: string, result: CommandResult, roles: EffectiveRole[]) =>
+      // An assistant write also leaves its audit record, in the same transaction.
+      const writeReceipt = (boardId: string, result: CommandResult, roles: EffectiveRole[]) => {
         tx.create(receiptRef, {
           fingerprint,
           boardId,
           roles,
           result,
+          ...(provenance ? { provenance } : {}),
           createdAt: Timestamp.now(),
           expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
         });
+        if (provenance) {
+          const occurredAt = Timestamp.now();
+          tx.create(assistantAuditCol(db).doc(operationId), {
+            operationId,
+            actorId: actor.id,
+            boardId,
+            targetId:
+              'noteId' in command
+                ? command.noteId
+                : ((result.data as { id?: string } | null)?.id ?? null),
+            commandType: command.type,
+            conversationId: provenance.conversationId,
+            approvalId: provenance.approvalId,
+            revision: result.revision,
+            occurredAt,
+            expiresAt: Timestamp.fromMillis(
+              occurredAt.toMillis() + ASSISTANT_AUDIT_RETENTION_DAYS * 86400000,
+            ),
+          });
+        }
+      };
       const receipt = (await tx.get(receiptRef)).data();
       // A committed deletion no longer has a target. Receipts carry its board so we can
       // re-authorize BEFORE replaying, without depending on the deleted document.
@@ -188,6 +220,7 @@ export async function executeBoardCommand(
         note,
         operationId,
         baseUrl: options.baseUrl ?? 'http://localhost',
+        provenance,
       };
       const result =
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
@@ -201,6 +234,7 @@ export async function executeBoardCommand(
       operationId,
       boardId: result.boardId,
       outcome: replayed ? 'replayed' : 'committed',
+      ...(provenance ? { via: provenance.via } : {}),
     });
     if (result.cleanupId) {
       try {

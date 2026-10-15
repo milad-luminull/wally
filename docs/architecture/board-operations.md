@@ -69,3 +69,19 @@ Commands log type, operation ID, board ID and outcome (`committed`, `replayed`, 
 `cleanup_pending`), never command inputs or results. Redemption URLs redact the token.
 Maintenance reports counts only. See [deployment guidance](../DEPLOY.md#board-safety-rollout)
 and the [data inventory](../GDPR.md#mutation-receipts-and-cleanup-jobs).
+
+## Provenance and the assistant audit record
+
+A caller acting for the assistant passes `provenance` (`via`, `conversationId`,
+`approvalId`) in the options of `executeBoardCommand`. It is trusted execution context,
+never a command argument. The command layer:
+
+- stores it on the receipt and includes it in the idempotency fingerprint, so a replay of
+  the same operation id from a different approval is refused with `409 IDEMPOTENCY_KEY_REUSED`;
+- adds `via` to the metadata of the `CREATED` and `MOVED` history events it writes;
+- writes one document to the top-level `assistantAudit` collection, keyed by the operation
+  id, in the same transaction as the change: actor, board, target note, command type,
+  conversation and approval ids, committed revision, timestamp, and `expiresAt` 30 days
+  later for a Firestore TTL policy. It holds no note content. A replay writes no second record.
+
+Receipts keep their seven-day TTL independently.
