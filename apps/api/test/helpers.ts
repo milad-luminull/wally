@@ -4,7 +4,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { DEFAULT_LANGUAGE, INITIAL_BOARD_NAME } from '@wally/shared';
 import type { Language, MembershipStatus, WhiteboardRole } from '@wally/shared';
 import type { UserDoc } from '../src/lib/db/types.js';
-import { buildApp } from '../src/app.js';
+import { buildApp, type BuildAppOptions } from '../src/app.js';
 import { createNamedDb } from '../src/lib/db/client.js';
 import {
   notesCol,
@@ -79,10 +79,16 @@ export interface TestContext {
   authHeader(token: string): { authorization: string };
 }
 
-export async function buildTestApp(projectId: string): Promise<TestContext> {
+export async function buildTestApp(
+  projectId: string,
+  options: Pick<
+    BuildAppOptions,
+    'assistantRunner' | 'assistantEnabled' | 'assistantDeadlineMs'
+  > = {},
+): Promise<TestContext> {
   const db = getTestDb(projectId);
   const { verifier, tokens } = createFakeAuthVerifier();
-  const app = await buildApp({ db, authVerifier: verifier, logger: false });
+  const app = await buildApp({ ...options, db, authVerifier: verifier, logger: false });
   await app.ready();
   return {
     app,
