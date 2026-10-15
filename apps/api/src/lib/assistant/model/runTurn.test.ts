@@ -222,6 +222,74 @@ describe('createTurnRunner', () => {
     expect(second.doGenerateCalls).toHaveLength(0);
   });
 
+  it('rejects a turn that carries both a user message and approval decisions', async () => {
+    const t = tools();
+    const first = new MockLanguageModelV3({
+      doGenerate: [
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+      ],
+    });
+    const paused = await createTurnRunner(first)(input({}, t));
+    const second = new MockLanguageModelV3({ doGenerate: [text('never')] });
+    const a = attempts();
+    await expect(
+      createTurnRunner(second)(
+        input(
+          {
+            history: paused.messages,
+            userMessage: 'Und noch etwas',
+            approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved: true }],
+            onAttempt: a.onAttempt,
+          },
+          t,
+        ),
+      ),
+    ).rejects.toThrow('A turn carries either a user message or approval decisions, not both');
+    expect(second.doGenerateCalls).toHaveLength(0);
+    expect(t.create.execute).not.toHaveBeenCalled();
+    expect(a.onAttempt).not.toHaveBeenCalled();
+  });
+
+  it('proposes and executes a write with its schema-parsed input', async () => {
+    const t = tools({
+      create_note: {
+        inputSchema: z
+          .object({
+            boardId: z.string().default('b1'),
+            title: z.string().transform((s) => s.trim()),
+          })
+          .strict(),
+      },
+    });
+    const first = new MockLanguageModelV3({
+      doGenerate: [toolCall('c3', 'create_note', { title: '  T  ' })],
+    });
+    const paused = await createTurnRunner(first)(input({}, t));
+    expect(t.create.execute).not.toHaveBeenCalled();
+    expect(paused.pendingApprovals).toHaveLength(1);
+    expect(paused.pendingApprovals[0]!.input).toEqual({ boardId: 'b1', title: 'T' });
+
+    const second = new MockLanguageModelV3({ doGenerate: [text('Erledigt.')] });
+    const out = await createTurnRunner(second)(
+      input(
+        {
+          history: paused.messages,
+          userMessage: undefined,
+          approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved: true }],
+        },
+        t,
+      ),
+    );
+    expect(t.create.execute).toHaveBeenCalledTimes(1);
+    expect(t.create.execute).toHaveBeenCalledWith({ boardId: 'b1', title: 'T' });
+    expect(out.toolCalls).toHaveLength(1);
+    expect(out.toolCalls[0]).toMatchObject({
+      toolCallId: 'c3',
+      toolName: 'create_note',
+      input: { boardId: 'b1', title: 'T' },
+    });
+  });
+
   it('never executes a denied write and lets the model reply', async () => {
     const t = tools();
     const first = new MockLanguageModelV3({

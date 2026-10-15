@@ -29,6 +29,11 @@ import type {
  */
 export function createTurnRunner(model: LanguageModel): TurnRunner {
   return async (input: TurnInput): Promise<TurnOutput> => {
+    // The library collects approval responses only from a trailing tool message; a user
+    // message after it would run the approved write and then fail before any model call.
+    if (input.userMessage !== undefined && input.approvals?.length) {
+      throw new Error('A turn carries either a user message or approval decisions, not both');
+    }
     const tools: ToolSet = Object.fromEntries(
       input.tools.map((t) => [
         t.name,

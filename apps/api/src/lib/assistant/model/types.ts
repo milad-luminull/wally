@@ -47,9 +47,15 @@ export interface AttemptLease {
 export interface TurnInput {
   instructions: string;
   history: StoredMessage[];
-  /** Appended as the user's message when present. */
+  /**
+   * Appended as the user's message when present. A turn carries either a user message or
+   * approval decisions, never both; the runner rejects the combination before any attempt.
+   */
   userMessage?: string;
-  /** Answers to pending approvals from the previous turn, appended before the model runs. */
+  /**
+   * Answers to pending approvals from the previous turn, appended before the model runs.
+   * Only on a continuation without `userMessage`; the runner rejects a turn with both.
+   */
   approvals?: ApprovalDecision[];
   tools: TurnTool[];
   maxOutputTokens: number;
