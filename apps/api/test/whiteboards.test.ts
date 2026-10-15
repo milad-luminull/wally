@@ -33,6 +33,17 @@ describe('whiteboard routes', () => {
       expect(res.json().currentUserRole).toBe('OWNER');
     });
 
+    it('reports the assistant switch on the board response, off by default', async () => {
+      const fx = await createBoardFixture(ctx);
+      const res = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().assistantEnabled).toBe(false);
+    });
+
     it('200s for an active EDIT member', async () => {
       const fx = await createBoardFixture(ctx);
       const res = await ctx.inject({

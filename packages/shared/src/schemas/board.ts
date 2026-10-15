@@ -17,6 +17,8 @@ export const whiteboardDtoSchema = z.object({
   name: z.string(),
   ownerId: z.string(),
   currentUserRole: effectiveRoleSchema,
+  /** Deployment switch and, later, the per-board switch combined: what the web shows. */
+  assistantEnabled: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

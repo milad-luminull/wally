@@ -55,6 +55,7 @@ export function makeBoard(overrides: Partial<WhiteboardDto> = {}): WhiteboardDto
     name: 'Meine Wand',
     ownerId: 'user-1',
     currentUserRole: 'OWNER',
+    assistantEnabled: false,
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
     ...overrides,
