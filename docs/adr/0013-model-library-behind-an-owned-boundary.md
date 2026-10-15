@@ -63,8 +63,18 @@ Chosen option: **1**, the Vercel AI SDK, behind a boundary that Wally owns:
 ### Confirmation
 
 The lint rule fails CI on any import of `ai` or `@ai-sdk/*` outside the boundary directory.
-The CI eval runs with model responses recorded at the boundary, in Wally's types, and needs
-no credentials. The live eval runs before any model change.
+The library version is pinned exactly. Two test sets, proving two different things:
+
+- Adapter tests run the real library against a fake provider inside the boundary: approval
+  persistence and continuation, schema-transformed inputs, several tool calls in one step,
+  cancellation, a retry, and the per-attempt budget hook firing on every provider call.
+  Provider continuation metadata the library needs for replay is kept inside the boundary.
+- The CI eval runs with model responses recorded at the boundary, in Wally's types, and
+  needs no credentials. The live eval runs before any model change.
+
+The approval record is Wally's. The library's own documentation states that the message
+history is client-controlled input and that a crafted approval can bypass the
+human-in-the-loop step, so the server executes only its own stored approval.
 
 ## More information
 
@@ -72,7 +82,10 @@ Vendor facts were checked on 2026-10-12; re-check before an upgrade.
 
 - AI SDK tool approval: `toolApproval` returns a `tool-approval-request`, answered with a
   `tool-approval-response`; the SDK "never replaces the approved input with a different
-  value". https://ai-sdk.dev/docs/agents/tool-approvals
+  value". Its trust model: "the message history is client-controlled input", and "a client
+  that crafts a valid-looking approval for a schema-conforming input can bypass the
+  human-in-the-loop step" (checked 2026-10-15).
+  https://ai-sdk.dev/docs/agents/tool-approvals
 - AI SDK providers and `maxRetries: 0`.
   https://ai-sdk.dev/providers/ai-sdk-providers/google-vertex ·
   https://ai-sdk.dev/docs/ai-sdk-core/settings
