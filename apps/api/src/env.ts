@@ -17,6 +17,12 @@ const envSchema = z.object({
   FIRESTORE_DATABASE_ID: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // The assistant's deployment switch. Off by default: with it off, the board response
+  // reports `assistantEnabled: false` and every assistant operation answers 404.
+  ASSISTANT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

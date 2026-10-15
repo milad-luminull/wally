@@ -24,6 +24,7 @@ import type {
   WithId,
 } from './db/types.js';
 import { toIso, toIsoOrNull } from './db/collections.js';
+import { loadEnv } from '../env.js';
 
 /** Users referenced by the documents being mapped, keyed by id — see loadUsers. */
 export type UserMap = Map<string, WithId<UserDoc>>;
@@ -152,6 +153,7 @@ export function toWhiteboardDto(
     ownerId: whiteboard.ownerId,
     revision: whiteboard.revision ?? 0,
     currentUserRole,
+    assistantEnabled: loadEnv().ASSISTANT_ENABLED,
     createdAt: toIso(whiteboard.createdAt),
     updatedAt: toIso(whiteboard.updatedAt),
   };

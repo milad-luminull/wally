@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import type {
+  BoardCommand,
   BoardPreferences,
   CanvasPattern,
   Language,
@@ -157,4 +158,19 @@ export type ShareLinkDoc = {
   role: WhiteboardRole;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+};
+
+/** One contents-free record per command the assistant committed; the id is the operation id. */
+export type AssistantAuditDoc = {
+  operationId: string;
+  actorId: string;
+  boardId: string;
+  /** The note the command targeted, or the note it created; null for board commands. */
+  targetId: string | null;
+  commandType: BoardCommand['type'];
+  conversationId: string;
+  approvalId: string;
+  revision: number;
+  occurredAt: Timestamp;
+  expiresAt: Timestamp;
 };

@@ -31,6 +31,7 @@ export async function executeNoteCommand(
 ): Promise<CommandResult> {
   const { db, tx, actor, board, operationId } = ctx;
   const timestamp = now();
+  const via = ctx.provenance ? { via: ctx.provenance.via } : {};
   const result = (
     data: unknown,
     revision: number,
@@ -109,7 +110,10 @@ export async function executeNoteCommand(
       type: 'CREATED',
       occurredAt: timestamp,
       actorId: actor.id,
-      metadata: source ? { duplicatedFrom: source.id } : null,
+      metadata:
+        source || ctx.provenance
+          ? { ...(source ? { duplicatedFrom: source.id } : {}), ...via }
+          : null,
     });
     return result(await dto({ ...note, id: ref.id }), 1, 201);
   }
@@ -238,7 +242,7 @@ export async function executeNoteCommand(
       type: 'MOVED',
       occurredAt: timestamp,
       actorId: actor.id,
-      metadata: moveMetadata,
+      metadata: { ...moveMetadata, ...via },
     });
   return result(await dto(updated), revision);
 }

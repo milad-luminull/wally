@@ -3,6 +3,7 @@ import type { EffectiveRole } from '@wally/shared';
 import type { NoteDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { resolveRole } from '../authorization.js';
+import type { Provenance } from '../assistant/provenance.js';
 
 export interface Actor {
   id: string;
@@ -24,6 +25,8 @@ export interface CommandContext {
   note: WithId<NoteDoc> | null;
   operationId: string;
   baseUrl: string;
+  /** Present when the assistant is the caller; absent for the browser. */
+  provenance?: Provenance;
 }
 export function requireAccess(
   board: WithId<WhiteboardDoc> | null,
