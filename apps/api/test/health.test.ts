@@ -10,7 +10,10 @@ describe('GET /health', () => {
     ctx = await buildTestApp(PROJECT_ID);
     const res = await ctx.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: 'ok' });
+    expect(res.json()).toEqual({
+      status: 'ok',
+      assistant: { enabled: false, model: 'vertex:gemini-3.8-flash' },
+    });
   });
 
   afterAll(async () => {
