@@ -437,7 +437,7 @@ one above consistently.)
 Sanity check it is alive:
 
 ```bash
-curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok"}
+curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
 curl -i https://wally-api-d5xbuta4ya-ew.a.run.app/whiteboards | head -1   # expect HTTP/2 401
 ```
 
