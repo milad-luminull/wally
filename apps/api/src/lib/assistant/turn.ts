@@ -165,6 +165,8 @@ export async function runAssistantTurn(
             tools.map((t) => [t.name, t.description]),
           ]) +
           info.messageCount * 16;
+        // A step announced after the turn stopped never reaches the model: reserve nothing.
+        if (controller.signal.aborted) throw controller.signal.reason;
         const reservation = await reserveAttempt(db, {
           userId: actor.id,
           now: deps.now?.() ?? new Date(),
@@ -172,6 +174,18 @@ export async function runAssistantTurn(
           price,
           caps,
         });
+        if (controller.signal.aborted) {
+          // The turn stopped while the reservation was being written. No model call follows,
+          // so settle it at zero now rather than hold its slot until the lease expires.
+          await settleAttempt(
+            db,
+            actor.id,
+            reservation.attemptId,
+            { inputTokens: 0, outputTokens: 0 },
+            deps.now?.() ?? new Date(),
+          );
+          throw controller.signal.reason;
+        }
         await ensureConversation();
         return {
           settle: (usage: TurnUsage) =>
@@ -194,6 +208,14 @@ export async function runAssistantTurn(
     else throw error;
   } finally {
     clearTimeout(deadline);
+  }
+  // A stopped turn can still come back with output: when the stop falls in the last allowed
+  // step, the loop ends without another model call to throw on the aborted signal. The turn
+  // stopped all the same, so its output (which holds the tool error) is not kept.
+  const ran = output;
+  if (controller.signal.aborted && controller.signal.reason instanceof StoppedTurn) {
+    outcome = controller.signal.reason.reason;
+    output = null;
   }
 
   let assistantEntry: AssistantEntry;
@@ -236,9 +258,10 @@ export async function runAssistantTurn(
     conversationId: target.id,
     boardId: board.id,
     outcome,
-    steps: output?.steps ?? 0,
+    // What ran, even when a stop discarded it from the conversation.
+    steps: ran?.steps ?? 0,
     toolCalls,
-    usage: output?.usage ?? null,
+    usage: ran?.usage ?? null,
     ms: Date.now() - startedAt,
   });
   return toConversationDto(stored);

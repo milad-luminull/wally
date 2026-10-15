@@ -395,6 +395,63 @@ describe('createTurnRunner', () => {
     expect(out.toolCalls.map((c) => c.toolCallId)).toEqual(['c1', 'c2']);
   });
 
+  /**
+   * What the turn service relies on when a tool stops the turn (turn.ts): the tool aborts the
+   * signal and throws. The library keeps the throw as an error-text tool result and ends the
+   * step; whether the runner then throws depends on whether another step is allowed.
+   */
+  function stoppingTool(controller: AbortController) {
+    const stop = new Error('TOOL_LIMIT');
+    const t = tools({
+      list_notes: {
+        execute: vi.fn(async () => {
+          controller.abort(stop);
+          throw stop;
+        }),
+      },
+    });
+    return { t, stop };
+  }
+
+  it('returns output when a tool stops the turn in the last allowed step', async () => {
+    const controller = new AbortController();
+    const { t } = stoppingTool(controller);
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => toolCall('c1', 'list_notes', { boardId: 'b1' }),
+    });
+    const a = attempts();
+    const out = await createTurnRunner(model)(
+      input({ maxSteps: 1, abortSignal: controller.signal, onAttempt: a.onAttempt }, t),
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(out.finishReason).toBe('tool-calls');
+    expect(out.messages.at(-1)).toMatchObject({
+      role: 'tool',
+      content: [
+        { type: 'tool-result', output: { type: 'error-text', value: 'Error: TOOL_LIMIT' } },
+      ],
+    });
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toHaveLength(1);
+  });
+
+  it('throws the abort reason before announcing the next step', async () => {
+    const controller = new AbortController();
+    const { t, stop } = stoppingTool(controller);
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => toolCall('c1', 'list_notes', { boardId: 'b1' }),
+    });
+    const a = attempts();
+    await expect(
+      createTurnRunner(model)(
+        input({ maxSteps: 3, abortSignal: controller.signal, onAttempt: a.onAttempt }, t),
+      ),
+    ).rejects.toBe(stop);
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toHaveLength(1);
+  });
+
   it('passes the abort signal to the model call', async () => {
     const model = new MockLanguageModelV3({ doGenerate: [text('ok')] });
     const controller = new AbortController();

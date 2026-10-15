@@ -7,7 +7,13 @@ import {
   assistantUsageCol,
   whiteboardsCol,
 } from '../src/lib/db/collections.js';
-import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+import {
+  buildTestApp,
+  createBoardFixture,
+  registerTestUser,
+  resetDatabase,
+  type TestContext,
+} from './helpers.js';
 
 const PROJECT_ID = 'wally-test-assistant-turns';
 const usage = { inputTokens: 100, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
@@ -55,6 +61,45 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     ]);
   }
   if (message.startsWith('markers:')) return finish(message.slice('markers:'.length));
+  /**
+   * Thirteen calls with each thrown error kept as a tool result, as the library does: a tool
+   * that throws becomes an error-text result, and the step still ends (runTurn.test.ts).
+   */
+  const overrun = async (boardId: string | undefined) => {
+    for (let i = 0; i < 13; i++) {
+      try {
+        await tool('list_notes').execute({ boardId });
+      } catch {
+        // A tool error, reported to the model.
+      }
+    }
+  };
+  if (message.startsWith('limit-last')) {
+    // The overrun falls in the last allowed step: the loop ends without another model call,
+    // so nothing throws and the runner returns output.
+    await overrun(boardIdAfter('limit-last'));
+    return finish('Fertig.');
+  }
+  if (message.startsWith('limit-next')) {
+    // The step ends, then the next step is announced before its model call fails on the
+    // aborted signal.
+    await overrun(boardIdAfter('limit-next'));
+    await lease.settle(usage);
+    await input.onAttempt({
+      stepNumber: 1,
+      messageCount: input.history.length + 3,
+      maxOutputTokens: input.maxOutputTokens,
+    });
+    if (input.abortSignal?.aborted) throw input.abortSignal.reason;
+    return finish('never');
+  }
+  if (message === 'slow-last') {
+    // The deadline fires while the last step's tool runs; the tool still returns.
+    await new Promise<void>((resolve) =>
+      input.abortSignal?.addEventListener('abort', () => resolve(), { once: true }),
+    );
+    return finish('Zu spät.');
+  }
   if (message.startsWith('limit')) {
     const boardId = boardIdAfter('limit');
     for (let i = 0; i < 13; i++) {
@@ -220,6 +265,49 @@ describe('assistant turns', () => {
     expect(stored?.toolCalls).toBe(12);
   });
 
+  it('stops at the tool-call limit even when the runner still returns output', async () => {
+    const fx = await createBoardFixture(ctx);
+    const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
+    const res = await turn(
+      fx.ownerToken,
+      fx.boardId,
+      `limit-last${JSON.stringify({ boardId: fx.boardId })}`,
+      first.id,
+    );
+    expect(res.statusCode).toBe(200);
+    const c = res.json().conversation;
+    expect(c.entries[3]).toMatchObject({
+      role: 'assistant',
+      text: '',
+      chips: [],
+      stopped: 'TOOL_LIMIT',
+    });
+    const stored = (await assistantConversationsCol(ctx.db, fx.ownerId).doc(first.id).get()).data();
+    expect(stored?.messages).toHaveLength(2);
+    expect(stored?.toolCalls).toBe(12);
+  });
+
+  it('reserves nothing for a step announced after the turn stopped', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await turn(
+      fx.ownerToken,
+      fx.boardId,
+      `limit-next${JSON.stringify({ boardId: fx.boardId })}`,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.json().conversation.entries[1]).toMatchObject({ text: '', stopped: 'TOOL_LIMIT' });
+    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    expect(usageDoc?.tokens).toBe(120);
+    expect(usageDoc?.inFlight).toEqual({});
+  });
+
+  it('stops at the deadline even when the last step still returns', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await turn(fx.ownerToken, fx.boardId, 'slow-last');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().conversation.entries[1]).toMatchObject({ text: '', stopped: 'TIMEOUT' });
+  });
+
   it('stops at the deadline and says so', async () => {
     const fx = await createBoardFixture(ctx);
     const res = await turn(fx.ownerToken, fx.boardId, 'hang');
@@ -279,5 +367,17 @@ describe('assistant turns', () => {
       payload: { message: '' },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('answers the route rate limit with the app envelope, without a reset time', async () => {
+    const fx = await createBoardFixture(ctx);
+    // A caller of its own, so the other tests' turns do not count against this budget.
+    const token = registerTestUser(ctx, 'rl-assistant', 'rl-assistant@fixture.de');
+    let res = await turn(token, fx.boardId, 'eins');
+    for (let i = 0; i < 30 && res.statusCode !== 429; i++)
+      res = await turn(token, fx.boardId, 'eins');
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toMatchObject({ error: 'RATE_LIMITED', message: expect.any(String) });
+    expect(res.json().resetsAt).toBeUndefined();
   });
 });
