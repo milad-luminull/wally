@@ -133,4 +133,19 @@ describe('assistant provenance on the command layer', () => {
     expect(audits.map((a) => a.commandType).sort()).toEqual(['note.create', 'note.move']);
     expect(audits.find((a) => a.commandType === 'note.move')?.targetId).toBe(noteId);
   });
+
+  it('a board command records no target note', async () => {
+    await fixture();
+    const board = (await ctx.db.collection('whiteboards').doc(boardId).get()).data();
+    const operationId = randomUUID();
+    await executeBoardCommand(
+      ctx.db,
+      owner,
+      { type: 'board.rename', boardId, input: { name: 'Umbenannt' } },
+      { operationId, expectedRevision: board?.revision ?? 0 },
+      { provenance },
+    );
+    const audit = (await assistantAuditCol(ctx.db).doc(operationId).get()).data();
+    expect(audit).toMatchObject({ commandType: 'board.rename', boardId, targetId: null });
+  });
 });

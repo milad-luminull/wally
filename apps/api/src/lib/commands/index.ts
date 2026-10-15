@@ -137,10 +137,14 @@ export async function executeBoardCommand(
             operationId,
             actorId: actor.id,
             boardId,
+            // Only note.create targets a note it has no id for yet; board and member
+            // results carry their own ids, which are not a target note.
             targetId:
               'noteId' in command
                 ? command.noteId
-                : ((result.data as { id?: string } | null)?.id ?? null),
+                : command.type === 'note.create'
+                  ? (result.data as { id: string }).id
+                  : null,
             commandType: command.type,
             conversationId: provenance.conversationId,
             approvalId: provenance.approvalId,
