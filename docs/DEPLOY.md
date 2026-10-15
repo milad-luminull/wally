@@ -373,6 +373,23 @@ The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASS
 and the Cloud Run service account needs `roles/aiplatform.user`. `GET /health` reports
 the configured model without calling it.
 
+Two caps bound spend: `ASSISTANT_DAILY_CAP_TOKENS` (default `300000`) is each user's daily
+token allowance on any key, and `ASSISTANT_MONTHLY_CAP_MICRO_USD` (default `15000000`, that
+is 15 USD) is the monthly ceiling on the deployment key. The monthly cap is computed from
+the price table in `apps/api/src/lib/assistant/budget/prices.ts`; check that table against
+the vendor's pricing page before changing `ASSISTANT_MODEL`.
+
+To call Vertex from a local machine, the API uses the Firebase service account
+(`FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`) when both are set. That account then
+needs `roles/aiplatform.user`, and the Vertex AI API (`aiplatform.googleapis.com`) must be
+enabled on the project. On Cloud Run the variables are absent and the runtime service
+account applies. One real turn can be run by hand, against whatever Firestore the
+environment points at:
+
+```bash
+pnpm --filter @wally/api assistant:smoke <uid> <boardId> "<question>"
+```
+
 ### 9c. Make the service publicly reachable
 
 Note what is _missing_ from the deploy command above: `--allow-unauthenticated`. Most

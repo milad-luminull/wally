@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseModelRef, resolveLanguageModel } from './config.js';
 
-const env = {
+const env: Parameters<typeof resolveLanguageModel>[1] = {
   ASSISTANT_VERTEX_LOCATION: 'europe-west1',
   ASSISTANT_VERTEX_PROJECT: 'wally-test',
   FIREBASE_PROJECT_ID: 'wally-test',
@@ -44,6 +44,17 @@ describe('resolveLanguageModel', () => {
     const model = resolveLanguageModel(
       { provider: 'vertex', model: 'gemini-3.8-flash' },
       { ...env, ASSISTANT_VERTEX_PROJECT: undefined },
+    );
+    expect(model.modelId).toBe('gemini-3.8-flash');
+  });
+  it('hands the configured service account to the provider for local use', () => {
+    const model = resolveLanguageModel(
+      { provider: 'vertex', model: 'gemini-3.8-flash' },
+      {
+        ...env,
+        FIREBASE_CLIENT_EMAIL: 'sa@wally-test.iam.gserviceaccount.com',
+        FIREBASE_PRIVATE_KEY: 'line1\\nline2',
+      },
     );
     expect(model.modelId).toBe('gemini-3.8-flash');
   });
