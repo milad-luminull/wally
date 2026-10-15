@@ -6,7 +6,9 @@ import {
   type LanguageModelUsage,
   type ModelMessage,
   type ToolApprovalStatus,
+  type ToolResultPart,
   type ToolSet,
+  zodSchema,
 } from 'ai';
 import type { Env } from '../../../env.js';
 import { parseModelRef, resolveLanguageModel } from './config.js';
@@ -17,6 +19,7 @@ import type {
   TurnInput,
   TurnOutput,
   TurnRunner,
+  TurnTool,
   TurnUsage,
 } from './types.js';
 
@@ -50,6 +53,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
         t.needsApproval ? 'user-approval' : 'not-applicable',
       ]),
     );
+    // What is stored: the history as it was, plus this turn.
     const messages: ModelMessage[] = [
       ...(input.history as ModelMessage[]),
       ...(input.userMessage !== undefined
@@ -87,7 +91,8 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
     const result = await generateText({
       model,
       instructions: input.instructions,
-      messages,
+      // What is sent: earlier tool results elided, so a continuation reads the board again.
+      messages: elideEarlierToolResults(messages),
       tools,
       toolApproval,
       maxRetries: 0,
@@ -156,6 +161,48 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       messages: [...messages, ...result.responseMessages],
     };
   };
+}
+
+/**
+ * The tool definitions as the library sends them: name, description and the JSON Schema it
+ * derives from each input schema. For sizing a request outside the boundary.
+ */
+export async function toolDefinitionsJson(tools: TurnTool[]): Promise<string> {
+  const definitions = await Promise.all(
+    tools.map(async (t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: await zodSchema(t.inputSchema).jsonSchema,
+    })),
+  );
+  return JSON.stringify(definitions);
+}
+
+export const ELIDED_TOOL_RESULT = '[earlier result omitted; read the board again]';
+
+/**
+ * Board content from an earlier turn is not reused as context (WALLY_AGENT.md §3.4): the
+ * caller may no longer see it, and re-sending it would spend the caps on every turn. Every
+ * tool result already in the history is replaced by a short placeholder, per call; the tool
+ * calls and the assistant's text stay, so the model still sees what it did. A denied write
+ * holds no board content and keeps its denial. Results produced during this call are not in
+ * `history` and reach the model in full.
+ */
+function elideEarlierToolResults(history: ModelMessage[]): ModelMessage[] {
+  const elided: ToolResultPart['output'] = { type: 'text', value: ELIDED_TOOL_RESULT };
+  return history.map((message): ModelMessage => {
+    if (
+      (message.role !== 'tool' && message.role !== 'assistant') ||
+      !Array.isArray(message.content)
+    )
+      return message;
+    const content = (message.content as { type: string }[]).map((part) =>
+      part.type === 'tool-result' && (part as ToolResultPart).output.type !== 'execution-denied'
+        ? { ...(part as ToolResultPart), output: elided }
+        : part,
+    );
+    return { ...message, content } as ModelMessage;
+  });
 }
 
 /** The runner for the deployment's configured model. */

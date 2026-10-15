@@ -11,7 +11,7 @@ import { BudgetError } from '../lib/assistant/budget/ledger.js';
 import {
   latestOpenConversation,
   loadConversation,
-  toConversationDto,
+  toVisibleConversationDto,
 } from '../lib/assistant/conversations.js';
 import { createConfiguredTurnRunner, type TurnRunner } from '../lib/assistant/model/index.js';
 import { assistantEnabledFor } from '../lib/assistant/switch.js';
@@ -117,7 +117,7 @@ export default async function assistantRoutes(
         board.id,
       );
       if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
-      return toConversationDto(conversation);
+      return toVisibleConversationDto(request.server.db, request.user, conversation);
     },
   );
 
@@ -133,7 +133,7 @@ export default async function assistantRoutes(
         request.params.conversationId!,
       );
       if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
-      return toConversationDto(conversation);
+      return toVisibleConversationDto(request.server.db, request.user, conversation);
     },
   );
 }

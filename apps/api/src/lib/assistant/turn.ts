@@ -12,17 +12,23 @@ import type { Actor, CommandLogger } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
 import type { AssistantConversationDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
-import { estimateTokens } from './budget/estimate.js';
-import { reserveAttempt, settleAttempt } from './budget/ledger.js';
+import { CHARS_PER_TOKEN, estimateTokens } from './budget/estimate.js';
+import { BudgetError, reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { resolveChips } from './chips.js';
 import {
   appendTurn,
   createConversation,
   loadConversation,
-  toConversationDto,
+  toVisibleConversationDto,
 } from './conversations.js';
-import type { TurnOutput, TurnRunner, TurnTool, TurnUsage } from './model/index.js';
+import {
+  toolDefinitionsJson,
+  type TurnOutput,
+  type TurnRunner,
+  type TurnTool,
+  type TurnUsage,
+} from './model/index.js';
 import { modelOperationInputs, operationAnnotations, type OperationName } from './operations.js';
 import { buildInstructions } from './prompt.js';
 import { runOperation } from './run.js';
@@ -64,12 +70,38 @@ class StoppedTurn extends Error {
   }
 }
 
+const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_ABORTED = 10;
+
+/**
+ * A reservation whose transaction lost to contention (gRPC ABORTED, or INVALID_ARGUMENT for a
+ * transaction that expired while retrying) is a busy ledger, not a server fault.
+ */
+export function reservationFailure(error: unknown): unknown {
+  if (error instanceof AppError) return error;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === GRPC_INVALID_ARGUMENT || code === GRPC_ABORTED)
+    return new BudgetError('ASSISTANT_BUSY', null);
+  return error;
+}
+
+/**
+ * Errors raised by Wally's own callbacks (the ledger, the conversation store) pass through the
+ * runner unchanged. Anything else the runner throws came from the model provider.
+ */
+const ownErrors = new WeakSet<object>();
+function own(error: unknown): unknown {
+  if (error !== null && typeof error === 'object') ownErrors.add(error);
+  return error;
+}
+
 /** One turn: reserve, run, resolve chips, store. Throws BudgetError and AppError only. */
 export async function runAssistantTurn(
   deps: TurnDeps,
   ctx: TurnRequestContext,
 ): Promise<AssistantConversationDto> {
-  const now = deps.now?.() ?? new Date();
+  const clock = () => deps.now?.() ?? new Date();
+  const now = clock();
   const { db, env } = deps;
   const { actor, board, request } = ctx;
   const model = env.ASSISTANT_MODEL;
@@ -93,6 +125,8 @@ export async function runAssistantTurn(
   );
   let toolCalls = 0;
   let partial = false;
+  /** Serialized tool results gathered so far this turn: each later step sends them again. */
+  let toolResultChars = 0;
   const tools: TurnTool[] = READ_TOOLS.map(({ name, description }) => ({
     name,
     description,
@@ -124,6 +158,7 @@ export async function runAssistantTurn(
       );
       if (name === 'list_notes' && (result.data as { truncated?: boolean }).truncated)
         partial = true;
+      toolResultChars += JSON.stringify(result.data ?? null).length;
       return result.data;
     },
   }));
@@ -133,6 +168,9 @@ export async function runAssistantTurn(
     role: ctx.role,
     language: ctx.language,
   });
+  // The definitions as the library sends them, JSON Schemas included (an upper-bound estimate
+  // needs the real serialized size; a zod `_def` omits the object shape).
+  const toolDefinitions = await toolDefinitionsJson(tools);
   const price = priceFor(model);
   const caps = {
     dailyTokens: env.ASSISTANT_DAILY_CAP_TOKENS,
@@ -160,22 +198,22 @@ export async function runAssistantTurn(
       maxSteps: MAX_STEPS,
       abortSignal: controller.signal,
       onAttempt: async (info) => {
+        // Everything the step sends: instructions, the stored history, the message, the tool
+        // definitions, every tool result this turn has gathered, and a margin per message.
         const inputTokens =
-          estimateTokens([
-            instructions,
-            history,
-            request.message,
-            tools.map((t) => [t.name, t.description]),
-          ]) +
+          estimateTokens([instructions, history, request.message, toolDefinitions]) +
+          Math.ceil(toolResultChars / CHARS_PER_TOKEN) +
           info.messageCount * 16;
         // A step announced after the turn stopped never reaches the model: reserve nothing.
         if (controller.signal.aborted) throw controller.signal.reason;
         const reservation = await reserveAttempt(db, {
           userId: actor.id,
-          now: deps.now?.() ?? new Date(),
+          now: clock(),
           estimate: { inputTokens, outputTokens: MAX_OUTPUT_TOKENS },
           price,
           caps,
+        }).catch((error: unknown) => {
+          throw own(reservationFailure(error));
         });
         if (controller.signal.aborted) {
           // The turn stopped while the reservation was being written. No model call follows,
@@ -185,30 +223,46 @@ export async function runAssistantTurn(
             actor.id,
             reservation.attemptId,
             { inputTokens: 0, outputTokens: 0 },
-            deps.now?.() ?? new Date(),
-          );
+            clock(),
+          ).catch((error: unknown) => {
+            throw own(error);
+          });
           throw controller.signal.reason;
         }
-        await ensureConversation();
+        await ensureConversation().catch((error: unknown) => {
+          throw own(error);
+        });
         return {
+          // The providers' output count already includes reasoning (thinking) tokens.
           settle: (usage: TurnUsage) =>
             settleAttempt(
               db,
               actor.id,
               reservation.attemptId,
-              {
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens + usage.reasoningTokens,
-              },
-              deps.now?.() ?? new Date(),
-            ),
+              { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+              clock(),
+            ).catch((error: unknown) => {
+              throw own(error);
+            }),
         };
       },
     });
   } catch (error) {
     const reason = controller.signal.aborted ? controller.signal.reason : error;
     if (reason instanceof StoppedTurn) outcome = reason.reason;
-    else throw error;
+    else if (error instanceof AppError || ownErrors.has(error as object)) throw error;
+    else {
+      // The provider's message can carry its own wording, ids or quota details: log the
+      // shape only, and answer with Wally's own error.
+      deps.logger?.warn({
+        type: 'assistant.provider_error',
+        boardId: board.id,
+        name: (error as { name?: unknown } | null)?.name,
+        status: (error as { statusCode?: unknown } | null)?.statusCode,
+        code: (error as { code?: unknown } | null)?.code,
+      });
+      throw new AppError(502, 'ASSISTANT_PROVIDER_ERROR', 'The model provider failed');
+    }
   } finally {
     clearTimeout(deadline);
   }
@@ -253,7 +307,7 @@ export async function runAssistantTurn(
     messages: output ? output.messages : null,
     usage: output ? output.usage : null,
     toolCalls: Math.min(toolCalls, MAX_TOOL_CALLS),
-    now: deps.now?.() ?? new Date(),
+    now: clock(),
   });
   // Contents-free by construction: ids, counts, usage and timing, never the message or reply.
   deps.logger?.info({
@@ -267,5 +321,6 @@ export async function runAssistantTurn(
     usage: ran?.usage ?? null,
     ms: Date.now() - startedAt,
   });
-  return toConversationDto(stored);
+  // Earlier entries' chips are rechecked too: a note may have left the caller's sight since.
+  return toVisibleConversationDto(db, actor, stored);
 }

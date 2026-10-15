@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV3 } from 'ai/test';
 import { z } from 'zod';
-import { createTurnRunner } from './runTurn.js';
+import { createTurnRunner, ELIDED_TOOL_RESULT, toolDefinitionsJson } from './runTurn.js';
 import type { AttemptInfo, TurnInput, TurnTool, TurnUsage } from './types.js';
 
 const usage = {
@@ -457,5 +457,54 @@ describe('createTurnRunner', () => {
     const controller = new AbortController();
     await createTurnRunner(model)(input({ abortSignal: controller.signal }));
     expect(model.doGenerateCalls[0]!.abortSignal).toBe(controller.signal);
+  });
+
+  it('sends earlier tool results elided, keeping the calls, and stores them in full', async () => {
+    const marker = 'MARKER-Mueller-anrufen';
+    const t = tools({
+      list_notes: {
+        execute: vi.fn(async () => ({ notes: [{ id: 'n1', title: marker }], truncated: false })),
+      },
+    });
+    const first = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Eine Notiz.')],
+    });
+    const earlier = await createTurnRunner(first)(input({}, t));
+    expect(JSON.stringify(earlier.messages)).toContain(marker);
+
+    const second = new MockLanguageModelV3({ doGenerate: [text('Weiter.')] });
+    const out = await createTurnRunner(second)(
+      input({ history: earlier.messages, userMessage: 'Und jetzt?' }, t),
+    );
+    const sent = JSON.stringify(second.doGenerateCalls[0]!.prompt);
+    expect(sent).not.toContain(marker);
+    expect(sent).toContain(ELIDED_TOOL_RESULT);
+    // The model still sees what it called, and what it answered.
+    expect(second.doGenerateCalls[0]!.prompt).toContainEqual(
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.arrayContaining([
+          expect.objectContaining({ type: 'tool-call', toolCallId: 'c1', toolName: 'list_notes' }),
+        ]),
+      }),
+    );
+    expect(sent).toContain('Eine Notiz.');
+    // Elision is per call: the stored history keeps the result.
+    expect(JSON.stringify(out.messages)).toContain(marker);
+    expect(out.messages.slice(0, earlier.messages.length)).toEqual(earlier.messages);
+  });
+
+  it('describes the tools as the library sends them, JSON Schemas included', async () => {
+    const t = tools();
+    const definitions = JSON.parse(await toolDefinitionsJson([t.list, t.create])) as {
+      name: string;
+      description: string;
+      inputSchema: { type: string; properties: Record<string, unknown> };
+    }[];
+    expect(definitions.map((d) => d.name)).toEqual(['list_notes', 'create_note']);
+    expect(definitions[1]).toMatchObject({
+      description: 'Create a note',
+      inputSchema: { type: 'object', properties: { boardId: {}, input: {} } },
+    });
   });
 });

@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { z } from 'zod';
-import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
+import { CHARS_PER_TOKEN } from '../src/lib/assistant/budget/estimate.js';
+import { BudgetError, dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
+import { reservationFailure } from '../src/lib/assistant/turn.js';
+import { AppError } from '../src/lib/errors.js';
 import type {
   TurnInput,
   TurnOutput,
@@ -9,6 +12,7 @@ import type {
   TurnTool,
 } from '../src/lib/assistant/model/index.js';
 import {
+  assistantAttemptsCol,
   assistantConversationsCol,
   assistantUsageCol,
   whiteboardsCol,
@@ -67,6 +71,31 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
       { toolCallId: 'c1', toolName: 'list_notes', input: {}, output: result },
     ]);
   }
+  if (message === 'thinking') {
+    // The providers count thinking inside outputTokens; reasoningTokens is a part of it.
+    await lease.settle({ ...usage, reasoningTokens: 15 });
+    return finish('Gedacht.');
+  }
+  if (message === 'grow') {
+    // A second step after a read: it sends the read's result, so it reserves more.
+    const result = await tool('list_notes').execute({});
+    await lease.settle(usage);
+    const next = await input.onAttempt({
+      stepNumber: 1,
+      messageCount: input.history.length + 3,
+      maxOutputTokens: input.maxOutputTokens,
+    });
+    await next.settle(usage);
+    return finish(`chars:${JSON.stringify(result).length}`);
+  }
+  if (message === 'provider-error')
+    throw new Error('Vertex said: quota exceeded for project secret-project-42');
+  if (message === 'provider-400')
+    // What the library throws with retries off: the provider's status and wording.
+    throw Object.assign(new Error('Invalid JSON payload for secret-project-42'), {
+      name: 'AI_APICallError',
+      statusCode: 400,
+    });
   if (message.startsWith('get:')) {
     try {
       const note = (await tool('get_note').execute({ noteId: message.slice('get:'.length) })) as {
@@ -231,6 +260,74 @@ describe('assistant turns', () => {
       text: 'Hier',
       chips: [{ id: here.id, title: 'Hier' }],
     });
+  });
+
+  it('settles output tokens once, reasoning included, as the providers report them', async () => {
+    const fx = await createBoardFixture(ctx);
+    expect((await turn(fx.ownerToken, fx.boardId, 'thinking')).statusCode).toBe(200);
+    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    expect(usageDoc?.tokens).toBe(120);
+  });
+
+  it('reserves each later step with the tool results gathered so far this turn', async () => {
+    const fx = await createBoardFixture(ctx);
+    for (let i = 0; i < 10; i++)
+      await createNote(fx.ownerToken, fx.boardId, `${i} ${'Langer Titel '.repeat(12)}`);
+    const res = await turn(fx.ownerToken, fx.boardId, 'grow');
+    expect(res.statusCode).toBe(200);
+    const resultChars = Number(
+      (res.json().conversation.entries[1].text as string).slice('chars:'.length),
+    );
+    expect(resultChars).toBeGreaterThan(1000);
+    const reserved = (await assistantAttemptsCol(ctx.db, fx.ownerId).get()).docs
+      .map((d) => d.data().reservedTokens)
+      .sort((a, b) => a - b);
+    expect(reserved).toHaveLength(2);
+    expect(reserved[1]! - reserved[0]!).toBeGreaterThanOrEqual(
+      Math.ceil(resultChars / CHARS_PER_TOKEN),
+    );
+  });
+
+  it('answers a provider failure with its own error and none of the provider text', async () => {
+    const fx = await createBoardFixture(ctx);
+    for (const script of ['provider-error', 'provider-400']) {
+      const res = await turn(fx.ownerToken, fx.boardId, script);
+      expect(res.statusCode, script).toBe(502);
+      expect(res.json()).toEqual({
+        error: 'ASSISTANT_PROVIDER_ERROR',
+        message: 'The model provider failed',
+      });
+      expect(res.body).not.toContain('secret-project-42');
+    }
+  });
+
+  it('drops a stored chip once its note is out of sight, keeping the text', async () => {
+    const fx = await createBoardFixture(ctx);
+    const note = (await createNote(fx.ownerToken, fx.boardId, 'Bald privat')).json();
+    const first = (await turn(fx.editToken, fx.boardId, `markers:Siehe [note:${note.id}].`)).json()
+      .conversation;
+    expect(first.entries[1].chips).toEqual([{ id: note.id, title: 'Bald privat' }]);
+    const patch = await ctx.inject({
+      method: 'PATCH',
+      url: `/notes/${note.id}`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { visibility: 'PRIVATE' },
+    });
+    expect(patch.statusCode).toBe(200);
+    for (const path of [first.id, 'latest']) {
+      const res = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/assistant/conversations/${path}`,
+        headers: ctx.authHeader(fx.editToken),
+      });
+      expect(res.statusCode, path).toBe(200);
+      expect(res.json().entries[1], path).toMatchObject({ text: 'Siehe Bald privat.', chips: [] });
+    }
+    // The owner still sees the note, and so the chip.
+    const owner = await turn(fx.ownerToken, fx.boardId, `markers:[note:${note.id}]`);
+    expect(owner.json().conversation.entries[1].chips).toEqual([
+      { id: note.id, title: 'Bald privat' },
+    ]);
   });
 
   it("uses the real date and zone from the request and the caller's language", async () => {
@@ -406,5 +503,21 @@ describe('assistant turns', () => {
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({ error: 'RATE_LIMITED', message: expect.any(String) });
     expect(res.json().resetsAt).toBeUndefined();
+  });
+});
+
+describe('reservationFailure', () => {
+  it('turns transaction contention into a busy refusal and leaves everything else alone', () => {
+    for (const code of [3, 10]) {
+      const mapped = reservationFailure(Object.assign(new Error('contention'), { code }));
+      expect(mapped).toBeInstanceOf(BudgetError);
+      expect(mapped).toMatchObject({ code: 'ASSISTANT_BUSY', resetsAt: null });
+    }
+    const cap = new BudgetError('ASSISTANT_DAILY_CAP', null);
+    expect(reservationFailure(cap)).toBe(cap);
+    const app = new AppError(404, 'NOT_FOUND', 'Not found');
+    expect(reservationFailure(app)).toBe(app);
+    const other = Object.assign(new Error('unavailable'), { code: 14 });
+    expect(reservationFailure(other)).toBe(other);
   });
 });

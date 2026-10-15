@@ -1,5 +1,7 @@
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
+import type { Actor } from '../commands/index.js';
+import { listNotes } from '../commands/queries.js';
 import { AppError } from '../errors.js';
 import {
   assistantConversationsCol,
@@ -150,5 +152,29 @@ export function toConversationDto(doc: WithId<AssistantConversationDoc>): Assist
     status: doc.status,
     model: doc.model,
     entries: doc.entries.map((e) => ({ ...e, at: toIso(e.at) })),
+  };
+}
+
+/**
+ * The DTO with every stored chip checked against what the caller can see now (WALLY_AGENT.md
+ * §3.2: chips are checked at render time). A chip for a note since made private, deleted or
+ * otherwise out of the caller's sight is dropped; the entry's text stays as it was answered.
+ */
+export async function toVisibleConversationDto(
+  db: Firestore,
+  actor: Actor,
+  doc: WithId<AssistantConversationDoc>,
+): Promise<AssistantConversationDto> {
+  const dto = toConversationDto(doc);
+  if (!dto.entries.some((entry) => entry.chips.length > 0)) return dto;
+  const visible = new Set(
+    (await listNotes(db, actor, doc.boardId, { status: 'ALL' })).map((note) => note.id),
+  );
+  return {
+    ...dto,
+    entries: dto.entries.map((entry) => ({
+      ...entry,
+      chips: entry.chips.filter((chip) => visible.has(chip.id)),
+    })),
   };
 }
