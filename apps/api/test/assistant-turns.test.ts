@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
+import type { z } from 'zod';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
-import type { TurnInput, TurnOutput, TurnRunner } from '../src/lib/assistant/model/index.js';
+import type {
+  TurnInput,
+  TurnOutput,
+  TurnRunner,
+  TurnTool,
+} from '../src/lib/assistant/model/index.js';
 import {
   assistantConversationsCol,
   assistantUsageCol,
@@ -18,8 +24,12 @@ import {
 const PROJECT_ID = 'wally-test-assistant-turns';
 const usage = { inputTokens: 100, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
 
+/** The tools the last turn offered the model. */
+let offered: TurnTool[] = [];
+
 /** Each message is a script: the fake calls tools like a model would and answers with markers. */
 const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => {
+  offered = input.tools;
   const lease = await input.onAttempt({
     stepNumber: 0,
     messageCount: input.history.length + 1,
@@ -46,44 +56,51 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
       ],
     };
   };
-  /** `list{"boardId":…}` and `limit{"boardId":…}` carry the board id the tools must name. */
-  const boardIdAfter = (prefix: string) =>
-    (JSON.parse(message.slice(prefix.length) || '{}') as { boardId?: string }).boardId;
-  if (message.startsWith('list')) {
-    const boardId = boardIdAfter('list');
-    const result = (await tool('list_notes').execute({ boardId })) as {
+  // The tools never take a board id: the server binds the conversation's board.
+  if (message === 'list') {
+    const result = (await tool('list_notes').execute({})) as {
       notes: { id: string; title: string }[];
       truncated: boolean;
     };
     const ids = result.notes.map((n) => `[note:${n.id}]`).join(' ');
     return finish(`Offen: ${ids}${result.truncated ? ' (mehr)' : ''}`, [
-      { toolCallId: 'c1', toolName: 'list_notes', input: { boardId }, output: result },
+      { toolCallId: 'c1', toolName: 'list_notes', input: {}, output: result },
     ]);
+  }
+  if (message.startsWith('get:')) {
+    try {
+      const note = (await tool('get_note').execute({ noteId: message.slice('get:'.length) })) as {
+        id: string;
+      };
+      return finish(`[note:${note.id}]`);
+    } catch (error) {
+      return finish(`error:${(error as { code?: string }).code}`);
+    }
   }
   if (message.startsWith('markers:')) return finish(message.slice('markers:'.length));
   /**
    * Thirteen calls with each thrown error kept as a tool result, as the library does: a tool
    * that throws becomes an error-text result, and the step still ends (runTurn.test.ts).
    */
-  const overrun = async (boardId: string | undefined) => {
+  const overrun = async () => {
     for (let i = 0; i < 13; i++) {
       try {
-        await tool('list_notes').execute({ boardId });
+        await tool('list_notes').execute({});
       } catch {
         // A tool error, reported to the model.
       }
     }
   };
-  if (message.startsWith('limit-last')) {
+  if (message === 'limit-last') {
     // The overrun falls in the last allowed step: the loop ends without another model call,
     // so nothing throws and the runner returns output.
-    await overrun(boardIdAfter('limit-last'));
+    await overrun();
     return finish('Fertig.');
   }
-  if (message.startsWith('limit-next')) {
+  if (message === 'limit-next') {
     // The step ends, then the next step is announced before its model call fails on the
     // aborted signal.
-    await overrun(boardIdAfter('limit-next'));
+    await overrun();
     await lease.settle(usage);
     await input.onAttempt({
       stepNumber: 1,
@@ -100,11 +117,10 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     );
     return finish('Zu spät.');
   }
-  if (message.startsWith('limit')) {
-    const boardId = boardIdAfter('limit');
+  if (message === 'limit') {
     for (let i = 0; i < 13; i++) {
       if (input.abortSignal?.aborted) throw input.abortSignal.reason;
-      await tool('list_notes').execute({ boardId });
+      await tool('list_notes').execute({});
     }
     return finish('never');
   }
@@ -167,11 +183,7 @@ describe('assistant turns', () => {
   it('answers from the live board and lists the notes it relied on', async () => {
     const fx = await createBoardFixture(ctx);
     const note = (await createNote(fx.ownerToken, fx.boardId, 'Müller anrufen')).json();
-    const res = await turn(
-      fx.ownerToken,
-      fx.boardId,
-      `list${JSON.stringify({ boardId: fx.boardId })}`,
-    );
+    const res = await turn(fx.ownerToken, fx.boardId, 'list');
     expect(res.statusCode).toBe(200);
     const { conversation } = res.json();
     expect(conversation.status).toBe('OPEN');
@@ -190,6 +202,35 @@ describe('assistant turns', () => {
     const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
     expect(usageDoc?.tokens).toBe(120);
     expect(usageDoc?.inFlight).toEqual({});
+  });
+
+  it('offers the model read tools that never ask for a board id', async () => {
+    const fx = await createBoardFixture(ctx);
+    expect((await turn(fx.ownerToken, fx.boardId, 'eins')).statusCode).toBe(200);
+    expect(offered.map((t) => t.name).sort()).toEqual(['get_note', 'list_members', 'list_notes']);
+    for (const t of offered) {
+      const schema = t.inputSchema as z.AnyZodObject;
+      expect(Object.keys(schema.shape)).not.toContain('boardId');
+      // Strict: a model that names a board anyway is refused before anything runs.
+      expect(schema.safeParse({ boardId: fx.boardId }).success).toBe(false);
+    }
+  });
+
+  it('binds every read to the conversation board, so a note from another board is not found', async () => {
+    const fx = await createBoardFixture(ctx);
+    // The editor owns a board of their own; its note is visible to them there, not here.
+    const elsewhere = (await createNote(fx.editToken, fx.editorId, 'Anderes Board')).json();
+    const here = (await createNote(fx.ownerToken, fx.boardId, 'Hier')).json();
+    const foreign = await turn(fx.editToken, fx.boardId, `get:${elsewhere.id}`);
+    expect(foreign.json().conversation.entries[1]).toMatchObject({
+      text: 'error:NOT_FOUND',
+      chips: [],
+    });
+    const own = await turn(fx.editToken, fx.boardId, `get:${here.id}`);
+    expect(own.json().conversation.entries[1]).toMatchObject({
+      text: 'Hier',
+      chips: [{ id: here.id, title: 'Hier' }],
+    });
   });
 
   it("uses the real date and zone from the request and the caller's language", async () => {
@@ -250,12 +291,7 @@ describe('assistant turns', () => {
   it('stops at the tool-call limit and says so, keeping the conversation', async () => {
     const fx = await createBoardFixture(ctx);
     const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
-    const res = await turn(
-      fx.ownerToken,
-      fx.boardId,
-      `limit${JSON.stringify({ boardId: fx.boardId })}`,
-      first.id,
-    );
+    const res = await turn(fx.ownerToken, fx.boardId, 'limit', first.id);
     expect(res.statusCode).toBe(200);
     const c = res.json().conversation;
     expect(c.entries).toHaveLength(4);
@@ -268,12 +304,7 @@ describe('assistant turns', () => {
   it('stops at the tool-call limit even when the runner still returns output', async () => {
     const fx = await createBoardFixture(ctx);
     const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
-    const res = await turn(
-      fx.ownerToken,
-      fx.boardId,
-      `limit-last${JSON.stringify({ boardId: fx.boardId })}`,
-      first.id,
-    );
+    const res = await turn(fx.ownerToken, fx.boardId, 'limit-last', first.id);
     expect(res.statusCode).toBe(200);
     const c = res.json().conversation;
     expect(c.entries[3]).toMatchObject({
@@ -289,11 +320,7 @@ describe('assistant turns', () => {
 
   it('reserves nothing for a step announced after the turn stopped', async () => {
     const fx = await createBoardFixture(ctx);
-    const res = await turn(
-      fx.ownerToken,
-      fx.boardId,
-      `limit-next${JSON.stringify({ boardId: fx.boardId })}`,
-    );
+    const res = await turn(fx.ownerToken, fx.boardId, 'limit-next');
     expect(res.statusCode).toBe(200);
     expect(res.json().conversation.entries[1]).toMatchObject({ text: '', stopped: 'TOOL_LIMIT' });
     const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();

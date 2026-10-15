@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LIST_NOTES_MAX,
+  modelOperationInputs,
   operationAnnotations,
   operationInputs,
   operationNames,
@@ -75,6 +76,25 @@ describe('operation inputs', () => {
       const result = operationInputs[name].safeParse({ ...note, input: {}, extra: 1 });
       expect(result.success, name).toBe(false);
     }
+  });
+
+  it('offers the model every input without the board, which the server binds', () => {
+    for (const name of operationNames) {
+      const shape = Object.keys(modelOperationInputs[name].shape);
+      expect(shape, name).not.toContain('boardId');
+      expect(shape.sort(), name).toEqual(
+        Object.keys(operationInputs[name].shape)
+          .filter((key) => key !== 'boardId')
+          .sort(),
+      );
+    }
+    const withoutBoard = { noteId: note.noteId, expectedRevision: note.expectedRevision };
+    expect(modelOperationInputs.complete_note.safeParse(withoutBoard).success).toBe(true);
+    expect(modelOperationInputs.complete_note.safeParse(note).success).toBe(false);
+    expect(modelOperationInputs.list_notes.parse({ status: 'OPEN' })).toEqual({
+      status: 'OPEN',
+      limit: LIST_NOTES_MAX,
+    });
   });
 });
 

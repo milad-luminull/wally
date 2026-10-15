@@ -23,7 +23,7 @@ import {
   toConversationDto,
 } from './conversations.js';
 import type { TurnOutput, TurnRunner, TurnTool, TurnUsage } from './model/index.js';
-import { operationAnnotations, operationInputs, type OperationName } from './operations.js';
+import { modelOperationInputs, operationAnnotations, type OperationName } from './operations.js';
 import { buildInstructions } from './prompt.js';
 import { runOperation } from './run.js';
 
@@ -96,7 +96,8 @@ export async function runAssistantTurn(
   const tools: TurnTool[] = READ_TOOLS.map(({ name, description }) => ({
     name,
     description,
-    inputSchema: operationInputs[name],
+    // The model never names the board: the server binds it below.
+    inputSchema: modelOperationInputs[name],
     needsApproval: !operationAnnotations[name].readOnlyHint,
     execute: async (input) => {
       toolCalls++;
@@ -117,7 +118,9 @@ export async function runAssistantTurn(
           },
           logger: deps.logger,
         },
-        { name, input, operationId: randomUUID() },
+        // The board comes last, so it is always the conversation's own; runOperation still
+        // checks it against the bound board.
+        { name, input: { ...(input as object), boardId: board.id }, operationId: randomUUID() },
       );
       if (name === 'list_notes' && (result.data as { truncated?: boolean }).truncated)
         partial = true;
