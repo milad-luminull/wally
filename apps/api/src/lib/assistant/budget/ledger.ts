@@ -1,0 +1,166 @@
+import { randomUUID } from 'node:crypto';
+import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import {
+  assistantAttemptsCol,
+  assistantSpendCol,
+  assistantUsageCol,
+} from '../../db/collections.js';
+import type { AssistantAttemptDoc } from '../../db/types.js';
+import { AppError } from '../../errors.js';
+import { microUsdFor, type ModelPrice } from './prices.js';
+
+/** Model calls in flight per user, across every conversation and key. */
+export const MAX_IN_FLIGHT = 2;
+/** A slot held longer than this belongs to a call that died; the next reservation frees it. */
+export const ATTEMPT_LEASE_MS = 120_000;
+export const ATTEMPT_RETENTION_DAYS = 7;
+
+export class BudgetError extends AppError {
+  resetsAt: string | null;
+  constructor(
+    code: 'ASSISTANT_BUSY' | 'ASSISTANT_DAILY_CAP' | 'ASSISTANT_MONTHLY_CAP',
+    resetsAt: Date | null,
+  ) {
+    super(
+      429,
+      code,
+      code === 'ASSISTANT_BUSY' ? 'Too many model calls in flight' : 'Assistant budget reached',
+    );
+    this.name = 'BudgetError';
+    this.resetsAt = resetsAt ? resetsAt.toISOString() : null;
+  }
+}
+
+export interface ReserveInput {
+  userId: string;
+  now: Date;
+  estimate: { inputTokens: number; outputTokens: number };
+  price: ModelPrice | null;
+  caps: { dailyTokens: number; monthlyMicroUsd: number };
+}
+export interface Reservation {
+  attemptId: string;
+  day: string;
+  month: string;
+  reservedTokens: number;
+  reservedMicroUsd: number;
+}
+
+export const dayKey = (date: Date): string => date.toISOString().slice(0, 10);
+export const monthKey = (date: Date): string => date.toISOString().slice(0, 7);
+export const nextDayStart = (day: string): Date => new Date(`${addDays(day, 1)}T00:00:00.000Z`);
+export const nextMonthStart = (month: string): Date => {
+  const [y, m] = month.split('-').map(Number) as [number, number];
+  return new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1));
+};
+function addDays(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return dayKey(d);
+}
+
+/**
+ * Reserve, then settle (WALLY_AGENT.md §3.2). One transaction reads the user's day, the
+ * deployment's month and the user's in-flight slots, refuses if any cap or the slot count
+ * would be exceeded, and otherwise writes the worst case into all three. Nothing is
+ * dispatched before this commits.
+ */
+export async function reserveAttempt(db: Firestore, input: ReserveInput): Promise<Reservation> {
+  const { userId, now, estimate, price, caps } = input;
+  const day = dayKey(now);
+  const month = monthKey(now);
+  const reservedTokens = estimate.inputTokens + estimate.outputTokens;
+  const reservedMicroUsd = price ? microUsdFor(price, estimate) : 0;
+  const attemptId = randomUUID();
+  const usageRef = assistantUsageCol(db, userId).doc(day);
+  const spendRef = assistantSpendCol(db).doc(month);
+  const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
+
+  await db.runTransaction(async (tx) => {
+    const [usageSnap, spendSnap] = await Promise.all([tx.get(usageRef), tx.get(spendRef)]);
+    const usage = usageSnap.data() ?? { tokens: 0, inFlight: {}, updatedAt: Timestamp.now() };
+    const spend = spendSnap.data() ?? { microUsd: 0, updatedAt: Timestamp.now() };
+    // Slots whose lease expired belong to calls that died; their charge stays, the slot goes.
+    const inFlight = Object.fromEntries(
+      Object.entries(usage.inFlight).filter(
+        ([, startedAt]) => now.getTime() - startedAt < ATTEMPT_LEASE_MS,
+      ),
+    );
+    if (Object.keys(inFlight).length >= MAX_IN_FLIGHT)
+      throw new BudgetError('ASSISTANT_BUSY', null);
+    if (usage.tokens + reservedTokens > caps.dailyTokens)
+      throw new BudgetError('ASSISTANT_DAILY_CAP', nextDayStart(day));
+    if (price && spend.microUsd + reservedMicroUsd > caps.monthlyMicroUsd)
+      throw new BudgetError('ASSISTANT_MONTHLY_CAP', nextMonthStart(month));
+
+    const stamp = Timestamp.fromDate(now);
+    tx.set(usageRef, {
+      tokens: usage.tokens + reservedTokens,
+      inFlight: { ...inFlight, [attemptId]: now.getTime() },
+      updatedAt: stamp,
+    });
+    if (price) tx.set(spendRef, { microUsd: spend.microUsd + reservedMicroUsd, updatedAt: stamp });
+    const attempt: AssistantAttemptDoc = {
+      day,
+      month,
+      reservedTokens,
+      reservedMicroUsd,
+      inputMicroUsdPerToken: price?.inputMicroUsdPerToken ?? 0,
+      outputMicroUsdPerToken: price?.outputMicroUsdPerToken ?? 0,
+      state: 'RESERVED',
+      createdAt: stamp,
+      expiresAt: Timestamp.fromMillis(now.getTime() + ATTEMPT_RETENTION_DAYS * 86_400_000),
+    };
+    tx.create(attemptRef, attempt);
+  });
+  return { attemptId, day, month, reservedTokens, reservedMicroUsd };
+}
+
+/**
+ * Replaces the reservation with actual usage, exactly once, in the day and month the
+ * attempt was reserved on. A second call is a no-op; a late call never touches today.
+ */
+export async function settleAttempt(
+  db: Firestore,
+  userId: string,
+  attemptId: string,
+  actual: { inputTokens: number; outputTokens: number },
+  now: Date,
+): Promise<void> {
+  const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
+  await db.runTransaction(async (tx) => {
+    const attempt = (await tx.get(attemptRef)).data();
+    if (!attempt || attempt.state === 'SETTLED') return;
+    const usageRef = assistantUsageCol(db, userId).doc(attempt.day);
+    const spendRef = assistantSpendCol(db).doc(attempt.month);
+    const [usageSnap, spendSnap] = await Promise.all([tx.get(usageRef), tx.get(spendRef)]);
+    const settledTokens = actual.inputTokens + actual.outputTokens;
+    // Priced with the price the attempt was reserved at; 0 on the user's own key.
+    const settledMicroUsd = microUsdFor(
+      {
+        inputMicroUsdPerToken: attempt.inputMicroUsdPerToken,
+        outputMicroUsdPerToken: attempt.outputMicroUsdPerToken,
+      },
+      actual,
+    );
+    const stamp = Timestamp.fromDate(now);
+    const usage = usageSnap.data();
+    if (usage) {
+      const inFlight = Object.fromEntries(
+        Object.entries(usage.inFlight).filter(([id]) => id !== attemptId),
+      );
+      tx.set(usageRef, {
+        tokens: Math.max(0, usage.tokens - attempt.reservedTokens + settledTokens),
+        inFlight,
+        updatedAt: stamp,
+      });
+    }
+    const spend = spendSnap.data();
+    if (spend && attempt.reservedMicroUsd > 0)
+      tx.set(spendRef, {
+        microUsd: Math.max(0, spend.microUsd - attempt.reservedMicroUsd + settledMicroUsd),
+        updatedAt: stamp,
+      });
+    tx.update(attemptRef, { state: 'SETTLED', settledTokens, settledMicroUsd, settledAt: stamp });
+  });
+}

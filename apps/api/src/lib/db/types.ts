@@ -179,3 +179,36 @@ export type AssistantAuditDoc = {
   occurredAt: Timestamp;
   expiresAt: Timestamp;
 };
+
+/** users/{uid}/assistantUsage/{YYYY-MM-DD}: the user's assistant tokens for one UTC day. */
+export type AssistantUsageDoc = {
+  /** Reserved worst case, replaced by the actual usage on settlement. */
+  tokens: number;
+  /** attemptId -> startedAt millis, for the model calls currently in flight. */
+  inFlight: Record<string, number>;
+  updatedAt: Timestamp;
+};
+
+/** assistantSpend/{YYYY-MM}: the deployment key's spend for one UTC month. */
+export type AssistantSpendDoc = {
+  microUsd: number;
+  updatedAt: Timestamp;
+};
+
+/** users/{uid}/assistantAttempts/{attemptId}: one reserved, then settled, model call. */
+export type AssistantAttemptDoc = {
+  day: string;
+  month: string;
+  reservedTokens: number;
+  reservedMicroUsd: number;
+  /** The price at reservation, used again at settlement; both 0 on the user's own key. */
+  inputMicroUsdPerToken: number;
+  outputMicroUsdPerToken: number;
+  state: 'RESERVED' | 'SETTLED';
+  settledTokens?: number;
+  settledMicroUsd?: number;
+  createdAt: Timestamp;
+  settledAt?: Timestamp;
+  /** createdAt + ATTEMPT_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};

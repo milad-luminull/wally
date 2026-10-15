@@ -30,6 +30,10 @@ const envSchema = z.object({
   // FIREBASE_PROJECT_ID. The Cloud Run service account needs roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('europe-west1'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
+  // Per-user daily cap, in tokens, on every key; and the deployment key's monthly cap in
+  // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.
+  ASSISTANT_DAILY_CAP_TOKENS: z.coerce.number().int().positive().default(300_000),
+  ASSISTANT_MONTHLY_CAP_MICRO_USD: z.coerce.number().int().positive().default(15_000_000),
 });
 
 export type Env = z.infer<typeof envSchema>;
