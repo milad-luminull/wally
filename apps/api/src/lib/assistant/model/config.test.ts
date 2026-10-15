@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseModelRef, resolveLanguageModel } from './config.js';
+import {
+  defaultProviderOptions,
+  GEMINI_25_THINKING_BUDGET,
+  parseModelRef,
+  resolveLanguageModel,
+} from './config.js';
 
 const env: Parameters<typeof resolveLanguageModel>[1] = {
   ASSISTANT_VERTEX_LOCATION: 'europe-west1',
@@ -57,5 +62,22 @@ describe('resolveLanguageModel', () => {
       },
     );
     expect(model.modelId).toBe('gemini-3.8-flash');
+  });
+});
+
+describe('defaultProviderOptions', () => {
+  it('bounds Gemini thinking by level from Gemini 3 on, and by budget on Gemini 2.5', () => {
+    expect(defaultProviderOptions({ provider: 'vertex', model: 'gemini-3.8-flash' })).toEqual({
+      vertex: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+    expect(defaultProviderOptions({ provider: 'vertex', model: 'gemini-2.5-flash' })).toEqual({
+      vertex: { thinkingConfig: { thinkingBudget: GEMINI_25_THINKING_BUDGET } },
+    });
+  });
+  it('leaves other models alone', () => {
+    expect(
+      defaultProviderOptions({ provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' }),
+    ).toBeUndefined();
+    expect(defaultProviderOptions({ provider: 'vertex', model: 'gemma-3-27b-it' })).toBeUndefined();
   });
 });

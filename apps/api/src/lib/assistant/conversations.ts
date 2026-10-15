@@ -64,18 +64,24 @@ export async function loadConversation(
   return doc && doc.boardId === boardId ? doc : null;
 }
 
+/**
+ * The caller's most recent open conversation on the board with the deployment's current
+ * model. One pinned to another model can no longer take a turn (it answers 409), so it is
+ * not offered to continue.
+ */
 export async function latestOpenConversation(
   db: Firestore,
   userId: string,
   boardId: string,
+  model: string,
 ): Promise<WithId<AssistantConversationDoc> | null> {
-  // Two equality filters need no composite index; the sort is done here.
+  // Two equality filters need no composite index; the model filter and the sort are done here.
   const open = docsWithId(
     await assistantConversationsCol(db, userId)
       .where('boardId', '==', boardId)
       .where('status', '==', 'OPEN')
       .get(),
-  );
+  ).filter((conversation) => conversation.model === model);
   open.sort((a, b) => b.lastTurnAt.toMillis() - a.lastTurnAt.toMillis());
   return open[0] ?? null;
 }
@@ -97,8 +103,10 @@ export function messagesBytes(messages: readonly unknown[]): number {
  *
  * `expectedTurns` is the turn count the caller loaded before running the model. The
  * transaction refuses with 409 ASSISTANT_CONVERSATION_CLOSED when the conversation is no
- * longer OPEN or another turn was recorded since, so concurrent turns on one conversation
- * cannot overwrite each other's history or record a turn past MAX_TURNS.
+ * longer OPEN, and with 409 ASSISTANT_TURN_CONFLICT when another turn was recorded since (a
+ * second tab, say: the conversation is still open, so the client reloads it rather than
+ * abandoning it). Concurrent turns on one conversation cannot overwrite each other's history
+ * or record a turn past MAX_TURNS.
  */
 export async function appendTurn(
   db: Firestore,
@@ -118,8 +126,14 @@ export async function appendTurn(
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
     if (!current) throw new AppError(404, 'NOT_FOUND', 'Not found');
-    if (current.status !== 'OPEN' || current.turns !== turn.expectedTurns)
+    if (current.status !== 'OPEN')
       throw new AppError(409, 'ASSISTANT_CONVERSATION_CLOSED', 'This conversation is closed');
+    if (current.turns !== turn.expectedTurns)
+      throw new AppError(
+        409,
+        'ASSISTANT_TURN_CONFLICT',
+        'Another turn was recorded on this conversation',
+      );
     const tooBig = turn.messages !== null && messagesBytes(turn.messages) > MAX_MESSAGES_BYTES;
     const messages = tooBig ? current.messages : (turn.messages ?? current.messages);
     const usage = turn.usage ?? ZERO_USAGE;

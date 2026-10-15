@@ -25,6 +25,22 @@ if (!uid || !boardId || !question) {
   process.exit(2);
 }
 const env = loadEnv();
+console.log(
+  "note: this script bypasses the deployment switch and the board owner's switch, and charges the deployment key.",
+);
+
+/** The calendar date in `timeZone` as YYYY-MM-DD: the date the user sees, not UTC's. */
+function localDate(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: 'year' | 'month' | 'day') => parts.find((p) => p.type === type)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 // getDb, like the maintenance script: it honours FIRESTORE_DATABASE_ID and the configured
 // credentials, so the same command reads the emulator locally and the named database elsewhere.
 const db = getDb();
@@ -42,8 +58,8 @@ try {
       role,
       request: {
         message: question,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        today: new Date().toISOString().slice(0, 10),
+        timeZone,
+        today: localDate(new Date(), timeZone),
       },
     },
   );

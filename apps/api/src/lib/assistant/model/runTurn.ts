@@ -11,7 +11,12 @@ import {
   zodSchema,
 } from 'ai';
 import type { Env } from '../../../env.js';
-import { parseModelRef, resolveLanguageModel } from './config.js';
+import {
+  defaultProviderOptions,
+  parseModelRef,
+  resolveLanguageModel,
+  type ModelProviderOptions,
+} from './config.js';
 import type {
   AttemptLease,
   PendingApproval,
@@ -30,7 +35,10 @@ import type {
  * its usage afterwards; the library's own retries are off, so every call is one the ledger
  * has seen.
  */
-export function createTurnRunner(model: LanguageModel): TurnRunner {
+export function createTurnRunner(
+  model: LanguageModel,
+  options: { providerOptions?: ModelProviderOptions } = {},
+): TurnRunner {
   return async (input: TurnInput): Promise<TurnOutput> => {
     // The library collects approval responses only from a trailing tool message; a user
     // message after it would run the approved write and then fail before any model call.
@@ -87,6 +95,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       });
     }
     const settled: TurnUsage[] = [];
+    let unsettledSteps = 0;
     const executed: ToolCallRecord[] = [];
     const result = await generateText({
       model,
@@ -97,6 +106,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       toolApproval,
       maxRetries: 0,
       maxOutputTokens: input.maxOutputTokens,
+      ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       abortSignal: input.abortSignal,
       stopWhen: stepCountIs(input.maxSteps),
       prepareStep: async ({ stepNumber, messages: stepMessages }) => {
@@ -110,8 +120,12 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       },
       onStepEnd: async (step) => {
         const usage = toUsage(step.usage);
-        settled.push(usage);
-        await lease?.settle(usage);
+        // Usage the provider did not report keeps the reservation (WALLY_AGENT.md §3.2):
+        // the step may have been billed, so its worst case stays charged.
+        if (usage) {
+          settled.push(usage);
+          await lease?.settle(usage);
+        } else unsettledSteps++;
         lease = undefined;
       },
       onToolExecutionEnd: ({ toolCall, toolOutput }) => {
@@ -156,6 +170,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       pendingApprovals,
       toolCalls,
       usage: sum(settled),
+      unsettledSteps,
       steps: result.steps.length,
       finishReason: result.finishReason,
       messages: [...messages, ...result.responseMessages],
@@ -213,16 +228,27 @@ export function createConfiguredTurnRunner(
     | 'ASSISTANT_VERTEX_LOCATION'
     | 'ASSISTANT_VERTEX_PROJECT'
     | 'FIREBASE_PROJECT_ID'
+    | 'FIREBASE_CLIENT_EMAIL'
+    | 'FIREBASE_PRIVATE_KEY'
   >,
 ): TurnRunner {
-  return createTurnRunner(resolveLanguageModel(parseModelRef(env.ASSISTANT_MODEL), env));
+  const ref = parseModelRef(env.ASSISTANT_MODEL);
+  return createTurnRunner(resolveLanguageModel(ref, env), {
+    providerOptions: defaultProviderOptions(ref),
+  });
 }
 
-function toUsage(usage: LanguageModelUsage): TurnUsage {
+const isCount = (n: number | undefined): n is number =>
+  typeof n === 'number' && Number.isFinite(n) && n >= 0;
+
+/** Null when the provider did not report a usable input or output count. */
+function toUsage(usage: LanguageModelUsage): TurnUsage | null {
+  const { inputTokens, outputTokens } = usage;
+  if (!isCount(inputTokens) || !isCount(outputTokens)) return null;
   return {
-    inputTokens: usage.inputTokens ?? 0,
+    inputTokens,
     cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-    outputTokens: usage.outputTokens ?? 0,
+    outputTokens,
     reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
   };
 }

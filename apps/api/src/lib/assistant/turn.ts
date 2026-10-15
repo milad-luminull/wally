@@ -13,7 +13,7 @@ import { listNotes } from '../commands/queries.js';
 import type { AssistantConversationDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { CHARS_PER_TOKEN, estimateTokens } from './budget/estimate.js';
-import { BudgetError, reserveAttempt, settleAttempt } from './budget/ledger.js';
+import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { resolveChips } from './chips.js';
 import {
@@ -68,21 +68,6 @@ class StoppedTurn extends Error {
   constructor(readonly reason: 'TOOL_LIMIT' | 'TIMEOUT') {
     super(reason);
   }
-}
-
-const GRPC_INVALID_ARGUMENT = 3;
-const GRPC_ABORTED = 10;
-
-/**
- * A reservation whose transaction lost to contention (gRPC ABORTED, or INVALID_ARGUMENT for a
- * transaction that expired while retrying) is a busy ledger, not a server fault.
- */
-export function reservationFailure(error: unknown): unknown {
-  if (error instanceof AppError) return error;
-  const code = (error as { code?: unknown } | null)?.code;
-  if (code === GRPC_INVALID_ARGUMENT || code === GRPC_ABORTED)
-    return new BudgetError('ASSISTANT_BUSY', null);
-  return error;
 }
 
 /**
@@ -213,7 +198,7 @@ export async function runAssistantTurn(
           price,
           caps,
         }).catch((error: unknown) => {
-          throw own(reservationFailure(error));
+          throw own(error);
         });
         if (controller.signal.aborted) {
           // The turn stopped while the reservation was being written. No model call follows,
@@ -287,7 +272,7 @@ export async function runAssistantTurn(
       chips,
       partial,
       stopped: output.finishReason === 'length' ? 'LENGTH' : null,
-      at: new Date().toISOString(),
+      at: clock().toISOString(),
     };
   } else {
     assistantEntry = {
@@ -296,7 +281,7 @@ export async function runAssistantTurn(
       chips: [],
       partial: false,
       stopped: outcome === 'completed' ? null : outcome,
-      at: new Date().toISOString(),
+      at: clock().toISOString(),
     };
   }
   const target = await ensureConversation();
@@ -319,6 +304,8 @@ export async function runAssistantTurn(
     steps: ran?.steps ?? 0,
     toolCalls,
     usage: ran?.usage ?? null,
+    // Steps the provider reported no usage for: their reservations stay charged, unsettled.
+    unsettledSteps: ran?.unsettledSteps ?? 0,
     ms: Date.now() - startedAt,
   });
   // Earlier entries' chips are rechecked too: a note may have left the caller's sight since.

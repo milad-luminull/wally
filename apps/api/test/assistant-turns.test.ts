@@ -2,9 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import type { z } from 'zod';
 import { CHARS_PER_TOKEN } from '../src/lib/assistant/budget/estimate.js';
-import { BudgetError, dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
-import { reservationFailure } from '../src/lib/assistant/turn.js';
-import { AppError } from '../src/lib/errors.js';
+import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
 import type {
   TurnInput,
   TurnOutput,
@@ -51,6 +49,7 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
       pendingApprovals: [],
       toolCalls,
       usage,
+      unsettledSteps: 0,
       steps: 1,
       finishReason: 'stop',
       messages: [
@@ -493,6 +492,26 @@ describe('assistant turns', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('rejects an unknown time zone and a malformed conversation id with 400, not 500', async () => {
+    const fx = await createBoardFixture(ctx);
+    const post = (payload: Record<string, unknown>) =>
+      ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/assistant/turns`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { ...body('eins'), ...payload },
+      });
+    const zone = await post({ timeZone: 'Mars/Olympus_Mons' });
+    expect(zone.statusCode).toBe(400);
+    expect(zone.json().error).toBe('BAD_REQUEST');
+    for (const conversationId of ['a/b', 'x'.repeat(129), 'with space']) {
+      const id = await post({ conversationId });
+      expect(id.statusCode, conversationId).toBe(400);
+      expect(id.json().error, conversationId).toBe('BAD_REQUEST');
+    }
+    expect((await assistantConversationsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+  });
+
   it('answers the route rate limit with the app envelope, without a reset time', async () => {
     const fx = await createBoardFixture(ctx);
     // A caller of its own, so the other tests' turns do not count against this budget.
@@ -503,21 +522,5 @@ describe('assistant turns', () => {
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({ error: 'RATE_LIMITED', message: expect.any(String) });
     expect(res.json().resetsAt).toBeUndefined();
-  });
-});
-
-describe('reservationFailure', () => {
-  it('turns transaction contention into a busy refusal and leaves everything else alone', () => {
-    for (const code of [3, 10]) {
-      const mapped = reservationFailure(Object.assign(new Error('contention'), { code }));
-      expect(mapped).toBeInstanceOf(BudgetError);
-      expect(mapped).toMatchObject({ code: 'ASSISTANT_BUSY', resetsAt: null });
-    }
-    const cap = new BudgetError('ASSISTANT_DAILY_CAP', null);
-    expect(reservationFailure(cap)).toBe(cap);
-    const app = new AppError(404, 'NOT_FOUND', 'Not found');
-    expect(reservationFailure(app)).toBe(app);
-    const other = Object.assign(new Error('unavailable'), { code: 14 });
-    expect(reservationFailure(other)).toBe(other);
   });
 });

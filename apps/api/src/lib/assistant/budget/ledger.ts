@@ -31,6 +31,22 @@ export class BudgetError extends AppError {
   }
 }
 
+const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_ABORTED = 10;
+
+/**
+ * A reservation whose transaction lost to contention (gRPC ABORTED, or INVALID_ARGUMENT for a
+ * transaction the emulator or server closed while it retried) is a busy ledger, not a server
+ * fault: the caller is told to try again, and nothing was reserved.
+ */
+export function reservationFailure(error: unknown): unknown {
+  if (error instanceof AppError) return error;
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === GRPC_INVALID_ARGUMENT || code === GRPC_ABORTED)
+    return new BudgetError('ASSISTANT_BUSY', null);
+  return error;
+}
+
 export interface ReserveInput {
   userId: string;
   now: Date;
@@ -89,7 +105,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
       : null;
   const isLive = (startedAt: number) => now.getTime() - startedAt < ATTEMPT_LEASE_MS;
 
-  await db.runTransaction(async (tx) => {
+  const transaction = db.runTransaction(async (tx) => {
     const [usageSnap, spendSnap, previousDaySnap] = await Promise.all([
       tx.get(usageRef),
       tx.get(spendRef),
@@ -132,12 +148,20 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
     };
     tx.create(attemptRef, attempt);
   });
+  // A transaction lost to contention is a busy refusal, like a full in-flight count.
+  await transaction.catch((error: unknown) => {
+    throw reservationFailure(error);
+  });
   return { attemptId, day, month, reservedTokens, reservedMicroUsd };
 }
 
 /**
  * Replaces the reservation with actual usage, exactly once, in the day and month the
  * attempt was reserved on. A second call is a no-op; a late call never touches today.
+ *
+ * Usage that is not a finite, non-negative count is refused before anything is read: the
+ * reservation stays as it is (WALLY_AGENT.md §3.2, missing usage keeps the charge), and NaN
+ * can never reach the counters.
  */
 export async function settleAttempt(
   db: Firestore,
@@ -146,6 +170,9 @@ export async function settleAttempt(
   actual: { inputTokens: number; outputTokens: number },
   now: Date,
 ): Promise<void> {
+  const isCount = (n: number) => Number.isFinite(n) && n >= 0;
+  if (!isCount(actual.inputTokens) || !isCount(actual.outputTokens))
+    throw new Error('Unknown usage: the reservation is kept');
   const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
   await db.runTransaction(async (tx) => {
     const attempt = (await tx.get(attemptRef)).data();

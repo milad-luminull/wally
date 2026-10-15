@@ -1,10 +1,24 @@
 import { z } from 'zod';
 
+/** An IANA zone the runtime knows; anything else would fail later, when the prompt is built. */
+function isTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const assistantTurnRequestSchema = z
   .object({
-    conversationId: z.string().min(1).max(128).optional(),
+    // A Firestore document id, as the API creates them; the pattern me.ts uses for ids.
+    conversationId: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid conversation id')
+      .optional(),
     message: z.string().trim().min(1).max(2000),
-    timeZone: z.string().min(1).max(64),
+    timeZone: z.string().min(1).max(64).refine(isTimeZone, 'Unknown time zone'),
     today: z.string().date(),
   })
   .strict();

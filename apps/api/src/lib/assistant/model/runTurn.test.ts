@@ -77,6 +77,7 @@ describe('createTurnRunner', () => {
     expect(a.settled).toEqual([
       { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
     ]);
+    expect(out.unsettledSteps).toBe(0);
     expect(out.usage).toEqual({
       inputTokens: 10,
       cachedInputTokens: 2,
@@ -457,6 +458,50 @@ describe('createTurnRunner', () => {
     const controller = new AbortController();
     await createTurnRunner(model)(input({ abortSignal: controller.signal }));
     expect(model.doGenerateCalls[0]!.abortSignal).toBe(controller.signal);
+  });
+
+  it('leaves the reservation unsettled when the provider reports no usage', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        {
+          ...text('Ohne Zählung.'),
+          usage: {
+            inputTokens: {
+              total: undefined,
+              noCache: undefined,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+          },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }));
+    expect(out.text).toBe('Ohne Zählung.');
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toEqual([]);
+    expect(out.unsettledSteps).toBe(1);
+    expect(out.usage).toEqual({
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+    });
+  });
+
+  it('passes the provider options it was built with to every model call', async () => {
+    const providerOptions = { vertex: { thinkingConfig: { thinkingLevel: 'low' } } };
+    const model = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('ok')],
+    });
+    await createTurnRunner(model, { providerOptions })(input({}));
+    expect(model.doGenerateCalls).toHaveLength(2);
+    for (const call of model.doGenerateCalls) expect(call.providerOptions).toEqual(providerOptions);
+    const plain = new MockLanguageModelV3({ doGenerate: [text('ok')] });
+    await createTurnRunner(plain)(input({}));
+    expect(plain.doGenerateCalls[0]!.providerOptions).toBeUndefined();
   });
 
   it('sends earlier tool results elided, keeping the calls, and stores them in full', async () => {

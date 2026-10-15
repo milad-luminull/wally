@@ -115,6 +115,7 @@ export default async function assistantRoutes(
         request.server.db,
         request.user.id,
         board.id,
+        env.ASSISTANT_MODEL,
       );
       if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
       return toVisibleConversationDto(request.server.db, request.user, conversation);

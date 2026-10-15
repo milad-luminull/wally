@@ -112,7 +112,7 @@ describe('assistant conversations', () => {
     const older = await createConversation(ctx.db, 'u1', 'b1', 'm', now);
     const newer = await createConversation(ctx.db, 'u1', 'b1', 'm', new Date(now.getTime() + 1000));
     await createConversation(ctx.db, 'u1', 'b2', 'm', new Date(now.getTime() + 2000));
-    expect((await latestOpenConversation(ctx.db, 'u1', 'b1'))?.id).toBe(newer.id);
+    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'm'))?.id).toBe(newer.id);
     for (let i = 0; i < MAX_TURNS; i++)
       await appendTurn(ctx.db, 'u1', newer.id, {
         expectedTurns: i,
@@ -124,7 +124,14 @@ describe('assistant conversations', () => {
         now,
       });
     expect((await loadConversation(ctx.db, 'u1', 'b1', newer.id))?.status).toBe('CLOSED');
-    expect((await latestOpenConversation(ctx.db, 'u1', 'b1'))?.id).toBe(older.id);
+    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'm'))?.id).toBe(older.id);
+  });
+
+  it('does not offer a conversation pinned to another model', async () => {
+    const older = await createConversation(ctx.db, 'u1', 'b1', 'vertex:new', now);
+    await createConversation(ctx.db, 'u1', 'b1', 'vertex:old', new Date(now.getTime() + 1000));
+    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'vertex:new'))?.id).toBe(older.id);
+    expect(await latestOpenConversation(ctx.db, 'u1', 'b1', 'vertex:other')).toBeNull();
   });
 
   it('closes when the stored messages approach the document limit', async () => {
@@ -195,7 +202,7 @@ describe('assistant conversations', () => {
     const stored = await loadConversation(ctx.db, 'u1', 'b1', c.id);
     expect(stored).toMatchObject({ status: 'CLOSED', turns: 1, messages: [] });
     expect(stored?.entries.map((e) => e.text)).toEqual(['q', 'a']);
-    expect(await latestOpenConversation(ctx.db, 'u1', 'b1')).toBeNull();
+    expect(await latestOpenConversation(ctx.db, 'u1', 'b1', 'm')).toBeNull();
   });
 
   it('refuses a turn recorded against a stale turn count and leaves the document untouched', async () => {
@@ -212,7 +219,7 @@ describe('assistant conversations', () => {
     await appendTurn(ctx.db, 'u1', c.id, first);
     await expect(
       appendTurn(ctx.db, 'u1', c.id, { ...first, messages: [{ x: 2 }] }),
-    ).rejects.toMatchObject({ statusCode: 409, code: 'ASSISTANT_CONVERSATION_CLOSED' });
+    ).rejects.toMatchObject({ statusCode: 409, code: 'ASSISTANT_TURN_CONFLICT' });
     const stored = await loadConversation(ctx.db, 'u1', 'b1', c.id);
     expect(stored).toMatchObject({ turns: 1, messages: [{ x: 1 }] });
     expect(stored?.entries).toHaveLength(2);
@@ -239,7 +246,7 @@ describe('assistant conversations', () => {
     expect(rejected).toHaveLength(1);
     expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
       statusCode: 409,
-      code: 'ASSISTANT_CONVERSATION_CLOSED',
+      code: 'ASSISTANT_TURN_CONFLICT',
     });
     const stored = await loadConversation(ctx.db, 'u1', 'b1', c.id);
     expect(stored?.turns).toBe(1);

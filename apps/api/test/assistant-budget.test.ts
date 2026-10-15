@@ -5,9 +5,11 @@ import {
   MAX_IN_FLIGHT,
   monthKey,
   nextDayStart,
+  reservationFailure,
   reserveAttempt,
   settleAttempt,
 } from '../src/lib/assistant/budget/ledger.js';
+import { AppError } from '../src/lib/errors.js';
 import {
   assistantAttemptsCol,
   assistantSpendCol,
@@ -172,30 +174,80 @@ describe('assistant budget ledger', () => {
   });
 
   it('never overshoots a cap under concurrent reservations', async () => {
-    const single = await Promise.allSettled(
-      Array.from({ length: 5 }, () =>
-        reserveAttempt(ctx.db, {
-          userId: 'solo',
-          now,
-          estimate: { inputTokens: 100, outputTokens: 0 },
-          price,
-          caps: { dailyTokens: 350, monthlyMicroUsd: 1_000_000 },
-        }).then(async (r) => {
-          await settleAttempt(
-            ctx.db,
-            'solo',
-            r.attemptId,
-            { inputTokens: 100, outputTokens: 0 },
+    // 350: the in-flight bound binds first; 150: the token cap does.
+    for (const [userId, dailyTokens] of [
+      ['solo', 350],
+      ['tight', 150],
+    ] as const) {
+      const single = await Promise.allSettled(
+        Array.from({ length: 5 }, () =>
+          reserveAttempt(ctx.db, {
+            userId,
             now,
-          );
-          return r;
-        }),
-      ),
-    );
-    const ok = single.filter((s) => s.status === 'fulfilled').length;
-    expect(ok).toBe(3);
-    expect((await assistantUsageCol(ctx.db, 'solo').doc('2026-10-15').get()).data()!.tokens).toBe(
-      300,
-    );
+            estimate: { inputTokens: 100, outputTokens: 0 },
+            price,
+            caps: { dailyTokens, monthlyMicroUsd: 1_000_000 },
+          }),
+        ),
+      );
+      // How many win depends on timing (contention can refuse some before any bound does);
+      // the invariants do not.
+      const won = single.flatMap((s) => (s.status === 'fulfilled' ? [s.value] : []));
+      expect(won.length, userId).toBeGreaterThanOrEqual(1);
+      expect(won.length, userId).toBeLessThanOrEqual(
+        Math.min(Math.floor(dailyTokens / 100), MAX_IN_FLIGHT),
+      );
+      for (const s of single)
+        if (s.status === 'rejected') expect(s.reason, userId).toBeInstanceOf(BudgetError);
+      for (const r of won)
+        await settleAttempt(
+          ctx.db,
+          userId,
+          r.attemptId,
+          { inputTokens: 100, outputTokens: 0 },
+          now,
+        );
+      const day = (await assistantUsageCol(ctx.db, userId).doc('2026-10-15').get()).data()!;
+      expect(day.tokens, userId).toBeLessThanOrEqual(dailyTokens);
+      expect(day.tokens, userId).toBe(won.length * 100);
+      expect(day.inFlight, userId).toEqual({});
+    }
+  });
+
+  it('refuses usage that is not a count and keeps the reservation', async () => {
+    const r = await reserve();
+    for (const bad of [
+      { inputTokens: Number.NaN, outputTokens: 10 },
+      { inputTokens: 10, outputTokens: Number.POSITIVE_INFINITY },
+      { inputTokens: -1, outputTokens: 10 },
+    ])
+      await expect(settleAttempt(ctx.db, 'u1', r.attemptId, bad, now)).rejects.toThrow(
+        'Unknown usage',
+      );
+    const usage = (await assistantUsageCol(ctx.db, 'u1').doc(r.day).get()).data();
+    expect(usage).toMatchObject({ tokens: 3000 });
+    expect(Object.keys(usage!.inFlight)).toEqual([r.attemptId]);
+    expect((await assistantSpendCol(ctx.db).doc(r.month).get()).data()).toMatchObject({
+      microUsd: 10500,
+    });
+    expect((await assistantAttemptsCol(ctx.db, 'u1').doc(r.attemptId).get()).data()).toMatchObject({
+      state: 'RESERVED',
+    });
+  });
+});
+
+describe('reservationFailure', () => {
+  it('turns transaction contention into a busy refusal and leaves everything else alone', () => {
+    for (const code of [3, 10]) {
+      const mapped = reservationFailure(Object.assign(new Error('contention'), { code }));
+      expect(mapped).toBeInstanceOf(BudgetError);
+      expect(mapped).toMatchObject({ code: 'ASSISTANT_BUSY', resetsAt: null });
+    }
+    const cap = new BudgetError('ASSISTANT_DAILY_CAP', null);
+    expect(reservationFailure(cap)).toBe(cap);
+    const app = new AppError(404, 'NOT_FOUND', 'Not found');
+    expect(reservationFailure(app)).toBe(app);
+    const other = Object.assign(new Error('unavailable'), { code: 14 });
+    expect(reservationFailure(other)).toBe(other);
   });
 });
