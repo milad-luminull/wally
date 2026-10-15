@@ -161,6 +161,86 @@ describe('whiteboard routes', () => {
     });
   });
 
+  describe('PATCH /whiteboards/:id/assistant (owner-only switch)', () => {
+    it('lets the owner switch the assistant off and on again, storing only the flag', async () => {
+      const fx = await createBoardFixture(ctx);
+      const off = await ctx.inject({
+        method: 'PATCH',
+        url: `/whiteboards/${fx.boardId}/assistant`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { enabled: false },
+      });
+      expect(off.statusCode).toBe(200);
+      expect(off.json().assistantEnabled).toBe(false);
+      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.assistantDisabled).toBe(
+        true,
+      );
+      const revisionAfterOff = off.json().revision;
+
+      const on = await ctx.inject({
+        method: 'PATCH',
+        url: `/whiteboards/${fx.boardId}/assistant`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { enabled: true },
+      });
+      expect(on.statusCode).toBe(200);
+      expect(on.json().revision).toBe(revisionAfterOff + 1);
+      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.assistantDisabled).toBe(
+        false,
+      );
+    });
+
+    it('is a no-op when the value does not change', async () => {
+      const fx = await createBoardFixture(ctx);
+      const before = (
+        await ctx.inject({
+          method: 'GET',
+          url: `/whiteboards/${fx.boardId}`,
+          headers: ctx.authHeader(fx.ownerToken),
+        })
+      ).json().revision;
+      const res = await ctx.inject({
+        method: 'PATCH',
+        url: `/whiteboards/${fx.boardId}/assistant`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { enabled: true },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().revision).toBe(before);
+    });
+
+    it('is refused for editors, viewers and outsiders', async () => {
+      const fx = await createBoardFixture(ctx);
+      for (const [token, status] of [
+        [fx.editToken, 403],
+        [fx.viewToken, 403],
+        [fx.outsiderToken, 404],
+      ] as const) {
+        const res = await ctx.inject({
+          method: 'PATCH',
+          url: `/whiteboards/${fx.boardId}/assistant`,
+          headers: ctx.authHeader(token),
+          payload: { enabled: false },
+        });
+        expect(res.statusCode).toBe(status);
+      }
+      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()).not.toHaveProperty(
+        'assistantDisabled',
+      );
+    });
+
+    it('rejects a body without a boolean', async () => {
+      const fx = await createBoardFixture(ctx);
+      const res = await ctx.inject({
+        method: 'PATCH',
+        url: `/whiteboards/${fx.boardId}/assistant`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { enabled: 'no' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
   describe('GET /whiteboards/:id/members', () => {
     it('200s for owner, EDIT, and VIEW; 404 for non-member', async () => {
       const fx = await createBoardFixture(ctx);

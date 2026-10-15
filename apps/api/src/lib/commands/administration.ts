@@ -107,6 +107,18 @@ export async function executeAdminCommand(
       ),
     );
   }
+  if (command.type === 'board.assistant') {
+    const disabled = !command.input.enabled;
+    if ((board.assistantDisabled === true) === disabled)
+      return result(toWhiteboardDto(board, 'OWNER'), 200, revisionOf(board));
+    updateBoard({ assistantDisabled: disabled });
+    return result(
+      toWhiteboardDto(
+        { ...board, assistantDisabled: disabled, updatedAt: timestamp, revision },
+        'OWNER',
+      ),
+    );
+  }
 
   // Tombstone, withdraw the share link and enqueue the physical deletion, all in this commit.
   // From here the board reads as absent for everyone (liveWhiteboard); the cleanup job removes

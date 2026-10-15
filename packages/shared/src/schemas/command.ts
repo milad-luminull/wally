@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { whiteboardCreateSchema, whiteboardRenameSchema } from './board.js';
+import {
+  whiteboardAssistantSchema,
+  whiteboardCreateSchema,
+  whiteboardRenameSchema,
+} from './board.js';
 import { inviteCreateSchema, memberRoleUpdateSchema, shareLinkRoleSchema } from './member.js';
 import {
   noteAssignSchema,
@@ -57,6 +61,13 @@ export const boardCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('subtask.delete'), ...note, subtaskId: id, input: empty }).strict(),
   z
     .object({ type: z.literal('board.rename'), ...board, input: whiteboardRenameSchema.strict() })
+    .strict(),
+  z
+    .object({
+      type: z.literal('board.assistant'),
+      ...board,
+      input: whiteboardAssistantSchema.strict(),
+    })
     .strict(),
   z.object({ type: z.literal('board.create'), input: whiteboardCreateSchema.strict() }).strict(),
   z.object({ type: z.literal('board.delete'), ...board, input: empty }).strict(),

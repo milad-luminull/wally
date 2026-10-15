@@ -99,6 +99,12 @@ export default async function boardRoutes(app: FastifyInstance) {
       response: whiteboardDtoSchema,
     },
     {
+      method: 'PATCH',
+      url: '/whiteboards/:id/assistant',
+      type: 'board.assistant',
+      response: whiteboardDtoSchema,
+    },
+    {
       method: 'POST',
       url: '/whiteboards/:id/members/invite',
       type: 'member.invite',

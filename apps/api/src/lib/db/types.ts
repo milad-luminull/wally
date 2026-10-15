@@ -86,6 +86,11 @@ export type WhiteboardDoc = {
   memberRoles: Record<string, WhiteboardRole>;
   /** Mirrors the id of this board's shareLinks document, so the lookup is one read. */
   shareLinkToken: string | null;
+  /**
+   * Set by board.assistant. Absent or false means the deployment switch alone decides, so
+   * every board that existed before the assistant stays enabled with it.
+   */
+  assistantDisabled?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
