@@ -59,3 +59,4 @@ A guide changes by normal PR as long as it stays inside its ADR. Changing the de
 | [0010](0010-board-commands-revisions-and-receipts.md)                | Board commands with transactional permissions, revisions and receipts                          | proposed |
 | [0011](0011-boards-as-independent-aggregates.md)                     | Boards as independent aggregates: several per owner, deletable, with a tombstone               | proposed |
 | [0012](0012-skip-e2e-on-documentation-only-pull-requests.md)         | Skip E2E on documentation-only pull requests                                                   | proposed |
+| [0013](0013-model-library-behind-an-owned-boundary.md)               | The Vercel AI SDK as the model library, behind a boundary Wally owns                           | accepted |

@@ -1,13 +1,13 @@
 # Wally over MCP — plan
 
 **Status:** proposal, not yet approved. Blocking decisions are in §8.
-**Sequencing:** after the in-app assistant ([`WALLY_AGENT.md`](WALLY_AGENT.md)) reaches its
-agentic stage, or in parallel once its M1 has landed, since M1 is the tool set this
+**Sequencing:** after the in-app assistant ([`WALLY_AGENT.md`](WALLY_AGENT.md)) ships, or
+in parallel once its operation set (§3.3 there) has landed, since that is what this
 proposal serves. Nothing in the assistant plan depends on this document.
 **Last revised:** 2026-10-12. Facts were checked on that date (§9); re-check them before
 building, since this landscape changes monthly.
 
-Read next to [`WALLY_AGENT.md`](WALLY_AGENT.md), which defines the tools (§4.2 there), the
+Read next to [`WALLY_AGENT.md`](WALLY_AGENT.md), which defines the operations (§3.3 there), the
 command layer they call ([ADR-0010](../adr/0010-board-commands-revisions-and-receipts.md))
 and the attribution and audit rules. This document adds a transport and a token layer; it
 does not define a second tool set.
@@ -184,7 +184,7 @@ that review.
 The adapter supplies `via: mcp` and the `connectionId` as trusted execution context, never
 as model-controlled arguments. Receipts bind the operation to that context, so a different
 connection cannot replay another connection's result. The audit event defined in the
-assistant plan (§4.2 there) is written in the same command transaction, with the
+assistant plan (§3.3 there) is written in the same command transaction, with the
 connection id in place of the conversation and approval ids.
 
 ---
@@ -263,8 +263,8 @@ database.
 
 ## 5. Milestones
 
-Each milestone is one PR and leaves `make test` and `make lint` green. M1 of the assistant
-plan (the tool set, provenance and audit events) is the prerequisite.
+Each milestone is one PR and leaves `make test` and `make lint` green. The assistant
+plan's operation set, provenance and audit record (§3.3 there) are the prerequisite.
 
 | #   | Outcome                           | Done when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | --- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -290,8 +290,8 @@ plan (the tool set, provenance and audit events) is the prerequisite.
       on the user's own account, and how shared boards are handled (§8, decision 3).
 - [ ] ORG-04: the privacy notice names the MCP connection, the two scopes, and what a
       connected host can read and change.
-- [ ] The audit events' inventory, retention and GAP-08 review from the assistant plan's
-      M1 are complete before MCP writes launch.
+- [ ] The audit record's inventory, retention and GAP-08 review from the assistant plan
+      (§5 there) are complete before MCP writes launch.
 
 ---
 
