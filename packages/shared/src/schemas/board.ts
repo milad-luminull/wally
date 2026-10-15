@@ -17,8 +17,13 @@ export const whiteboardDtoSchema = z.object({
   name: z.string(),
   ownerId: z.string(),
   currentUserRole: effectiveRoleSchema,
-  /** Deployment switch and, later, the per-board switch combined: what the web shows. */
-  assistantEnabled: z.boolean(),
+  /**
+   * Deployment switch and, later, the per-board switch combined: what the web shows.
+   * Defaults to false because board.create and board.rename store this DTO in their
+   * idempotency receipt, and a replay returns it unchanged: a receipt written before this
+   * field existed must still parse within its seven-day window rather than fail as a 500.
+   */
+  assistantEnabled: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { whiteboardsCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
@@ -98,6 +99,32 @@ describe('whiteboard routes', () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().name).toBe('Neuer Name');
+    });
+
+    it('replays a receipt written before assistantEnabled existed, reading it as false', async () => {
+      const fx = await createBoardFixture(ctx);
+      const revision = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.revision ?? 0;
+      const request = {
+        method: 'PATCH' as const,
+        url: `/whiteboards/${fx.boardId}`,
+        headers: {
+          ...ctx.authHeader(fx.ownerToken),
+          'idempotency-key': randomUUID(),
+          'x-expected-revision': String(revision),
+        },
+        payload: { name: 'Neuer Name' },
+      };
+      const first = await ctx.inject(request);
+      expect(first.statusCode).toBe(200);
+
+      // Make the stored receipt look like one written before this deploy.
+      await ctx.db
+        .doc(`users/${fx.ownerId}/boardOperations/${request.headers['idempotency-key']}`)
+        .update({ 'result.data.assistantEnabled': FieldValue.delete() });
+
+      const replay = await ctx.inject(request);
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json()).toMatchObject({ name: 'Neuer Name', assistantEnabled: false });
     });
 
     it('403s for an EDIT member', async () => {

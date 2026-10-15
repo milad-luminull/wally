@@ -862,10 +862,11 @@ The release remains subject to the existing CI and production environment approv
 
 Before promotion:
 
-1. Deploy `firestore.indexes.json`, including the `boardOperations.expiresAt` TTL policy, to
-   the configured named database. Confirm the TTL policy is active in Firestore. TTL removal
-   is asynchronous, usually within 24 hours after expiry; seven days is the supported retry
-   window, not an exact erasure time. Do not enable TTL on `boardCleanup`.
+1. Deploy `firestore.indexes.json`, including both TTL policies, `boardOperations.expiresAt`
+   and `assistantAudit.expiresAt`, to the configured named database. Confirm both TTL
+   policies are active in Firestore. TTL removal is asynchronous, usually within 24 hours
+   after expiry; seven days (receipts) and 30 days (assistant audit records) are retention
+   targets, not exact erasure times. Do not enable TTL on `boardCleanup`.
 2. Run the reconciliation command below against the intended database in dry-run mode.
    Review its counts, then apply repairs if needed. Repairs re-read each board transactionally.
 3. Run emulator/browser tests, lint, typecheck and build. The full authenticated Playwright
