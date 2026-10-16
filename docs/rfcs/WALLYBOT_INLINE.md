@@ -1,6 +1,6 @@
 # Wallybot inline — review and plan
 
-**Status:** proposal, not yet approved. Decisions needed are in §6.
+**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day.
 **Last revised:** 2026-10-16.
 **Sources:** the first customer feedback (write the title and text on the board itself, the
 sidebar only for details); the Claude Design page "Wallybot Inline" and its notes document
@@ -179,7 +179,7 @@ Each slice follows the process of the previous ones: a plan with full code per t
 implementing and reviewing in sequence, a whole-branch review, one fix wave, a visual pass in
 the browser pane against the live board.
 
-## 6. Decisions needed
+## 6. Decisions (all approved as recommended, 2026-10-16)
 
 1. **Silence means yes, for enrichment of a fresh note only.** Recommended: yes, with
    "always ask me" as a setting and no auto-apply for anything that touches an existing note
