@@ -106,6 +106,14 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     }
   }
   if (message.startsWith('markers:')) return finish(message.slice('markers:'.length));
+  if (message.startsWith('titles:')) {
+    // The titles exactly as the read tools hand them to the model.
+    const list = (await tool('list_notes').execute({})) as { notes: { title: string }[] };
+    const note = (await tool('get_note').execute({ noteId: message.slice('titles:'.length) })) as {
+      title: string;
+    };
+    return finish(`${list.notes.map((n) => n.title).join('|')}/${note.title}`);
+  }
   /**
    * Thirteen calls with each thrown error kept as a tool result, as the library does: a tool
    * that throws becomes an error-text result, and the step still ends (runTurn.test.ts).
@@ -354,6 +362,41 @@ describe('assistant turns', () => {
       text: 'Siehe und Sichtbar.',
       chips: [{ id: shared.id, title: 'Sichtbar' }],
     });
+  });
+
+  it("presents an untitled note under the untitled label in the caller's language, leaving it stored as is", async () => {
+    const fx = await createBoardFixture(ctx);
+    const note = (await createNote(fx.ownerToken, fx.boardId, '')).json();
+    expect(note.title).toBe('');
+    // The fixture users carry DEFAULT_LANGUAGE, which is 'de'.
+    const de = await turn(fx.ownerToken, fx.boardId, `titles:${note.id}`);
+    expect(de.json().conversation.entries[1].text).toBe('Ohne Titel/Ohne Titel');
+    const deMarkers = await turn(fx.ownerToken, fx.boardId, `markers:Offen: [note:${note.id}].`);
+    expect(deMarkers.json().conversation.entries[1]).toMatchObject({
+      text: 'Offen: Ohne Titel.',
+      chips: [{ id: note.id, title: 'Ohne Titel' }],
+    });
+    // An editor who switched to English reads the English label.
+    const patch = await ctx.inject({
+      method: 'PATCH',
+      url: '/me',
+      headers: ctx.authHeader(fx.editToken),
+      payload: { language: 'en' },
+    });
+    expect(patch.statusCode).toBe(200);
+    const en = await turn(fx.editToken, fx.boardId, `titles:${note.id}`);
+    expect(en.json().conversation.entries[1].text).toBe('Untitled/Untitled');
+    const enMarkers = await turn(fx.editToken, fx.boardId, `markers:Open: [note:${note.id}].`);
+    expect(enMarkers.json().conversation.entries[1]).toMatchObject({
+      text: 'Open: Untitled.',
+      chips: [{ id: note.id, title: 'Untitled' }],
+    });
+    const stored = await ctx.inject({
+      method: 'GET',
+      url: `/notes/${note.id}`,
+      headers: ctx.authHeader(fx.ownerToken),
+    });
+    expect(stored.json().title).toBe('');
   });
 
   it('continues a conversation and starts a new one when none is given', async () => {

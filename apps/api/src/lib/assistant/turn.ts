@@ -32,6 +32,7 @@ import {
 import { modelOperationInputs, operationAnnotations, type OperationName } from './operations.js';
 import { buildInstructions } from './prompt.js';
 import { runOperation } from './run.js';
+import { displayTitle } from './untitled.js';
 
 export const MAX_OUTPUT_TOKENS = 1024;
 export const MAX_STEPS = 6;
@@ -62,6 +63,26 @@ export interface TurnRequestContext {
   board: WithId<WhiteboardDoc>;
   role: EffectiveRole;
   request: AssistantTurnRequest;
+}
+
+/**
+ * An untitled note reaches the model under the untitled label, so the model names it the way
+ * the board does and its marker resolves to the same words. Presentation only: the operation
+ * layer and the stored note are untouched.
+ */
+function presentTitles(name: OperationName, data: unknown, language: Language): unknown {
+  if (name === 'list_notes') {
+    const list = data as { notes: { title: string }[] };
+    return {
+      ...list,
+      notes: list.notes.map((row) => ({ ...row, title: displayTitle(row.title, language) })),
+    };
+  }
+  if (name === 'get_note') {
+    const note = data as { title: string };
+    return { ...note, title: displayTitle(note.title, language) };
+  }
+  return data;
 }
 
 class StoppedTurn extends Error {
@@ -143,8 +164,9 @@ export async function runAssistantTurn(
       );
       if (name === 'list_notes' && (result.data as { truncated?: boolean }).truncated)
         partial = true;
-      toolResultChars += JSON.stringify(result.data ?? null).length;
-      return result.data;
+      const data = presentTitles(name, result.data, ctx.language);
+      toolResultChars += JSON.stringify(data ?? null).length;
+      return data;
     },
   }));
   const instructions = buildInstructions({
@@ -263,7 +285,10 @@ export async function runAssistantTurn(
   let assistantEntry: AssistantEntry;
   if (output) {
     const visible = new Map(
-      (await listNotes(db, actor, board.id, { status: 'ALL' })).map((n) => [n.id, n.title]),
+      (await listNotes(db, actor, board.id, { status: 'ALL' })).map((n) => [
+        n.id,
+        displayTitle(n.title, ctx.language),
+      ]),
     );
     const { text, chips } = resolveChips(output.text, visible);
     assistantEntry = {
