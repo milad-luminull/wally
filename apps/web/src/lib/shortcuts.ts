@@ -115,7 +115,7 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[], enabled = true) {
  * App-wide open requests. The palette and the shortcuts sheet are mounted once, by the board;
  * menus anywhere can ask for them without threading callbacks through every layer.
  */
-type OpenRequest = 'palette' | 'shortcuts' | 'share';
+type OpenRequest = 'palette' | 'shortcuts' | 'share' | 'assistant';
 const eventName = (kind: OpenRequest) => `wally:open-${kind}`;
 
 export function requestOpen(kind: OpenRequest) {

@@ -83,6 +83,9 @@ interface BoardCommandsProps {
   onSetDone: (done: boolean) => void;
   onSetMine: (mine: boolean) => void;
   onResetView: () => void;
+  /** The board's question panel is on; without it there is no entry, no key, no help row. */
+  assistantEnabled: boolean;
+  onOpenAssistant: () => void;
 }
 
 function Kbd({ children }: { children: string }) {
@@ -101,6 +104,7 @@ export function BoardCommands(props: BoardCommandsProps) {
 
   useOpenRequest('palette', () => setPaletteOpen(true));
   useOpenRequest('shortcuts', () => setHelpOpen(true));
+  useOpenRequest('assistant', () => props.assistantEnabled && props.onOpenAssistant());
 
   const shortcuts: Shortcut[] = [
     { keys: 'mod+k', allowInInputs: true, handler: () => setPaletteOpen((open) => !open) },
@@ -132,12 +136,26 @@ export function BoardCommands(props: BoardCommandsProps) {
       },
     },
   ];
+  if (props.assistantEnabled) {
+    shortcuts.push({
+      keys: 'mod+j',
+      allowInInputs: true,
+      handler: (event) => {
+        event.preventDefault();
+        props.onOpenAssistant();
+      },
+    });
+  }
   useKeyboardShortcuts(shortcuts);
 
   return (
     <>
       <CommandPalette {...props} open={paletteOpen} onOpenChange={setPaletteOpen} />
-      <ShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <ShortcutsDialog
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        assistantEnabled={props.assistantEnabled}
+      />
     </>
   );
 }
@@ -161,6 +179,8 @@ function CommandPalette({
   onSetDone,
   onSetMine,
   onResetView,
+  assistantEnabled,
+  onOpenAssistant,
   open,
   onOpenChange,
 }: BoardCommandsProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -266,6 +286,11 @@ function CommandPalette({
                 <UserPlus strokeWidth={1.75} />
                 <span className="flex-1">{t('palette.share')}</span>
               </CommandItem>
+              {assistantEnabled && (
+                <CommandItem value="ask question wand fragen" onSelect={() => run(onOpenAssistant)}>
+                  <span className="flex-1">{t('palette.ask')}</span>
+                </CommandItem>
+              )}
             </CommandGroup>
 
             <CommandGroup heading={t('palette.groups.view')}>
@@ -406,15 +431,18 @@ function CommandPalette({
 function ShortcutsDialog({
   open,
   onOpenChange,
+  assistantEnabled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  assistantEnabled: boolean;
 }) {
   const { t } = useTranslation();
   const rows: { keys: string[]; label: string }[] = [
     { keys: [MOD_KEY, 'K'], label: t('shortcuts.palette') },
     { keys: ['N'], label: t('shortcuts.newNote') },
     { keys: [MOD_KEY, 'D'], label: t('shortcuts.duplicateNote') },
+    ...(assistantEnabled ? [{ keys: [MOD_KEY, 'J'], label: t('shortcuts.ask') }] : []),
     { keys: [ALT_KEY], label: t('shortcuts.copyDrag') },
     { keys: ['/'], label: t('shortcuts.search') },
     { keys: ['V'], label: t('shortcuts.toggleView') },

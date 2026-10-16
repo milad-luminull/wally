@@ -28,6 +28,8 @@ export interface BoardViewState {
   fieldKey: string | null;
   fieldValue: string | null;
   noteId: string | null;
+  /** The question panel is open (`ask=1`). Never open together with a note. */
+  askOpen: boolean;
 }
 
 export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
@@ -92,6 +94,7 @@ export function useBoardViewState(boardId: string) {
       fieldKey: searchParams.get('field'),
       fieldValue: searchParams.get('fieldValue'),
       noteId: searchParams.get('note'),
+      askOpen: searchParams.get('ask') === '1',
     };
   }, [searchParams, saved]);
 
@@ -185,7 +188,13 @@ export function useBoardViewState(boardId: string) {
     setFieldValue: (value: string | null) => setParams({ fieldValue: value }, 'push'),
     // Opening and closing the panel are steps worth a Back; hopping from one open note to
     // the next is not, or Back would replay every card the user glanced at.
+    // Opening a note closes the question panel, so a chip in an answer swaps one for the other.
     openNote: (noteId: string | null) =>
-      setParams({ note: noteId }, noteId && state.noteId ? 'replace' : 'push'),
+      setParams(
+        noteId ? { note: noteId, ask: null } : { note: null },
+        noteId && state.noteId ? 'replace' : 'push',
+      ),
+    /** The question panel. Opening it closes the note; opening a note closes it. */
+    openAsk: (open: boolean) => setParams(open ? { ask: '1', note: null } : { ask: null }, 'push'),
   };
 }

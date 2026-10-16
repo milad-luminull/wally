@@ -23,6 +23,7 @@ import { FilterBar } from './FilterBar';
 import { WandView } from './WandView/WandView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
+import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
@@ -111,6 +112,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onSetAxis={viewState.setAxis}
         onResetView={viewState.resetView}
         onNewNote={newNote}
+        assistantEnabled={board.assistantEnabled}
+        onOpenAssistant={() => viewState.openAsk(true)}
       />
       <FilterBar
         view={viewState}
@@ -168,6 +171,17 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           onDuplicate={duplicateNote}
           currentUserId={user?.uid}
         />
+
+        {/* Off means nothing: no panel even when the link carries ?ask=1. */}
+        {board.assistantEnabled && (
+          <AssistantPanel
+            open={viewState.askOpen}
+            boardId={boardId}
+            isBelowDesktop={isBelowDesktop}
+            onClose={() => viewState.openAsk(false)}
+            onOpenNote={viewState.openNote}
+          />
+        )}
       </div>
 
       <BoardCommands
@@ -190,6 +204,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onSetDone={viewState.setDone}
         onSetMine={viewState.setMine}
         onResetView={viewState.resetView}
+        assistantEnabled={board.assistantEnabled}
+        onOpenAssistant={() => viewState.openAsk(true)}
       />
     </div>
   );

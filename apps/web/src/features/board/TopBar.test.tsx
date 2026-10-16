@@ -57,6 +57,8 @@ function renderTopBar(overrides: Partial<Parameters<typeof TopBar>[0]> = {}) {
       onSetAxis={vi.fn()}
       onResetView={vi.fn()}
       onNewNote={onNewNote}
+      assistantEnabled={false}
+      onOpenAssistant={vi.fn()}
       {...overrides}
     />,
   );

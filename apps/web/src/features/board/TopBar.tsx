@@ -77,6 +77,9 @@ interface TopBarProps {
   onSetAxis: (axis: BoardAxis) => void;
   onResetView: () => void;
   onNewNote: () => void;
+  /** The board's question panel is on; without it the bar has no Ask button. */
+  assistantEnabled: boolean;
+  onOpenAssistant: () => void;
 }
 
 /**
@@ -160,6 +163,8 @@ export function TopBar({
   onSetAxis,
   onResetView,
   onNewNote,
+  assistantEnabled,
+  onOpenAssistant,
 }: TopBarProps) {
   const { t } = useTranslation();
   const newNoteLabel = t(
@@ -294,6 +299,18 @@ export function TopBar({
           </kbd>
         </Button>
       </IconTooltip>
+
+      {assistantEnabled && (
+        <IconTooltip label={t('shortcuts.ask')} shortcut={[MOD_KEY, 'J']}>
+          <Button
+            variant="ghost"
+            onClick={onOpenAssistant}
+            className="hidden text-fg-3 md:inline-flex"
+          >
+            {t('assistant.ask')}
+          </Button>
+        </IconTooltip>
+      )}
 
       <DisplayMenu
         view={view}
