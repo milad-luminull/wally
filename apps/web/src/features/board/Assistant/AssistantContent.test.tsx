@@ -1,0 +1,200 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { AssistantConversationDto } from '@wally/shared';
+
+vi.mock('@/lib/resources', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/resources')>()),
+  assistantApi: { latest: vi.fn(), turn: vi.fn() },
+  notesApi: { list: vi.fn().mockResolvedValue([]) },
+}));
+
+import { ApiError } from '@/lib/apiClient';
+import { assistantApi, notesApi } from '@/lib/resources';
+import { renderWithProviders } from '@/test/renderWithProviders';
+import { makeNote } from '@/test/fixtures';
+import { AssistantContent } from './AssistantContent';
+
+const entry = (
+  role: 'user' | 'assistant',
+  text: string,
+  extra: Partial<AssistantConversationDto['entries'][number]> = {},
+) => ({
+  role,
+  text,
+  chips: [],
+  partial: false,
+  stopped: null,
+  at: '2026-10-15T10:00:00.000Z',
+  ...extra,
+});
+const conversation = (
+  entries: AssistantConversationDto['entries'],
+  id = 'c1',
+): AssistantConversationDto => ({
+  id,
+  boardId: 'b1',
+  status: 'OPEN',
+  model: 'm',
+  entries,
+});
+
+function renderContent(overrides: Partial<Parameters<typeof AssistantContent>[0]> = {}) {
+  const onOpenNote = vi.fn();
+  const onClose = vi.fn();
+  renderWithProviders(
+    <AssistantContent
+      boardId="b1"
+      onClose={onClose}
+      onOpenNote={onOpenNote}
+      autoFocus={false}
+      {...overrides}
+    />,
+  );
+  return { onOpenNote, onClose };
+}
+
+describe('AssistantContent', () => {
+  beforeEach(() => {
+    vi.mocked(assistantApi.latest)
+      .mockReset()
+      .mockRejectedValue(new ApiError(404, { error: 'NOT_FOUND' }));
+    vi.mocked(assistantApi.turn).mockReset();
+    vi.mocked(notesApi.list).mockResolvedValue([]);
+  });
+
+  it('shows the field and three example questions when there is no conversation', async () => {
+    renderContent();
+    expect(await screen.findByPlaceholderText('Was ist heute offen?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Was ist überfällig?' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Wer hat die meisten offenen Notizen?' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Zuvor')).not.toBeInTheDocument();
+  });
+
+  it('asks on Enter, keeps the question on screen while loading, then shows the answer with the notes read', async () => {
+    const note = makeNote({ id: 'n1', title: 'Müller anrufen', dueDate: null });
+    vi.mocked(notesApi.list).mockResolvedValue([note]);
+    let release: (v: { conversation: AssistantConversationDto }) => void = () => {};
+    vi.mocked(assistantApi.turn).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    const { onOpenNote } = renderContent();
+    const user = userEvent.setup();
+    const field = await screen.findByPlaceholderText('Was ist heute offen?');
+    await user.type(field, 'Was ist offen?{Enter}');
+    expect(screen.getByText('Was ist offen?')).toBeInTheDocument();
+    expect(field).toBeDisabled();
+    release({
+      conversation: conversation([
+        entry('user', 'Was ist offen?'),
+        entry('assistant', 'Eine Notiz: Müller anrufen.', {
+          chips: [{ id: 'n1', title: 'Müller anrufen' }],
+        }),
+      ]),
+    });
+    expect(await screen.findByText('Eine Notiz: Müller anrufen.')).toBeInTheDocument();
+    expect(screen.getByText('Gelesene Notizen')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Müller anrufen/ }));
+    expect(onOpenNote).toHaveBeenCalledWith('n1');
+    expect(field).not.toBeDisabled();
+    expect(field).toHaveValue('');
+  });
+
+  it('inserts a line break on Shift+Enter and never sends an empty question', async () => {
+    renderContent();
+    const user = userEvent.setup();
+    const field = await screen.findByPlaceholderText('Was ist heute offen?');
+    await user.type(field, 'a{Shift>}{Enter}{/Shift}b');
+    expect(field).toHaveValue('a\nb');
+    expect(assistantApi.turn).not.toHaveBeenCalled();
+    await user.clear(field);
+    await user.type(field, '   {Enter}');
+    expect(assistantApi.turn).not.toHaveBeenCalled();
+  });
+
+  it('asks an example question on click', async () => {
+    vi.mocked(assistantApi.turn).mockResolvedValue({
+      conversation: conversation([
+        entry('user', 'Was ist überfällig?'),
+        entry('assistant', 'Nichts.'),
+      ]),
+    });
+    renderContent();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Was ist überfällig?' }));
+    expect(await screen.findByText('Nichts.')).toBeInTheDocument();
+    expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({
+      message: 'Was ist überfällig?',
+    });
+  });
+
+  it('shows the newest exchange first and the rest under "Zuvor"', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([
+        entry('user', 'eins'),
+        entry('assistant', 'Antwort eins'),
+        entry('user', 'zwei'),
+        entry('assistant', 'Antwort zwei'),
+      ]),
+    );
+    renderContent();
+    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    const texts = screen.getAllByText(/Antwort (eins|zwei)/).map((el) => el.textContent);
+    expect(texts).toEqual(['Antwort zwei', 'Antwort eins']);
+    expect(screen.getByText('Zuvor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Neu' })).toBeInTheDocument();
+  });
+
+  it('renders a cap refusal in the answer slot with the reset time, and keeps the question', async () => {
+    vi.mocked(assistantApi.turn).mockRejectedValue(
+      new ApiError(429, {
+        error: 'ASSISTANT_DAILY_CAP',
+        message: 'x',
+        resetsAt: '2026-10-16T00:00:00.000Z',
+      }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    await user.type(await screen.findByPlaceholderText('Was ist heute offen?'), 'eins{Enter}');
+    expect(
+      await screen.findByText(/Tageslimit erreicht\. Ab .+ wieder verfügbar\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText('eins')).toBeInTheDocument();
+  });
+
+  it('renders stopped and partial answers with their one line', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([
+        entry('user', 'alles'),
+        entry('assistant', 'Viele.', { partial: true }),
+        entry('user', 'zu viel'),
+        entry('assistant', '', { stopped: 'TOOL_LIMIT' }),
+      ]),
+    );
+    renderContent();
+    expect(await screen.findByText(/Nach zwölf Lesevorgängen gestoppt/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Nur ein Teil der passenden Notizen wurde gelesen.'),
+    ).toBeInTheDocument();
+  });
+
+  it('starts a fresh conversation on "Neu"', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    );
+    vi.mocked(assistantApi.turn).mockResolvedValue({
+      conversation: conversation([entry('user', 'zwei'), entry('assistant', 'Antwort zwei')], 'c2'),
+    });
+    renderContent();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Neu' }));
+    await waitFor(() => expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument());
+    await user.type(screen.getByPlaceholderText('Was ist heute offen?'), 'zwei{Enter}');
+    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).not.toHaveProperty('conversationId');
+  });
+});
