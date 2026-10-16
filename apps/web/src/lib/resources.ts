@@ -21,6 +21,12 @@ import {
   subtaskDtoSchema,
   subtaskCreateSchema,
   subtaskUpdateSchema,
+  assistantConversationDtoSchema,
+  assistantTurnRequestSchema,
+  assistantTurnResponseSchema,
+  type AssistantConversationDto,
+  type AssistantTurnRequest,
+  type AssistantTurnResponse,
   type Language,
   type MeDto,
   type WhiteboardDto,
@@ -122,6 +128,20 @@ export const notesApi = {
     api.post(`/notes/${noteId}/reopen`, {}, noteDtoSchema, ticket),
   remove: (noteId: string, ticket?: MutationTicket): Promise<void> =>
     api.delete(`/notes/${noteId}`, undefined, ticket),
+};
+
+export const assistantApi = {
+  latest: (boardId: string): Promise<AssistantConversationDto> =>
+    api.get(
+      `/whiteboards/${boardId}/assistant/conversations/latest`,
+      assistantConversationDtoSchema,
+    ),
+  turn: (boardId: string, body: AssistantTurnRequest): Promise<AssistantTurnResponse> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/turns`,
+      assistantTurnRequestSchema.parse(body),
+      assistantTurnResponseSchema,
+    ),
 };
 
 export const subtasksApi = {
