@@ -30,7 +30,11 @@ interface WandCanvasProps {
   onCapture: (placement: CapturePlacement) => void;
   /** The note being written, shown on the canvas when its placement is free. */
   capture: CapturePlacement | null;
+  /** Changes with every capture, so each one gets a fresh card. */
+  captureKey?: number;
   onCaptureDone: (noteId: string | null, open: boolean) => void;
+  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
+  onCaptureNoteId?: (noteId: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
@@ -72,7 +76,9 @@ export function WandCanvas({
   onOpenNote,
   onCapture,
   capture,
+  captureKey,
   onCaptureDone,
+  onCaptureNoteId,
   visibility,
   canEditShared,
   filtered,
@@ -126,6 +132,7 @@ export function WandCanvas({
           ))}
           {capture?.kind === 'free' && (
             <div
+              key={captureKey}
               data-capture
               style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 30 }}
             >
@@ -135,6 +142,7 @@ export function WandCanvas({
                 visibility={visibility}
                 layout="card"
                 onDone={onCaptureDone}
+                onNoteId={onCaptureNoteId}
               />
             </div>
           )}

@@ -60,9 +60,13 @@ interface ListViewProps {
    * the board it goes on, its visibility (a viewer's is private), and who hears it is done.
    */
   capture?: {
+    /** Changes with every capture, so each one gets a fresh row. */
+    id?: number;
     boardId: string;
     visibility: NoteVisibility;
     onDone: (noteId: string | null, open: boolean) => void;
+    /** Hears each id the note is shown under, so the list leaves it to its row. */
+    onNoteId?: (noteId: string) => void;
   } | null;
 }
 
@@ -103,13 +107,14 @@ export function ListView({
   const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
   const captureRow = capture && (
-    <div className="rounded-lg border border-border bg-surface shadow-e1">
+    <div key={capture.id} className="rounded-lg border border-border bg-surface shadow-e1">
       <InlineCaptureCard
         boardId={capture.boardId}
         placement={LIST_PLACEMENT}
         visibility={capture.visibility}
         layout="row"
         onDone={capture.onDone}
+        onNoteId={capture.onNoteId}
       />
     </div>
   );

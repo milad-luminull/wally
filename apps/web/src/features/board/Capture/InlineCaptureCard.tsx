@@ -95,6 +95,7 @@ export function InlineCaptureCard({
   visibility,
   layout,
   onDone,
+  onNoteId,
 }: {
   boardId: string;
   placement: CapturePlacement;
@@ -102,11 +103,16 @@ export function InlineCaptureCard({
   layout: 'card' | 'row';
   /** `noteId` is null when the capture was cancelled; `open` asks for the note's sidebar. */
   onDone: (noteId: string | null, open: boolean) => void;
+  /**
+   * Hears each id the note being written is shown under (its temp id, then its real one),
+   * before the board shows it, so the board can leave that note to this card until it is done.
+   */
+  onNoteId?: (id: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { language } = useLanguage();
   const { activeMembers } = useActiveMembers(boardId);
-  const controller = useCapture(boardId, placement, visibility, { onDone });
+  const controller = useCapture(boardId, placement, visibility, { onDone, onNoteId });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showText, setShowText] = useState(false);

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -25,7 +25,7 @@ import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
-import type { CapturePlacement } from './Capture/useCapture';
+import { useCaptureSession } from './Capture/useCaptureSession';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -47,10 +47,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const isOwner = isOwnerRole(board.currentUserRole);
   const notes = notesQuery.data ?? EMPTY_NOTES;
 
-  const filteredNotes = useMemo(
-    () => filterNotes(notes, viewState, user?.uid),
-    [notes, viewState, user?.uid],
-  );
   // Facets for the property filter, derived from the unfiltered board so choosing a value
   // never empties the list of values you could switch to.
   const fieldKeys = useMemo(() => collectFieldKeys(notes), [notes]);
@@ -66,25 +62,22 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
-  const [capture, setCapture] = useState<CapturePlacement | null>(null);
-  const { noteId: openedNoteId } = viewState;
-  const startCapture = useCallback(
-    (placement: CapturePlacement) => {
-      // Closing an already closed panel would still push a history entry.
-      if (openedNoteId !== null) viewState.openNote(null);
-      // One note at a time: a capture still settling (its blur commit in flight) keeps its
-      // place, so its late onDone cannot close the capture that replaced it.
-      setCapture((current) => current ?? placement);
-    },
-    [openedNoteId, viewState],
+  const { capture, captureKey, startCapture, onCaptureDone, onCaptureNoteId, withoutCapturing } =
+    useCaptureSession({
+      boardId,
+      view: effectiveView,
+      axis: viewState.axis,
+      openNoteId: viewState.noteId,
+      openNote: viewState.openNote,
+    });
+  // The views leave the note being written to its card: it is in the cache from the first
+  // keystroke, and a second copy beside the card would be clickable and draggable.
+  const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
+  const filteredNotes = useMemo(
+    () => filterNotes(boardNotes, viewState, user?.uid),
+    [boardNotes, viewState, user?.uid],
   );
-  const finishCapture = useCallback(
-    (noteId: string | null, open: boolean) => {
-      setCapture(null);
-      if (noteId && open) viewState.openNote(noteId);
-    },
-    [viewState],
-  );
+
   const newNote = useCallback(() => {
     if (effectiveView === 'list') startCapture({ kind: 'list' });
     else if (viewState.axis === 'free') {
@@ -166,7 +159,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           <WandView
             boardId={boardId}
             notes={filteredNotes}
-            totalNoteCount={notes.length}
+            totalNoteCount={boardNotes.length}
             currentUserId={user?.uid}
             axis={viewState.axis}
             selectedNoteId={viewState.noteId}
@@ -174,14 +167,16 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onDuplicateNote={duplicateNote}
             access={access}
             capture={capture}
+            captureKey={captureKey}
             onCapture={startCapture}
-            onCaptureDone={finishCapture}
+            onCaptureDone={onCaptureDone}
+            onCaptureNoteId={onCaptureNoteId}
             visibility={access.newNoteVisibility}
           />
         ) : (
           <ListView
             notes={filteredNotes}
-            totalNoteCount={notes.length}
+            totalNoteCount={boardNotes.length}
             axis={viewState.axis}
             currentUserId={user?.uid}
             onOpenNote={viewState.openNote}
@@ -192,9 +187,11 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             isBelowDesktop={isBelowDesktop}
             capture={
               capture && {
+                id: captureKey,
                 boardId,
                 visibility: access.newNoteVisibility,
-                onDone: finishCapture,
+                onDone: onCaptureDone,
+                onNoteId: onCaptureNoteId,
               }
             }
           />

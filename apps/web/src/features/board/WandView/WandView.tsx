@@ -59,9 +59,13 @@ interface WandViewProps {
   access: BoardAccess;
   /** The note being written in place, if any (WALLYBOT_INLINE.md §3.1). */
   capture: CapturePlacement | null;
+  /** Changes with every capture, so each one gets a fresh card. */
+  captureKey?: number;
   /** A zone's plus or a double-click asks for a new note written there. */
   onCapture: (placement: CapturePlacement) => void;
   onCaptureDone: (noteId: string | null, open: boolean) => void;
+  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
+  onCaptureNoteId?: (noteId: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
 }
@@ -88,8 +92,10 @@ export function WandView({
   onDuplicateNote,
   access,
   capture,
+  captureKey,
   onCapture,
   onCaptureDone,
+  onCaptureNoteId,
   visibility,
 }: WandViewProps) {
   const queryClient = useQueryClient();
@@ -400,7 +406,9 @@ export function WandView({
             onOpenNote={onOpenNote}
             onCapture={onCapture}
             capture={capture}
+            captureKey={captureKey}
             onCaptureDone={onCaptureDone}
+            onCaptureNoteId={onCaptureNoteId}
             visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
@@ -411,7 +419,9 @@ export function WandView({
             groups={groups}
             boardId={boardId}
             capture={capture}
+            captureKey={captureKey}
             onCaptureDone={onCaptureDone}
+            onCaptureNoteId={onCaptureNoteId}
             visibility={visibility}
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}

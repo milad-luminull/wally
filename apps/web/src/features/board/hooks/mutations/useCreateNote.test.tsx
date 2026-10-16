@@ -53,6 +53,32 @@ describe('useCreateNote', () => {
       expect(Array.isArray(detail.history)).toBe(true);
     }
   });
+
+  it('names each id the note is shown under before the cache shows it', async () => {
+    vi.mocked(notesApi.create).mockResolvedValue(makeNote({ id: 'note-real' }));
+    const queryClient = createTestQueryClient();
+    const shown = (id: string) =>
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .some((q) => Array.isArray(q.state.data) && q.state.data.some((n) => n.id === id));
+    const named: [string, boolean][] = [];
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => useCreateNote(boardId, { onNoteId: (id) => named.push([id, shown(id)]) }),
+      { wrapper },
+    );
+    result.current.mutate({ title: 'Neue Notiz' });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(named).toEqual([
+      [expect.stringMatching(/^temp-/), false],
+      ['note-real', false],
+    ]);
+    expect(shown('note-real')).toBe(true);
+  });
 });
 
 it('cannot repopulate account caches after a delayed query cancellation completes', async () => {

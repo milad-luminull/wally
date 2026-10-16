@@ -101,10 +101,14 @@ export function useCapture(
   boardId: string,
   placement: CapturePlacement,
   visibility: NoteVisibility,
-  callbacks: { onDone: (noteId: string | null, open: boolean) => void },
+  callbacks: {
+    onDone: (noteId: string | null, open: boolean) => void;
+    /** Hears each id the note is shown under (temp, then real), before the board shows it. */
+    onNoteId?: (id: string) => void;
+  },
 ): CaptureController {
-  const { onDone } = callbacks;
-  const { mutateAsync: createNote } = useCreateNote(boardId);
+  const { onDone, onNoteId } = callbacks;
+  const { mutateAsync: createNote } = useCreateNote(boardId, { onNoteId });
   const { mutateAsync: updateNote } = useUpdateNote(boardId);
   const { mutateAsync: moveNote } = useMoveNote(boardId);
   const { mutateAsync: assignNote } = useAssignNote(boardId);

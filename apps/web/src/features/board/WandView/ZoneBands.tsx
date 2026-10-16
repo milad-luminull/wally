@@ -16,10 +16,12 @@ export function zoneDroppableId(axis: BoardAxis, key: string) {
 
 /** The note being written into one zone, and what the card needs to write it. */
 interface ZoneCapture {
+  key: number | undefined;
   boardId: string;
   placement: Extract<CapturePlacement, { kind: 'zone' }>;
   visibility: NoteVisibility;
   onDone: (noteId: string | null, open: boolean) => void;
+  onNoteId: ((noteId: string) => void) | undefined;
 }
 
 interface ZoneBandProps {
@@ -104,13 +106,14 @@ function ZoneBand({
       >
         <div className="flex flex-row flex-wrap content-start gap-2">
           {capture && (
-            <div data-capture>
+            <div key={capture.key} data-capture>
               <InlineCaptureCard
                 boardId={capture.boardId}
                 placement={capture.placement}
                 visibility={capture.visibility}
                 layout="card"
                 onDone={capture.onDone}
+                onNoteId={capture.onNoteId}
               />
             </div>
           )}
@@ -152,7 +155,11 @@ interface ZoneBandsProps {
   boardId: string;
   /** The note being written; shown at the top of its zone when its placement is a zone. */
   capture: CapturePlacement | null;
+  /** Changes with every capture, so each one gets a fresh card. */
+  captureKey?: number;
   onCaptureDone: (noteId: string | null, open: boolean) => void;
+  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
+  onCaptureNoteId?: (noteId: string) => void;
   visibility: NoteVisibility;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
@@ -169,7 +176,9 @@ export function ZoneBands({
   groups,
   boardId,
   capture,
+  captureKey,
   onCaptureDone,
+  onCaptureNoteId,
   visibility,
   ...rest
 }: ZoneBandsProps) {
@@ -192,7 +201,14 @@ export function ZoneBands({
           group={group}
           capture={
             zoneCapture?.key === group.key
-              ? { boardId, placement: zoneCapture, visibility, onDone: onCaptureDone }
+              ? {
+                  key: captureKey,
+                  boardId,
+                  placement: zoneCapture,
+                  visibility,
+                  onDone: onCaptureDone,
+                  onNoteId: onCaptureNoteId,
+                }
               : null
           }
           {...rest}
