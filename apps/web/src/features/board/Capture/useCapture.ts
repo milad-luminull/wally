@@ -67,8 +67,10 @@ function placementInput(placement: CapturePlacement): Partial<NoteCreateInput> {
 /**
  * Deletes an abandoned capture at once, without `useDeleteNote`'s Undo toast: that hook holds
  * the DELETE back until its toast expires, and the person has just said they do not want this
- * note, so there is nothing to undo. Same lane, same ticket rule (taken before the cache drops
- * the note, as useDeleteNote does), same settle.
+ * note, so there is nothing to undo. Same lane and same settle as useDeleteNote. The ticket is
+ * taken with `captureNoteMutation` (the revision the cache shows) when the delete is asked for,
+ * before `onMutate` drops the note from the cache; unlike useDeleteNote's it is not pinned,
+ * since no toast holds this DELETE back.
  */
 function useRemoveCapturedNote(boardId: string) {
   const queryClient = useQueryClient();

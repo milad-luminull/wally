@@ -60,7 +60,7 @@ const NEXT_WEEK: Record<Language, RegExp> = {
   en: new RegExp(`${NOT_AFTER_LETTER}next\\s+week${NOT_BEFORE_LETTER}`, 'gi'),
 };
 const IN_DAYS: Record<Language, RegExp> = {
-  de: new RegExp(`${NOT_AFTER_LETTER}in\\s+(\\d{1,3})\\s+tagen?${NOT_BEFORE_LETTER}`, 'gi'),
+  de: new RegExp(`${NOT_AFTER_LETTER}in\\s+(\\d{1,3})\\s+tag(?:en|e)?${NOT_BEFORE_LETTER}`, 'gi'),
   en: new RegExp(`${NOT_AFTER_LETTER}in\\s+(\\d{1,3})\\s+days?${NOT_BEFORE_LETTER}`, 'gi'),
 };
 const NEXT_WORD: Record<Language, string> = { de: 'n\u00e4chste[nrs]?', en: 'next' };
@@ -149,10 +149,12 @@ function parseDate(text: string, ctx: Context): CaptureParse['dueDate'] {
         const date = calendarDate(Number(m[3]), month, day);
         return date && { iso: iso(date) };
       }
+      // This year's, unless it is past or does not exist (29.02. in a common year): then next
+      // year's, which may not exist either (31.11.).
       const year = todayMidnight.getFullYear();
       const thisYear = calendarDate(year, month, day);
       const date =
-        thisYear && thisYear < todayMidnight ? calendarDate(year + 1, month, day) : thisYear;
+        thisYear && thisYear >= todayMidnight ? thisYear : calendarDate(year + 1, month, day);
       return date && { iso: iso(date) };
     }),
   ]);
@@ -168,11 +170,8 @@ function parsePerson(text: string, members: CaptureMember[]): CaptureParse['assi
         const name = (member.displayName ?? '').toLowerCase();
         const first = name.split(/\s+/)[0] ?? '';
         const local = member.email.toLowerCase().split('@')[0] ?? '';
-        return (
-          (name && name.startsWith(lower)) ||
-          (first && first.startsWith(lower)) ||
-          local.startsWith(lower)
-        );
+        // A handle has no spaces, so a match on the full name is a match on the first name.
+        return (first && first.startsWith(lower)) || local.startsWith(lower);
       });
       if (!found) continue;
       const start = m.index + m[1]!.length;

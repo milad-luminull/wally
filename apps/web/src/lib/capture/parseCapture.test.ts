@@ -31,11 +31,20 @@ describe('parseCapture dates', () => {
     expect(de('nächste Woche').dueDate?.iso).toBe('2026-10-19');
     expect(en('next week').dueDate?.iso).toBe('2026-10-19');
     expect(de('in 3 Tagen').dueDate?.iso).toBe('2026-10-19');
+    expect(de('in 1 Tag').dueDate).toMatchObject({ iso: '2026-10-17', text: 'in 1 Tag' });
+    expect(de('in 2 Tage').dueDate?.iso).toBe('2026-10-18');
     expect(en('in 10 days').dueDate?.iso).toBe('2026-10-26');
     expect(de('am 20.10.').dueDate).toMatchObject({ iso: '2026-10-20', text: '20.10.' });
     expect(de('am 3.1.').dueDate?.iso).toBe('2027-01-03');
     expect(de('am 20.10.2027').dueDate?.iso).toBe('2027-10-20');
     expect(en('on 2026-11-02').dueDate?.iso).toBe('2026-11-02');
+  });
+  it('reads 29.02. without a year as the next 29 February there is', () => {
+    const on = (date: Date) => (text: string) =>
+      parseCapture(text, { language: 'de', today: date, members });
+    // 2027 has no 29 February, so the next one is in 2028.
+    expect(on(new Date(2027, 0, 10))('am 29.02.').dueDate?.iso).toBe('2028-02-29');
+    expect(on(new Date(2028, 0, 10))('am 29.02.').dueDate?.iso).toBe('2028-02-29');
   });
   it('takes the earliest date in the text and skips impossible dates', () => {
     expect(de('Freitag oder morgen').dueDate).toMatchObject({ iso: '2026-10-16', text: 'Freitag' });
