@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AssistantConversationDto } from '@wally/shared';
 
@@ -196,5 +196,115 @@ describe('AssistantContent', () => {
     await user.type(screen.getByPlaceholderText('Was ist heute offen?'), 'zwei{Enter}');
     expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).not.toHaveProperty('conversationId');
+  });
+  it('gives focus back to the field when the turn settles and announces the answer politely', async () => {
+    let release: (v: { conversation: AssistantConversationDto }) => void = () => {};
+    vi.mocked(assistantApi.turn).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    const field = await screen.findByPlaceholderText('Was ist heute offen?');
+    await user.type(field, 'eins{Enter}');
+    const region = screen.getByText('eins').closest('[aria-live]');
+    expect(region).toHaveAttribute('aria-live', 'polite');
+    expect(region).toHaveAttribute('aria-busy', 'true');
+    release({
+      conversation: conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    });
+    const answer = await screen.findByText('Antwort eins');
+    expect(answer.closest('[aria-live]')).toBe(region);
+    expect(region).toHaveAttribute('aria-busy', 'false');
+    await waitFor(() => expect(field).toHaveFocus());
+  });
+
+  it('leaves focus where the person put it while the turn ran', async () => {
+    let release: (v: { conversation: AssistantConversationDto }) => void = () => {};
+    vi.mocked(assistantApi.turn).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    await user.type(await screen.findByPlaceholderText('Was ist heute offen?'), 'eins{Enter}');
+    const close = screen.getByRole('button', { name: 'Schließen' });
+    act(() => close.focus());
+    release({
+      conversation: conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    });
+    expect(await screen.findByText('Antwort eins')).toBeInTheDocument();
+    expect(close).toHaveFocus();
+  });
+
+  it('shows earlier exchanges unfaded, in the same colour as the latest', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([
+        entry('user', 'eins'),
+        entry('assistant', 'Antwort eins'),
+        entry('user', 'zwei'),
+        entry('assistant', 'Antwort zwei'),
+      ]),
+    );
+    renderContent();
+    const older = await screen.findByText('Antwort eins');
+    for (let el: HTMLElement | null = older; el; el = el.parentElement) {
+      expect(el.className).not.toMatch(/opacity-/);
+    }
+    expect(older.className).toBe(screen.getByText('Antwort zwei').className);
+  });
+
+  it('shows only the new conversation when the open one closed under the panel (409)', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    );
+    vi.mocked(assistantApi.turn)
+      .mockRejectedValueOnce(new ApiError(409, { error: 'ASSISTANT_CONVERSATION_CLOSED' }))
+      .mockResolvedValueOnce({
+        conversation: conversation(
+          [entry('user', 'zwei'), entry('assistant', 'Antwort zwei')],
+          'c2',
+        ),
+      });
+    renderContent();
+    const user = userEvent.setup();
+    await screen.findByText('Antwort eins');
+    await user.type(screen.getByPlaceholderText('Was ist heute offen?'), 'zwei{Enter}');
+    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument();
+    expect(screen.queryByText('Zuvor')).not.toBeInTheDocument();
+    expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({ conversationId: 'c1' });
+    expect(vi.mocked(assistantApi.turn).mock.calls[1]![1]).not.toHaveProperty('conversationId');
+  });
+
+  it('never shows the dismissed conversation again after "Neu" and an answer', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    );
+    vi.mocked(assistantApi.turn).mockResolvedValue({
+      conversation: conversation([entry('user', 'zwei'), entry('assistant', 'Antwort zwei')], 'c2'),
+    });
+    renderContent();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Neu' }));
+    await waitFor(() => expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument());
+    // Every DOM change from here on is checked, so a single intermediate commit that
+    // re-renders the old conversation fails the test even if a later one removes it.
+    let flashed = false;
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const nodes = [record.target, ...Array.from(record.addedNodes)];
+        if (nodes.some((node) => node.textContent?.includes('Antwort eins'))) flashed = true;
+      }
+      if (document.body.textContent?.includes('Antwort eins')) flashed = true;
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    await user.type(screen.getByPlaceholderText('Was ist heute offen?'), 'zwei{Enter}');
+    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    observer.disconnect();
+    expect(flashed).toBe(false);
   });
 });

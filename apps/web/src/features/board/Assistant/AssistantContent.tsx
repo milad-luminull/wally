@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { IconTooltip } from '@/components/ui/tooltip';
-import { cn } from '@/lib/cn';
 import { useNotes } from '../hooks/useNotes';
 import { AnswerNotes } from './AnswerNotes';
 import { useAskAssistant, type AskOutcome } from './useAskAssistant';
@@ -77,6 +76,20 @@ export function AssistantContent({
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
   }, [draft]);
 
+  // The field is disabled while a turn runs, which drops its focus. When the turn settles,
+  // focus goes back to the field so a follow-up is one keystroke away, but only when focus
+  // went nowhere in between (on body or still on the field); a click elsewhere wins.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !isPending) {
+      const active = document.activeElement;
+      if (!active || active === document.body || active === fieldRef.current) {
+        fieldRef.current?.focus();
+      }
+    }
+    wasPending.current = isPending;
+  }, [isPending]);
+
   const conversation = fresh ? null : (stored ?? null);
   const exchanges = useMemo(() => exchangesOf(conversation), [conversation]);
 
@@ -103,6 +116,7 @@ export function AssistantContent({
 
   const [latest, ...earlier] = pending ? [pending, ...exchanges] : exchanges;
   const showNew = Boolean(conversation) && !pending;
+  const loading = pending !== null && pending.outcome === null;
 
   return (
     <div className="flex h-full flex-col">
@@ -170,21 +184,25 @@ export function AssistantContent({
           </div>
         )}
 
-        {latest && (
-          <ExchangeView
-            exchange={latest}
-            notes={notes ?? []}
-            onOpenNote={onOpenNote}
-            locale={i18n.language}
-            loading={pending !== null && pending.outcome === null}
-          />
-        )}
+        {/* The latest exchange is a polite live region, so the answer or refusal is announced
+            when it arrives; aria-busy holds the announcement back while the turn runs. */}
+        <div aria-live="polite" aria-busy={loading}>
+          {latest && (
+            <ExchangeView
+              exchange={latest}
+              notes={notes ?? []}
+              onOpenNote={onOpenNote}
+              locale={i18n.language}
+              loading={loading}
+            />
+          )}
+        </div>
 
         {earlier.length > 0 && (
           <section className="mt-6">
             <p className="mb-2 text-12 font-medium text-fg-3">{t('assistant.earlier')}</p>
             {earlier.map((exchange, index) => (
-              <div key={index} className={cn('border-t border-border-subtle py-3', 'opacity-80')}>
+              <div key={index} className="border-t border-border-subtle py-3">
                 <ExchangeView
                   exchange={exchange}
                   notes={notes ?? []}
@@ -220,7 +238,7 @@ function ExchangeView({
     <div className="mt-4">
       <p className="text-13 text-fg-3">{exchange.question}</p>
       {loading && (
-        <div className="mt-2 flex flex-col gap-2" aria-busy>
+        <div className="mt-2 flex flex-col gap-2">
           <Skeleton className="h-3.5 w-[90%]" />
           <Skeleton className="h-3.5 w-[60%]" />
         </div>
