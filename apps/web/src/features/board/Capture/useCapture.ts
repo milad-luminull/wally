@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { NoteCreateInput, NoteDto, NoteVisibility } from '@wally/shared';
 import type { MutationTicket } from '@/lib/mutationQueue';
@@ -38,7 +38,16 @@ export interface CaptureController {
   ) => Promise<void>;
   /** Deletes the note if one was created. */
   cancel: () => Promise<void>;
+  /**
+   * Saves the words typed so far to the note, debounced, so a reload or a crash mid-capture
+   * keeps the line (WALLYBOT_INLINE.md §3.1). Title and text only: kept chips still apply on
+   * commit alone. Does nothing until the first keystroke has started the create.
+   */
+  saveDraft: (draft: { title: string; description: string }) => void;
 }
+
+/** How long typing must pause before the words so far are saved. */
+export const DRAFT_SAVE_MS = 500;
 
 function placementInput(placement: CapturePlacement): Partial<NoteCreateInput> {
   switch (placement.kind) {
@@ -104,12 +113,17 @@ export function useCapture(
   const [noteId, setNoteId] = useState<string | null>(null);
   // The create's promise, so a commit or cancel that lands before the id is known can wait.
   const creation = useRef<Promise<NoteDto> | null>(null);
+  // The draft waiting for typing to pause, and the last one written (or created with).
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraft = useRef<{ title: string; description: string } | null>(null);
+  const savedDraft = useRef<{ title: string; description: string } | null>(null);
 
   const startCreation = useCallback(
     (title: string) => {
       setState('creating');
       const pending = createNote({ ...placementInput(placement), title, visibility });
       creation.current = pending;
+      savedDraft.current = { title, description: '' };
       pending.then(
         (note) => {
           setNoteId(note.id);
@@ -133,8 +147,50 @@ export function useCapture(
     [startCreation],
   );
 
+  const clearDraft = useCallback(() => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = null;
+    pendingDraft.current = null;
+  }, []);
+
+  const writeDraft = useCallback(async () => {
+    const draft = pendingDraft.current;
+    clearDraft();
+    const pending = creation.current;
+    if (!draft || !pending) return;
+    const saved = savedDraft.current;
+    if (saved && saved.title === draft.title && saved.description === draft.description) return;
+    savedDraft.current = draft;
+    try {
+      const { id } = await pending;
+      // Through the same lane as the commit, so the commit's update always lands after it.
+      await updateNote({ noteId: id, input: draft });
+    } catch {
+      // The commit writes the same words again; the global handler reports the failure.
+      savedDraft.current = null;
+    }
+  }, [clearDraft, updateNote]);
+
+  const saveDraft = useCallback<CaptureController['saveDraft']>(
+    (draft) => {
+      if (!creation.current) return;
+      // A title erased to nothing is not a line worth keeping; drop what was waiting.
+      clearDraft();
+      if (!draft.title) return;
+      pendingDraft.current = draft;
+      draftTimer.current = setTimeout(() => void writeDraft(), DRAFT_SAVE_MS);
+    },
+    [clearDraft, writeDraft],
+  );
+
+  // A card taken away mid-typing (not committed, not cancelled) still keeps its words.
+  const flushOnUnmount = useRef(writeDraft);
+  flushOnUnmount.current = writeDraft;
+  useEffect(() => () => void flushOnUnmount.current(), []);
+
   const commit = useCallback<CaptureController['commit']>(
     async ({ title, description, fields }, thenOpen) => {
+      clearDraft();
       setState('committing');
       try {
         const { id } = await (creation.current ?? startCreation(title));
@@ -155,14 +211,15 @@ export function useCapture(
         setState('drafting');
       }
     },
-    [assignNote, moveNote, onDone, startCreation, updateNote],
+    [assignNote, clearDraft, moveNote, onDone, startCreation, updateNote],
   );
 
   const cancel = useCallback(async () => {
+    clearDraft();
     const note = creation.current ? await creation.current.catch(() => null) : null;
     if (note) removeNote(note.id);
     onDone(null, false);
-  }, [onDone, removeNote]);
+  }, [clearDraft, onDone, removeNote]);
 
-  return { state, noteId, onFirstKeystroke, commit, cancel };
+  return { state, noteId, onFirstKeystroke, commit, cancel, saveDraft };
 }

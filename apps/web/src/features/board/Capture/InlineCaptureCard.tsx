@@ -124,13 +124,22 @@ export function InlineCaptureCard({
   }, [showText]);
   useLayoutEffect(() => fitToContent(titleRef.current), [title]);
   useLayoutEffect(() => fitToContent(textRef.current), [description, showText]);
+  const { saveDraft } = controller;
+  useEffect(() => {
+    saveDraft({ title: title.trim(), description: description.trim() });
+  }, [saveDraft, title, description]);
 
+  // A private note is always assigned to its creator (the API answers anything else with 422
+  // PRIVATE_NOTE_NOT_ASSIGNABLE, and the create already assigns them), so a private capture
+  // proposes no person at all.
   const members = useMemo(
     () =>
-      activeMembers.flatMap((m) =>
-        m.userId ? [{ id: m.userId, displayName: m.displayName, email: m.email }] : [],
-      ),
-    [activeMembers],
+      visibility === 'PRIVATE'
+        ? []
+        : activeMembers.flatMap((m) =>
+            m.userId ? [{ id: m.userId, displayName: m.displayName, email: m.email }] : [],
+          ),
+    [activeMembers, visibility],
   );
   const parse = useMemo(
     () => (title ? parseCapture(title, { language, today: new Date(), members }) : null),
@@ -165,8 +174,10 @@ export function InlineCaptureCard({
         thenOpen,
       );
     } catch {
-      // The global mutation handler reports the failure; the card stays so nothing is lost.
+      // The global mutation handler reports the failure; the card stays so nothing is lost,
+      // with the caret back in the title so Enter retries.
       settling.current = false;
+      titleRef.current?.focus();
     }
   }
   async function cancel() {
@@ -178,26 +189,31 @@ export function InlineCaptureCard({
     if (!title && next) controller.onFirstKeystroke(next);
     setTitle(next);
   }
+  /** The capture owns the keys it handles: no board shortcut, Esc-to-close or deselect sees them. */
+  function claim(event: KeyboardEvent<HTMLTextAreaElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
   function onTitleKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && event.shiftKey) {
-      event.preventDefault();
+      claim(event);
       setShowText(true);
     } else if (event.key === 'Enter') {
-      event.preventDefault();
+      claim(event);
       void commit(event.metaKey || event.ctrlKey);
     } else if (event.key === 'Escape') {
-      event.preventDefault();
+      claim(event);
       void cancel();
     }
   }
   function onTextKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
+      claim(event);
       void commit(event.metaKey || event.ctrlKey);
     } else if (event.key === 'Escape') {
-      event.preventDefault();
+      claim(event);
       void cancel();
     }
   }
@@ -221,7 +237,9 @@ export function InlineCaptureCard({
       className={cn(
         'relative flex flex-col gap-2 rounded-lg border border-[color:var(--note-border)] p-3 text-left shadow-e2',
         'ring-2 ring-inset ring-[color:var(--note-selected)]',
+        // Grows from the click point: the card's top-left is where the person clicked.
         'animate-capture-in motion-reduce:animate-none',
+        layout === 'card' ? 'origin-top-left' : 'origin-top',
         noteColourFillClass.WEISS,
         layout === 'card' ? 'w-[248px]' : 'w-full',
       )}
@@ -234,7 +252,10 @@ export function InlineCaptureCard({
         onKeyDown={onTitleKey}
         aria-label={t('capture.titleAria')}
         placeholder={t('note.titlePlaceholder')}
-        disabled={controller.state === 'committing'}
+        // Read-only rather than disabled while committing: a disabled field loses focus, and
+        // whether that fires blur differs by browser; read-only keeps the caret where it was.
+        readOnly={controller.state === 'committing'}
+        aria-busy={controller.state === 'committing'}
       />
       {showText && (
         <textarea
