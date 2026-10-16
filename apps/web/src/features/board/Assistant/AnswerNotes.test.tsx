@@ -28,6 +28,13 @@ describe('AnswerNotes', () => {
     expect(screen.getByRole('button', { name: /Angebot schicken/ })).toBeInTheDocument();
   });
 
+  it('shows the untitled label for a chip without a title', () => {
+    renderWithProviders(
+      <AnswerNotes chips={[{ id: 'n3', title: '' }]} notes={undefined} onOpenNote={vi.fn()} />,
+    );
+    expect(screen.getByRole('button', { name: 'Ohne Titel' })).toBeInTheDocument();
+  });
+
   it('shows nothing when none of the notes read are left', () => {
     renderWithProviders(<AnswerNotes chips={chips} notes={[]} onOpenNote={vi.fn()} />);
     expect(screen.queryByText('Gelesene Notizen')).not.toBeInTheDocument();

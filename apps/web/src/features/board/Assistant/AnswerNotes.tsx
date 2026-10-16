@@ -44,7 +44,7 @@ export function AnswerNotes({
               >
                 {note && <PriorityIcon priority={note.priority} className="shrink-0 text-fg-3" />}
                 <span className="min-w-0 flex-1 truncate text-13 font-medium text-fg-1">
-                  {chip.title}
+                  {chip.title || t('common.untitled')}
                 </span>
                 {due && (
                   <span className={cn('shrink-0 text-12', dueToneClass[due.tone])}>
