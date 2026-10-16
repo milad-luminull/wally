@@ -15,7 +15,7 @@ import {
   collectFieldKeys,
   collectFieldValues,
   filterNotes,
-  firstZoneKey,
+  defaultZoneKey,
   showsVisibilityFilter,
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -87,7 +87,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       startCapture({
         kind: 'zone',
         axis: viewState.axis,
-        key: firstZoneKey(viewState.axis),
+        key: defaultZoneKey(viewState.axis),
         at: nextFreeNotePosition(notes),
       });
   }, [effectiveView, notes, startCapture, viewState.axis]);

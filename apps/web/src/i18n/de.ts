@@ -444,9 +444,7 @@ export const de = {
       assignee: 'Zuständig: {{name}}',
       priorityHigh: 'Priorität hoch',
       priorityLow: 'Priorität niedrig',
-      keep: 'Vorschlag übernehmen',
-      drop: 'Vorschlag entfernen',
-      dropped: 'Entfernt',
+      dropNamed: 'Vorschlag entfernen: {{label}}',
     },
   },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */

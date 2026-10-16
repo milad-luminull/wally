@@ -31,7 +31,8 @@ export interface CaptureController {
   state: 'drafting' | 'creating' | 'committing';
   /** null until the first keystroke's create resolves. */
   noteId: string | null;
-  onFirstKeystroke: (title: string) => void;
+  /** The first keystroke in either field creates the note, with what the fields hold then. */
+  onFirstKeystroke: (draft: { title: string; description: string }) => void;
   commit: (
     draft: { title: string; description: string; fields: CaptureFields },
     thenOpen: boolean,
@@ -41,7 +42,8 @@ export interface CaptureController {
   /**
    * Saves the words typed so far to the note, debounced, so a reload or a crash mid-capture
    * keeps the line (WALLYBOT_INLINE.md §3.1). Title and text only: kept chips still apply on
-   * commit alone. Does nothing until the first keystroke has started the create.
+   * commit alone. Does nothing until the first keystroke has started the create, nor for two
+   * fields erased to nothing.
    */
   saveDraft: (draft: { title: string; description: string }) => void;
 }
@@ -123,11 +125,11 @@ export function useCapture(
   const savedDraft = useRef<{ title: string; description: string } | null>(null);
 
   const startCreation = useCallback(
-    (title: string) => {
+    (draft: { title: string; description: string }) => {
       setState('creating');
-      const pending = createNote({ ...placementInput(placement), title, visibility });
+      const pending = createNote({ ...placementInput(placement), ...draft, visibility });
       creation.current = pending;
-      savedDraft.current = { title, description: '' };
+      savedDraft.current = draft;
       pending.then(
         (note) => {
           setNoteId(note.id);
@@ -144,9 +146,9 @@ export function useCapture(
     [createNote, placement, visibility],
   );
 
-  const onFirstKeystroke = useCallback(
-    (title: string) => {
-      if (!creation.current) void startCreation(title);
+  const onFirstKeystroke = useCallback<CaptureController['onFirstKeystroke']>(
+    (draft) => {
+      if (!creation.current) void startCreation(draft);
     },
     [startCreation],
   );
@@ -178,9 +180,9 @@ export function useCapture(
   const saveDraft = useCallback<CaptureController['saveDraft']>(
     (draft) => {
       if (!creation.current) return;
-      // A title erased to nothing is not a line worth keeping; drop what was waiting.
+      // Both fields erased to nothing are not a line worth keeping; drop what was waiting.
       clearDraft();
-      if (!draft.title) return;
+      if (!draft.title && !draft.description) return;
       pendingDraft.current = draft;
       draftTimer.current = setTimeout(() => void writeDraft(), DRAFT_SAVE_MS);
     },
@@ -197,7 +199,7 @@ export function useCapture(
       clearDraft();
       setState('committing');
       try {
-        const { id } = await (creation.current ?? startCreation(title));
+        const { id } = await (creation.current ?? startCreation({ title, description }));
         await updateNote({
           noteId: id,
           input: {

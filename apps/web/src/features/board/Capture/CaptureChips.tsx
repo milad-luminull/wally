@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { RemoveButton } from '@/components/ui/remove-button';
 import type { CaptureParse } from '@/lib/capture/parseCapture';
 import { dueInfo, dueToneClass } from '../util/noteDerived';
 
@@ -11,9 +11,10 @@ export interface ChipState {
 }
 
 /**
- * The parser's proposals under the title: date, person, priority. Default kept; a tap toggles,
- * `×` drops for this capture. Same type and colour as the note; the due date's text carries the
- * status colour the card would show. Nothing here writes anything.
+ * The parser's proposals under the title: date, person, priority. Kept unless the card says
+ * otherwise; a tap toggles, `×` drops for this capture. Same type and colour as the note; the
+ * due date's text carries the status colour the card would show. Nothing here writes anything.
+ * Each control is named after its suggestion, and both grow to 40px on a coarse pointer.
  */
 export function CaptureChips({
   parse,
@@ -60,6 +61,7 @@ export function CaptureChips({
           data-chip={kind}
           className={cn(
             'inline-flex h-6 items-center gap-1 rounded-[4px] border border-border bg-surface-alt pl-1.5 pr-0.5 text-12 leading-5 text-fg-2',
+            '[@media(pointer:coarse)]:h-11',
             !state.kept[kind] && 'opacity-50 line-through decoration-fg-faint',
           )}
         >
@@ -70,19 +72,17 @@ export function CaptureChips({
             aria-label={label}
             className={cn(
               'rounded-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+              '[@media(pointer:coarse)]:h-10',
               tone,
             )}
           >
             {label}
           </button>
-          <button
-            type="button"
+          <RemoveButton
             onClick={() => onDrop(kind)}
-            aria-label={t('capture.chips.drop')}
-            className="flex h-5 w-5 items-center justify-center rounded-[3px] text-fg-3 hover:bg-inset hover:text-fg-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
-          >
-            <X className="h-3 w-3" strokeWidth={2} />
-          </button>
+            label={t('capture.chips.dropNamed', { label })}
+            className="h-5 w-5 rounded-[3px] [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10"
+          />
         </span>
       ))}
     </div>

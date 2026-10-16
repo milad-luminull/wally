@@ -34,17 +34,21 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { useKeyboardShortcuts } from '@/lib/shortcuts';
 import { InlineCaptureCard } from './InlineCaptureCard';
-import { DRAFT_SAVE_MS } from './useCapture';
+import { DRAFT_SAVE_MS, type CapturePlacement } from './useCapture';
 
 const created = (overrides: Partial<NoteDto> = {}) =>
   makeNote({ id: 'n-new', revision: 1, title: 'Müller anrufen', ...overrides });
 
-function renderCard(layout: 'card' | 'row' = 'card', visibility: NoteVisibility = 'SHARED') {
+function renderCard(
+  layout: 'card' | 'row' = 'card',
+  visibility: NoteVisibility = 'SHARED',
+  placement: CapturePlacement = { kind: 'free', x: 10, y: 20 },
+) {
   const onDone = vi.fn();
   const view = renderWithProviders(
     <InlineCaptureCard
       boardId="b1"
-      placement={{ kind: 'free', x: 10, y: 20 }}
+      placement={placement}
       visibility={visibility}
       layout={layout}
       onDone={onDone}
@@ -122,7 +126,7 @@ describe('InlineCaptureCard', () => {
       screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Müller anrufen Freitag @anna dringend',
     );
-    expect(screen.getByRole('button', { name: /Fällig/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Fällig/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Zuständig: Anna Kowalski' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Priorität hoch' })).toBeInTheDocument();
     await user.keyboard('{Enter}');
@@ -147,7 +151,11 @@ describe('InlineCaptureCard', () => {
     const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
     await user.type(title, 'Müller anrufen Freitag @anna');
     const chip = document.querySelector<HTMLElement>('[data-chip="assignee"]')!;
-    await user.click(within(chip).getByRole('button', { name: 'Vorschlag entfernen' }));
+    await user.click(
+      within(chip).getByRole('button', {
+        name: 'Vorschlag entfernen: Zuständig: Anna Kowalski',
+      }),
+    );
     expect(screen.queryByRole('button', { name: 'Zuständig: Anna Kowalski' })).toBeNull();
     expect(title).toHaveFocus();
     await user.keyboard('{Enter}');
@@ -187,14 +195,19 @@ describe('InlineCaptureCard', () => {
     });
   });
 
-  it('does not commit a whitespace title on Enter and deletes the note on blur', async () => {
+  it('does not commit whitespace in both fields on Enter and deletes the note on blur', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
     const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
     await user.type(title, 'a{Backspace} ');
     await user.keyboard('{Enter}');
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    await user.type(text, '  {Enter}');
     expect(onDone).not.toHaveBeenCalled();
+    expect(notesApi.update).not.toHaveBeenCalled();
     expect(title).toBeInTheDocument();
+    await user.tab();
     await user.tab();
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
     expect(onDone).toHaveBeenCalledWith(null, false);
@@ -208,6 +221,86 @@ describe('InlineCaptureCard', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({ title: 'Bleibt' });
     expect(notesApi.remove).not.toHaveBeenCalled();
+  });
+
+  it('a note started in the text line commits with an empty title and that text', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    await user.type(text, 'nur Text');
+    await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject({ title: '' });
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
+      title: '',
+      description: 'nur Text',
+    });
+    expect(notesApi.remove).not.toHaveBeenCalled();
+  });
+
+  it('a click elsewhere with nothing typed sends no request', async () => {
+    const { onDone } = renderCard();
+    await userEvent.setup().tab();
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false));
+    expect(notesApi.create).not.toHaveBeenCalled();
+    expect(notesApi.remove).not.toHaveBeenCalled();
+    expect(notesApi.update).not.toHaveBeenCalled();
+  });
+
+  it('a click on the card outside its fields keeps the caret and settles nothing', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    await user.type(title, 'Halt');
+    await user.click(screen.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen'));
+    await pause(20);
+    expect(title).toHaveFocus();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(notesApi.remove).not.toHaveBeenCalled();
+  });
+
+  describe('in a priority zone', () => {
+    const priorityZone: CapturePlacement = {
+      kind: 'zone',
+      axis: 'priority',
+      key: 'MITTEL',
+      at: { freeX: 0, freeY: 0 },
+    };
+
+    it('proposes the priority but leaves the note where it was placed', async () => {
+      const { onDone } = renderCard('card', 'SHARED', priorityZone);
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+        'Bericht dringend',
+      );
+      expect(screen.getByRole('button', { name: 'Priorität hoch' })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+      expect(notesApi.move).not.toHaveBeenCalled();
+    });
+
+    it('moves the note when the person keeps the priority chip', async () => {
+      const { onDone } = renderCard('card', 'SHARED', priorityZone);
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+        'Bericht dringend',
+      );
+      await user.click(screen.getByRole('button', { name: 'Priorität hoch' }));
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+      expect(notesApi.move).toHaveBeenCalledWith(
+        'n-new',
+        { mode: 'PRIORITY', priority: 'HOCH' },
+        expect.anything(),
+      );
+    });
   });
 
   it('Esc after typing deletes the note', async () => {
@@ -228,16 +321,57 @@ describe('InlineCaptureCard', () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', true));
   });
 
-  it('underlines the matched words in the field', async () => {
+  it('underlines every matched word in the field, in text order', async () => {
     renderCard();
     await userEvent
       .setup()
       .type(
         screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
-        'Müller anrufen Freitag',
+        'Müller anrufen Freitag @anna dringend',
       );
     const marks = screen.getAllByTestId('capture-mark');
-    expect(marks.map((m) => m.textContent)).toEqual(['Freitag']);
+    expect(marks.map((m) => m.textContent)).toEqual(['Freitag', '@anna', 'dringend']);
+  });
+
+  it('commits the date and the priority but not a dropped person', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+      'Müller anrufen Freitag @anna dringend',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna Kowalski' }),
+    );
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    expect(
+      (vi.mocked(notesApi.update).mock.calls.at(-1)![1] as { dueDate?: string }).dueDate,
+    ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(notesApi.move).toHaveBeenCalledWith(
+      'n-new',
+      { mode: 'PRIORITY', priority: 'HOCH' },
+      expect.anything(),
+    );
+    expect(notesApi.assign).not.toHaveBeenCalled();
+  });
+
+  it('names each chip and its × after the suggestion it stands for', async () => {
+    renderCard();
+    await userEvent
+      .setup()
+      .type(
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+        'Müller anrufen Freitag @anna dringend',
+      );
+    const removes = screen
+      .getAllByRole('button', { name: /^Vorschlag entfernen/ })
+      .map((b) => b.getAttribute('aria-label'));
+    expect(removes).toEqual([
+      expect.stringMatching(/^Vorschlag entfernen: Fällig /),
+      'Vorschlag entfernen: Zuständig: Anna Kowalski',
+      'Vorschlag entfernen: Priorität hoch',
+    ]);
   });
 
   it('renders as a full-width row in the list layout', () => {

@@ -44,7 +44,7 @@ import { makeNote } from '@/test/fixtures';
 import { useNotes } from '../hooks/useNotes';
 import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
 import { boardAccess } from '../util/permissions';
-import { firstZoneKey } from '../util/noteDerived';
+import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import { ListView } from '../ListView/ListView';
 import { WandView } from '../WandView/WandView';
@@ -105,7 +105,7 @@ function Board({
         : session.startCapture({
             kind: 'zone',
             axis,
-            key: firstZoneKey(axis),
+            key: defaultZoneKey(axis),
             at: nextFreeNotePosition(notes),
           });
   return (
@@ -227,15 +227,34 @@ describe('useCaptureSession: the note being written has one card', () => {
     },
   );
 
-  it('opens the panel on the real note with ⌘↵ / Ctrl+↵', async () => {
+  it('a plain Enter never opens the panel; ⌘↵ / Ctrl+↵ does', async () => {
     const { openNote } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
     await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Bericht{Control>}{Enter}{/Control}');
+    await userEvent.type(await titleField(), 'Erste{Enter}');
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+    );
+    await waitFor(() => expect(notesApi.update).toHaveBeenCalled());
+    expect(openNote).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(openNote).toHaveBeenCalledWith('created-1'));
+    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.type(await titleField(), 'Zweite{Control>}{Enter}{/Control}');
+    await waitFor(() => expect(openNote).toHaveBeenCalledWith('created-2'));
     expect(openNote).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
+  });
+
+  it.each([
+    ['priority', { priority: 'MITTEL' }],
+    ['horizon', { horizon: 'HEUTE' }],
+  ] as const)('N on the %s wall writes the note in the default zone', async (axis, expected) => {
+    renderBoard('wand', axis);
+    await screen.findByText('Vorhanden');
+    await userEvent.click(screen.getByRole('button', { name: 'new' }));
+    await userEvent.type(await titleField(), 'X');
+    await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject(expected);
   });
 });
 

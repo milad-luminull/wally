@@ -108,9 +108,13 @@ export interface NoteGroup<K extends string> {
 const HORIZON_ORDER: NoteHorizon[] = ['HEUTE', 'DIESE_WOCHE', 'SPAETER'];
 const PRIORITY_ORDER: NotePriority[] = [...notePriorityValues];
 
-/** The zone shown first on a zoned wall: where a new note goes when no zone was chosen. */
-export function firstZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | NotePriority {
-  return axis === 'horizon' ? HORIZON_ORDER[0]! : PRIORITY_ORDER[0]!;
+/**
+ * Where a new note goes on a zoned wall when no zone was chosen (N, New note): the first
+ * horizon (HEUTE), but the middle priority (MITTEL, the schema default) rather than the first
+ * band, so pressing N again and again never makes every note high priority.
+ */
+export function defaultZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | NotePriority {
+  return axis === 'horizon' ? HORIZON_ORDER[0]! : 'MITTEL';
 }
 
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even

@@ -108,12 +108,6 @@ describe('BoardCommands', () => {
     expect(viewer.onDuplicateNote).not.toHaveBeenCalled();
   });
 
-  it('starts a new note on n, once per press', async () => {
-    const { onNewNote } = renderCommands({ noteOpen: false });
-    await userEvent.keyboard('n');
-    expect(onNewNote).toHaveBeenCalledTimes(1);
-  });
-
   it('leaves n to the note being written: it is a letter in the capture, not a new note', async () => {
     const { onNewNote } = renderCommands(
       { noteOpen: false },

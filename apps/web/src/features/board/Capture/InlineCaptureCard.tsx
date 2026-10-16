@@ -20,10 +20,21 @@ import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
 import { useCapture, type CaptureFields, type CapturePlacement } from './useCapture';
 
-const ALL_KEPT: ChipState = {
-  kept: { dueDate: true, assignee: true, priority: true },
-  dropped: { dueDate: false, assignee: false, priority: false },
-};
+/**
+ * Chips start kept, except a priority on the priority wall: keeping it would move the note out
+ * of the band the person placed it in, and a placed note never moves unasked (spec §7,
+ * decision 1). There it is shown, and a tap keeps it.
+ */
+function initialChips(placement: CapturePlacement): ChipState {
+  const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+  return {
+    kept: { dueDate: true, assignee: true, priority: !placedByPriority },
+    dropped: { dueDate: false, assignee: false, priority: false },
+  };
+}
+
+/** The card's own controls; a press anywhere else on the card must not take focus from them. */
+const OWN_CONTROLS = 'textarea, input, button';
 
 /** Grows a textarea to its content, so the card expands in place instead of scrolling. */
 function fitToContent(field: HTMLTextAreaElement | null) {
@@ -116,7 +127,7 @@ export function InlineCaptureCard({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [showText, setShowText] = useState(false);
-  const [chips, setChips] = useState<ChipState>(ALL_KEPT);
+  const [chips, setChips] = useState<ChipState>(() => initialChips(placement));
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Set once a commit or cancel is under way, so Enter, Esc and blur settle the capture once.
@@ -170,9 +181,11 @@ export function InlineCaptureCard({
       priority: parse?.priority && applies('priority') ? parse.priority.value : null,
     };
   }
+  /** Words in either field make a note; whitespace alone in both does not. */
+  const hasWords = Boolean(title.trim() || description.trim());
   async function commit(thenOpen: boolean) {
     const trimmed = title.trim();
-    if (!trimmed || settling.current) return;
+    if (!hasWords || settling.current) return;
     settling.current = true;
     try {
       await controller.commit(
@@ -192,8 +205,12 @@ export function InlineCaptureCard({
     await controller.cancel();
   }
   function onTitleChange(next: string) {
-    if (!title && next) controller.onFirstKeystroke(next);
+    if (!title && next) controller.onFirstKeystroke({ title: next, description });
     setTitle(next);
+  }
+  function onDescriptionChange(next: string) {
+    if (!description && next) controller.onFirstKeystroke({ title, description: next });
+    setDescription(next);
   }
   /** The capture owns the keys it handles: no board shortcut, Esc-to-close or deselect sees them. */
   function claim(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -226,7 +243,7 @@ export function InlineCaptureCard({
   function onBlur(event: FocusEvent<HTMLDivElement>) {
     // Focus moving between the card's own fields and chips is not leaving the capture.
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-    if (title.trim()) void commit(false);
+    if (hasWords) void commit(false);
     else void cancel();
   }
   const toggle = (kind: ChipKind) =>
@@ -240,6 +257,11 @@ export function InlineCaptureCard({
       aria-label={t('capture.cardAria')}
       data-layout={layout}
       onBlur={onBlur}
+      // A press on the card's padding, gaps or hint would move focus to the page, and the blur
+      // would settle the capture; only its fields and buttons take focus.
+      onMouseDown={(e) => {
+        if (!(e.target as HTMLElement).closest(OWN_CONTROLS)) e.preventDefault();
+      }}
       className={cn(
         'relative flex flex-col gap-2 rounded-lg border border-[color:var(--note-border)] p-3 text-left shadow-e2',
         'ring-2 ring-inset ring-[color:var(--note-selected)]',
@@ -267,7 +289,7 @@ export function InlineCaptureCard({
         <textarea
           ref={textRef}
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => onDescriptionChange(e.target.value)}
           onKeyDown={onTextKey}
           rows={2}
           aria-label={t('capture.descriptionAria')}

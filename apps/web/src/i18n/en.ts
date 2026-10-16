@@ -421,9 +421,7 @@ export const en = {
       assignee: 'Assigned to {{name}}',
       priorityHigh: 'High priority',
       priorityLow: 'Low priority',
-      keep: 'Keep suggestion',
-      drop: 'Remove suggestion',
-      dropped: 'Removed',
+      dropNamed: 'Remove suggestion: {{label}}',
     },
   },
   home: {

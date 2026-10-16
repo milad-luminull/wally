@@ -19,7 +19,7 @@ vi.mock('../Capture/InlineCaptureCard', () => ({
 }));
 
 describe('WandCanvas capture', () => {
-  it('asks for a capture at the double-click point and renders it there', () => {
+  it('asks for a capture at the double-click point', () => {
     const onCapture = vi.fn();
     renderWithProviders(
       <DndContext>
@@ -41,8 +41,10 @@ describe('WandCanvas capture', () => {
     );
     const surface = screen.getByTestId('wand-canvas');
     fireEvent.doubleClick(surface, { clientX: 300, clientY: 200 });
-    expect(onCapture).toHaveBeenCalledWith(expect.objectContaining({ kind: 'free' }));
+    // jsdom lays the canvas out at the origin, unscrolled: the point is the client point.
+    expect(onCapture).toHaveBeenCalledWith({ kind: 'free', x: 300, y: 200 });
   });
+
   it('renders the capture card at its placement', () => {
     renderWithProviders(
       <DndContext>
