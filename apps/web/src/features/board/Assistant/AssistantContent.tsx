@@ -131,10 +131,13 @@ export function AssistantContent({
 
   const [latest, ...earlier] = pending ? [pending, ...exchanges] : exchanges;
   const loading = pending !== null && pending.outcome === null;
-  const showNew = Boolean(conversation) && !loading;
+  // A conversation whose first turn failed has no entries yet. It shows like no conversation
+  // at all (examples, no "New"), while its id still goes with the next ask so it is continued.
+  const hasExchanges = exchanges.length > 0;
+  const showNew = hasExchanges && !loading;
   // The examples wait for the latest conversation to resolve (null means there is none), so
   // they never flash in above a conversation that is still loading or failed to load.
-  const showExamples = !latest && (fresh || stored === null);
+  const showExamples = !latest && (fresh || (stored !== undefined && !hasExchanges));
 
   return (
     <div className="flex h-full flex-col">

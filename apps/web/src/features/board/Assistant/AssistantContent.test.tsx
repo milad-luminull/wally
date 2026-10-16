@@ -354,6 +354,30 @@ describe('AssistantContent', () => {
     expect(await screen.findByRole('textbox', { name: 'Frage an die Wand' })).toBeInTheDocument();
   });
 
+  it('shows the empty state for a conversation with no entries and continues it on the next ask', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(conversation([], 'c-empty'));
+    vi.mocked(assistantApi.turn).mockResolvedValue({
+      conversation: conversation(
+        [entry('user', 'Was ist überfällig?'), entry('assistant', 'Nichts.')],
+        'c-empty',
+      ),
+    });
+    renderContent();
+    const user = userEvent.setup();
+    const example = await screen.findByRole('button', { name: 'Was ist überfällig?' });
+    expect(
+      screen.getByRole('button', { name: 'Wer hat die meisten offenen Notizen?' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Was ist heute offen?' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Neu' })).not.toBeInTheDocument();
+    await user.click(example);
+    expect(await screen.findByText('Nichts.')).toBeInTheDocument();
+    expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({
+      message: 'Was ist überfällig?',
+      conversationId: 'c-empty',
+    });
+  });
+
   it('shows no example questions while the latest conversation is still loading', async () => {
     vi.mocked(assistantApi.latest).mockReturnValue(new Promise(() => {}));
     renderContent();
