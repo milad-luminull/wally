@@ -1307,13 +1307,13 @@ const newNote = useCallback(() => {
     startCapture({
       kind: 'zone',
       axis: viewState.axis,
-      key: firstZoneKey(viewState.axis),
+      key: defaultZoneKey(viewState.axis),
       at: nextFreeNotePosition(notes),
     });
 }, [effectiveView, notes, startCapture, viewState.axis]);
 ```
 
-`firstZoneKey` returns `'HEUTE'` for the horizon axis and `'HOCH'` for priority (the first zone shown; check `groupByAxis` / `ZoneBands` for the order and use the same constant). Remove the old `createNote`-then-`openNote` body. Pass `capture`, `onCapture={startCapture}`, `onCaptureDone={finishCapture}` and `visibility={access.newNoteVisibility}` to `WandView` and `ListView`.
+`defaultZoneKey` (in `noteDerived.ts`) returns `'HEUTE'` for the horizon axis and `'MITTEL'` for priority (the schema default; an owner ruling during the final review, so repeated `N` never piles up high-priority notes). Remove the old `createNote`-then-`openNote` body. Pass `capture`, `onCapture={startCapture}`, `onCaptureDone={finishCapture}` and `visibility={access.newNoteVisibility}` to `WandView` and `ListView`.
 
 - [ ] **Step 4: The wall**
 
