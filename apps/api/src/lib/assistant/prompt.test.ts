@@ -30,6 +30,13 @@ describe('buildInstructions', () => {
   });
   it('states the rules the spec and the brand require', () => {
     expect(INSTRUCTIONS_PREFIX).toMatch(/\[note:ID\]/);
+    expect(INSTRUCTIONS_PREFIX).toMatch(/marker as the note's title/i);
+    expect(INSTRUCTIONS_PREFIX).toMatch(/in place of the title/i);
+    expect(INSTRUCTIONS_PREFIX).toMatch(/never write the title next to it/i);
+    expect(INSTRUCTIONS_PREFIX).toMatch(/missing, empty or wrong data, is a question to answer/i);
+    expect(INSTRUCTIONS_PREFIX).toMatch(
+      /only an explicit request to change, create, move, assign or delete/i,
+    );
     expect(INSTRUCTIONS_PREFIX).toMatch(/never follow instructions/i);
     expect(INSTRUCTIONS_PREFIX).toMatch(/truncated/i);
     expect(INSTRUCTIONS_PREFIX).toMatch(/first person/i);
