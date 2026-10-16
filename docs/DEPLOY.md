@@ -368,10 +368,16 @@ Three things worth understanding:
 `--update-env-vars` to change one without touching the others.
 
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
-(`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
+(`provider:model`, default `vertex:gemini-2.5-flash`), `ASSISTANT_VERTEX_LOCATION`
 (default `europe-west1`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
 and the Cloud Run service account needs `roles/aiplatform.user`. `GET /health` reports
 the configured model without calling it.
+
+The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
+Gemini 3.8 Flash is served only on the `global` endpoint for this project: it answers 404
+in `europe-west1` and `europe-west4`. Using it means setting
+`ASSISTANT_MODEL=vertex:gemini-3.8-flash` together with `ASSISTANT_VERTEX_LOCATION=global`,
+which moves processing outside the EU and needs the owner's decision under D4.
 
 Two caps bound spend: `ASSISTANT_DAILY_CAP_TOKENS` (default `300000`) is each user's daily
 token allowance on any key, and `ASSISTANT_MONTHLY_CAP_MICRO_USD` (default `15000000`, that

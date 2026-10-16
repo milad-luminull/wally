@@ -25,7 +25,12 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
   // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
-  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-3.8-flash'),
+  // The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
+  // Gemini 3.8 Flash is served only on the `global` endpoint for this project. To use it,
+  // set ASSISTANT_MODEL=vertex:gemini-3.8-flash together with
+  // ASSISTANT_VERTEX_LOCATION=global; that moves processing outside the EU and needs the
+  // owner's decision under D4.
+  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-2.5-flash'),
   // Vertex region and project for the deployment route. The project falls back to
   // FIREBASE_PROJECT_ID. The Cloud Run service account needs roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('europe-west1'),

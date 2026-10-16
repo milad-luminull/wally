@@ -21,6 +21,9 @@ export interface ModelPrice {
 
 const PRICES: Record<string, ModelPrice> = {
   'vertex:gemini-3.8-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
+  // The default model. A deliberate upper bound carried over from the 3.8 Flash row above,
+  // not a quote of Gemini 2.5 Flash's list price, which is lower.
+  'vertex:gemini-2.5-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
 };
 
 export function priceFor(modelRef: string): ModelPrice {
