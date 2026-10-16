@@ -12,6 +12,8 @@ import { useAskAssistant, type AskOutcome } from './useAskAssistant';
 import { useAssistantConversation } from './useAssistantConversation';
 
 const EXAMPLES = ['open', 'overdue', 'busiest'] as const;
+/** The longest question the API accepts (assistantTurnRequestSchema). */
+const MAX_QUESTION_LENGTH = 2000;
 
 interface Exchange {
   question: string;
@@ -96,13 +98,16 @@ export function AssistantContent({
   async function submit(text: string) {
     const message = text.trim();
     if (!message || isPending) return;
-    setDraft('');
     setPending({ question: message, answer: null, outcome: null });
     const outcome = await ask(message, conversation?.id ?? null);
     if (outcome.kind === 'answered') {
+      // The draft is cleared only once the question has an answer; a refused or failed ask
+      // leaves it in the field, so trying again is one keystroke.
+      setDraft('');
       setFresh(false);
       setPending(null);
     } else {
+      setDraft(message);
       setPending({ question: message, answer: null, outcome });
     }
   }
@@ -151,6 +156,7 @@ export function AssistantContent({
             onKeyDown={onKeyDown}
             placeholder={t('assistant.placeholder')}
             rows={1}
+            maxLength={MAX_QUESTION_LENGTH}
             disabled={isPending}
             aria-label={t('assistant.ask')}
             className="min-h-9 max-h-24 pr-9"

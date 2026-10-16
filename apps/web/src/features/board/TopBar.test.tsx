@@ -82,3 +82,21 @@ describe('TopBar new-note button', () => {
     expect(screen.queryByRole('button', { name: 'Neue Notiz' })).not.toBeInTheDocument();
   });
 });
+
+describe('TopBar question button', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('is absent when the assistant is off', () => {
+    renderTopBar({ assistantEnabled: false });
+    expect(screen.queryByRole('button', { name: 'Fragen' })).not.toBeInTheDocument();
+  });
+
+  it('shows at every width when the assistant is on and opens the panel on click', async () => {
+    const onOpenAssistant = vi.fn();
+    renderTopBar({ assistantEnabled: true, onOpenAssistant });
+    const button = screen.getByRole('button', { name: 'Fragen' });
+    expect(button).not.toHaveClass('hidden');
+    await userEvent.click(button);
+    expect(onOpenAssistant).toHaveBeenCalledTimes(1);
+  });
+});

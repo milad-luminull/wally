@@ -23,7 +23,7 @@ What the panel is, in one sentence: a question field above a stack of answers, t
 - **Refusals.** Inline, in the slot the answer would take, in `text-fg-3`: daily cap with the reset time, monthly cap with the reset date, busy, timeout, tool limit, a generic failure. No toast and no modal (BRAND.md AI rule 5).
 - **Closed conversation.** The API answers 409 when a conversation closed under the panel; the hook retries once without the conversation id and the panel shows the new conversation. The old one is not shown.
 - **Off.** When `board.assistantEnabled` is false nothing exists: no palette entry, no shortcut, no top-bar button, and `?ask=1` renders nothing.
-- **Entry points.** Command palette entry "Wand fragen…" / "Ask the wall…" under Actions; shortcut `mod+j` (listed in the `?` sheet); a ghost text button "Fragen" / "Ask" in the top bar next to the commands trigger, `hidden md:inline-flex` like the trigger, with the shortcut in its tooltip.
+- **Entry points.** Command palette entry "Wand fragen…" / "Ask the wall…" under Actions; shortcut `mod+j` (listed in the `?` sheet); a ghost text button "Fragen" / "Ask" in the top bar next to the commands trigger, visible at every width (unlike the trigger, so phones can open the panel), with the shortcut in its tooltip.
 - **Voice.** Sentence case, no exclamation marks, no name for the AI, no first person anywhere in the copy. German is informal du.
 
 ## Global Constraints

@@ -35,7 +35,7 @@ export function AnswerNotes({
                 className={cn(
                   'flex w-full min-w-0 items-center gap-2.5 px-3 py-2 text-left',
                   'transition-colors duration-120 hover:bg-surface-alt',
-                  'focus-visible:bg-surface-alt focus-visible:outline-none',
+                  'focus-visible:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
                   '[@media(pointer:coarse)]:min-h-11',
                 )}
               >

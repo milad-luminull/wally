@@ -86,7 +86,7 @@ describe('AssistantContent', () => {
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('Was ist heute offen?');
     await user.type(field, 'Was ist offen?{Enter}');
-    expect(screen.getByText('Was ist offen?')).toBeInTheDocument();
+    expect(screen.getByText('Was ist offen?', { selector: 'p' })).toBeInTheDocument();
     expect(field).toBeDisabled();
     release({
       conversation: conversation([
@@ -163,7 +163,28 @@ describe('AssistantContent', () => {
     expect(
       await screen.findByText(/Tageslimit erreicht\. Ab .+ wieder verfügbar\./),
     ).toBeInTheDocument();
-    expect(screen.getByText('eins')).toBeInTheDocument();
+    expect(screen.getByText('eins', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Was ist heute offen?')).toHaveValue('eins');
+  });
+
+  it('puts the question back into the field when the ask fails', async () => {
+    vi.mocked(assistantApi.turn).mockRejectedValue(
+      new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    const field = await screen.findByPlaceholderText('Was ist heute offen?');
+    await user.type(field, 'Was ist offen?{Enter}');
+    expect(await screen.findByText('Keine Antwort. Noch einmal versuchen.')).toBeInTheDocument();
+    expect(field).toHaveValue('Was ist offen?');
+  });
+
+  it('caps the field at the length the API accepts', async () => {
+    renderContent();
+    expect(await screen.findByPlaceholderText('Was ist heute offen?')).toHaveAttribute(
+      'maxLength',
+      '2000',
+    );
   });
 
   it('renders stopped and partial answers with their one line', async () => {
@@ -208,7 +229,7 @@ describe('AssistantContent', () => {
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('Was ist heute offen?');
     await user.type(field, 'eins{Enter}');
-    const region = screen.getByText('eins').closest('[aria-live]');
+    const region = screen.getByText('eins', { selector: 'p' }).closest('[aria-live]');
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toHaveAttribute('aria-busy', 'true');
     release({

@@ -302,11 +302,7 @@ export function TopBar({
 
       {assistantEnabled && (
         <IconTooltip label={t('shortcuts.ask')} shortcut={[MOD_KEY, 'J']}>
-          <Button
-            variant="ghost"
-            onClick={onOpenAssistant}
-            className="hidden text-fg-3 md:inline-flex"
-          >
+          <Button variant="ghost" onClick={onOpenAssistant} className="text-fg-3">
             {t('assistant.ask')}
           </Button>
         </IconTooltip>
