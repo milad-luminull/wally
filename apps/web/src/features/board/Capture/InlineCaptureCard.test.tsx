@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { NoteDto, NoteVisibility } from '@wally/shared';
 
@@ -30,6 +30,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
 });
 
 import { membersApi, notesApi } from '@/lib/resources';
+import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { useKeyboardShortcuts } from '@/lib/shortcuts';
@@ -483,6 +484,123 @@ describe('InlineCaptureCard', () => {
     } finally {
       document.removeEventListener('keydown', record);
     }
+  });
+
+  it('stays read-only for the whole commit when the create resolves after Enter', async () => {
+    let resolveCreate: (note: NoteDto) => void = () => {};
+    vi.mocked(notesApi.create).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCreate = resolve)),
+    );
+    let resolveUpdate: (note: NoteDto) => void = () => {};
+    vi.mocked(notesApi.update).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveUpdate = resolve)),
+    );
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    await user.type(title, 'Spät');
+    await user.keyboard('{Enter}');
+    expect(title).toHaveAttribute('readonly');
+    await act(async () => resolveCreate(created({ title: 'Spät' })));
+    await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
+    // The create landed mid-commit; the commit is still waiting on its update.
+    expect(title).toHaveAttribute('readonly');
+    await act(async () => resolveUpdate(created({ title: 'Spät' })));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+  });
+
+  it('Shift+Enter in the title goes back to a text line that is already open', async () => {
+    renderCard();
+    const user = userEvent.setup();
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    await user.type(title, 'Angebot');
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    await user.type(text, 'drei');
+    await user.click(title);
+    expect(title).toHaveFocus();
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    expect(text).toHaveFocus();
+  });
+
+  it('saves the text as typed, without trimming it', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Angebot');
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    await user.type(text, '  drei Varianten  {Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
+      title: 'Angebot',
+      description: '  drei Varianten  ',
+    });
+  });
+
+  it('stops underlining a match once its chip is dropped', async () => {
+    renderCard();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+      'Müller anrufen Freitag @anna',
+    );
+    expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual([
+      'Freitag',
+      '@anna',
+    ]);
+    await user.click(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna Kowalski' }),
+    );
+    expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual(['Freitag']);
+  });
+
+  it('formats the proposed date in the language the line was read in', async () => {
+    // The parser reads German (useLanguage above); the date it found is labelled the same way,
+    // even while the catalogue is English.
+    await i18n.changeLanguage('en');
+    renderCard();
+    await userEvent
+      .setup()
+      .type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Bericht Freitag');
+    // German order and weekday (`Fr., 16.10.`), not English (`Fri, 10/16`).
+    expect(screen.getByRole('button', { name: /^Due / })).toHaveAccessibleName(
+      /^Due Fr\., \d{2}\.\d{2}\.$/,
+    );
+  });
+
+  it('describes the title field with the keyboard hint, set in the mono face', () => {
+    renderCard();
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    expect(title).toHaveAccessibleDescription('↵ anlegen · ⇧↵ Text · Esc verwerfen');
+    expect(screen.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen')).toHaveClass('font-mono');
+  });
+
+  it('owns its keys while a chip has focus: n is no new note, Esc discards', async () => {
+    const onN = vi.fn();
+    const onEsc = vi.fn();
+    const onDone = vi.fn();
+    renderWithProviders(
+      <>
+        <BoardKeys onN={onN} onEsc={onEsc} />
+        <InlineCaptureCard
+          boardId="b1"
+          placement={{ kind: 'free', x: 10, y: 20 }}
+          visibility="SHARED"
+          layout="card"
+          onDone={onDone}
+        />
+      </>,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Freitag');
+    await user.tab();
+    expect(screen.getByRole('button', { name: /^Fällig/ })).toHaveFocus();
+    await user.keyboard('n');
+    expect(onN).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false));
+    expect(onEsc).not.toHaveBeenCalled();
   });
 
   it('a failed commit keeps the card, the words and the caret, and Enter retries', async () => {

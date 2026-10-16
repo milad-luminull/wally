@@ -245,6 +245,18 @@ describe('useCaptureSession: the note being written has one card', () => {
     expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
   });
 
+  it('after Enter, the keyboard carries on from the committed card', async () => {
+    const { container } = renderBoard('wand', 'horizon');
+    await screen.findByText('Vorhanden');
+    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.type(await titleField(), 'Weiter{Enter}');
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+    );
+    const card = container.querySelector('[data-note-id="created-1"] button');
+    await waitFor(() => expect(card).toHaveFocus());
+  });
+
   it.each([
     ['priority', { priority: 'MITTEL' }],
     ['horizon', { horizon: 'HEUTE' }],

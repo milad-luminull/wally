@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -35,6 +36,19 @@ function initialChips(placement: CapturePlacement): ChipState {
 
 /** The card's own controls; a press anywhere else on the card must not take focus from them. */
 const OWN_CONTROLS = 'textarea, input, button';
+
+/** The schema keeps a description as typed; only whitespace alone counts as no text. */
+const asTyped = (text: string) => (text.trim() ? text : '');
+
+/** The parse without the matches whose chips were dropped, so their words lose the underline. */
+function withoutDropped(parse: CaptureParse | null, chips: ChipState): CaptureParse | null {
+  if (!parse) return null;
+  return {
+    dueDate: chips.dropped.dueDate ? null : parse.dueDate,
+    assignee: chips.dropped.assignee ? null : parse.assignee,
+    priority: chips.dropped.priority ? null : parse.priority,
+  };
+}
 
 /** Grows a textarea to its content, so the card expands in place instead of scrolling. */
 function fitToContent(field: HTMLTextAreaElement | null) {
@@ -120,7 +134,7 @@ export function InlineCaptureCard({
    */
   onNoteId?: (id: string) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const { activeMembers } = useActiveMembers(boardId);
   const controller = useCapture(boardId, placement, visibility, { onDone, onNoteId });
@@ -132,6 +146,7 @@ export function InlineCaptureCard({
   const textRef = useRef<HTMLTextAreaElement>(null);
   // Set once a commit or cancel is under way, so Enter, Esc and blur settle the capture once.
   const settling = useRef(false);
+  const hintId = useId();
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -143,7 +158,7 @@ export function InlineCaptureCard({
   useLayoutEffect(() => fitToContent(textRef.current), [description, showText]);
   const { saveDraft } = controller;
   useEffect(() => {
-    saveDraft({ title: title.trim(), description: description.trim() });
+    saveDraft({ title: title.trim(), description: asTyped(description) });
   }, [saveDraft, title, description]);
 
   // A private note is always assigned to its creator (the API answers anything else with 422
@@ -166,7 +181,8 @@ export function InlineCaptureCard({
     ? (activeMembers.find((m) => m.userId === parse.assignee!.memberId)?.displayName ?? null)
     : null;
   const dateLabel = parse?.dueDate
-    ? new Intl.DateTimeFormat(i18n.language, {
+    ? // The language the line was parsed in, so `Freitag` is labelled as the German date it is.
+      new Intl.DateTimeFormat(language, {
         weekday: 'short',
         day: '2-digit',
         month: '2-digit',
@@ -189,7 +205,7 @@ export function InlineCaptureCard({
     settling.current = true;
     try {
       await controller.commit(
-        { title: trimmed, description: description.trim(), fields: fields() },
+        { title: trimmed, description: asTyped(description), fields: fields() },
         thenOpen,
       );
     } catch {
@@ -221,7 +237,9 @@ export function InlineCaptureCard({
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && event.shiftKey) {
       claim(event);
-      setShowText(true);
+      // Already open: the effect below will not run again, so go back to it from here.
+      if (showText) textRef.current?.focus();
+      else setShowText(true);
     } else if (event.key === 'Enter') {
       claim(event);
       void commit(event.metaKey || event.ctrlKey);
@@ -238,6 +256,21 @@ export function InlineCaptureCard({
     } else if (event.key === 'Escape') {
       claim(event);
       void cancel();
+    }
+  }
+  /**
+   * While any of the card's controls has focus (a chip, its ×), the card owns the board's
+   * single keys: N, V, G… would open or switch something under the card and take it away.
+   * Esc discards from anywhere in the card. The fields claim their own keys before this.
+   */
+  function onCardKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      void cancel();
+    } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.stopPropagation();
     }
   }
   function onBlur(event: FocusEvent<HTMLDivElement>) {
@@ -257,6 +290,7 @@ export function InlineCaptureCard({
       aria-label={t('capture.cardAria')}
       data-layout={layout}
       onBlur={onBlur}
+      onKeyDown={onCardKey}
       // A press on the card's padding, gaps or hint would move focus to the page, and the blur
       // would settle the capture; only its fields and buttons take focus.
       onMouseDown={(e) => {
@@ -275,10 +309,11 @@ export function InlineCaptureCard({
       <MirroredField
         ref={titleRef}
         value={title}
-        parse={parse}
+        parse={withoutDropped(parse, chips)}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={onTitleKey}
         aria-label={t('capture.titleAria')}
+        aria-describedby={hintId}
         placeholder={t('note.titlePlaceholder')}
         // Read-only rather than disabled while committing: a disabled field loses focus, and
         // whether that fires blur differs by browser; read-only keeps the caret where it was.
@@ -307,7 +342,9 @@ export function InlineCaptureCard({
           onDrop={drop}
         />
       )}
-      <p className="text-12 text-fg-faint [@media(pointer:coarse)]:hidden">{t('capture.hint')}</p>
+      <p id={hintId} className="font-mono text-12 text-fg-faint [@media(pointer:coarse)]:hidden">
+        {t('capture.hint')}
+      </p>
       <p className="hidden text-12 text-fg-faint [@media(pointer:coarse)]:block">
         {t('capture.hintCoarse')}
       </p>

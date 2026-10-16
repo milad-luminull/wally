@@ -130,15 +130,18 @@ export function useCapture(
       const pending = createNote({ ...placementInput(placement), ...draft, visibility });
       creation.current = pending;
       savedDraft.current = draft;
+      // Only the create's own state is reset: a commit (or its retry) started meanwhile owns
+      // the state until it settles, and the field stays read-only for all of it.
+      const createSettled = (s: CaptureController['state']) => (s === 'creating' ? 'drafting' : s);
       pending.then(
         (note) => {
           setNoteId(note.id);
-          setState('drafting');
+          setState(createSettled);
         },
         () => {
           // A failed create may be retried by the commit; the global handler says why.
           if (creation.current === pending) creation.current = null;
-          setState('drafting');
+          setState(createSettled);
         },
       );
       return pending;
@@ -197,9 +200,11 @@ export function useCapture(
   const commit = useCallback<CaptureController['commit']>(
     async ({ title, description, fields }, thenOpen) => {
       clearDraft();
+      // A create started here (the first one failed) is part of the commit: committing wins.
+      const pending = creation.current ?? startCreation({ title, description });
       setState('committing');
       try {
-        const { id } = await (creation.current ?? startCreation({ title, description }));
+        const { id } = await pending;
         await updateNote({
           noteId: id,
           input: {

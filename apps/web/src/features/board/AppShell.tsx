@@ -70,8 +70,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       openNoteId: viewState.noteId,
       openNote: viewState.openNote,
     });
-  // The views leave the note being written to its card: it is in the cache from the first
-  // keystroke, and a second copy beside the card would be clickable and draggable.
+  // The views, the top bar and the palette leave the note being written to its card: it is in
+  // the cache from the first keystroke, and a second copy would be clickable and openable.
   const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
   const filteredNotes = useMemo(
     () => filterNotes(boardNotes, viewState, user?.uid),
@@ -121,7 +121,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       <TopBar
         board={board}
         boardId={boardId}
-        notes={notes}
+        notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
         isDesktop={isDesktop}
@@ -152,7 +152,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         isBelowTablet={isBelowTablet}
       />
 
-      <div className="relative flex min-h-0 flex-1">
+      {/* Focusable from code only: where the keyboard lands after a commit whose note has no
+          card on the board (useCaptureSession). */}
+      <div data-board-surface tabIndex={-1} className="relative flex min-h-0 flex-1 outline-none">
         {notesQuery.isLoading ? (
           <BoardSkeleton columns={isDesktop ? 3 : 1} />
         ) : effectiveView === 'wand' ? (
@@ -222,7 +224,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
       <BoardCommands
         boardId={boardId}
-        notes={notes}
+        notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
         done={viewState.done}

@@ -31,6 +31,21 @@ export function captureRendersIn(
 
 const NO_NOTES: readonly string[] = [];
 
+/** The board's own surface (AppShell), where the focus goes when the note has no card to take it. */
+const BOARD_SURFACE = '[data-board-surface]';
+
+/**
+ * After a commit by keyboard, the committed note's card takes the focus (else the board), so
+ * the person carries on from where they wrote. A commit by a click elsewhere already put the
+ * focus where they clicked, and that is left alone.
+ */
+function focusCommitted(noteId: string) {
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  const card = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"] button`);
+  (card ?? document.querySelector<HTMLElement>(BOARD_SURFACE))?.focus();
+}
+
 /**
  * The shell's side of writing a note in place (WALLYBOT_INLINE.md §3.1): which capture is
  * open, which note it is writing, and who hears that it is done.
@@ -64,6 +79,8 @@ export function useCaptureSession({
   const currentId = useRef<number | null>(null);
   const latestOpenNote = useRef(openNote);
   latestOpenNote.current = openNote;
+  // The note just committed, focused once the board has drawn its card in the card's place.
+  const committed = useRef<string | null>(null);
 
   const shown =
     session && session.boardId === boardId && captureRendersIn(session.placement, view, axis)
@@ -81,6 +98,13 @@ export function useCaptureSession({
     if (session && !shown) end(session.id);
   }, [end, session, shown]);
 
+  useEffect(() => {
+    const noteId = committed.current;
+    if (session || !noteId) return;
+    committed.current = null;
+    focusCommitted(noteId);
+  }, [session]);
+
   const startCapture = useCallback(
     (placement: CapturePlacement) => {
       // Closing an already closed panel would still push a history entry.
@@ -96,7 +120,9 @@ export function useCaptureSession({
   const onCaptureDone = useCallback(
     (noteId: string | null, open: boolean) => {
       if (shownId === undefined || !end(shownId)) return;
+      // The panel takes the focus itself when it opens.
       if (noteId && open) latestOpenNote.current(noteId);
+      else if (noteId) committed.current = noteId;
     },
     [end, shownId],
   );
