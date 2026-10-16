@@ -433,6 +433,22 @@ export const de = {
     failed: 'Keine Antwort. Noch einmal versuchen.',
     earlier: 'Zuvor',
   },
+  capture: {
+    cardAria: 'Neue Notiz schreiben',
+    titleAria: 'Titel der neuen Notiz',
+    descriptionAria: 'Text der neuen Notiz',
+    hint: '↵ anlegen · ⇧↵ Text · Esc verwerfen',
+    hintCoarse: 'Enter legt die Notiz an',
+    chips: {
+      due: 'Fällig {{date}}',
+      assignee: 'Zuständig: {{name}}',
+      priorityHigh: 'Priorität hoch',
+      priorityLow: 'Priorität niedrig',
+      keep: 'Vorschlag übernehmen',
+      drop: 'Vorschlag entfernen',
+      dropped: 'Entfernt',
+    },
+  },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */
   home: {
     title: 'Deine Wände',

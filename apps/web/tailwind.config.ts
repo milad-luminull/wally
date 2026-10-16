@@ -120,6 +120,13 @@ export default {
        * keyframed, which is why every overlay below ships an `-out` pair. */
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+        /** The capture card only: it is replaced by the real card on commit and is never
+         * dragged, so the note card's no-mount-animation rule (NoteCard.test.tsx) does not
+         * apply to it. */
+        'capture-in': {
+          from: { opacity: '0', transform: 'scale(0.96)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
         'fade-out': { from: { opacity: '1' }, to: { opacity: '0' } },
         'dialog-in': {
           from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
@@ -158,6 +165,7 @@ export default {
       },
       animation: {
         'fade-in': 'fade-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+        'capture-in': 'capture-in 150ms cubic-bezier(0.2, 0.7, 0.2, 1) both',
         'fade-out': 'fade-out 180ms cubic-bezier(0.2, 0.7, 0.2, 1)',
         'dialog-in': 'dialog-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1)',
         'dialog-out': 'dialog-out 160ms cubic-bezier(0.2, 0.7, 0.2, 1)',
