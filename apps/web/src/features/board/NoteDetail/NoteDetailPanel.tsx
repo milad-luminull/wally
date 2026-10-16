@@ -26,6 +26,7 @@ import { IconTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/cn';
 import { MOD_KEY } from '@/lib/shortcuts';
 import type { BoardAxis } from '../hooks/useBoardViewState';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useNoteDetail } from '../hooks/useNoteDetail';
 import { useActiveMembers } from '../hooks/useMembers';
 import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
@@ -78,36 +79,6 @@ interface NoteDetailPanelProps {
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
   currentUserId: string | undefined;
-}
-
-/**
- * Escape closes the desktop panel.
- *
- * The mobile sheet gets this free from Radix; the desktop `<aside>` is a plain element, so
- * until now the panel had exactly one exit — a 28px X in the corner. That is half of why
- * people reached for the footer button instead.
- *
- * It defers to any layer above it: Radix renders selects and popovers into a popper wrapper
- * and the delete confirmation as an alertdialog, and each closes itself on Escape. Without
- * this guard, dismissing the assignee dropdown — or backing out of the delete dialog — would
- * take the whole panel with it.
- */
-function useEscapeToClose(onClose: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const layerAbove = document.querySelector(
-        '[data-radix-popper-content-wrapper], [role="alertdialog"], [role="dialog"]',
-      );
-      if (layerAbove) return;
-      onClose();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [enabled, onClose]);
 }
 
 export function NoteDetailPanel({

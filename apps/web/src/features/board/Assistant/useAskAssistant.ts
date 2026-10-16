@@ -11,7 +11,14 @@ export type AskOutcome =
   | { kind: 'refused'; code: RefusalCode; resetsAt: string | null }
   | { kind: 'failed' };
 
-const REFUSALS: RefusalCode[] = ['ASSISTANT_DAILY_CAP', 'ASSISTANT_MONTHLY_CAP', 'ASSISTANT_BUSY'];
+/** 429 codes the panel renders as a refusal. RATE_LIMITED is the route's own limiter, which
+ *  sends no reset time, so it reads as busy. */
+const REFUSALS: Record<string, RefusalCode> = {
+  ASSISTANT_DAILY_CAP: 'ASSISTANT_DAILY_CAP',
+  ASSISTANT_MONTHLY_CAP: 'ASSISTANT_MONTHLY_CAP',
+  ASSISTANT_BUSY: 'ASSISTANT_BUSY',
+  RATE_LIMITED: 'ASSISTANT_BUSY',
+};
 
 /** Today in the browser's calendar, as the API expects it; not UTC, which is a day off at night. */
 function localToday(): string {
@@ -57,16 +64,16 @@ export function useAskAssistant(boardId: string) {
         queryClient.setQueryData(keys.assistantLatest(boardId), response.conversation);
         return { kind: 'answered', conversation: response.conversation };
       } catch (error) {
-        if (
-          error instanceof ApiError &&
-          error.status === 429 &&
-          (REFUSALS as string[]).includes(error.code ?? '')
-        ) {
+        const code =
+          error instanceof ApiError && error.status === 429 && error.code
+            ? REFUSALS[error.code]
+            : undefined;
+        if (error instanceof ApiError && code) {
           const body = error.body as { resetsAt?: string | null } | undefined;
           return {
             kind: 'refused',
-            code: error.code as RefusalCode,
-            resetsAt: body?.resetsAt ?? null,
+            code,
+            resetsAt: error.code === 'RATE_LIMITED' ? null : (body?.resetsAt ?? null),
           };
         }
         return { kind: 'failed' };

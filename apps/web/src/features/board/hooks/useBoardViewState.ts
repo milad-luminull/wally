@@ -194,7 +194,11 @@ export function useBoardViewState(boardId: string) {
         noteId ? { note: noteId, ask: null } : { note: null },
         noteId && state.noteId ? 'replace' : 'push',
       ),
-    /** The question panel. Opening it closes the note; opening a note closes it. */
-    openAsk: (open: boolean) => setParams(open ? { ask: '1', note: null } : { ask: null }, 'push'),
+    /** The question panel. Opening it closes the note; opening a note closes it. Asking for the
+     *  state it is already in is no navigation, so mod+j on an open panel adds no Back step. */
+    openAsk: (open: boolean) => {
+      if (open === state.askOpen) return;
+      setParams(open ? { ask: '1', note: null } : { ask: null }, 'push');
+    },
   };
 }

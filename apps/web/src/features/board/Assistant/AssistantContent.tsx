@@ -39,10 +39,15 @@ function exchangesOf(conversation: AssistantConversationDto | null | undefined):
   return out.reverse();
 }
 
-function formatWhen(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso),
-  );
+/** The reset moment for a cap line: date and time for the daily cap, the date alone for the
+ *  monthly one. Null when the API sent something that does not parse, so the busy line shows. */
+function formatWhen(iso: string, locale: string, withTime: boolean): string | null {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  return new Intl.DateTimeFormat(
+    locale,
+    withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' },
+  ).format(at);
 }
 
 export function AssistantContent({
@@ -63,6 +68,9 @@ export function AssistantContent({
   const [draft, setDraft] = useState('');
   const [fresh, setFresh] = useState(false);
   const [pending, setPending] = useState<Exchange | null>(null);
+  // The latest exchange becomes a live region only once a question is asked here, so opening
+  // the panel on a restored conversation announces nothing.
+  const [asked, setAsked] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -98,6 +106,7 @@ export function AssistantContent({
   async function submit(text: string) {
     const message = text.trim();
     if (!message || isPending) return;
+    setAsked(true);
     setPending({ question: message, answer: null, outcome: null });
     const outcome = await ask(message, conversation?.id ?? null);
     if (outcome.kind === 'answered') {
@@ -113,15 +122,19 @@ export function AssistantContent({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    // Enter that confirms an input method's composition is not a question.
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void submit(draft);
     }
   }
 
   const [latest, ...earlier] = pending ? [pending, ...exchanges] : exchanges;
-  const showNew = Boolean(conversation) && !pending;
   const loading = pending !== null && pending.outcome === null;
+  const showNew = Boolean(conversation) && !loading;
+  // The examples wait for the latest conversation to resolve (null means there is none), so
+  // they never flash in above a conversation that is still loading or failed to load.
+  const showExamples = !latest && (fresh || stored === null);
 
   return (
     <div className="flex h-full flex-col">
@@ -158,7 +171,7 @@ export function AssistantContent({
             rows={1}
             maxLength={MAX_QUESTION_LENGTH}
             disabled={isPending}
-            aria-label={t('assistant.ask')}
+            aria-label={t('assistant.fieldAria')}
             className="min-h-9 max-h-24 pr-9"
           />
           <IconTooltip label={t('assistant.ask')} shortcut={['↵']}>
@@ -175,7 +188,7 @@ export function AssistantContent({
           </IconTooltip>
         </div>
 
-        {!latest && (
+        {showExamples && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {EXAMPLES.map((key) => (
               <Button
@@ -190,13 +203,14 @@ export function AssistantContent({
           </div>
         )}
 
-        {/* The latest exchange is a polite live region, so the answer or refusal is announced
-            when it arrives; aria-busy holds the announcement back while the turn runs. */}
-        <div aria-live="polite" aria-busy={loading}>
+        {/* After a question is asked here, the latest exchange is a polite live region, so the
+            answer or refusal is announced when it arrives; aria-busy holds the announcement
+            back while the turn runs. */}
+        <div aria-live={asked ? 'polite' : undefined} aria-busy={asked ? loading : undefined}>
           {latest && (
             <ExchangeView
               exchange={latest}
-              notes={notes ?? []}
+              notes={notes}
               onOpenNote={onOpenNote}
               locale={i18n.language}
               loading={loading}
@@ -208,10 +222,13 @@ export function AssistantContent({
           <section className="mt-6">
             <p className="mb-2 text-12 font-medium text-fg-3">{t('assistant.earlier')}</p>
             {earlier.map((exchange, index) => (
-              <div key={index} className="border-t border-border-subtle py-3">
+              <div
+                key={`${exchange.answer?.at ?? ''}-${index}`}
+                className="border-t border-border-subtle py-3"
+              >
                 <ExchangeView
                   exchange={exchange}
-                  notes={notes ?? []}
+                  notes={notes}
                   onOpenNote={onOpenNote}
                   locale={i18n.language}
                   loading={false}
@@ -240,31 +257,30 @@ function ExchangeView({
 }) {
   const { t } = useTranslation();
   const { answer, outcome } = exchange;
+  let outcomeLine: string | null = null;
+  if (outcome?.kind === 'failed') outcomeLine = t('assistant.failed');
+  else if (outcome?.kind === 'refused') {
+    const daily = outcome.code === 'ASSISTANT_DAILY_CAP';
+    const when =
+      outcome.code !== 'ASSISTANT_BUSY' && outcome.resetsAt
+        ? formatWhen(outcome.resetsAt, locale, daily)
+        : null;
+    outcomeLine = !when
+      ? t('assistant.limit.busy')
+      : daily
+        ? t('assistant.limit.daily', { when })
+        : t('assistant.limit.monthly', { when });
+  }
   return (
     <div className="mt-4">
-      <p className="text-13 text-fg-3">{exchange.question}</p>
+      <p className="whitespace-pre-line text-13 text-fg-3">{exchange.question}</p>
       {loading && (
         <div className="mt-2 flex flex-col gap-2">
           <Skeleton className="h-3.5 w-[90%]" />
           <Skeleton className="h-3.5 w-[60%]" />
         </div>
       )}
-      {outcome && (
-        <p className="mt-2 text-13 text-fg-3">
-          {outcome.kind === 'failed'
-            ? t('assistant.failed')
-            : outcome.code === 'ASSISTANT_BUSY' || !outcome.resetsAt
-              ? t('assistant.limit.busy')
-              : t(
-                  outcome.code === 'ASSISTANT_DAILY_CAP'
-                    ? 'assistant.limit.daily'
-                    : 'assistant.limit.monthly',
-                  {
-                    when: formatWhen(outcome.resetsAt, locale),
-                  },
-                )}
-        </p>
-      )}
+      {outcomeLine && <p className="mt-2 text-13 text-fg-3">{outcomeLine}</p>}
       {answer && (
         <>
           {answer.text && (

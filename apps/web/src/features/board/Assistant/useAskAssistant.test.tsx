@@ -85,6 +85,18 @@ describe('useAskAssistant', () => {
     });
   });
 
+  it("maps the route's own rate limit to the busy refusal", async () => {
+    vi.mocked(assistantApi.turn).mockRejectedValue(
+      new ApiError(429, { error: 'RATE_LIMITED', message: 'Too many requests' }),
+    );
+    const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
+    let outcome;
+    await act(async () => {
+      outcome = await result.current.ask('eins', null);
+    });
+    expect(outcome).toEqual({ kind: 'refused', code: 'ASSISTANT_BUSY', resetsAt: null });
+  });
+
   it('maps anything else to failed and exposes isPending while in flight', async () => {
     let release: (value: { conversation: ReturnType<typeof conversation> }) => void = () => {};
     vi.mocked(assistantApi.turn).mockReturnValueOnce(

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AssistantConversationDto } from '@wally/shared';
 
@@ -66,7 +66,7 @@ describe('AssistantContent', () => {
   it('shows the field and three example questions when there is no conversation', async () => {
     renderContent();
     expect(await screen.findByPlaceholderText('Was ist heute offen?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Was ist überfällig?' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Was ist überfällig?' })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Wer hat die meisten offenen Notizen?' }),
     ).toBeInTheDocument();
@@ -147,6 +147,8 @@ describe('AssistantContent', () => {
     expect(texts).toEqual(['Antwort zwei', 'Antwort eins']);
     expect(screen.getByText('Zuvor')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Neu' })).toBeInTheDocument();
+    // Restored on open, so nothing is announced; only an answer asked for here is.
+    expect(screen.getByText('Antwort zwei').closest('[aria-live]')).toBeNull();
   });
 
   it('renders a cap refusal in the answer slot with the reset time, and keeps the question', async () => {
@@ -232,6 +234,14 @@ describe('AssistantContent', () => {
     const region = screen.getByText('eins', { selector: 'p' }).closest('[aria-live]');
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toHaveAttribute('aria-busy', 'true');
+    // A real browser drops focus from a disabled field to the body; jsdom keeps it there and
+    // ignores blur() on a disabled element, so focus a throwaway element and remove it.
+    act(() => {
+      const spare = document.body.appendChild(document.createElement('button'));
+      spare.focus();
+      spare.remove();
+    });
+    expect(document.activeElement).toBe(document.body);
     release({
       conversation: conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
     });
@@ -327,5 +337,82 @@ describe('AssistantContent', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     observer.disconnect();
     expect(flashed).toBe(false);
+  });
+  it('names the field apart from the title and the ask button', async () => {
+    renderContent();
+    expect(await screen.findByRole('textbox', { name: 'Frage an die Wand' })).toBeInTheDocument();
+  });
+
+  it('shows no example questions while the latest conversation is still loading', async () => {
+    vi.mocked(assistantApi.latest).mockReturnValue(new Promise(() => {}));
+    renderContent();
+    await screen.findByPlaceholderText('Was ist heute offen?');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByRole('button', { name: 'Was ist überfällig?' })).not.toBeInTheDocument();
+  });
+
+  it('keeps "Neu" after a failed ask and hides it only while a turn runs', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+    );
+    let fail: (error: unknown) => void = () => {};
+    vi.mocked(assistantApi.turn).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    await screen.findByText('Antwort eins');
+    await user.type(screen.getByPlaceholderText('Was ist heute offen?'), 'zwei{Enter}');
+    expect(screen.queryByRole('button', { name: 'Neu' })).not.toBeInTheDocument();
+    act(() => fail(new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' })));
+    expect(await screen.findByText('Keine Antwort. Noch einmal versuchen.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Neu' })).toBeInTheDocument();
+  });
+
+  it('falls back to the busy line when the reset time cannot be read', async () => {
+    vi.mocked(assistantApi.turn).mockRejectedValue(
+      new ApiError(429, { error: 'ASSISTANT_MONTHLY_CAP', message: 'x', resetsAt: 'bald' }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    await user.type(await screen.findByPlaceholderText('Was ist heute offen?'), 'eins{Enter}');
+    expect(
+      await screen.findByText('Gerade beschäftigt. Gleich noch einmal versuchen.'),
+    ).toBeInTheDocument();
+  });
+
+  it('gives the monthly cap a date without a time', async () => {
+    vi.mocked(assistantApi.turn).mockRejectedValue(
+      new ApiError(429, {
+        error: 'ASSISTANT_MONTHLY_CAP',
+        message: 'x',
+        resetsAt: '2026-11-01T00:00:00.000Z',
+      }),
+    );
+    renderContent();
+    const user = userEvent.setup();
+    await user.type(await screen.findByPlaceholderText('Was ist heute offen?'), 'eins{Enter}');
+    const line = await screen.findByText(/Monatslimit erreicht\. Ab .+ wieder verfügbar\./);
+    expect(line.textContent).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it('does not ask on Enter while an input method is composing', async () => {
+    renderContent();
+    const field = await screen.findByPlaceholderText('Was ist heute offen?');
+    fireEvent.change(field, { target: { value: 'にほん' } });
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    expect(assistantApi.turn).not.toHaveBeenCalled();
+    expect(field).toHaveValue('にほん');
+  });
+
+  it('keeps the line breaks of a question', async () => {
+    vi.mocked(assistantApi.latest).mockResolvedValue(
+      conversation([entry('user', 'eins\nzwei'), entry('assistant', 'Antwort')]),
+    );
+    renderContent();
+    await screen.findByText('Antwort');
+    expect(screen.getByText(/eins\s+zwei/, { selector: 'p' })).toHaveClass('whitespace-pre-line');
   });
 });

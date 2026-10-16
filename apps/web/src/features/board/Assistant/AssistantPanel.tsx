@@ -1,26 +1,7 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { AssistantContent } from './AssistantContent';
-
-/** Escape closes the desktop panel unless a Radix layer is open above it; same rule as the note panel. */
-function useEscapeToClose(onClose: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if (
-        document.querySelector(
-          '[data-radix-popper-content-wrapper], [role="alertdialog"], [role="dialog"]',
-        )
-      )
-        return;
-      onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [enabled, onClose]);
-}
 
 export function AssistantPanel({
   open,
@@ -36,6 +17,7 @@ export function AssistantPanel({
   onOpenNote: (noteId: string) => void;
 }) {
   const { t } = useTranslation();
+  // Escape closes the desktop panel unless a layer is open above it; the note panel's rule.
   useEscapeToClose(onClose, open && !isBelowDesktop);
 
   if (isBelowDesktop) {

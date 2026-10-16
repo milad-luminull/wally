@@ -387,6 +387,7 @@ export const en = {
     title: 'Ask',
     panelAria: 'Ask about the wall',
     placeholder: 'What is open today?',
+    fieldAria: 'Question for the wall',
     ask: 'Ask',
     newConversation: 'New',
     examples: {

@@ -8,6 +8,8 @@ import { dueInfo, dueToneClass } from '../util/noteDerived';
  * The notes an answer relied on, listed underneath it (BRAND.md AI rule 8). The chips come
  * from the API and are never parsed out of the answer text; the board's own notes query
  * supplies priority and due date when it knows the note, so the rows read like the list.
+ * Once that query has loaded, a chip whose note is gone from the board is dropped (spec 3.2:
+ * checked at render time); while it is still loading (`notes` undefined) every chip shows.
  */
 export function AnswerNotes({
   chips,
@@ -15,17 +17,18 @@ export function AnswerNotes({
   onOpenNote,
 }: {
   chips: AssistantChip[];
-  notes: NoteDto[];
+  notes: NoteDto[] | undefined;
   onOpenNote: (noteId: string) => void;
 }) {
   const { t } = useTranslation();
-  if (chips.length === 0) return null;
+  const shown = notes ? chips.filter((chip) => notes.some((n) => n.id === chip.id)) : chips;
+  if (shown.length === 0) return null;
   return (
     <div className="mt-3">
       <p className="mb-1 text-12 font-medium text-fg-3">{t('assistant.notesRead')}</p>
       <ul className="overflow-hidden rounded-lg border border-border">
-        {chips.map((chip) => {
-          const note = notes.find((n) => n.id === chip.id);
+        {shown.map((chip) => {
+          const note = notes?.find((n) => n.id === chip.id);
           const due = note ? dueInfo(note, t) : null;
           return (
             <li key={chip.id} className="border-b border-border-subtle last:border-b-0">

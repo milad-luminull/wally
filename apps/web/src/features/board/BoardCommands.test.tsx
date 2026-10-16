@@ -118,6 +118,26 @@ describe('BoardCommands', () => {
     expect(onOpenAssistant).toHaveBeenCalledTimes(2);
   });
 
+  it('does not open the question panel with mod+j behind an open dialog', async () => {
+    const { onOpenAssistant } = renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    // The shortcuts sheet, not the palette: cmdk claims Ctrl+J itself, which would hide the bug.
+    await user.keyboard('?');
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    await user.keyboard(ASK);
+    expect(onOpenAssistant).not.toHaveBeenCalled();
+  });
+
+  it('shows the mod+j hint on the palette entry', async () => {
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    const entry = (await screen.findByText('Wand fragen…')).closest('[cmdk-item]');
+    expect(entry).toHaveTextContent(/J$/);
+  });
+
   it('has no question entry and no shortcut when the assistant is off', async () => {
     const { onOpenAssistant } = renderCommands({ assistantEnabled: false });
     const user = userEvent.setup();

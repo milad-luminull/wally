@@ -37,7 +37,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /** A layer above the board (dialog, sheet, popover, select) owns the keyboard. */
-function overlayIsOpen(): boolean {
+export function overlayIsOpen(): boolean {
   return Boolean(
     document.querySelector(
       '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
@@ -115,7 +115,7 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[], enabled = true) {
  * App-wide open requests. The palette and the shortcuts sheet are mounted once, by the board;
  * menus anywhere can ask for them without threading callbacks through every layer.
  */
-type OpenRequest = 'palette' | 'shortcuts' | 'share' | 'assistant';
+type OpenRequest = 'palette' | 'shortcuts' | 'share';
 const eventName = (kind: OpenRequest) => `wally:open-${kind}`;
 
 export function requestOpen(kind: OpenRequest) {

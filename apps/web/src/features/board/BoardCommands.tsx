@@ -43,6 +43,7 @@ import { useCanvasPattern } from '@/lib/preferences';
 import {
   ALT_KEY,
   MOD_KEY,
+  overlayIsOpen,
   requestOpen,
   useKeyboardShortcuts,
   useOpenRequest,
@@ -104,7 +105,6 @@ export function BoardCommands(props: BoardCommandsProps) {
 
   useOpenRequest('palette', () => setPaletteOpen(true));
   useOpenRequest('shortcuts', () => setHelpOpen(true));
-  useOpenRequest('assistant', () => props.assistantEnabled && props.onOpenAssistant());
 
   const shortcuts: Shortcut[] = [
     { keys: 'mod+k', allowInInputs: true, handler: () => setPaletteOpen((open) => !open) },
@@ -142,6 +142,9 @@ export function BoardCommands(props: BoardCommandsProps) {
       allowInInputs: true,
       handler: (event) => {
         event.preventDefault();
+        // Works from the board's own fields, but never opens the panel behind a layer above
+        // it (the palette, the shortcuts sheet, the share dialog, a popover).
+        if (overlayIsOpen()) return;
         props.onOpenAssistant();
       },
     });
@@ -288,7 +291,14 @@ function CommandPalette({
               </CommandItem>
               {assistantEnabled && (
                 <CommandItem value="ask question wand fragen" onSelect={() => run(onOpenAssistant)}>
+                  {/* The question panel carries no icon; an icon-wide gap keeps the label in
+                      line with the iconed rows. */}
+                  <span aria-hidden className="size-4 shrink-0" />
                   <span className="flex-1">{t('palette.ask')}</span>
+                  <span className="flex gap-0.5">
+                    <Kbd>{MOD_KEY}</Kbd>
+                    <Kbd>J</Kbd>
+                  </span>
                 </CommandItem>
               )}
             </CommandGroup>

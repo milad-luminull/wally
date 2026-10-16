@@ -410,6 +410,7 @@ export const de = {
     title: 'Fragen',
     panelAria: 'Fragen zur Wand',
     placeholder: 'Was ist heute offen?',
+    fieldAria: 'Frage an die Wand',
     ask: 'Fragen',
     newConversation: 'Neu',
     examples: {
