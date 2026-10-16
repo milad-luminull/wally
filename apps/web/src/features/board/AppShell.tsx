@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { NoteDto, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -8,7 +8,6 @@ import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
-import { useCreateNote } from './hooks/mutations/useCreateNote';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
 import { boardAccess, isOwner as isOwnerRole } from './util/permissions';
@@ -16,6 +15,7 @@ import {
   collectFieldKeys,
   collectFieldValues,
   filterNotes,
+  firstZoneKey,
   showsVisibilityFilter,
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -25,6 +25,7 @@ import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
+import type { CapturePlacement } from './Capture/useCapture';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -63,13 +64,40 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // never mount WandView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
-  const createNote = useCreateNote(boardId);
+  // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
+  // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
+  const [capture, setCapture] = useState<CapturePlacement | null>(null);
+  const { noteId: openedNoteId } = viewState;
+  const startCapture = useCallback(
+    (placement: CapturePlacement) => {
+      // Closing an already closed panel would still push a history entry.
+      if (openedNoteId !== null) viewState.openNote(null);
+      // One note at a time: a capture still settling (its blur commit in flight) keeps its
+      // place, so its late onDone cannot close the capture that replaced it.
+      setCapture((current) => current ?? placement);
+    },
+    [openedNoteId, viewState],
+  );
+  const finishCapture = useCallback(
+    (noteId: string | null, open: boolean) => {
+      setCapture(null);
+      if (noteId && open) viewState.openNote(noteId);
+    },
+    [viewState],
+  );
   const newNote = useCallback(() => {
-    createNote.mutate(
-      { ...nextFreeNotePosition(notes), visibility: access.newNoteVisibility },
-      { onSuccess: (n) => viewState.openNote(n.id) },
-    );
-  }, [access.newNoteVisibility, createNote, notes, viewState]);
+    if (effectiveView === 'list') startCapture({ kind: 'list' });
+    else if (viewState.axis === 'free') {
+      const at = nextFreeNotePosition(notes);
+      startCapture({ kind: 'free', x: at.freeX, y: at.freeY });
+    } else
+      startCapture({
+        kind: 'zone',
+        axis: viewState.axis,
+        key: firstZoneKey(viewState.axis),
+        at: nextFreeNotePosition(notes),
+      });
+  }, [effectiveView, notes, startCapture, viewState.axis]);
 
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
@@ -145,6 +173,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onOpenNote={viewState.openNote}
             onDuplicateNote={duplicateNote}
             access={access}
+            capture={capture}
+            onCapture={startCapture}
+            onCaptureDone={finishCapture}
+            visibility={access.newNoteVisibility}
           />
         ) : (
           <ListView
@@ -158,6 +190,13 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             }
             access={access}
             isBelowDesktop={isBelowDesktop}
+            capture={
+              capture && {
+                boardId,
+                visibility: access.newNoteVisibility,
+                onDone: finishCapture,
+              }
+            }
           />
         )}
 

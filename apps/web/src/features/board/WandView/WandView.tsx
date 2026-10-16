@@ -22,12 +22,12 @@ import {
   type NoteDto,
   type NoteHorizon,
   type NotePriority,
+  type NoteVisibility,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { BoardAccess } from '../util/permissions';
 import type { T } from '@/i18n/enumLabels';
 import { noteMovePatch, useMoveNote } from '../hooks/mutations/useMoveNote';
-import { useCreateNote } from '../hooks/mutations/useCreateNote';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import {
   cancelNoteCaches,
@@ -37,6 +37,7 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
+import type { CapturePlacement } from '../Capture/useCapture';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
 import { NoteCard } from './NoteCard';
@@ -56,6 +57,13 @@ interface WandViewProps {
   /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
   onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
   access: BoardAccess;
+  /** The note being written in place, if any (WALLYBOT_INLINE.md §3.1). */
+  capture: CapturePlacement | null;
+  /** A zone's plus or a double-click asks for a new note written there. */
+  onCapture: (placement: CapturePlacement) => void;
+  onCaptureDone: (noteId: string | null, open: boolean) => void;
+  /** What a new note's visibility will be; a viewer's is private. */
+  visibility: NoteVisibility;
 }
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
@@ -79,12 +87,15 @@ export function WandView({
   onOpenNote,
   onDuplicateNote,
   access,
+  capture,
+  onCapture,
+  onCaptureDone,
+  visibility,
 }: WandViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
   const { t } = useTranslation();
   const moveNote = useMoveNote(boardId);
-  const createNote = useCreateNote(boardId);
 
   /** The note currently under the cursor, rendered into `<DragOverlay>`. */
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -363,27 +374,11 @@ export function WandView({
   }
 
   function handleCreateInZone(key: string) {
+    if (axis === 'free') return;
     // The zone decides where the card shows in this axis, but freeX/freeY still has to be
     // something sensible: it is what Frei mode reads once the user switches over, and the
     // schema default of {0, 0} would stack every one of them in the corner there.
-    const at = nextFreeNotePosition(notes);
-    if (axis === 'horizon')
-      createNote.mutate(
-        { ...at, horizon: key as NoteHorizon, visibility: access.newNoteVisibility },
-        { onSuccess: (n) => onOpenNote(n.id) },
-      );
-    else if (axis === 'priority')
-      createNote.mutate(
-        { ...at, priority: key as NotePriority, visibility: access.newNoteVisibility },
-        { onSuccess: (n) => onOpenNote(n.id) },
-      );
-  }
-
-  function handleCreateAt(x: number, y: number) {
-    createNote.mutate(
-      { freeX: x, freeY: y, visibility: access.newNoteVisibility },
-      { onSuccess: (n) => onOpenNote(n.id) },
-    );
+    onCapture({ kind: 'zone', axis, key, at: nextFreeNotePosition(notes) });
   }
 
   return (
@@ -397,12 +392,16 @@ export function WandView({
       >
         {axis === 'free' ? (
           <WandCanvas
+            boardId={boardId}
             notes={shownNotes}
             filtered={totalNoteCount > 0}
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}
             onOpenNote={onOpenNote}
-            onCreateAt={handleCreateAt}
+            onCapture={onCapture}
+            capture={capture}
+            onCaptureDone={onCaptureDone}
+            visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
           />
@@ -410,6 +409,10 @@ export function WandView({
           <ZoneBands
             axis={axis}
             groups={groups}
+            boardId={boardId}
+            capture={capture}
+            onCaptureDone={onCaptureDone}
+            visibility={visibility}
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}
             onOpenNote={onOpenNote}

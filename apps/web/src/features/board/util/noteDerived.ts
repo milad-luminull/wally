@@ -108,6 +108,11 @@ export interface NoteGroup<K extends string> {
 const HORIZON_ORDER: NoteHorizon[] = ['HEUTE', 'DIESE_WOCHE', 'SPAETER'];
 const PRIORITY_ORDER: NotePriority[] = [...notePriorityValues];
 
+/** The zone shown first on a zoned wall: where a new note goes when no zone was chosen. */
+export function firstZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | NotePriority {
+  return axis === 'horizon' ? HORIZON_ORDER[0]! : PRIORITY_ORDER[0]!;
+}
+
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even
  * empty) so callers that need every band rendered (WandView's ZoneBands) don't have to
  * special-case it; ListView filters out empty groups itself per its own empty-state rule. */

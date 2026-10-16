@@ -90,6 +90,12 @@ describe('BoardCommands', () => {
     expect(viewer.onDuplicateNote).not.toHaveBeenCalled();
   });
 
+  it('starts a new note on n, once per press', async () => {
+    const { onNewNote } = renderCommands({ noteOpen: false });
+    await userEvent.keyboard('n');
+    expect(onNewNote).toHaveBeenCalledTimes(1);
+  });
+
   it('lets a viewer press n to add a private note, and names it so in the palette', async () => {
     const { onNewNote } = renderCommands({
       newNoteVisibility: 'PRIVATE',
