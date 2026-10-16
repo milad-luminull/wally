@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { notesApi, shareLinkApi } from './resources';
+import { assistantApi, notesApi, shareLinkApi } from './resources';
+import { getRecoveries } from './mutationQueue';
 import { makeNote } from '@/test/fixtures';
 
 vi.mock('@/features/auth/AuthProvider', () => ({
@@ -135,5 +136,53 @@ describe('shareLinkApi.redeem', () => {
     // The shared-Zod seam is what makes a backend shape drift fail loudly here rather than
     // flowing into the redirect as undefined.
     await expect(shareLinkApi.redeem('tok-1')).rejects.toThrow(/schema validation/);
+  });
+});
+
+/**
+ * A question to the board is not a board write: it carries no revision and has nothing to
+ * recover. Routed through the board's mutation lane, a refusal or a closed conversation
+ * would block every later board write behind an unsaved-change review, and the one retry
+ * after ASSISTANT_CONVERSATION_CLOSED would fail at once with MUTATION_BLOCKED.
+ */
+describe('assistantApi.turn', () => {
+  const originalFetch = globalThis.fetch;
+  const conversation = { id: 'c2', boardId: 'board-1', status: 'OPEN', model: 'm', entries: [] };
+  const body = { message: 'Was ist offen?', timeZone: 'Europe/Berlin', today: '2026-10-16' };
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('sends no write metadata and leaves the board lane open after a refusal', async () => {
+    const spy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'ASSISTANT_CONVERSATION_CLOSED', message: 'x' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ conversation }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    globalThis.fetch = spy as unknown as typeof fetch;
+
+    await expect(
+      assistantApi.turn('board-1', { ...body, conversationId: 'c1' }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'ASSISTANT_CONVERSATION_CLOSED',
+    });
+    expect(getRecoveries().filter((r) => r.ticket.resource === 'board:board-1')).toEqual([]);
+    await expect(assistantApi.turn('board-1', body)).resolves.toEqual({ conversation });
+
+    const [url, init] = spy.mock.calls[1] as unknown as [string, RequestInit];
+    expect(new URL(url).pathname).toBe('/whiteboards/board-1/assistant/turns');
+    expect(init.headers).not.toHaveProperty('Idempotency-Key');
+    expect(init.headers).not.toHaveProperty('X-Expected-Revision');
   });
 });
