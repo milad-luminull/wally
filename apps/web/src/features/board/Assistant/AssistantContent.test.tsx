@@ -169,14 +169,25 @@ describe('AssistantContent', () => {
     expect(screen.getByPlaceholderText('Was ist heute offen?')).toHaveValue('eins');
   });
 
-  it('puts the question back into the field when the ask fails', async () => {
-    vi.mocked(assistantApi.turn).mockRejectedValue(
-      new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' }),
+  it('empties the field while the turn runs and puts the question back when the ask fails', async () => {
+    let fail: (reason: unknown) => void = () => {};
+    vi.mocked(assistantApi.turn).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
     );
     renderContent();
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('Was ist heute offen?');
     await user.type(field, 'Was ist offen?{Enter}');
+    // Pending: the question is shown once, above the skeleton, and the field is empty.
+    expect(field).toHaveValue('');
+    expect(field).toBeDisabled();
+    const question = screen.getByText('Was ist offen?', { selector: 'p' });
+    expect(question.nextElementSibling?.querySelector('.wally-skeleton')).not.toBeNull();
+    await act(async () => {
+      fail(new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' }));
+    });
     expect(await screen.findByText('Keine Antwort. Noch einmal versuchen.')).toBeInTheDocument();
     expect(field).toHaveValue('Was ist offen?');
   });

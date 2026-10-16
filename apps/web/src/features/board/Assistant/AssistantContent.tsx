@@ -106,13 +106,13 @@ export function AssistantContent({
   async function submit(text: string) {
     const message = text.trim();
     if (!message || isPending) return;
+    // The field empties at once: while the turn runs the question shows above the answer
+    // slot, not twice. A refused or failed ask puts it back, so trying again is one keystroke.
+    setDraft('');
     setAsked(true);
     setPending({ question: message, answer: null, outcome: null });
     const outcome = await ask(message, conversation?.id ?? null);
     if (outcome.kind === 'answered') {
-      // The draft is cleared only once the question has an answer; a refused or failed ask
-      // leaves it in the field, so trying again is one keystroke.
-      setDraft('');
       setFresh(false);
       setPending(null);
     } else {
