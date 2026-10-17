@@ -401,7 +401,7 @@ function RestingNoteCard({
         {dashed && (
           <PendingDot
             mark={pending.mark}
-            onUndo={pending.onUndo}
+            onUndo={() => pending.onUndo('click')}
             className="pointer-events-none absolute right-2 top-2"
           />
         )}
@@ -411,7 +411,7 @@ function RestingNoteCard({
       {pending?.mark.phase === 'kept' && !hidden && (
         <PendingDot
           mark={pending.mark}
-          onUndo={pending.onUndo}
+          onUndo={() => pending.onUndo('click')}
           className={cn(
             'absolute right-2 top-2 transition-transform duration-150 ease-ds',
             'peer-hover/note:-translate-y-0.5 motion-reduce:peer-hover/note:translate-y-0',

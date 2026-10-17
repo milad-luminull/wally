@@ -491,7 +491,6 @@ export const de = {
       rowTitle: 'Titel: {{title}}',
       rowText: 'Text',
       rowDue: 'Fällig {{date}}',
-      rowPriority: 'Priorität {{label}}',
       rowAssignee: 'Zuständig: {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Schritt: {{text}}',

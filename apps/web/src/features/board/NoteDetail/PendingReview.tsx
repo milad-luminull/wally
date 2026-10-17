@@ -1,7 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { suggestionFieldKeys, type NoteDto, type SuggestionFieldKey } from '@wally/shared';
-import { useEnumLabels } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -48,7 +47,6 @@ function offeredValues(note: NoteDto, pending: PendingProps) {
  */
 export function PendingReview({ note, pending }: PendingReviewProps) {
   const { t, i18n } = useTranslation();
-  const { priority: priorityLabels } = useEnumLabels();
   const id = useId();
   const { mark } = pending;
   const kept = mark.phase === 'kept';
@@ -59,10 +57,9 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
     : countsDown
       ? t('suggest.review.counting')
       : t('suggest.review.waiting');
+  // The card's own words for a priority; only HOCH and NIEDRIG ever have a row.
   const priorityLabel = (value: NoteDto['priority']) =>
-    t('suggest.review.rowPriority', {
-      label: priorityLabels[value].toLocaleLowerCase(i18n.language),
-    });
+    value === 'HOCH' ? t('suggest.fields.priorityHigh') : t('suggest.fields.priorityLow');
 
   const typed: Row[] = [
     {
@@ -168,21 +165,23 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
         )}
 
         <div className="flex items-center gap-1.5">
-          {kept ? (
-            <Button variant="ghost" size="sm" onClick={pending.onUndo}>
-              {t('suggest.review.undo')}
+          {/* One button that is Keep and then Undo: the same element, so the keyboard stays on
+              it when the change is kept. Ink, not marigold: the board's "New note" is the
+              screen's one accent, and marigold is the dot's alone here (BRAND, "Marigold has
+              four jobs"). Keep needs something to keep: an offered title nobody ticked is not. */}
+          <Button
+            key="primary"
+            variant={kept ? 'ghost' : 'default'}
+            size="sm"
+            disabled={!kept && mark.fields.length === 0}
+            onClick={() => (kept ? pending.onUndo('click') : pending.onKeep('click'))}
+          >
+            {kept ? t('suggest.review.undo') : t('suggest.review.keep')}
+          </Button>
+          {!kept && (
+            <Button key="discard" variant="ghost" size="sm" onClick={pending.onDiscard}>
+              {t('suggest.review.discard')}
             </Button>
-          ) : (
-            <>
-              {/* Ink, not marigold: the board's "New note" is the screen's one accent, and
-                  marigold is the dot's alone here (BRAND, "Marigold has four jobs"). */}
-              <Button variant="default" size="sm" onClick={pending.onKeep}>
-                {t('suggest.review.keep')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={pending.onDiscard}>
-                {t('suggest.review.discard')}
-              </Button>
-            </>
           )}
         </div>
       </div>

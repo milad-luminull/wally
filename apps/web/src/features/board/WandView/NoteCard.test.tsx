@@ -190,6 +190,7 @@ describe('NoteCard with a pending change', () => {
     );
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     fireEvent.keyDown(card, { key: 'Enter' });
+    expect(p.onKeep).toHaveBeenCalledWith('enter');
     expect(p.onKeep).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(card, { key: 'Escape' });
     expect(p.onDiscard).toHaveBeenCalledTimes(1);
@@ -283,6 +284,8 @@ describe('NoteCard with a pending change', () => {
     expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
     const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
     expect(line).toHaveAttribute('aria-pressed', 'false');
+    // What a press does, said only while the press would take the title.
+    expect(line).toHaveAttribute('aria-description', 'Vorschlag für den Titel übernehmen');
     fireEvent.click(line);
     expect(p.onSetField).toHaveBeenCalledWith('title', true);
     // Enter on the line takes the title; it neither keeps the change nor opens the note.
@@ -295,6 +298,7 @@ describe('NoteCard with a pending change', () => {
     rerender(card(taken));
     const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
     expect(takenLine).toHaveAttribute('aria-pressed', 'true');
+    expect(takenLine).not.toHaveAttribute('aria-description');
     fireEvent.click(takenLine);
     expect(taken.onSetField).toHaveBeenCalledWith('title', false);
     fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
@@ -322,6 +326,20 @@ describe('NoteCard with a pending change', () => {
     expect(screen.getByText('2 Schritte')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: 2 Schritte' }));
     expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+  });
+
+  it('counts one step in the singular', () => {
+    renderCard(
+      withProposals(
+        ['subtasks'],
+        { subtasks: { items: ['Preise holen', 'Vergleichen'], reason: 'Ablauf' } },
+        { subtasks: [1] },
+      ),
+    );
+    expect(screen.getByText('1 Schritt')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: 1 Schritt' }),
+    ).toBeInTheDocument();
   });
 
   it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
@@ -353,6 +371,7 @@ describe('NoteCard with a pending change', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
     );
+    expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
   });
 });

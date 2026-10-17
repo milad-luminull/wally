@@ -67,7 +67,15 @@ let editInPanel: (key: string) => void;
  * as in AppShell, `syncNotes` sees every version of it before paint. `editInPanel` does what
  * the panel's own field does to the note: the value goes and the revision moves on.
  */
-function Board({ openNoteId, initial }: { openNoteId: string | null; initial: NoteDto }) {
+function Board({
+  openNoteId,
+  initial,
+  showCard = true,
+}: {
+  openNoteId: string | null;
+  initial: NoteDto;
+  showCard?: boolean;
+}) {
   const [note, setNote] = useState(initial);
   const suggestions = useSuggestions(BOARD, true, ME);
   controller = suggestions;
@@ -83,15 +91,17 @@ function Board({ openNoteId, initial }: { openNoteId: string | null; initial: No
     }));
   return (
     <>
-      <DndContext>
-        <NoteCard
-          note={note}
-          currentUserId={ME}
-          selected={openNoteId === note.id}
-          onOpen={() => {}}
-          pending={pending}
-        />
-      </DndContext>
+      {showCard && (
+        <DndContext>
+          <NoteCard
+            note={note}
+            currentUserId={ME}
+            selected={openNoteId === note.id}
+            onOpen={() => {}}
+            pending={pending}
+          />
+        </DndContext>
+      )}
       {openNoteId === note.id && pending && pending.mark.phase !== 'asking' && (
         <PendingReview note={note} pending={pending} />
       )}
@@ -101,16 +111,26 @@ function Board({ openNoteId, initial }: { openNoteId: string | null; initial: No
 
 function setup(initial = baseNote()) {
   const queryClient = createTestQueryClient();
-  const ui = (openNoteId: string | null) => (
+  let openNoteId: string | null = null;
+  let showCard = true;
+  const ui = () => (
     <QueryClientProvider client={queryClient}>
-      <Board openNoteId={openNoteId} initial={initial} />
+      <Board openNoteId={openNoteId} initial={initial} showCard={showCard} />
     </QueryClientProvider>
   );
-  const utils = render(ui(null));
+  const utils = render(ui());
+  const set = (next: { open?: string | null; card?: boolean }) => {
+    if (next.open !== undefined) openNoteId = next.open;
+    if (next.card !== undefined) showCard = next.card;
+    utils.rerender(ui());
+  };
   return {
     ...utils,
-    open: () => utils.rerender(ui(NOTE_ID)),
-    close: () => utils.rerender(ui(null)),
+    open: () => set({ open: NOTE_ID }),
+    close: () => set({ open: null }),
+    /** The card leaves the board (another view, a filter) or comes back, with no pointer event. */
+    hideCard: () => set({ card: false }),
+    showCard: () => set({ card: true }),
   };
 }
 
@@ -207,6 +227,38 @@ describe('the panel holds the countdown of the note it shows (R3)', () => {
     expect(keeps()).toHaveLength(1);
   });
 
+  it('resumes once the panel closes after the hovered card left the board', async () => {
+    const { open, close, hideCard } = setup();
+    await propose();
+    fireEvent.mouseEnter(cardButton());
+    open();
+    // The card goes from under the pointer: no mouseleave ever comes.
+    hideCard();
+    close();
+    expect(mark()?.paused).toBe(false);
+    await advance(COUNTDOWN_MS);
+    expect(keeps()).toHaveLength(1);
+  });
+
+  it('forgets a hold whose change ended, so the next change resumes when the panel closes', async () => {
+    const { open, close, hideCard, showCard } = setup();
+    await propose();
+    fireEvent.mouseEnter(cardButton());
+    // Discarded while hovered; the card then goes, and comes back without the pointer.
+    act(() => controller.discard(NOTE_ID, 'esc'));
+    await advance(0);
+    expect(mark()).toBeUndefined();
+    hideCard();
+    showCard();
+    await propose();
+    open();
+    expect(mark()?.paused).toBe(true);
+    close();
+    expect(mark()?.paused).toBe(false);
+    await advance(COUNTDOWN_MS);
+    expect(keeps()).toHaveLength(1);
+  });
+
   it('leaves the hover pause alone while the panel is closed', async () => {
     setup();
     await propose();
@@ -281,12 +333,21 @@ describe('the card and the review read one mark (§3.4)', () => {
           decision: 'keep',
           fields: ['dueDate', 'title', 'subtasks'],
           subtasks: [0, 2],
-          source: 'enter',
+          // The review's button was clicked, and the record says so.
+          source: 'click',
         },
       ],
     ]);
     expect(within(review()!).getByRole('status')).toHaveTextContent('Übernommen.');
     expect(card().querySelector('.border-dashed')).toBeNull();
+
+    fireEvent.click(within(review()!).getByRole('button', { name: 'Rückgängig' }));
+    await advance(0);
+    expect(vi.mocked(assistantApi.decide).mock.calls.at(-1)).toEqual([
+      BOARD,
+      's1',
+      { decision: 'undo', source: 'click' },
+    ]);
   });
 
   /*

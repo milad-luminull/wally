@@ -54,6 +54,7 @@ describe('NoteRow with a pending change', () => {
     const onOpen = vi.fn();
     const p = renderRow(pending(), onOpen);
     fireEvent.keyDown(rowOf(), { key: 'Enter' });
+    expect(p.onKeep).toHaveBeenCalledWith('enter');
     expect(p.onKeep).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(rowOf(), { key: 'Escape' });
     expect(p.onDiscard).toHaveBeenCalledTimes(1);
@@ -133,6 +134,8 @@ describe('NoteRow with a pending change', () => {
     expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
     const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
     expect(line).toHaveAttribute('aria-pressed', 'false');
+    // What a press does, said only while the press would take the title.
+    expect(line).toHaveAttribute('aria-description', 'Vorschlag für den Titel übernehmen');
     // A full-width line of its own, under the title.
     expect(line.closest('[data-proposed]')?.className).toContain('basis-full');
     fireEvent.click(line);
@@ -146,6 +149,7 @@ describe('NoteRow with a pending change', () => {
     rerender(row(taken));
     const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
     expect(takenLine).toHaveAttribute('aria-pressed', 'true');
+    expect(takenLine).not.toHaveAttribute('aria-description');
     fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
     expect(taken.onRemove).toHaveBeenCalledWith('title');
     expect(onOpen).not.toHaveBeenCalled();
@@ -181,6 +185,7 @@ describe('NoteRow with a pending change', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
     );
+    expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
   });

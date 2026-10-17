@@ -465,7 +465,6 @@ export const en = {
       rowTitle: 'Title: {{title}}',
       rowText: 'Text',
       rowDue: 'Due {{date}}',
-      rowPriority: 'Priority {{label}}',
       rowAssignee: 'Assigned to {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Step: {{text}}',

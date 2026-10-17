@@ -283,7 +283,7 @@ export function NoteRow({
             />
           )
         )}
-        {pending && <PendingDot mark={pending.mark} onUndo={pending.onUndo} />}
+        {pending && <PendingDot mark={pending.mark} onUndo={() => pending.onUndo('click')} />}
       </div>
     </div>
   );

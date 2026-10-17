@@ -241,16 +241,17 @@ function NoteDetailContent({
   /*
    * The review can go from under the keyboard: a keep's undo, a typed row unticked (its
    * ordinary update moves the note past the change's revision, so the change goes, R4), or a
-   * change gone stale. Focus that was in it then lands on the panel's body, where Tab carries
-   * on through the panel, never on the page behind it.
+   * change gone stale. Focus that was in it then lands on the panel's close button, where Tab
+   * carries on through the panel, never on the page behind it. Focus the person moved out of
+   * the review first (a click on the page, a field in the panel) is theirs and stays there.
    */
   const showReview = Boolean(pending && pending.mark.phase !== 'asking');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const reviewHadFocus = useRef(false);
   useLayoutEffect(() => {
     if (showReview) return;
     const lost = !document.activeElement || document.activeElement === document.body;
-    if (reviewHadFocus.current && lost) scrollRef.current?.focus({ preventScroll: true });
+    if (reviewHadFocus.current && lost) closeRef.current?.focus({ preventScroll: true });
     reviewHadFocus.current = false;
   }, [showReview]);
 
@@ -349,20 +350,31 @@ function NoteDetailContent({
         </button>
         <span className="flex-1" />
         <IconTooltip label={t('common.close')} shortcut={['Esc']}>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('common.close')}>
+          <Button
+            ref={closeRef}
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
             <X strokeWidth={1.75} />
           </Button>
         </IconTooltip>
       </header>
 
       <div
-        ref={scrollRef}
-        tabIndex={-1}
         onFocusCapture={(e) => {
           reviewHadFocus.current =
             e.target instanceof Element && e.target.closest('[data-pending-review]') !== null;
         }}
-        className="wally-scroll min-h-0 flex-1 overflow-y-auto outline-none"
+        onBlurCapture={(e) => {
+          // A control removed with the review is not a move; the restore above answers that.
+          if (e.target instanceof Node && !e.target.isConnected) return;
+          const next = e.relatedTarget;
+          if (!(next instanceof Node) || !e.currentTarget.contains(next))
+            reviewHadFocus.current = false;
+        }}
+        className="wally-scroll min-h-0 flex-1 overflow-y-auto"
       >
         <div className="px-5 pb-4 pt-5">
           <textarea

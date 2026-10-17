@@ -11,7 +11,9 @@ import type { SuggestionsController } from './useSuggestions';
  * Two holds pause a countdown: a card or row under the pointer or focus (`onPause`), and the
  * panel open on the note. Either one keeps it paused, so neither letting go resumes it while
  * the other still holds: the pointer leaving the card for the panel resumes nothing, and the
- * panel closing with the pointer still on the card resumes nothing either.
+ * panel closing with the pointer still on the card resumes nothing either. A hold ends when
+ * its card lets go, when the card unmounts (`usePendingPause`), or when the change stops being
+ * pending.
  */
 export function usePendingFor(
   suggestions: SuggestionsController,
@@ -29,9 +31,9 @@ export function usePendingFor(
       if (!mark) return undefined;
       return {
         mark,
-        onKeep: () => suggestions.keep(noteId, 'enter'),
+        onKeep: (source) => suggestions.keep(noteId, source),
         onDiscard: () => suggestions.discard(noteId, 'esc'),
-        onUndo: () => suggestions.undo(noteId, 'esc'),
+        onUndo: (source) => suggestions.undo(noteId, source),
         onRemove: (field) => suggestions.remove(noteId, field),
         onSetField: (field, on) => suggestions.setField(noteId, field, on),
         onSetSubtask: (index, on) => suggestions.setSubtask(noteId, index, on),
@@ -45,6 +47,14 @@ export function usePendingFor(
     },
     [suggestions],
   );
+
+  // A hold belongs to a pending change: once the note's change is kept, discarded or gone, its
+  // hold goes too, so a card that never reported a leave cannot hold the next change paused.
+  const { marks } = suggestions;
+  useEffect(() => {
+    for (const noteId of cardHolds.current)
+      if (marks.get(noteId)?.phase !== 'pending') cardHolds.current.delete(noteId);
+  }, [marks]);
 
   // `setPaused` is stable (the controller's useCallback); the effect runs again only when the
   // panel opens, closes, switches note, or the open note's change stops being pending.

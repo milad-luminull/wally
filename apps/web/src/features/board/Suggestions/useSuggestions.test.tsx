@@ -787,6 +787,60 @@ describe('useSuggestions', () => {
       });
     });
 
+    it('unticking a ticked title does not start the countdown again: the change waits for Enter', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
+      act(() => result.current.setField('n1', 'title', true));
+      act(() => result.current.setField('n1', 'title', false));
+      expect(result.current.marks.get('n1')).toMatchObject({
+        fields: ['dueDate'],
+        countdownEndsAt: null,
+        paused: false,
+      });
+      // Nor does a pointer leaving the card afterwards.
+      act(() => result.current.setPaused('n1', false));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+      });
+      expect(assistantApi.decide).not.toHaveBeenCalled();
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate'],
+        source: 'enter',
+      });
+    });
+
+    it('the last field out discards the whole change, though an unticked title is still offered', async () => {
+      for (const take of ['untick', 'remove'] as const) {
+        vi.mocked(assistantApi.decide).mockClear();
+        vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+          suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
+        });
+        const { result, unmount } = setup();
+        act(() => result.current.request('n1', []));
+        await flush();
+        act(() =>
+          take === 'untick'
+            ? result.current.setField('n1', 'dueDate', false)
+            : result.current.remove('n1', 'dueDate'),
+        );
+        await flush();
+        expect(assistantApi.decide, take).toHaveBeenCalledWith(BOARD, 's1', {
+          decision: 'discard',
+          source: 'remove',
+        });
+        expect(result.current.marks.has('n1'), take).toBe(false);
+        unmount();
+      }
+    });
+
     it('a ticked title leaves the dot waiting for Enter, with no ring', async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
         suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),

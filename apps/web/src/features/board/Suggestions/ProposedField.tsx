@@ -25,7 +25,8 @@ const onPress = (action: () => void) => (e: KeyboardEvent) => {
  *
  * With `toggle`, the value itself is a second `role="button"` span the person taps to take the
  * value into the change or leave it out, its state in `aria-pressed`: the offered title line,
- * which never joins the change on its own (plan R2). `removeLabel` names the × when "remove
+ * which never joins the change on its own (plan R2). `toggle.description` says what a press
+ * does and is given only while the value is not taken. `removeLabel` names the × when "remove
  * suggestion" is not what it does (the title's "use mine").
  */
 export function ProposedField({
@@ -60,7 +61,8 @@ export function ProposedField({
           role="button"
           tabIndex={0}
           aria-pressed={toggle.pressed}
-          aria-description={toggle.description}
+          // What a press does: only while it would take the value. Pressed, the state says it.
+          aria-description={toggle.pressed ? undefined : toggle.description}
           title={t('suggest.reason', { reason })}
           onClick={toggle.onToggle}
           onKeyDown={onPress(toggle.onToggle)}

@@ -704,11 +704,43 @@ describe('NoteDetailPanel', () => {
       const panel = screen.getByRole('complementary');
       expect(document.activeElement).not.toBe(document.body);
       expect(panel).toContainElement(document.activeElement as HTMLElement);
+      // The panel's close button: from there Tab carries on through the panel.
+      expect(screen.getByRole('button', { name: 'Schließen' })).toHaveFocus();
       // The title, not the review, held focus otherwise: the panel leaves it alone then.
       screen.getByLabelText('Titel').focus();
       rerender(<NoteDetailPanel {...props} pending={pendingFor()} />);
       rerender(<NoteDetailPanel {...props} />);
       expect(screen.getByLabelText('Titel')).toHaveFocus();
+    });
+
+    it('leaves focus alone when the person clicked away from the review before it went', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const props = {
+        noteId: 'note-1',
+        boardId: 'board-1',
+        access: boardAccess('OWNER', 'user-1', 'all'),
+        axis: 'horizon' as const,
+        isBelowDesktop: false,
+        onClose: vi.fn(),
+        onDuplicate: vi.fn(),
+        currentUserId: 'user-1',
+      };
+      const { rerender } = renderWithProviders(
+        <NoteDetailPanel {...props} pending={pendingFor()} />,
+      );
+      await screen.findByLabelText('Titel');
+      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      await user.click(within(added).getAllByRole('checkbox')[0]!);
+      // A click on the page behind the panel: focus goes to the page.
+      await user.click(document.body);
+      expect(document.body).toHaveFocus();
+
+      rerender(<NoteDetailPanel {...props} />);
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      expect(document.body).toHaveFocus();
     });
   });
 });

@@ -6,9 +6,11 @@ import type { SuggestionMark } from './useSuggestions';
 /** What a card or row needs to draw and report a pending change; the views build it from the controller. */
 export interface PendingProps {
   mark: SuggestionMark;
-  onKeep: () => void;
+  /** Enter on the card or row, or a click on a button: recorded with the decision (§4). */
+  onKeep: (source: 'enter' | 'click') => void;
   onDiscard: () => void;
-  onUndo: () => void;
+  /** Esc on the card or row, or a click on an Undo. */
+  onUndo: (source: 'esc' | 'click') => void;
   onRemove: (field: SuggestionFieldKey) => void;
   /** Ticks a proposed field into the change or out of it (the review's rows, the title line). */
   onSetField: (field: SuggestionFieldKey, on: boolean) => void;
@@ -17,14 +19,18 @@ export interface PendingProps {
   onPause: (paused: boolean) => void;
 }
 
-/** Enter keeps, Esc discards (pending) or undoes (kept). True when the key was taken. */
+/**
+ * Enter keeps, Esc discards (pending) or undoes (kept). True when the key was taken. Enter on a
+ * change that holds nothing to keep (an offered title nobody ticked, plan R2) is not taken: it
+ * goes on to the card or row as it would without a change.
+ */
 export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefined): boolean {
   if (!pending || event.nativeEvent.isComposing) return false;
-  const { phase } = pending.mark;
-  if (event.key === 'Enter' && phase === 'pending') {
+  const { phase, fields } = pending.mark;
+  if (event.key === 'Enter' && phase === 'pending' && fields.length > 0) {
     event.preventDefault();
     event.stopPropagation();
-    pending.onKeep();
+    pending.onKeep('enter');
     return true;
   }
   if (event.key === 'Escape' && (phase === 'pending' || phase === 'asking')) {
@@ -36,7 +42,7 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
   if (event.key === 'Escape' && phase === 'kept') {
     event.preventDefault();
     event.stopPropagation();
-    pending.onUndo();
+    pending.onUndo('esc');
     return true;
   }
   return false;

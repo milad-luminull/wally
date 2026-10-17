@@ -5,6 +5,7 @@ import type { SuggestionFields } from '@wally/shared';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { proposedDateLabel, type PendingProps } from '../Suggestions/pendingProps';
+import { i18n } from '@/i18n';
 import { PendingReview } from './PendingReview';
 
 const note = makeNote({
@@ -50,8 +51,11 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
     onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   };
-  render(<PendingReview note={note} pending={pending} />);
-  return { pending };
+  const view = render(<PendingReview note={note} pending={pending} />);
+  /** The same review once the controller's mark moved on. */
+  const moveTo = (next: Partial<SuggestionMark>) =>
+    view.rerender(<PendingReview note={note} pending={{ ...pending, mark: markWith(next) }} />);
+  return { pending, moveTo };
 }
 
 describe('PendingReview', () => {
@@ -143,6 +147,8 @@ describe('PendingReview', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Wartet auf dich.');
     await user.click(screen.getByRole('button', { name: 'Behalten' }));
+    // A click on the review's button, recorded as one (WALLYBOT_INLINE.md §4).
+    expect(pending.onKeep).toHaveBeenCalledWith('click');
     expect(pending.onKeep).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Verwerfen' }));
     expect(pending.onDiscard).toHaveBeenCalledTimes(1);
@@ -170,6 +176,49 @@ describe('PendingReview', () => {
     expect(screen.queryByRole('button', { name: 'Verwerfen' })).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Rückgängig' }));
+    expect(pending.onUndo).toHaveBeenCalledWith('click');
     expect(pending.onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives Undo the focus once a keep pressed from the keyboard lands', async () => {
+    const user = userEvent.setup();
+    const { pending, moveTo } = renderReview();
+    const keep = screen.getByRole('button', { name: 'Behalten' });
+    keep.focus();
+    await user.keyboard('{Enter}');
+    expect(pending.onKeep).toHaveBeenCalledWith('click');
+    moveTo({ phase: 'kept' });
+    // The same button, now Undo: the keyboard is where it was.
+    expect(screen.getByRole('button', { name: 'Rückgängig' })).toBe(keep);
+    expect(screen.getByRole('button', { name: 'Rückgängig' })).toHaveFocus();
+  });
+
+  it('leaves focus where the person put it while the keep was on its way', async () => {
+    const user = userEvent.setup();
+    const { moveTo } = renderReview();
+    screen.getByRole('button', { name: 'Behalten' }).focus();
+    await user.keyboard('{Enter}');
+    const row = screen.getByRole('checkbox', { name: 'Kunde: Müller GmbH' });
+    row.focus();
+    moveTo({ phase: 'kept' });
+    expect(screen.getByRole('button', { name: 'Rückgängig' })).not.toHaveFocus();
+  });
+
+  it('cannot keep a change that holds nothing but an unticked title', async () => {
+    const user = userEvent.setup();
+    const { pending } = renderReview({ fields: [], subtasks: [] });
+    const keep = screen.getByRole('button', { name: 'Behalten' });
+    expect(keep).toBeDisabled();
+    await user.click(keep);
+    expect(pending.onKeep).not.toHaveBeenCalled();
+    // Ticking the title makes it one the person can keep.
+    expect(screen.getByRole('button', { name: 'Verwerfen' })).toBeEnabled();
+  });
+
+  it("names a priority row with the card's own words, in English too", async () => {
+    await i18n.changeLanguage('en');
+    renderReview();
+    const added = screen.getByRole('group', { name: 'Added by Wallybot' });
+    expect(within(added).getByRole('checkbox', { name: 'High priority' })).toBeChecked();
   });
 });

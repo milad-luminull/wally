@@ -44,8 +44,11 @@ export interface SuggestionsController {
   remove: (noteId: string, field: SuggestionFieldKey) => void;
   /**
    * Ticks a proposed field into the change or out of it. Taking out the last one discards the
-   * change, as the last × always has. Ticking the title stops the countdown: only the person
-   * keeps a title (plan R2), so the change then waits for Enter.
+   * change, as the last × always has, even while an offered title nobody ticked is still on
+   * the card: that title is not in the change, so nothing would be left to keep. Ticking the
+   * title stops the countdown: only the person keeps a title (plan R2), so the change then
+   * waits for Enter, and unticking it again does not start the countdown over: the person has
+   * taken the change in hand.
    */
   setField: (noteId: string, field: SuggestionFieldKey, on: boolean) => void;
   /** Ticks one proposed step in or out; the last one out takes `subtasks` out of the change. */
@@ -408,9 +411,10 @@ export function useSuggestions(
   }, [undo]);
   /**
    * Puts a pending change's new choice in place. Nothing left in it discards it, as the last ×
-   * always has. A ticked title is the person's to keep (R2), whatever else the change holds:
-   * the countdown stops, paused or not, and the change waits for Enter. A change left with
-   * the title alone is the same case.
+   * always has (an offered title that is not ticked is not in it). A ticked title is the
+   * person's to keep (R2), whatever else the change holds: the countdown stops, paused or not,
+   * and the change waits for Enter. A change left with the title alone is the same case.
+   * Nothing here starts a countdown again, so a title ticked and unticked leaves it stopped.
    */
   const choose = useCallback(
     (noteId: string, mark: SuggestionMark, fields: SuggestionFieldKey[], subtasks: number[]) => {
