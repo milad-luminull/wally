@@ -368,6 +368,44 @@ describe('/me', () => {
       });
     });
 
+    it('reads a stored profile saved before Wallybot existed as autoApply on, and keeps it', async () => {
+      const token = registerTestUser(ctx, 'pref-old', 'pref-old@example.com');
+      await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      // Preferences as an older client saved them: real values, no `wallybot` key at all.
+      await usersCol(ctx.db)
+        .doc('pref-old')
+        .update({
+          preferences: { theme: 'dark', canvas: 'grid', lastBoardId: null, boards: {} },
+        } as never);
+      const stored = (await usersCol(ctx.db).doc('pref-old').get()).data()?.preferences;
+      expect(stored).not.toHaveProperty('wallybot');
+
+      const response = await ctx.inject({
+        method: 'GET',
+        url: '/me',
+        headers: ctx.authHeader(token),
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().preferences).toEqual({
+        theme: 'dark',
+        canvas: 'grid',
+        lastBoardId: null,
+        boards: {},
+        wallybot: { autoApply: true },
+      });
+
+      // Saving something else neither writes the default into the profile nor loses it.
+      const canvas = await patch(token, { preferences: { canvas: 'none' } });
+      expect(canvas.statusCode).toBe(200);
+      expect(canvas.json().preferences).toMatchObject({
+        theme: 'dark',
+        canvas: 'none',
+        wallybot: { autoApply: true },
+      });
+      const after = (await usersCol(ctx.db).doc('pref-old').get()).data()?.preferences;
+      expect(after).not.toHaveProperty('wallybot');
+    });
+
     it('rejects unknown keys and board ids that could escape a field path', async () => {
       const token = registerTestUser(ctx, 'pref-bad', 'pref-bad@example.com');
 
