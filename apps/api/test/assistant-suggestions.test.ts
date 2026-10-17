@@ -163,7 +163,11 @@ describe('capture suggestions', () => {
         dueDate: { value: '2026-10-23', reason: 'Freitag' },
         priority: { value: 'HOCH', reason: 'dringend' },
         assignee: { value: { id: 'fx-editor', displayName: 'Editor' }, reason: 'Anna' },
+        title: null,
+        reference: null,
+        subtasks: null,
       },
+      typed: [],
       kept: null,
     });
     const usageDoc = (
@@ -203,6 +207,12 @@ describe('capture suggestions', () => {
       priority: null,
       assignee: { value: { id: 'fx-editor' } },
     });
+    // What the person decided while writing is kept on the record, for the review's first group.
+    expect(a.json().suggestion.typed).toEqual(['dueDate', 'priority']);
+    expect((await stored(fx.ownerId, a.json().suggestion.id)).typed).toEqual([
+      'dueDate',
+      'priority',
+    ]);
     const filled = (
       await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor', priority: 'NIEDRIG' })
     ).json();
@@ -217,6 +227,38 @@ describe('capture suggestions', () => {
       dueDate: { value: '2026-10-23' },
       priority: { value: 'HOCH' },
       assignee: null,
+    });
+  });
+
+  it('reads a record from slice 2, with no title, reference or subtasks, as proposing nothing there', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor dringend' })
+    ).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).update({
+      typed: FieldValue.delete(),
+      'fields.title': FieldValue.delete(),
+      'fields.reference': FieldValue.delete(),
+      'fields.subtasks': FieldValue.delete(),
+      'operationIds.title': FieldValue.delete(),
+      'operationIds.reference': FieldValue.delete(),
+      'operationIds.subtasks': FieldValue.delete(),
+    });
+    const res = await pending(fx.ownerToken, fx.boardId);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestions[0]).toMatchObject({
+      typed: [],
+      fields: { title: null, reference: null, subtasks: null },
+    });
+    const kept = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(kept.json().suggestion.kept).toEqual({
+      fields: ['dueDate', 'priority', 'assignee'],
+      subtasks: [],
+      revision: n.revision + 3,
     });
   });
 
@@ -340,6 +382,7 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority'],
+      subtasks: [],
       revision: n.revision + 2,
     });
     expect((await stored(fx.editorId, suggestion.id)).decision?.fields).toEqual([
@@ -379,6 +422,7 @@ describe('capture suggestions', () => {
     // answer with the one kept outcome rather than a record still being written.
     expect(a.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority', 'assignee'],
+      subtasks: [],
       revision: n.revision + 3,
     });
     expect(b.json().suggestion.kept).toEqual(a.json().suggestion.kept);
@@ -673,6 +717,7 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority'],
+      subtasks: [],
       revision: n.revision + 2,
     });
     expect(await note(n.id)).toMatchObject({

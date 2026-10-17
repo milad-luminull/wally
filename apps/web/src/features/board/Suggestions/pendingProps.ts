@@ -41,7 +41,14 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
 type ProposedValues = {
   [K in SuggestionFieldKey]: NonNullable<SuggestionDto['fields'][K]> | null;
 };
-const NONE: ProposedValues = { dueDate: null, priority: null, assignee: null };
+const NONE: ProposedValues = {
+  dueDate: null,
+  priority: null,
+  assignee: null,
+  title: null,
+  reference: null,
+  subtasks: null,
+};
 
 /**
  * The proposed values a note shows in their places: only for the fields still in the change,
@@ -70,6 +77,10 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('assignee') && note.visibility !== 'PRIVATE' && note.assignee === null
         ? fields.assignee
         : null,
+    // The title line, the reference and the subtasks are drawn by the review's own slices.
+    title: null,
+    reference: null,
+    subtasks: null,
   };
 }
 

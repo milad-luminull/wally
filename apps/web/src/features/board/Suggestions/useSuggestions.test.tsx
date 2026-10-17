@@ -30,7 +30,11 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
     dueDate: { value: '2026-10-23', reason: 'Freitag' },
     priority: { value: 'HOCH', reason: 'dringend' },
     assignee: null,
+    title: null,
+    reference: null,
+    subtasks: null,
   },
+  typed: [],
   kept: null,
   createdAt: '2026-10-17T10:00:00.000Z',
   ...over,
@@ -63,7 +67,10 @@ function holdDecide() {
                   : body.decision === 'undo'
                     ? 'UNDONE'
                     : 'DISCARDED',
-              kept: body.decision === 'keep' ? { fields: body.fields ?? [], revision: 5 } : null,
+              kept:
+                body.decision === 'keep'
+                  ? { fields: body.fields ?? [], subtasks: [], revision: 5 }
+                  : null,
             }),
           });
       }),
@@ -95,7 +102,7 @@ beforeEach(() => {
       status: body.decision === 'keep' ? 'KEPT' : body.decision === 'undo' ? 'UNDONE' : 'DISCARDED',
       kept:
         body.decision === 'keep'
-          ? { fields: body.fields ?? ['dueDate', 'priority'], revision: 5 }
+          ? { fields: body.fields ?? ['dueDate', 'priority'], subtasks: [], revision: 5 }
           : null,
     }),
   }));
@@ -305,6 +312,9 @@ describe('useSuggestions', () => {
           dueDate: null,
           priority: null,
           assignee: { value: person('u-anna'), reason: 'für Anna' },
+          title: null,
+          reference: null,
+          subtasks: null,
         },
       }),
     });
@@ -322,7 +332,14 @@ describe('useSuggestions', () => {
   it('counts down a proposal that assigns the note to the person themselves', async () => {
     vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
       suggestion: dto({
-        fields: { dueDate: null, priority: null, assignee: { value: person(ME), reason: 'ich' } },
+        fields: {
+          dueDate: null,
+          priority: null,
+          assignee: { value: person(ME), reason: 'ich' },
+          title: null,
+          reference: null,
+          subtasks: null,
+        },
       }),
     });
     const { result } = setup();

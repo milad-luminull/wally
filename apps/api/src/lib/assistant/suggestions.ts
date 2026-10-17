@@ -11,7 +11,7 @@ import type {
   SuggestionFieldKey,
   SuggestionFields,
 } from '@wally/shared';
-import { suggestionFieldKeys } from '@wally/shared';
+import { SUGGESTION_MAX_SUBTASKS, suggestionFieldKeys } from '@wally/shared';
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
 import { getNote, listMembers } from '../commands/queries.js';
@@ -83,6 +83,12 @@ function mintOperationIds(): SuggestionOperationIds {
     dueDate: { apply: randomUUID(), undo: randomUUID() },
     priority: { apply: randomUUID(), undo: randomUUID() },
     assignee: { apply: randomUUID(), undo: randomUUID() },
+    title: { apply: randomUUID(), undo: randomUUID() },
+    reference: { apply: randomUUID(), undo: randomUUID() },
+    subtasks: Array.from({ length: SUGGESTION_MAX_SUBTASKS }, () => ({
+      apply: randomUUID(),
+      undo: randomUUID(),
+    })),
   };
 }
 
@@ -130,11 +136,16 @@ function accept(
       memberIds.has(fields.assignee.memberId)
         ? { value: fields.assignee.memberId, reason: fields.assignee.reason }
         : null,
+    // Slice 3 proposes these later; until the model is asked for them they are empty.
+    title: null,
+    reference: null,
+    subtasks: null,
   };
 }
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
-  suggestionFieldKeys.filter((key) => fields[key] !== null);
+  // A slice 2 record has no title, reference or subtasks at all: absent reads as nothing proposed.
+  suggestionFieldKeys.filter((key) => (fields[key] ?? null) !== null);
 
 /**
  * The proposal as it can still be kept today: an assignee who is no longer the owner or an
@@ -169,6 +180,9 @@ async function toDto(
             reason: live.assignee.reason,
           }
         : null,
+    title: live.title ?? null,
+    reference: live.reference ?? null,
+    subtasks: live.subtasks ?? null,
   };
   return {
     id: doc.id,
@@ -177,7 +191,14 @@ async function toDto(
     status: doc.status,
     baseRevision: doc.baseRevision,
     fields,
-    kept: doc.applied ? { fields: doc.applied.fields, revision: doc.applied.revision } : null,
+    typed: doc.typed ?? [],
+    kept: doc.applied
+      ? {
+          fields: doc.applied.fields,
+          subtasks: doc.applied.subtasks ?? [],
+          revision: doc.applied.revision,
+        }
+      : null,
     createdAt: toIso(doc.createdAt),
   };
 }
@@ -292,6 +313,7 @@ export async function suggestForCapture(
     noteId: note.id,
     baseRevision: note.revision,
     fields,
+    typed: request.locked,
     operationIds: mintOperationIds(),
     status: 'PENDING',
     decision: null,
@@ -425,6 +447,8 @@ function fieldCall(
         input: { mode: 'PRIORITY', priority: values.priority },
       },
     };
+  // The title, reference and subtasks are written by calls of their own, added with their keep.
+  if (key !== 'assignee') throw new Error(`No single write for the field ${key}`);
   return {
     name: 'assign_note',
     input: { boardId, noteId, expectedRevision, input: { assigneeId: values.assigneeId } },
@@ -456,6 +480,17 @@ async function runChain(
     done.push(key);
   }
   return revision;
+}
+
+/** The one operation id of a single-write field; subtasks write one id per item and come later. */
+function operationId(
+  ids: SuggestionOperationIds,
+  key: SuggestionFieldKey,
+  direction: 'apply' | 'undo',
+): string {
+  const entry = key === 'subtasks' ? undefined : ids[key];
+  if (!entry) throw new Error(`No single operation id for the field ${key}`);
+  return entry[direction];
 }
 
 /** A refusal that a retry under the same ids cannot change (stale, gone, forbidden, invalid). */
@@ -554,7 +589,7 @@ async function completeKeep(
       doc,
       kept,
       written,
-      (key) => doc.operationIds[key].apply,
+      (key) => operationId(doc.operationIds, key, 'apply'),
       doc.baseRevision,
       done,
     );
@@ -668,7 +703,7 @@ export async function decideSuggestion(
       current,
       inverse,
       applied.before,
-      (key) => undoIds[key].undo,
+      (key) => operationId(undoIds, key, 'undo'),
       applied.revision,
       done,
     );

@@ -255,7 +255,7 @@ describe('NoteCard with a pending change', () => {
       suggestion: {
         ...base.suggestion!,
         status: 'KEPT',
-        kept: { fields: ['dueDate', 'priority'], revision: 3 },
+        kept: { fields: ['dueDate', 'priority'], subtasks: [], revision: 3 },
       },
     });
     renderCard(p);
