@@ -53,6 +53,8 @@ export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
 export const SUGGESTION_DEADLINE_MS = 20_000;
 /** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
 export const SUGGESTION_MIN_CONFIDENCE = 0.6;
+/** Fewer steps than this are no breakdown: steps are proposed two to five (plan R7). */
+export const SUGGESTION_MIN_SUBTASKS = 2;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -217,7 +219,7 @@ function acceptSubtasks(
     0,
     SUGGESTION_MAX_SUBTASKS,
   );
-  return items.length > 0 ? { items, reason: subtasks.reason } : null;
+  return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
 }
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
@@ -654,7 +656,10 @@ function stepCall(
 
 /**
  * Whether the note still shows what a step wrote, so putting it back takes nothing someone
- * changed since. A step the chain added is still there by its id; one it removed stays gone.
+ * changed since. A step the chain added is still there by its id. A step it removed is put
+ * back only while no step with its text is on the note: an undo run again after one refused
+ * part way replays the receipt of a delete an earlier revert already answered with a new
+ * step, and adding it once more would double it.
  */
 function stillWritten(
   step: Step,
@@ -673,7 +678,9 @@ function stillWritten(
     case 'subtasks': {
       const undo = restore.subtasks.get(step.index ?? -1);
       if (!undo) return false;
-      return 'remove' in undo ? note.subtasks.some((task) => task.id === undo.remove) : true;
+      return 'remove' in undo
+        ? note.subtasks.some((task) => task.id === undo.remove)
+        : !note.subtasks.some((task) => task.text.trim() === undo.add.trim());
     }
     default:
       return noteValue(step.key, note) === valueOf(step.key, written);
@@ -888,8 +895,10 @@ export async function decideSuggestion(
     // Each field once, in the one order the chain and its receipts use: a field named twice
     // would run its write twice under one operation id and be refused.
     const requested = decision.fields ?? proposed;
+    // The title is opt-in (plan R2): the countdown never keeps it, whatever it names.
+    const countdown = decision.source === 'countdown';
     let fields = suggestionFieldKeys.filter(
-      (key) => requested.includes(key) && proposed.includes(key),
+      (key) => requested.includes(key) && proposed.includes(key) && !(countdown && key === 'title'),
     );
     // Each step once, ascending, and only steps that were proposed; none left keeps no steps.
     const items = current.fields.subtasks?.items ?? [];
@@ -899,6 +908,10 @@ export async function decideSuggestion(
           .sort((a, b) => a - b)
       : [];
     if (subtasks.length === 0) fields = fields.filter((key) => key !== 'subtasks');
+    // A proposal holding nothing but a title runs no countdown (R2): one that fires anyway
+    // leaves the title waiting for the person, neither written nor discarded.
+    if (fields.length === 0 && countdown && proposed.includes('title'))
+      return toDto(db, board, current);
     if (fields.length === 0) {
       const { doc } = await claim(
         db,

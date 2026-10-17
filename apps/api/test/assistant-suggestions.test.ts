@@ -105,6 +105,26 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       reference: { key: 'Kun.de', value: 'x', confidence: 0.9, reason: 'Punkt im Namen' },
       subtasks: { items: ['a', 'a', ' '], confidence: 0.9, reason: 'doppelt' },
     });
+  // Doubled and blank steps beside two real ones: the two survive, in order.
+  if (title.startsWith('dupsteps'))
+    return settle({
+      dueDate: null,
+      priority: null,
+      assignee: null,
+      title: null,
+      reference: null,
+      subtasks: { items: [' a', 'a', ' ', 'b '], confidence: 0.9, reason: 'doppelt' },
+    });
+  // A cleaner title and nothing else: the countdown has nothing it may keep (plan R2).
+  if (title.startsWith('titleonly'))
+    return settle({
+      dueDate: null,
+      priority: null,
+      assignee: null,
+      title: { value: 'Nur ein Titel', confidence: 0.9, reason: 'kürzer' },
+      reference: null,
+      subtasks: null,
+    });
   if (title.startsWith('unsure'))
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'vielleicht' },
@@ -986,11 +1006,54 @@ describe('capture suggestions', () => {
     const fx = await createBoardFixture(ctx);
     const same = (await createNote(fx.editToken, fx.boardId, { title: 'sametitle' })).json();
     expect((await suggest(fx.editToken, fx.boardId, same.id)).json().suggestion).toBeNull();
+    // The key is refused, and one step left after the repeats and blanks is no breakdown:
+    // steps come two to five (plan R7), so nothing survives and no record is written.
     const bad = (await createNote(fx.editToken, fx.boardId, { title: 'badref' })).json();
-    const s = (await suggest(fx.editToken, fx.boardId, bad.id)).json().suggestion;
-    expect(s.fields.reference).toBeNull();
-    expect(s.fields.subtasks).toEqual({ items: ['a'], reason: expect.any(String) });
+    expect((await suggest(fx.editToken, fx.boardId, bad.id)).json().suggestion).toBeNull();
+    const dup = (await createNote(fx.editToken, fx.boardId, { title: 'dupsteps' })).json();
+    const s = (await suggest(fx.editToken, fx.boardId, dup.id)).json().suggestion;
+    expect(s.fields.subtasks).toEqual({ items: ['a', 'b'], reason: expect.any(String) });
     expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(1);
+  });
+
+  it('the countdown never keeps a title: it keeps the rest, and a title alone waits for the person', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    // Even a countdown keep that names the title (the web at this point sends every
+    // proposed field) leaves the person's title as it is.
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['dueDate', 'title', 'reference', 'subtasks'],
+      source: 'countdown',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.kept).toEqual({
+      fields: ['dueDate', 'reference', 'subtasks'],
+      subtasks: [0, 1, 2],
+      revision: n.revision + 5,
+    });
+    expect(await note(n.id)).toMatchObject({ title: 'review', dueDate: '2026-10-23' });
+
+    const only = (await createNote(fx.editToken, fx.boardId, { title: 'titleonly' })).json();
+    const proposal = (await suggest(fx.editToken, fx.boardId, only.id)).json().suggestion;
+    expect(proposal.fields.title).toEqual({ value: 'Nur ein Titel', reason: 'kürzer' });
+    const fired = await decide(fx.editToken, fx.boardId, proposal.id, {
+      decision: 'keep',
+      source: 'countdown',
+    });
+    expect(fired.statusCode).toBe(200);
+    expect(fired.json().suggestion).toMatchObject({ status: 'PENDING', kept: null });
+    expect(await note(only.id)).toMatchObject({ title: 'titleonly', revision: only.revision });
+    expect((await stored(fx.editorId, proposal.id)).status).toBe('PENDING');
+    // Ticked by the person, the title is kept.
+    const ticked = await decide(fx.editToken, fx.boardId, proposal.id, {
+      decision: 'keep',
+      fields: ['title'],
+      source: 'click',
+    });
+    expect(ticked.json().suggestion.kept.fields).toEqual(['title']);
+    expect((await note(only.id)).title).toBe('Nur ein Titel');
   });
 
   it('never proposes a reference or steps on a note that has them, nor a title that was locked', async () => {
@@ -1312,5 +1375,116 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
     expect((await note(n.id)).subtaskSummary.total).toBe(0);
+  });
+
+  it('an undo refused part way puts a deleted step back once, however often the undo is repeated', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const kept = (
+      await decide(fx.editToken, fx.boardId, suggestion.id, {
+        decision: 'keep',
+        fields: ['subtasks'],
+        source: 'click',
+      })
+    ).json().suggestion.kept;
+    const record = await stored(fx.editorId, suggestion.id);
+    const ids = record.applied!.subtaskIds!;
+    // The undo's first inverse write (the newest step) commits, then a panel edit lands
+    // before its second.
+    await runOperation(asSuggestion(fx.editorId, fx.boardId, suggestion.id), {
+      name: 'delete_subtask',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: kept.revision,
+        subtaskId: ids[2],
+      },
+      operationId: record.operationIds.subtasks![2]!.undo,
+    });
+    expect((await patchTitle(fx.editToken, n.id, 'Danach')).statusCode).toBe(200);
+    const texts = async () => (await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text);
+    const first = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'shortcut',
+    });
+    expect(first.statusCode).toBe(409);
+    expect(first.json().error).toBe('STALE_REVISION');
+    // Not half undone: the deleted step is back, under a new id.
+    expect(await texts()).toEqual(['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden']);
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
+    // Each repeat replays the delete's receipt and is refused again; the step is not doubled.
+    for (const source of ['esc', 'esc'] as const) {
+      const revision = (await note(n.id)).revision;
+      const again = await decide(fx.editToken, fx.boardId, suggestion.id, {
+        decision: 'undo',
+        source,
+      });
+      expect(again.statusCode).toBe(409);
+      expect(again.json().error).toBe('STALE_REVISION');
+      expect(await texts()).toEqual(['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden']);
+      expect((await note(n.id)).revision).toBe(revision);
+    }
+    expect((await note(n.id)).subtaskSummary.total).toBe(3);
+  });
+
+  it('a kept step deleted by hand moves the revision, so the undo is refused and adds nothing', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const kept = (
+      await decide(fx.editToken, fx.boardId, suggestion.id, {
+        decision: 'keep',
+        fields: ['subtasks'],
+        source: 'click',
+      })
+    ).json().suggestion.kept;
+    expect((await note(n.id)).revision).toBe(kept.revision);
+    const steps = (await noteDetail(fx.editToken, n.id)).subtasks;
+    const removed = await ctx.inject({
+      method: 'DELETE',
+      url: `/notes/${n.id}/subtasks/${steps[0]!.id}`,
+      headers: ctx.authHeader(fx.editToken),
+    });
+    expect(removed.statusCode).toBe(204);
+    expect((await note(n.id)).revision).toBe(kept.revision + 1);
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    expect((await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text)).toEqual([
+      'Angebot schreiben',
+      'Angebot senden',
+    ]);
+    expect((await note(n.id)).revision).toBe(kept.revision + 1);
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
+  });
+
+  it("undo puts a reference key's previous value back when the key held one", async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['reference'],
+      source: 'click',
+    });
+    expect((await note(n.id)).customFields).toEqual({ kunde: 'Müller GmbH' });
+    // No route reaches this state: a reference is proposed only on a note with no property
+    // (R7), and one set later makes the keep stale. The record is edited to hold a previous
+    // value, so the restore branch of R8 runs through the real undo.
+    await assistantSuggestionsCol(ctx.db, fx.editorId)
+      .doc(suggestion.id)
+      .update({ 'applied.before.reference.previous': 'Alt GmbH' });
+    const undone = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(undone.statusCode).toBe(200);
+    expect((await note(n.id)).customFields).toEqual({ kunde: 'Alt GmbH' });
+    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
+    expect(audits.docs.map((d) => d.data().commandType)).toEqual(['note.update', 'note.update']);
   });
 });
