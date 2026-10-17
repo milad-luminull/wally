@@ -27,7 +27,7 @@ describe('SubtaskChecklist', () => {
         onRemove={vi.fn()}
       />,
     );
-    expect(screen.getByText('1 von 2')).toBeInTheDocument();
+    expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
 
   it('toggles a subtask via its checkbox', async () => {
@@ -41,7 +41,7 @@ describe('SubtaskChecklist', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('checkbox', { name: /als erledigt markieren/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Mark .+ as done/i }));
     expect(onToggle).toHaveBeenCalledWith('s1', true);
   });
 
@@ -56,7 +56,7 @@ describe('SubtaskChecklist', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: /entfernen/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Remove/i }));
     expect(onRemove).toHaveBeenCalledWith('s1');
   });
 
@@ -64,10 +64,7 @@ describe('SubtaskChecklist', () => {
     const onAdd = vi.fn();
     render(<SubtaskChecklist subtasks={[]} onAdd={onAdd} onToggle={vi.fn()} onRemove={vi.fn()} />);
 
-    await userEvent.type(
-      screen.getByLabelText('Unteraufgabe hinzufügen'),
-      'Vergleich versenden{Enter}',
-    );
+    await userEvent.type(screen.getByLabelText('Add subtask'), 'Vergleich versenden{Enter}');
     expect(onAdd).toHaveBeenCalledWith('Vergleich versenden');
   });
 
@@ -81,8 +78,8 @@ describe('SubtaskChecklist', () => {
         disabled
       />,
     );
-    expect(screen.queryByLabelText('Unteraufgabe hinzufügen')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /entfernen/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add subtask')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove/i })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeDisabled();
   });
 });

@@ -16,7 +16,7 @@ import { createTestQueryClient, renderWithProviders } from '@/test/renderWithPro
 import { makeBoard } from '@/test/fixtures';
 import { EmailVerificationBanner } from './EmailVerificationBanner';
 
-const HEADLINE = 'Bestätige deine E-Mail-Adresse';
+const HEADLINE = 'Confirm your email address';
 
 describe('EmailVerificationBanner', () => {
   let resendVerificationEmail: ReturnType<typeof vi.fn>;
@@ -59,30 +59,28 @@ describe('EmailVerificationBanner', () => {
     expect(screen.getByText(HEADLINE)).toBeInTheDocument();
     // The address is named, so a typo at sign-up is visible rather than mysterious.
     expect(screen.getByText('max@example.com')).toBeInTheDocument();
-    expect(screen.getByText(/eingeladen wurdest/)).toBeInTheDocument();
+    expect(screen.getByText(/you have been invited to/)).toBeInTheDocument();
   });
 
   it('sends another verification email and confirms it went out', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EmailVerificationBanner />);
 
-    await user.click(screen.getByRole('button', { name: 'E-Mail erneut senden' }));
+    await user.click(screen.getByRole('button', { name: 'Resend email' }));
 
     expect(resendVerificationEmail).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/E-Mail gesendet/)).toBeInTheDocument();
+    expect(await screen.findByText(/Email sent/)).toBeInTheDocument();
   });
 
   it('blocks a second send during the cooldown window', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EmailVerificationBanner />);
 
-    await user.click(screen.getByRole('button', { name: 'E-Mail erneut senden' }));
+    await user.click(screen.getByRole('button', { name: 'Resend email' }));
 
     // Asserted as disabled rather than by advancing timers: fake timers are a documented
     // flakiness source in this suite.
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Erneut senden in/ })).toBeDisabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: /Resend in/ })).toBeDisabled());
     expect(resendVerificationEmail).toHaveBeenCalledTimes(1);
   });
 
@@ -91,10 +89,10 @@ describe('EmailVerificationBanner', () => {
     resendVerificationEmail.mockRejectedValue({ code: 'auth/too-many-requests' });
     renderWithProviders(<EmailVerificationBanner />);
 
-    await user.click(screen.getByRole('button', { name: 'E-Mail erneut senden' }));
+    await user.click(screen.getByRole('button', { name: 'Resend email' }));
 
     // "Try again" on a throttle the user cannot clear by trying again is actively unhelpful.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Zu viele Versuche');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts');
   });
 
   it('keeps the banner up when the address is still unconfirmed after a check', async () => {
@@ -102,9 +100,9 @@ describe('EmailVerificationBanner', () => {
     refreshUser.mockImplementation(async () => false);
     renderWithProviders(<EmailVerificationBanner />);
 
-    await user.click(screen.getByRole('button', { name: 'Ich habe bestätigt' }));
+    await user.click(screen.getByRole('button', { name: "I've confirmed" }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Noch nicht bestätigt');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not confirmed yet');
     expect(screen.getByText(HEADLINE)).toBeInTheDocument();
   });
 
@@ -128,7 +126,7 @@ describe('EmailVerificationBanner', () => {
     });
 
     renderWithProviders(<EmailVerificationBanner />, { queryClient });
-    await user.click(screen.getByRole('button', { name: 'Ich habe bestätigt' }));
+    await user.click(screen.getByRole('button', { name: "I've confirmed" }));
 
     await waitFor(() => expect(order).toEqual(['refreshUser', 'invalidateQueries']));
   });
@@ -141,12 +139,12 @@ describe('EmailVerificationBanner', () => {
     ]);
     renderWithProviders(<EmailVerificationBanner />);
 
-    await user.click(screen.getByRole('button', { name: 'Ich habe bestätigt' }));
+    await user.click(screen.getByRole('button', { name: "I've confirmed" }));
 
     // There is no board switcher in the app, so without this the newly activated invite is
     // invisible: the user stays on their own board with no way to reach the shared one.
     expect(await screen.findByText(/Team Nord/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Wand öffnen' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open board' })).toHaveAttribute(
       'href',
       '/boards/shared',
     );

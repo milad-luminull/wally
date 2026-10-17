@@ -33,15 +33,15 @@ it('keeps a failed draft reachable and applies it only after reviewing the lates
   ).catch(() => {});
   renderWithProviders(<MutationRecovery />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: /Ungespeicherte Änderungen/ }));
+  await user.click(screen.getByRole('button', { name: /Unsaved changes/ }));
   expect(await screen.findByText('Colleague title')).toBeInTheDocument();
   expect(screen.getByText('My draft')).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Für später behalten' }));
+  await user.click(screen.getByRole('button', { name: 'Keep for later' }));
   expect(getRecoveries()).toHaveLength(1);
-  await user.click(screen.getByRole('button', { name: /Ungespeicherte Änderungen/ }));
+  await user.click(screen.getByRole('button', { name: /Unsaved changes/ }));
   await screen.findByText('Colleague title');
   await act(async () => {
-    await user.click(screen.getByRole('button', { name: 'Geprüfte Änderung anwenden' }));
+    await user.click(screen.getByRole('button', { name: 'Apply reviewed change' }));
   });
   await waitFor(() => expect(getRecoveries()).toHaveLength(0));
   expect(calls).toBe(2);
@@ -63,12 +63,12 @@ it('shows a visibility change in words, not as the stored value', async () => {
   ).catch(() => {});
   renderWithProviders(<MutationRecovery />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: /Ungespeicherte Änderungen/ }));
+  await user.click(screen.getByRole('button', { name: /Unsaved changes/ }));
 
   // Once for the stored version, once for the proposed change.
-  expect(await screen.findAllByText('Sichtbarkeit')).toHaveLength(2);
-  expect(await screen.findByText('Privat')).toBeInTheDocument();
-  expect(screen.getByText('Für alle')).toBeInTheDocument();
+  expect(await screen.findAllByText('Visibility')).toHaveLength(2);
+  expect(await screen.findByText('Private')).toBeInTheDocument();
+  expect(screen.getByText('Everyone')).toBeInTheDocument();
   expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
   expect(screen.queryByText('SHARED')).not.toBeInTheDocument();
 });

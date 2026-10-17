@@ -78,7 +78,7 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
 
 describe('NoteDetailPanel', () => {
   /**
-   * Completion used to be a filled, full-width button in the footer labelled "Erledigt".
+   * Completion used to be a filled, full-width button in the footer labelled "Done".
    * That is the slot — and the word — every sheet uses for "dismiss", so people pressing it
    * to close the panel silently marked their to-do done instead. It is a checkbox now, which
    * is also how the list view has always completed a note.
@@ -87,9 +87,9 @@ describe('NoteDetailPanel', () => {
     it('completes the note from a checkbox rather than a footer button', async () => {
       vi.mocked(notesApi.complete).mockResolvedValue(makeNoteDetail({ status: 'DONE' }));
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      const done = screen.getByRole('checkbox', { name: 'Erledigt' });
+      const done = screen.getByRole('checkbox', { name: 'Done' });
       expect(done).not.toBeChecked();
       await userEvent.click(done);
 
@@ -109,9 +109,9 @@ describe('NoteDetailPanel', () => {
       vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ status: 'DONE' }));
       vi.mocked(notesApi.reopen).mockResolvedValue(makeNoteDetail({ status: 'OPEN' }));
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      const done = screen.getByRole('checkbox', { name: 'Erledigt' });
+      const done = screen.getByRole('checkbox', { name: 'Done' });
       expect(done).toBeChecked();
       await userEvent.click(done);
 
@@ -129,18 +129,18 @@ describe('NoteDetailPanel', () => {
 
     it('leaves no button that could be mistaken for a way out of the panel', async () => {
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
       // The only footer control is delete; closing is the header X (and Escape).
-      expect(screen.queryByRole('button', { name: 'Erledigt' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Wieder offen' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reopen' })).not.toBeInTheDocument();
     });
 
     it('does not offer the checkbox to a member who cannot edit', async () => {
       renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      expect(screen.getByRole('checkbox', { name: 'Erledigt' })).toBeDisabled();
+      expect(screen.getByRole('checkbox', { name: 'Done' })).toBeDisabled();
     });
   });
 
@@ -158,7 +158,7 @@ describe('NoteDetailPanel', () => {
     it('saves while typing, without needing to leave the field', async () => {
       const user = userEvent.setup();
       renderPanel();
-      const field = await screen.findByLabelText('Titel');
+      const field = await screen.findByLabelText('Title');
 
       await user.clear(field);
       await user.type(field, 'Angebot prüfen');
@@ -180,7 +180,7 @@ describe('NoteDetailPanel', () => {
     it('finishes on Enter instead of adding a line break', async () => {
       const user = userEvent.setup();
       renderPanel();
-      const field = await screen.findByLabelText('Titel');
+      const field = await screen.findByLabelText('Title');
 
       await user.clear(field);
       await user.type(field, 'Angebot prüfen{Enter}');
@@ -212,8 +212,8 @@ describe('NoteDetailPanel', () => {
     it('saves while typing, and Enter adds a line instead of leaving', async () => {
       const user = userEvent.setup();
       renderPanel();
-      const field = await screen.findByLabelText('Beschreibung');
-      expect(field).toHaveAttribute('placeholder', 'Beschreibung hinzufügen…');
+      const field = await screen.findByLabelText('Description');
+      expect(field).toHaveAttribute('placeholder', 'Add a description…');
 
       await user.type(field, 'Erste Zeile{Enter}zweite');
 
@@ -256,7 +256,7 @@ describe('NoteDetailPanel', () => {
     it('sends what was typed when the panel closes before the save delay', async () => {
       const user = userEvent.setup();
       const { unmount } = renderPanel();
-      const field = await screen.findByLabelText('Beschreibung');
+      const field = await screen.findByLabelText('Description');
 
       await user.type(field, 'Kurz');
       unmount();
@@ -277,7 +277,7 @@ describe('NoteDetailPanel', () => {
     it('leaves the field, not the panel, on the first Escape', async () => {
       const user = userEvent.setup();
       const { onClose } = renderPanel();
-      const field = await screen.findByLabelText('Beschreibung');
+      const field = await screen.findByLabelText('Description');
       await user.click(field);
 
       await user.keyboard('{Escape}');
@@ -291,18 +291,18 @@ describe('NoteDetailPanel', () => {
     it('duplicates from the footer button', async () => {
       const user = userEvent.setup();
       const { onDuplicate } = renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      await user.click(screen.getByRole('button', { name: 'Duplizieren' }));
+      await user.click(screen.getByRole('button', { name: 'Duplicate' }));
 
       expect(onDuplicate).toHaveBeenCalledWith('note-1');
     });
 
     it('is not offered to a member who cannot edit', async () => {
       renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      expect(screen.queryByRole('button', { name: 'Duplizieren' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Duplicate' })).not.toBeInTheDocument();
     });
   });
 
@@ -314,12 +314,12 @@ describe('NoteDetailPanel', () => {
       ]);
       const user = userEvent.setup();
       renderPanel({ currentUserId: 'user-1' });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
       await waitFor(() => expect(membersApi.list).toHaveBeenCalled());
 
-      await user.click(screen.getByRole('combobox', { name: 'Zuständig' }));
+      await user.click(screen.getByRole('combobox', { name: 'Assignee' }));
 
-      expect(await screen.findByRole('option', { name: /Nora Falk \(du\)/ })).toBeInTheDocument();
+      expect(await screen.findByRole('option', { name: /Nora Falk \(you\)/ })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: /Jonas Weber/ })).toBeInTheDocument();
     });
 
@@ -330,9 +330,9 @@ describe('NoteDetailPanel', () => {
         }),
       );
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      expect(screen.getByRole('combobox', { name: 'Zuständig' })).toHaveTextContent('Ex Kollegin');
+      expect(screen.getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Ex Kollegin');
     });
   });
 
@@ -345,12 +345,12 @@ describe('NoteDetailPanel', () => {
         makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
       );
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      const toggle = screen.getByRole('switch', { name: 'Private' });
       expect(toggle).not.toBeChecked();
       expect(toggle).toBeEnabled();
-      expect(toggle).toHaveAccessibleDescription('Nur du siehst eine private Notiz.');
+      expect(toggle).toHaveAccessibleDescription('Only you can see a private note.');
     });
 
     it("is not offered on someone else's shared note", async () => {
@@ -358,9 +358,9 @@ describe('NoteDetailPanel', () => {
         makeNoteDetail({ id: 'note-1', createdBy: someoneElse, visibility: 'SHARED' }),
       );
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      expect(screen.queryByRole('switch', { name: 'Privat' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('switch', { name: 'Private' })).not.toBeInTheDocument();
     });
 
     it("is on and locked for a viewer's own private note, which they can still edit", async () => {
@@ -368,17 +368,17 @@ describe('NoteDetailPanel', () => {
         makeNoteDetail({ id: 'note-1', createdBy: me, assignee: me, visibility: 'PRIVATE' }),
       );
       renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
-      const title = await screen.findByLabelText('Titel');
+      const title = await screen.findByLabelText('Title');
 
-      const toggle = screen.getByRole('switch', { name: 'Privat' });
+      const toggle = screen.getByRole('switch', { name: 'Private' });
       expect(toggle).toBeChecked();
       expect(toggle).toBeDisabled();
-      expect(toggle).toHaveAccessibleDescription('Zum Teilen brauchst du Bearbeitungsrechte.');
+      expect(toggle).toHaveAccessibleDescription('You need edit rights to share it.');
       expect(title).toBeEnabled();
       // The locked assignee row names the assignee in words, with the reason after it.
-      const helper = screen.getByText('Private Notizen gehören immer dir.');
-      expect(within(helper.parentElement!).getByText('Du')).toBeVisible();
-      expect(screen.queryByRole('combobox', { name: 'Zuständig' })).not.toBeInTheDocument();
+      const helper = screen.getByText('A private note is always yours.');
+      expect(within(helper.parentElement!).getByText('You')).toBeVisible();
+      expect(screen.queryByRole('combobox', { name: 'Assignee' })).not.toBeInTheDocument();
     });
 
     it('keeps the assignee picker for a shared note', async () => {
@@ -386,10 +386,10 @@ describe('NoteDetailPanel', () => {
         makeNoteDetail({ id: 'note-1', createdBy: me, visibility: 'SHARED' }),
       );
       renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      expect(screen.getByRole('combobox', { name: 'Zuständig' })).toBeInTheDocument();
-      expect(screen.queryByText('Private Notizen gehören immer dir.')).not.toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Assignee' })).toBeInTheDocument();
+      expect(screen.queryByText('A private note is always yours.')).not.toBeInTheDocument();
     });
 
     it('makes the note private when clicked', async () => {
@@ -399,9 +399,9 @@ describe('NoteDetailPanel', () => {
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
       const user = userEvent.setup();
       renderPanel({ noteId: 'n1' });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      await user.click(screen.getByRole('switch', { name: 'Privat' }));
+      await user.click(screen.getByRole('switch', { name: 'Private' }));
 
       await waitFor(() =>
         expect(notesApi.update).toHaveBeenCalledWith(
@@ -421,9 +421,9 @@ describe('NoteDetailPanel', () => {
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ id: 'n1', visibility: 'PRIVATE' }));
       const user = userEvent.setup();
       renderPanel({ noteId: 'n1' });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      screen.getByRole('switch', { name: 'Privat' }).focus();
+      screen.getByRole('switch', { name: 'Private' }).focus();
       await user.keyboard(' ');
 
       await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
@@ -433,7 +433,7 @@ describe('NoteDetailPanel', () => {
   describe('closing the panel', () => {
     it('closes on Escape', async () => {
       const { onClose } = renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
       await userEvent.keyboard('{Escape}');
 
@@ -445,9 +445,9 @@ describe('NoteDetailPanel', () => {
     it('leaves Escape to an open dropdown', async () => {
       const user = userEvent.setup();
       const { onClose } = renderPanel();
-      await screen.findByLabelText('Titel');
-      await user.click(screen.getByRole('combobox', { name: 'Zuständig' }));
-      await screen.findByRole('option', { name: 'Niemand' });
+      await screen.findByLabelText('Title');
+      await user.click(screen.getByRole('combobox', { name: 'Assignee' }));
+      await screen.findByRole('option', { name: 'Nobody' });
 
       await user.keyboard('{Escape}');
 
@@ -457,11 +457,11 @@ describe('NoteDetailPanel', () => {
 
   it('moves the note via the Priority control (POST /notes/:id/move, mode PRIORITY)', async () => {
     renderPanel();
-    await screen.findByLabelText('Titel');
+    await screen.findByLabelText('Title');
 
     // Priority is a single-select Radix ToggleGroup, exposed as a radiogroup/radio pair
     // (correct ARIA for a segmented single-choice control), not plain buttons.
-    await userEvent.click(screen.getByRole('radio', { name: 'Hoch' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'High' }));
 
     await waitFor(() =>
       expect(notesApi.move).toHaveBeenCalledWith(
@@ -476,12 +476,12 @@ describe('NoteDetailPanel', () => {
     );
   });
 
-  it('moves the note via the zone control, labelled "Spalte" for the Horizon axis', async () => {
+  it('moves the note via the zone control, labelled "Column" for the Horizon axis', async () => {
     renderPanel({ axis: 'horizon' });
-    await screen.findByLabelText('Titel');
+    await screen.findByLabelText('Title');
 
-    expect(screen.getByText('Spalte')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('radio', { name: 'Später' }));
+    expect(screen.getByText('Column')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'Later' }));
 
     await waitFor(() =>
       expect(notesApi.move).toHaveBeenCalledWith(
@@ -496,13 +496,13 @@ describe('NoteDetailPanel', () => {
     );
   });
 
-  // In the Priority axis the zone is the priority, so a "Zeile" control would be a second
+  // In the Priority axis the zone is the priority, so a "Row" control would be a second
   // copy of the Priority row directly above it.
   it('shows no separate zone control for the Priority axis or in free mode', async () => {
     const { rerender } = renderPanel({ axis: 'priority' });
-    await screen.findByLabelText('Titel');
-    expect(screen.queryByText('Zeile')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('radio', { name: 'Hoch' })).toHaveLength(1);
+    await screen.findByLabelText('Title');
+    expect(screen.queryByText('Row')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: 'High' })).toHaveLength(1);
 
     rerender(
       <NoteDetailPanel
@@ -517,14 +517,14 @@ describe('NoteDetailPanel', () => {
       />,
     );
     await waitFor(() => {
-      expect(screen.queryByText('Spalte')).not.toBeInTheDocument();
-      expect(screen.queryByText('Zeile')).not.toBeInTheDocument();
+      expect(screen.queryByText('Column')).not.toBeInTheDocument();
+      expect(screen.queryByText('Row')).not.toBeInTheDocument();
     });
   });
 
   it('offers exactly the 14 shared note-colour swatches, with no Apricot option', async () => {
     renderPanel();
-    await screen.findByLabelText('Titel');
+    await screen.findByLabelText('Title');
 
     for (const label of Object.values(enumLabels(i18n.t).colour)) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
@@ -535,12 +535,12 @@ describe('NoteDetailPanel', () => {
 
   it('disables every field and hides the delete action for a VIEW-role member', async () => {
     renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
-    await screen.findByLabelText('Titel');
+    await screen.findByLabelText('Title');
 
-    expect(screen.getByLabelText('Titel')).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Hoch' })).toBeDisabled();
+    expect(screen.getByLabelText('Title')).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'High' })).toBeDisabled();
     expect(screen.getByRole('button', { name: enumLabels(i18n.t).colour.WEISS })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Löschen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 
   /**
@@ -571,9 +571,9 @@ describe('NoteDetailPanel', () => {
           <Toaster />
         </>,
       );
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
       await waitFor(() => expect(notesApi.list).toHaveBeenCalled());
-      await user.click(screen.getByRole('button', { name: 'Löschen' }));
+      await user.click(screen.getByRole('button', { name: 'Delete' }));
       expect(onClose).toHaveBeenCalled();
       return { user };
     }
@@ -581,19 +581,19 @@ describe('NoteDetailPanel', () => {
     it('removes the note at once and offers Undo, without calling the API yet', async () => {
       const { user } = await deleteFromPanel();
 
-      expect(await screen.findByText('„Angebot“ gelöscht')).toBeInTheDocument();
+      expect(await screen.findByText('“Angebot” deleted')).toBeInTheDocument();
       expect(notesApi.remove).not.toHaveBeenCalled();
 
-      await user.click(screen.getByRole('button', { name: 'Rückgängig' }));
-      expect(screen.queryByText('„Angebot“ gelöscht')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Undo' }));
+      expect(screen.queryByText('“Angebot” deleted')).not.toBeInTheDocument();
       expect(notesApi.remove).not.toHaveBeenCalled();
     });
 
     it('sends the DELETE once the undo window is closed', async () => {
       const { user } = await deleteFromPanel();
-      const toastItem = (await screen.findByText('„Angebot“ gelöscht')).closest('li')!;
+      const toastItem = (await screen.findByText('“Angebot” deleted')).closest('li')!;
 
-      await user.click(within(toastItem).getByRole('button', { name: 'Schließen' }));
+      await user.click(within(toastItem).getByRole('button', { name: 'Close' }));
 
       await waitFor(() =>
         expect(notesApi.remove).toHaveBeenCalledWith(
@@ -629,21 +629,21 @@ describe('NoteDetailPanel', () => {
 
     it('shows the review section only for a note with a pending change', async () => {
       const { unmount } = renderPanel();
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
       expect(document.querySelector('[data-pending-review]')).toBeNull();
-      expect(screen.queryByText('Von Wallybot ergänzt')).not.toBeInTheDocument();
+      expect(screen.queryByText('Added by Wallybot')).not.toBeInTheDocument();
       unmount();
 
       vi.mocked(notesApi.get).mockResolvedValue(
         makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
       );
       renderPanel({ pending: pendingFor() });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
       const review = document.querySelector('[data-pending-review]');
       expect(review).not.toBeNull();
-      expect(within(review as HTMLElement).getByText('Von Wallybot ergänzt')).toBeInTheDocument();
+      expect(within(review as HTMLElement).getByText('Added by Wallybot')).toBeInTheDocument();
       // Above the subtasks: the first thing under the title and the description.
-      const subtasks = screen.getByText('Unteraufgaben');
+      const subtasks = screen.getByText('Subtasks');
       expect(review!.compareDocumentPosition(subtasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
@@ -651,7 +651,7 @@ describe('NoteDetailPanel', () => {
 
     it('shows no review while the change is still being asked for', async () => {
       renderPanel({ pending: { ...pendingFor(), mark: makeSuggestionMark({ phase: 'asking' }) } });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
       expect(document.querySelector('[data-pending-review]')).toBeNull();
     });
 
@@ -667,10 +667,10 @@ describe('NoteDetailPanel', () => {
       );
       const pending = pendingFor();
       renderPanel({ pending });
-      await screen.findByLabelText('Titel');
+      await screen.findByLabelText('Title');
 
-      const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
-      const row = within(typed).getByRole('checkbox', { name: /^Fällig / });
+      const typed = screen.getByRole('group', { name: 'From what you typed' });
+      const row = within(typed).getByRole('checkbox', { name: /^Due / });
       // Calls from earlier cases stay on these mocks; only what the click sends counts here.
       vi.mocked(notesApi.update).mockClear();
       vi.mocked(notesApi.move).mockClear();
@@ -710,8 +710,8 @@ describe('NoteDetailPanel', () => {
       const { rerender } = renderWithProviders(
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
-      await screen.findByLabelText('Titel');
-      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      await screen.findByLabelText('Title');
+      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
       const row = within(added).getAllByRole('checkbox')[0]!;
       await user.click(row);
       expect(row).toHaveFocus();
@@ -722,12 +722,12 @@ describe('NoteDetailPanel', () => {
       expect(document.activeElement).not.toBe(document.body);
       expect(panel).toContainElement(document.activeElement as HTMLElement);
       // The panel's close button: from there Tab carries on through the panel.
-      expect(screen.getByRole('button', { name: 'Schließen' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
       // The title, not the review, held focus otherwise: the panel leaves it alone then.
-      screen.getByLabelText('Titel').focus();
+      screen.getByLabelText('Title').focus();
       rerender(<NoteDetailPanel {...props} pending={pendingFor()} />);
       rerender(<NoteDetailPanel {...props} />);
-      expect(screen.getByLabelText('Titel')).toHaveFocus();
+      expect(screen.getByLabelText('Title')).toHaveFocus();
     });
 
     it('leaves focus alone when the person clicked away from the review before it went', async () => {
@@ -748,8 +748,8 @@ describe('NoteDetailPanel', () => {
       const { rerender } = renderWithProviders(
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
-      await screen.findByLabelText('Titel');
-      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      await screen.findByLabelText('Title');
+      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
       await user.click(within(added).getAllByRole('checkbox')[0]!);
       // A click on the page behind the panel: focus goes to the page.
       await user.click(document.body);

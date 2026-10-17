@@ -15,6 +15,6 @@ describe('LoginPage', () => {
   // Since a user can have several boards, signing in leads to them, not to one board.
   it('invites the visitor to their boards', () => {
     renderWithProviders(<LoginPage />, { route: '/login' });
-    expect(screen.getByText('Melde dich an, um deine Wände zu sehen.')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to see your boards.')).toBeInTheDocument();
   });
 });

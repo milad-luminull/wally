@@ -854,7 +854,7 @@ describe('useSuggestions', () => {
       expect(mark.paused).toBe(false);
       const { container } = render(<PendingDot mark={mark} onUndo={vi.fn()} />);
       expect(
-        screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, warten auf Enter' }),
+        screen.getByRole('img', { name: 'Proposed changes, waiting for Enter' }),
       ).toBeInTheDocument();
       expect(container.querySelector('circle.fill-accent')).not.toBeNull();
       expect(container.querySelector('circle.animate-countdown')).toBeNull();

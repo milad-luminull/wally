@@ -22,11 +22,11 @@ describe('BoardSwitcher', () => {
     vi.mocked(boardsApi.list).mockResolvedValue([makeBoard({ id: 'own' })]);
 
     renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });
-    await user.click(await screen.findByRole('button', { name: 'Wand wechseln' }));
+    await user.click(await screen.findByRole('button', { name: 'Switch board' }));
 
-    expect(screen.getByRole('link', { name: 'Alle Wände' })).toHaveAttribute('href', '/boards');
-    await user.click(screen.getByRole('button', { name: 'Neue Wand' }));
-    expect(await screen.findByRole('dialog', { name: 'Neue Wand' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'All boards' })).toHaveAttribute('href', '/boards');
+    await user.click(screen.getByRole('button', { name: 'New board' }));
+    expect(await screen.findByRole('dialog', { name: 'New board' })).toBeInTheDocument();
   }, 60_000);
 
   /**
@@ -43,7 +43,7 @@ describe('BoardSwitcher', () => {
 
     renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });
 
-    await user.click(await screen.findByRole('button', { name: 'Wand wechseln' }));
+    await user.click(await screen.findByRole('button', { name: 'Switch board' }));
 
     expect(screen.getByRole('link', { name: /Team Nord/ })).toHaveAttribute(
       'href',
@@ -64,11 +64,11 @@ describe('BoardSwitcher', () => {
     ]);
 
     renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });
-    await user.click(await screen.findByRole('button', { name: 'Wand wechseln' }));
+    await user.click(await screen.findByRole('button', { name: 'Switch board' }));
 
     // A read-only board looking identical to an editable one is the kind of thing people
     // only discover by trying to type into it.
-    expect(screen.getByText('Ansehen')).toBeInTheDocument();
-    expect(screen.getByText('Deine Wand')).toBeInTheDocument();
+    expect(screen.getByText('Can view')).toBeInTheDocument();
+    expect(screen.getByText('Your board')).toBeInTheDocument();
   });
 });

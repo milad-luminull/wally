@@ -83,8 +83,8 @@ describe('LandingPage', () => {
   it('offers a retry when the board list cannot be loaded', async () => {
     vi.mocked(boardsApi.list).mockRejectedValue(new Error('offline'));
     renderLanding();
-    expect(await screen.findByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
     // It loads the list of boards, not one board.
-    expect(screen.getByText('Deine Wände konnten nicht geladen werden.')).toBeInTheDocument();
+    expect(screen.getByText('Your boards could not be loaded.')).toBeInTheDocument();
   });
 });

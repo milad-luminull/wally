@@ -221,5 +221,5 @@ it('reviews a stale board deletion with the board name and the change spelled ou
   const reviewed = await getRecoveries()[0]!.description!.loadLatest();
 
   expect(reviewed.revision).toBe(4);
-  expect(reviewed.proposed).toEqual({ name: 'Projekt Nord', change: 'Wand löschen' });
+  expect(reviewed.proposed).toEqual({ name: 'Projekt Nord', change: 'Delete board' });
 });

@@ -16,7 +16,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -120,7 +120,7 @@ describe('BoardCommands', () => {
         onDone={vi.fn()}
       />,
     );
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
     await waitFor(() => expect(title).toHaveFocus());
     await userEvent.keyboard('n');
     expect(title).toHaveValue('n');
@@ -137,9 +137,9 @@ describe('BoardCommands', () => {
     expect(onNewNote).toHaveBeenCalledTimes(1);
 
     await userEvent.keyboard(PALETTE);
-    expect(await screen.findByText('Neue private Notiz')).toBeInTheDocument();
-    expect(screen.queryByText('Neue Notiz')).not.toBeInTheDocument();
-    expect(screen.queryByText('Notiz duplizieren')).not.toBeInTheDocument();
+    expect(await screen.findByText('New private note')).toBeInTheDocument();
+    expect(screen.queryByText('New note')).not.toBeInTheDocument();
+    expect(screen.queryByText('Duplicate note')).not.toBeInTheDocument();
   });
 
   it('lists the question entry and opens it with mod+j when the assistant is on', async () => {
@@ -147,7 +147,7 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    await user.click(await screen.findByText('Wand fragen…'));
+    await user.click(await screen.findByText('Ask the wall…'));
     // The palette runs its actions on the next frame, once the dialog has let go of focus.
     await waitFor(() => expect(onOpenAssistant).toHaveBeenCalledTimes(1));
 
@@ -171,7 +171,7 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    const entry = (await screen.findByText('Wand fragen…')).closest('[cmdk-item]');
+    const entry = (await screen.findByText('Ask the wall…')).closest('[cmdk-item]');
     expect(entry).toHaveTextContent(/J$/);
   });
 
@@ -180,8 +180,8 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    expect(await screen.findByText('Neue Notiz')).toBeInTheDocument();
-    expect(screen.queryByText('Wand fragen…')).not.toBeInTheDocument();
+    expect(await screen.findByText('New note')).toBeInTheDocument();
+    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await user.keyboard(ASK);
     expect(onOpenAssistant).not.toHaveBeenCalled();
@@ -192,12 +192,12 @@ describe('BoardCommands', () => {
     const { unmount } = renderCommands({ assistantEnabled: true });
     await user.keyboard('?');
     const sheet = await screen.findByRole('dialog');
-    expect(within(sheet).getByText('Übernommene Änderung rückgängig')).toBeInTheDocument();
+    expect(within(sheet).getByText('Undo the kept change')).toBeInTheDocument();
     unmount();
     renderCommands({ assistantEnabled: false });
     await user.keyboard('?');
     expect(
-      within(await screen.findByRole('dialog')).queryByText('Übernommene Änderung rückgängig'),
+      within(await screen.findByRole('dialog')).queryByText('Undo the kept change'),
     ).toBeNull();
   });
 

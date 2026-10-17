@@ -93,21 +93,21 @@ describe('NoteCard content', () => {
   it('shows the assignee when it is you, marked as yours', () => {
     renderCard(makeNote({ assignee: nora }));
 
-    expect(screen.getByText('Dir zugewiesen')).toBeInTheDocument();
-    expect(screen.getByTitle('Du')).toHaveTextContent('NF');
+    expect(screen.getByText('Assigned to you')).toBeInTheDocument();
+    expect(screen.getByTitle('You')).toHaveTextContent('NF');
   });
 
   it('shows someone else as the assignee by name', () => {
     renderCard(makeNote({ assignee: jonas }));
 
-    expect(screen.getByText('Zuständig: Jonas Weber')).toBeInTheDocument();
+    expect(screen.getByText('Assigned to Jonas Weber')).toBeInTheDocument();
     expect(screen.getByTitle('Jonas Weber')).toHaveTextContent('JW');
   });
 
   it('shows no assignee when nobody is assigned', () => {
     renderCard(makeNote({ assignee: null }));
 
-    expect(screen.queryByText(/Zuständig|Dir zugewiesen/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Assigned to/)).not.toBeInTheDocument();
   });
 
   it('previews the description under the title, and nothing when it is blank', () => {
@@ -122,15 +122,15 @@ describe('NoteCard content', () => {
   it('shows a lock instead of the assignee on a private note', () => {
     renderCard(makeNote({ visibility: 'PRIVATE', assignee: nora, createdBy: nora }));
 
-    expect(screen.getByRole('img', { name: 'Private Notiz' })).toBeInTheDocument();
-    expect(screen.queryByText('Dir zugewiesen')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Du')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Private note' })).toBeInTheDocument();
+    expect(screen.queryByText('Assigned to you')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('You')).not.toBeInTheDocument();
   });
 
   it('shows no lock on a shared note', () => {
     renderCard(makeNote({ assignee: nora }));
 
-    expect(screen.queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
   });
 });
 
@@ -165,12 +165,12 @@ describe('NoteCard with a pending change', () => {
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     expect(card.className).toContain('border-dashed');
     expect(card.className).not.toMatch(/\banimate-/);
-    expect(screen.getByRole('img', { name: /Vorgeschlagene/ })).toBeInTheDocument();
-    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Proposed changes/ })).toBeInTheDocument();
+    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
     expect(p.onRemove).toHaveBeenCalledWith('assignee');
   });
 
@@ -229,7 +229,7 @@ describe('NoteCard with a pending change', () => {
   it('stays paused while focus moves from the card to one of its ×', () => {
     const p = renderCard();
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
-    const remove = screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' });
+    const remove = screen.getByRole('button', { name: 'Remove suggestion: High priority' });
     fireEvent.focus(card);
     fireEvent.blur(card, { relatedTarget: remove });
     fireEvent.focus(remove);
@@ -240,14 +240,14 @@ describe('NoteCard with a pending change', () => {
   it('tells a screen reader on the focused card that a change is pending', () => {
     renderCard();
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
-    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, werden gleich übernommen/);
-    expect(card).toContainElement(screen.getByRole('img', { name: /Vorgeschlagene/ }));
+    expect(card).toHaveAccessibleName(/Proposed changes, applied in a moment/);
+    expect(card).toContainElement(screen.getByRole('img', { name: /Proposed changes/ }));
   });
 
   it('names the card as waiting for Enter when nothing counts down', () => {
     renderCard(pending({ countdownEndsAt: null }));
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
-    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, warten auf Enter/);
+    expect(card).toHaveAccessibleName(/Proposed changes, waiting for Enter/);
   });
 
   /** A pending mark whose suggestion also proposes a title, a reference or steps. */
@@ -282,10 +282,10 @@ describe('NoteCard with a pending change', () => {
     const { rerender } = render(card(p));
     // The person's own title stays; the offer is a line of its own beside it (BRAND rule 7).
     expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    const line = screen.getByRole('button', { name: 'Suggested: Angebot an Müller' });
     expect(line).toHaveAttribute('aria-pressed', 'false');
     // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Vorschlag für den Titel übernehmen');
+    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
     fireEvent.click(line);
     expect(p.onSetField).toHaveBeenCalledWith('title', true);
     // Enter on the line takes the title; it neither keeps the change nor opens the note.
@@ -296,12 +296,12 @@ describe('NoteCard with a pending change', () => {
 
     const taken = withProposals(['dueDate', 'title'], { title: TITLE });
     rerender(card(taken));
-    const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    const takenLine = screen.getByRole('button', { name: 'Suggested: Angebot an Müller' });
     expect(takenLine).toHaveAttribute('aria-pressed', 'true');
     expect(takenLine).not.toHaveAttribute('aria-description');
     fireEvent.click(takenLine);
     expect(taken.onSetField).toHaveBeenCalledWith('title', false);
-    fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
     expect(taken.onRemove).toHaveBeenCalledWith('title');
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -318,13 +318,11 @@ describe('NoteCard with a pending change', () => {
       ),
     );
     expect(screen.getByText('Kunde: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Vorschlag entfernen: Kunde: Müller GmbH' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Kunde: Müller GmbH' }));
     expect(p.onRemove).toHaveBeenCalledWith('reference');
     // The count is of the steps still ticked, in the checklist's place.
-    expect(screen.getByText('2 Schritte')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: 2 Schritte' }));
+    expect(screen.getByText('2 steps')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
     expect(p.onRemove).toHaveBeenCalledWith('subtasks');
   });
 
@@ -336,10 +334,8 @@ describe('NoteCard with a pending change', () => {
         { subtasks: [1] },
       ),
     );
-    expect(screen.getByText('1 Schritt')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Vorschlag entfernen: 1 Schritt' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('1 step')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove suggestion: 1 step' })).toBeInTheDocument();
   });
 
   it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
@@ -355,9 +351,9 @@ describe('NoteCard with a pending change', () => {
       },
     });
     renderCard(p);
-    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Priorität: Hoch' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
+    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Priority: High' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove suggestion/ })).toBeNull();
     // The person's own card is not dashed any more: this is the note, not a proposal.
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     expect(card.className).not.toContain('border-dashed');
@@ -367,10 +363,8 @@ describe('NoteCard with a pending change', () => {
     const p = renderCard(pending({ phase: 'kept', countdownEndsAt: null }));
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     expect(card.className).not.toContain('border-dashed');
-    expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
-    );
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
   });

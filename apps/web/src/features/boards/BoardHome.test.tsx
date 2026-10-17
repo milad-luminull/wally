@@ -42,7 +42,7 @@ function renderHome(boards: WhiteboardSummaryDto[], lastBoardId: string | null =
 }
 
 const rowLinks = () =>
-  screen.getAllByRole('link', { name: / öffnen/ }).map((link) => link.getAttribute('aria-label'));
+  screen.getAllByRole('link', { name: /^Open / }).map((link) => link.getAttribute('aria-label'));
 
 describe('BoardHome', () => {
   beforeEach(() => {
@@ -51,20 +51,20 @@ describe('BoardHome', () => {
 
   it('lists own boards first, then shared ones with their role, each group by name', async () => {
     renderHome([zeta, beta, alpha]);
-    await screen.findByRole('heading', { level: 1, name: 'Deine Wände' });
+    await screen.findByRole('heading', { level: 1, name: 'Your boards' });
     await waitFor(() =>
-      expect(rowLinks()).toEqual(['Alpha öffnen', 'Zeta öffnen', 'Beta öffnen, Ansehen']),
+      expect(rowLinks()).toEqual(['Open Alpha', 'Open Zeta', 'Open Beta, Can view']),
     );
-    expect(screen.getByRole('heading', { level: 2, name: 'Mit dir geteilt' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Shared with you' })).toBeInTheDocument();
     // A screen reader announces the role too, not only the sighted user's label.
-    const betaRow = screen.getByRole('link', { name: 'Beta öffnen, Ansehen' });
-    expect(betaRow).toHaveTextContent('Ansehen');
+    const betaRow = screen.getByRole('link', { name: 'Open Beta, Can view' });
+    expect(betaRow).toHaveTextContent('Can view');
     expect(betaRow).toHaveAttribute('href', '/boards/beta');
   });
 
   it('offers to continue on the remembered board when it is on the list', async () => {
     renderHome([alpha, beta], 'beta');
-    const card = await screen.findByRole('link', { name: /Weitermachen/ });
+    const card = await screen.findByRole('link', { name: /Continue/ });
     expect(card).toHaveTextContent('Beta');
     expect(card).toHaveAttribute('href', '/boards/beta');
   });
@@ -80,10 +80,10 @@ describe('BoardHome', () => {
     await waitFor(() => expect(boardsApi.list).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByRole('link', { name: /Alpha/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Lädt…' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
 
     resolveMe(me('beta'));
-    expect(await screen.findByRole('link', { name: /Weitermachen/ })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /Continue/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Alpha/ })).toBeInTheDocument();
   });
 
@@ -92,33 +92,33 @@ describe('BoardHome', () => {
     vi.mocked(meApi.get).mockRejectedValue(new Error('offline'));
     renderWithProviders(<BoardHome />, { route: '/boards' });
     expect(await screen.findByRole('link', { name: /Alpha/ })).toBeInTheDocument();
-    expect(screen.queryByText('Weitermachen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Continue')).not.toBeInTheDocument();
   });
 
   it('shows no continue card when the remembered board is gone', async () => {
     renderHome([alpha, beta], 'deleted-meanwhile');
-    await screen.findByRole('link', { name: 'Alpha öffnen' });
-    expect(screen.queryByText('Weitermachen')).not.toBeInTheDocument();
+    await screen.findByRole('link', { name: 'Open Alpha' });
+    expect(screen.queryByText('Continue')).not.toBeInTheDocument();
   });
 
   it('shows an empty state with a way to create the first board', async () => {
     renderHome([]);
-    expect(await screen.findByText('Noch keine Wände')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Neue Wand' }).length).toBeGreaterThan(0);
+    expect(await screen.findByText('No boards yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New board' }).length).toBeGreaterThan(0);
   });
 
   it('offers delete on own boards and leave on shared ones, never both', async () => {
     const user = userEvent.setup();
     renderHome([alpha, beta]);
 
-    await user.click(await screen.findByRole('button', { name: 'Optionen für Alpha' }));
-    expect(await screen.findByRole('button', { name: 'Wand löschen' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Wand verlassen' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Options for Alpha' }));
+    expect(await screen.findByRole('button', { name: 'Delete board' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Leave board' })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: 'Optionen für Beta' }));
-    expect(await screen.findByRole('button', { name: 'Wand verlassen' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Wand löschen' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Options for Beta' }));
+    expect(await screen.findByRole('button', { name: 'Leave board' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
   }, 60_000);
 
   it('confirms a deletion with the board name and note count before deleting', async () => {
@@ -128,21 +128,21 @@ describe('BoardHome', () => {
     vi.mocked(boardsApi.remove).mockResolvedValue(undefined);
     renderHome([alpha, beta]);
 
-    await user.click(await screen.findByRole('button', { name: 'Optionen für Alpha' }));
-    await user.click(await screen.findByRole('button', { name: 'Wand löschen' }));
+    await user.click(await screen.findByRole('button', { name: 'Options for Alpha' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete board' }));
 
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText('„Alpha“ löschen?')).toBeInTheDocument();
-    expect(await within(dialog).findByText(/ihre 3 Notizen/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Delete “Alpha”?')).toBeInTheDocument();
+    expect(await within(dialog).findByText(/its 3 notes/)).toBeInTheDocument();
     expect(boardsApi.remove).not.toHaveBeenCalled();
 
     // From here the server no longer lists it, for the refetch after the deletion settles.
     vi.mocked(boardsApi.list).mockResolvedValue([beta]);
-    await user.click(within(dialog).getByRole('button', { name: 'Wand löschen' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete board' }));
     await waitFor(() => expect(boardsApi.remove).toHaveBeenCalled());
     expect(vi.mocked(boardsApi.remove).mock.calls[0]![0]).toBe('alpha');
     await waitFor(() =>
-      expect(screen.queryByRole('link', { name: 'Alpha öffnen' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('link', { name: 'Open Alpha' })).not.toBeInTheDocument(),
     );
   }, 60_000);
 
@@ -151,16 +151,16 @@ describe('BoardHome', () => {
     vi.mocked(boardsApi.leave).mockResolvedValue(undefined);
     renderHome([alpha, beta]);
 
-    await user.click(await screen.findByRole('button', { name: 'Optionen für Beta' }));
-    await user.click(await screen.findByRole('button', { name: 'Wand verlassen' }));
+    await user.click(await screen.findByRole('button', { name: 'Options for Beta' }));
+    await user.click(await screen.findByRole('button', { name: 'Leave board' }));
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText('„Beta“ verlassen?')).toBeInTheDocument();
-    // "freigegeben" would read as "shared" here, where Freigabe means a share link.
+    expect(within(dialog).getByText('Leave “Beta”?')).toBeInTheDocument();
+    // It says what becomes of their assignments, not only that their access ends.
     expect(
-      within(dialog).getByText(/Deine Zuweisungen auf dieser Wand werden aufgehoben\./),
+      within(dialog).getByText(/Notes assigned to you on this board are unassigned\./),
     ).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'Wand verlassen' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Leave board' }));
     await waitFor(() => expect(boardsApi.leave).toHaveBeenCalledWith('beta'));
   }, 60_000);
 });
@@ -179,14 +179,14 @@ describe('BoardHome focus after a confirmation', () => {
     vi.mocked(boardsApi.remove).mockResolvedValue(undefined);
     renderHome([alpha, beta]);
 
-    await user.click(await screen.findByRole('button', { name: 'Optionen für Alpha' }));
-    await user.click(await screen.findByRole('button', { name: 'Wand löschen' }));
+    await user.click(await screen.findByRole('button', { name: 'Options for Alpha' }));
+    await user.click(await screen.findByRole('button', { name: 'Delete board' }));
     const dialog = await screen.findByRole('alertdialog');
     vi.mocked(boardsApi.list).mockResolvedValue([beta]);
-    await user.click(within(dialog).getByRole('button', { name: 'Wand löschen' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Delete board' }));
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 1, name: 'Deine Wände' })).toHaveFocus(),
+      expect(screen.getByRole('heading', { level: 1, name: 'Your boards' })).toHaveFocus(),
     );
   }, 60_000);
 
@@ -194,11 +194,11 @@ describe('BoardHome focus after a confirmation', () => {
     const user = userEvent.setup();
     renderHome([alpha, beta]);
 
-    const trigger = await screen.findByRole('button', { name: 'Optionen für Beta' });
+    const trigger = await screen.findByRole('button', { name: 'Options for Beta' });
     await user.click(trigger);
-    await user.click(await screen.findByRole('button', { name: 'Wand verlassen' }));
+    await user.click(await screen.findByRole('button', { name: 'Leave board' }));
     const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     await waitFor(() => expect(trigger).toHaveFocus());
   }, 60_000);

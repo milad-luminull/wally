@@ -42,7 +42,7 @@ describe('FilterBar', () => {
       />,
     );
 
-    const input = screen.getByLabelText('Notizen durchsuchen');
+    const input = screen.getByLabelText('Search notes');
     await userEvent.type(input, 'cyber');
 
     // Not called synchronously with every keystroke.
@@ -71,7 +71,7 @@ describe('FilterBar', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nach Priorität Hoch filtern' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filter by High priority' }));
     expect(setPriority).toHaveBeenCalledWith(['HOCH']);
 
     rerender(
@@ -91,11 +91,11 @@ describe('FilterBar', () => {
         isBelowTablet={false}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Nach Priorität Mittel filtern' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Filter by Medium priority' }));
     expect(setPriority).toHaveBeenCalledWith(['HOCH', 'MITTEL']);
   });
 
-  it('toggles "Nur meine" and "Erledigte"', async () => {
+  it('toggles "Only mine" and "Hide completed"', async () => {
     const setMine = vi.fn();
     const setDone = vi.fn();
     render(
@@ -116,10 +116,10 @@ describe('FilterBar', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nur meine' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Only mine' }));
     expect(setMine).toHaveBeenCalledWith(true);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Erledigte ausblenden' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hide completed' }));
     expect(setDone).toHaveBeenCalledWith(false);
   });
 
@@ -141,9 +141,9 @@ describe('FilterBar', () => {
         isBelowTablet
       />,
     );
-    expect(screen.getByRole('button', { name: /Filter/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Filters/ })).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Nach Priorität Hoch filtern' }),
+      screen.queryByRole('button', { name: 'Filter by High priority' }),
     ).not.toBeInTheDocument();
   });
 
@@ -175,18 +175,18 @@ describe('FilterBar', () => {
 
     it('hides the chips when showVisibility is false', () => {
       renderBar();
-      expect(screen.queryByRole('radio', { name: 'Nur private' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: 'Only private' })).not.toBeInTheDocument();
     });
 
     it('sets the filter on click', async () => {
       const setVisibility = renderBar({}, { showVisibility: true });
-      await userEvent.click(screen.getByRole('radio', { name: 'Nur private' }));
+      await userEvent.click(screen.getByRole('radio', { name: 'Only private' }));
       expect(setVisibility).toHaveBeenCalledWith('private');
     });
 
     it('clears the filter when the active chip is clicked again', async () => {
       const setVisibility = renderBar({ visibility: 'private' }, { showVisibility: true });
-      await userEvent.click(screen.getByRole('radio', { name: 'Nur private' }));
+      await userEvent.click(screen.getByRole('radio', { name: 'Only private' }));
       expect(setVisibility).toHaveBeenCalledWith('all');
     });
 
@@ -196,10 +196,10 @@ describe('FilterBar', () => {
         { visibility: 'private' },
         { showVisibility: true, isBelowTablet: true, resetFilters },
       );
-      const trigger = screen.getByRole('button', { name: /Filter/ });
+      const trigger = screen.getByRole('button', { name: /Filters/ });
       expect(trigger).toHaveTextContent('1');
       await userEvent.click(trigger);
-      await userEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
       // One call that resets every filter together — not a setter per filter, which would
       // each save over the other.
       expect(resetFilters).toHaveBeenCalledTimes(1);
@@ -212,7 +212,7 @@ describe('FilterBar', () => {
         { visibility: 'shared', mine: true, done: false, priority: ['HOCH'] },
         { showVisibility: true, resetFilters },
       );
-      await userEvent.click(screen.getByRole('button', { name: 'Zurücksetzen' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
       expect(resetFilters).toHaveBeenCalledTimes(1);
       expect(setVisibility).not.toHaveBeenCalled();
     });

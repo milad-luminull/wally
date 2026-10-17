@@ -26,20 +26,20 @@ vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
 });
 
 /**
- * The rest of the suite renders in German, which means the English catalogue is only ever
- * checked structurally (resources.test.ts) and never actually rendered. These are the few
- * assertions that put it on screen.
+ * The rest of the suite renders in English (ADR-0014), which means the German catalogue, the
+ * product's default language, is otherwise only checked structurally (resources.test.ts) and
+ * never actually rendered. These are the few assertions that put it on screen.
  */
 beforeEach(async () => {
   // Awaited BEFORE render, so the switch is settled and React sees one consistent tree.
-  await i18n.changeLanguage('en');
+  await i18n.changeLanguage('de');
 });
 
 // No afterEach reset here: src/test/setup.ts already resets the language, and it does so
 // AFTER RTL's cleanup. Switching before unmount re-renders the live tree outside act().
 
-describe('the English surface', () => {
-  it('renders board copy in English', () => {
+describe('the German surface', () => {
+  it('renders board copy in German', () => {
     const notes = [makeNote({ id: 'n1', title: 'Ship it', horizon: 'HEUTE', priority: 'HOCH' })];
 
     renderWithProviders(
@@ -55,16 +55,16 @@ describe('the English surface', () => {
       />,
     );
 
-    // "Today" is also a note's own due-date label when the fixture is due today, so this
+    // "Heute" is also a note's own due-date label when the fixture is due today, so this
     // pins the group header specifically: the text immediately followed by its count.
     const header = screen
-      .getAllByText('Today')
+      .getAllByText('Heute')
       .find((el) => el.nextElementSibling?.textContent === '1');
     expect(header).toBeInTheDocument();
-    expect(screen.queryByText('Heute')).not.toBeInTheDocument();
+    expect(screen.queryByText('Today')).not.toBeInTheDocument();
   });
 
-  it('renders the empty state in English', () => {
+  it('renders the empty state in German', () => {
     renderWithProviders(
       <ListView
         notes={[]}
@@ -78,7 +78,7 @@ describe('the English surface', () => {
       />,
     );
 
-    expect(screen.getByText('Your board is still empty')).toBeInTheDocument();
+    expect(screen.getByText('Deine Wand ist noch leer')).toBeInTheDocument();
   });
 
   /**

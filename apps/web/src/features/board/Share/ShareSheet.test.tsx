@@ -55,7 +55,7 @@ async function openShareSheet() {
   renderWithProviders(
     <ShareSheet boardId="board-1" ownerId="user-1" isOwner isBelowTablet={false} />,
   );
-  await user.click(screen.getByRole('button', { name: 'Teilen' }));
+  await user.click(screen.getByRole('button', { name: 'Share' }));
   await screen.findByText('https://hub.example.com/w/tok');
   return user;
 }
@@ -64,17 +64,17 @@ describe('ShareSheet', () => {
   it('tells members that private notes stay with their author', async () => {
     await openShareSheet();
     expect(
-      screen.getByText('Mitglieder können private Notizen anlegen, die nur sie selbst sehen.'),
+      screen.getByText('Members can keep private notes that only they can see.'),
     ).toBeInTheDocument();
   });
 
   it('rejects an invalid email address without calling the invite mutation', async () => {
     const user = await openShareSheet();
-    const input = screen.getByLabelText('E-Mail-Adresse einladen');
+    const input = screen.getByLabelText('Invite email address');
     await user.type(input, 'not-an-email');
-    await user.click(screen.getByRole('button', { name: 'Einladen' }));
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ungültige E-Mail-Adresse');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email address');
     expect(membersApi.invite).not.toHaveBeenCalled();
   });
 
@@ -85,11 +85,11 @@ describe('ShareSheet', () => {
     );
 
     const user = await openShareSheet();
-    await user.type(screen.getByLabelText('E-Mail-Adresse einladen'), 'deniz.kilic@example.com');
-    await user.click(screen.getByRole('button', { name: 'Einladen' }));
+    await user.type(screen.getByLabelText('Invite email address'), 'deniz.kilic@example.com');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
 
     expect(await screen.findByText('deniz.kilic@example.com')).toBeInTheDocument();
-    expect(screen.getByText('Ausstehend')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
 
     resolveInvite(
       makeMember({
@@ -103,7 +103,7 @@ describe('ShareSheet', () => {
   });
 
   it(
-    'flips "Kopieren" to "Kopiert" and back after the revert delay',
+    'flips "Copy" to "Copied" and back after the revert delay',
     async () => {
       // Real timers throughout — mixing vi.useFakeTimers() with Radix's Popover (open)
       // and userEvent's own internals proved unreliable (intermittent hangs with no
@@ -112,11 +112,11 @@ describe('ShareSheet', () => {
       // already-observed slow first render (~8s for openShareSheet() alone).
       const user = await openShareSheet();
 
-      const copyButton = screen.getByRole('button', { name: 'Kopieren' });
+      const copyButton = screen.getByRole('button', { name: 'Copy' });
       await user.click(copyButton);
 
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Kopiert' })).toBeInTheDocument(),
+        expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument(),
       );
       expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.example.com/w/tok');
 
@@ -126,9 +126,7 @@ describe('ShareSheet', () => {
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 2100));
       });
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Kopieren' })).toBeInTheDocument(),
-      );
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument());
     },
     { timeout: 20000 },
   );

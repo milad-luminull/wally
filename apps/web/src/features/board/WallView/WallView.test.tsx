@@ -30,7 +30,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -82,7 +82,7 @@ function renderWall(axis: 'horizon' | 'priority' | 'free', access: ReturnType<ty
 
 /** A create path opens the capture and sends nothing; the first keystroke creates the note. */
 async function typeFirstLetter() {
-  const title = await screen.findByRole('textbox', { name: 'Titel der neuen Notiz' });
+  const title = await screen.findByRole('textbox', { name: 'Title of the new note' });
   expect(notesApi.create).not.toHaveBeenCalled();
   await userEvent.type(title, 'M');
 }
@@ -100,7 +100,7 @@ describe('WallView: every create path writes the note in place, with its visibil
 
     it('sends PRIVATE from a zone’s add button', async () => {
       renderWall('horizon', viewer);
-      await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
       await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -112,7 +112,7 @@ describe('WallView: every create path writes the note in place, with its visibil
 
     it('sends PRIVATE from a double-click on a zone', async () => {
       renderWall('priority', viewer);
-      await userEvent.dblClick(screen.getByRole('region', { name: /^Hoch/ }));
+      await userEvent.dblClick(screen.getByRole('region', { name: /^High/ }));
       await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -140,7 +140,7 @@ describe('WallView: every create path writes the note in place, with its visibil
 
     it('sends SHARED from a zone’s add button', async () => {
       renderWall('horizon', owner);
-      await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
       await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -152,7 +152,7 @@ describe('WallView: every create path writes the note in place, with its visibil
 
     it('sends SHARED from a double-click on a zone', async () => {
       renderWall('priority', owner);
-      await userEvent.dblClick(screen.getByRole('region', { name: /^Hoch/ }));
+      await userEvent.dblClick(screen.getByRole('region', { name: /^High/ }));
       await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -165,7 +165,7 @@ describe('WallView: every create path writes the note in place, with its visibil
     it('sends SHARED from a double-click on the free canvas, writing at the click point', async () => {
       const { container } = renderWall('free', owner);
       doubleClickCanvas(container);
-      const card = await screen.findByRole('group', { name: 'Neue Notiz schreiben' });
+      const card = await screen.findByRole('group', { name: 'Write a new note' });
       expect(card.parentElement).toHaveStyle({ left: '300px', top: '200px' });
       await typeFirstLetter();
 

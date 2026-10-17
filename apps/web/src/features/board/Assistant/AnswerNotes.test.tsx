@@ -32,11 +32,11 @@ describe('AnswerNotes', () => {
     renderWithProviders(
       <AnswerNotes chips={[{ id: 'n3', title: '' }]} notes={undefined} onOpenNote={vi.fn()} />,
     );
-    expect(screen.getByRole('button', { name: 'Ohne Titel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Untitled' })).toBeInTheDocument();
   });
 
   it('shows nothing when none of the notes read are left', () => {
     renderWithProviders(<AnswerNotes chips={chips} notes={[]} onOpenNote={vi.fn()} />);
-    expect(screen.queryByText('Gelesene Notizen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Notes read')).not.toBeInTheDocument();
   });
 });

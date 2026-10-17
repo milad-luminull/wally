@@ -30,7 +30,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -178,8 +178,8 @@ function renderBoard(view: BoardView, axis: BoardAxis) {
   return { ...result, openNote, onCommitted, rerender };
 }
 
-const captureCard = () => screen.findByRole('group', { name: 'Neue Notiz schreiben' });
-const titleField = () => screen.findByRole('textbox', { name: 'Titel der neuen Notiz' });
+const captureCard = () => screen.findByRole('group', { name: 'Write a new note' });
+const titleField = () => screen.findByRole('textbox', { name: 'Title of the new note' });
 
 /** Holds the next update (the blur commit's) until the returned function is called. */
 function holdNextUpdate() {
@@ -209,7 +209,7 @@ async function settle(release: () => void) {
 
 /** Every place the board draws this title, outside the card it is being written in. */
 function copiesOutsideCapture(title: string) {
-  const card = screen.queryByRole('group', { name: 'Neue Notiz schreiben' });
+  const card = screen.queryByRole('group', { name: 'Write a new note' });
   return screen.queryAllByText(title).filter((el) => !card?.contains(el));
 }
 
@@ -234,7 +234,7 @@ describe('useCaptureSession: the note being written has one card', () => {
 
       await userEvent.type(await titleField(), 'ünchen{Enter}');
       await waitFor(() =>
-        expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+        expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
       );
       expect(await screen.findAllByText('München')).toHaveLength(1);
       if (view === 'wand') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
@@ -244,28 +244,28 @@ describe('useCaptureSession: the note being written has one card', () => {
   it('a plain Enter never opens the panel; ⌘↵ / Ctrl+↵ does', async () => {
     const { openNote } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Erste{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     await waitFor(() => expect(notesApi.update).toHaveBeenCalled());
     expect(openNote).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Zweite{Control>}{Enter}{/Control}');
     await waitFor(() => expect(openNote).toHaveBeenCalledWith('created-2'));
     expect(openNote).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull();
   });
 
   it('after Enter, the keyboard carries on from the committed card', async () => {
     const { container } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Weiter{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     const card = container.querySelector('[data-note-id="created-1"] button');
     await waitFor(() => expect(card).toHaveFocus());
@@ -277,7 +277,7 @@ describe('useCaptureSession: the note being written has one card', () => {
     await userEvent.click(screen.getByRole('button', { name: 'new' }));
     await userEvent.type(await titleField(), 'Zeile{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     // The row itself, not its checkbox: Enter on the row is what keeps a pending change.
     const row = container.querySelector('[data-note-id="created-1"][role="button"]');
@@ -288,16 +288,16 @@ describe('useCaptureSession: the note being written has one card', () => {
   it('after Enter the shell hears which fields were typed', async () => {
     const { onCommitted } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Weg{Escape}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalled());
     expect(onCommitted).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Bericht Freitag{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'Report Friday{Enter}');
     await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-2', ['dueDate']));
     expect(onCommitted).toHaveBeenCalledTimes(1);
   });
@@ -326,67 +326,67 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
     // Back/Forward or a resize to desktop: the list is gone, nothing blurred the card.
     rerender({ view: 'wand', axis: 'horizon' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     // The words typed so far were kept on the note, and it is back on the board.
     expect(await screen.findByText('Liste')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     expect(await captureCard()).toBeInTheDocument();
     expect(await titleField()).toHaveValue('');
 
     // Back to the list: the old capture does not come back.
     rerender({ view: 'list', axis: 'horizon' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
   });
 
   it('closes a zone capture when the axis changes under it', async () => {
     const { rerender } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await captureCard();
 
     rerender({ view: 'wand', axis: 'priority' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Hoch“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “High”' }));
     expect(await captureCard()).toBeInTheDocument();
   });
 
   it('a zone plus while a commit is still settling opens a fresh card there', async () => {
     renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Erste');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     // The blur commit's update hangs until released.
     const release = holdNextUpdate();
     // A real click: mousedown moves focus (the card blurs and starts its commit), then click.
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Diese Woche“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “This week”' }));
 
-    const week = screen.getByRole('region', { name: /^Diese Woche/ });
-    const fresh = await within(week).findByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const week = screen.getByRole('region', { name: /^This week/ });
+    const fresh = await within(week).findByRole('textbox', { name: 'Title of the new note' });
     expect(fresh).toHaveValue('');
     expect(fresh).toHaveFocus();
     // The first note is no longer being written: the board shows it as a real card.
-    const today = screen.getByRole('region', { name: /^Heute/ });
+    const today = screen.getByRole('region', { name: /^Today/ });
     expect(within(today).getByText('Erste')).toBeInTheDocument();
-    expect(within(today).queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
+    expect(within(today).queryByRole('group', { name: 'Write a new note' })).toBeNull();
 
     // The first commit settles late; it must not close the card that replaced it.
     await settle(release);
     expect(notesApi.update).toHaveBeenCalledTimes(1);
-    expect(within(week).getByRole('group', { name: 'Neue Notiz schreiben' })).toBeInTheDocument();
+    expect(within(week).getByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
   });
 
   it('the same zone’s plus again while a commit is settling gives a fresh card, not the old one', async () => {
     renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');
-    const plus = screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' });
+    const plus = screen.getByRole('button', { name: 'Add a note to “Today”' });
     await userEvent.click(plus);
     await userEvent.type(await titleField(), 'Alt');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -415,11 +415,11 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
     // The first mousedown blurs the card (its commit starts and hangs), the dblclick follows.
     await userEvent.dblClick(canvas);
     const card = await captureCard();
-    expect(within(card).getByRole('textbox', { name: 'Titel der neuen Notiz' })).toHaveValue('');
+    expect(within(card).getByRole('textbox', { name: 'Title of the new note' })).toHaveValue('');
     expect(screen.getByText('Links')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
 
     await settle(release);
-    expect(screen.getByRole('group', { name: 'Neue Notiz schreiben' })).toBe(card);
+    expect(screen.getByRole('group', { name: 'Write a new note' })).toBe(card);
   });
 });

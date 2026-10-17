@@ -178,7 +178,7 @@ describe('the panel holds the countdown of the note it shows (R3)', () => {
     open();
     expect(mark()?.paused).toBe(true);
     expect(mark()?.countdownEndsAt).toBeNull();
-    expect(within(review()!).getByRole('status')).toHaveTextContent('Wird gleich übernommen');
+    expect(within(review()!).getByRole('status')).toHaveTextContent('Applied in a moment');
     // Far past the countdown: nothing is kept while the review is open.
     await advance(COUNTDOWN_MS * 5);
     expect(keeps()).toHaveLength(0);
@@ -282,7 +282,7 @@ describe('the card and the review read one mark (§3.4)', () => {
       },
     });
   const row = (name: string | RegExp) =>
-    within(screen.getByRole('group', { name: 'Von Wallybot ergänzt' })).getByRole('checkbox', {
+    within(screen.getByRole('group', { name: 'Added by Wallybot' })).getByRole('checkbox', {
       name,
     });
 
@@ -294,36 +294,36 @@ describe('the card and the review read one mark (§3.4)', () => {
 
     expect(card().querySelector('.border-dashed')).not.toBeNull();
     expect(within(card()).getByText('Kunde: Müller GmbH')).toBeInTheDocument();
-    expect(within(card()).getByText('3 Schritte')).toBeInTheDocument();
-    expect(within(card()).getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
-    const titleLine = within(card()).getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(within(card()).getByText('3 steps')).toBeInTheDocument();
+    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    const titleLine = within(card()).getByRole('button', { name: 'Suggested: Angebot an Müller' });
     expect(titleLine).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(row('Kunde: Müller GmbH'));
     expect(within(card()).queryByText('Kunde: Müller GmbH')).toBeNull();
     expect(row('Kunde: Müller GmbH')).not.toBeChecked();
 
-    fireEvent.click(row('Schritt: Vergleichen'));
-    expect(within(card()).getByText('2 Schritte')).toBeInTheDocument();
+    fireEvent.click(row('Step: Vergleichen'));
+    expect(within(card()).getByText('2 steps')).toBeInTheDocument();
 
-    fireEvent.click(row(/^Vorschlag: Angebot an Müller/));
+    fireEvent.click(row(/^Suggested: Angebot an Müller/));
     expect(
-      within(card()).getByRole('button', { name: 'Vorschlag: Angebot an Müller' }),
+      within(card()).getByRole('button', { name: 'Suggested: Angebot an Müller' }),
     ).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(row('Priorität hoch'));
+    fireEvent.click(row('High priority'));
     expect(
-      within(card()).queryByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+      within(card()).queryByRole('button', { name: 'Remove suggestion: High priority' }),
     ).toBeNull();
 
     // The other way round: the card's × unticks the review's row.
-    fireEvent.click(within(card()).getByRole('button', { name: /^Vorschlag entfernen: Fällig / }));
-    expect(row(/^Fällig /)).not.toBeChecked();
-    fireEvent.click(row(/^Fällig /));
-    expect(within(card()).getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    fireEvent.click(within(card()).getByRole('button', { name: /^Remove suggestion: Due / }));
+    expect(row(/^Due /)).not.toBeChecked();
+    fireEvent.click(row(/^Due /));
+    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
 
     // Keep sends exactly what is ticked in both places.
-    fireEvent.click(within(review()!).getByRole('button', { name: 'Behalten' }));
+    fireEvent.click(within(review()!).getByRole('button', { name: 'Keep' }));
     await advance(0);
     expect(keeps()).toEqual([
       [
@@ -338,10 +338,10 @@ describe('the card and the review read one mark (§3.4)', () => {
         },
       ],
     ]);
-    expect(within(review()!).getByRole('status')).toHaveTextContent('Übernommen.');
+    expect(within(review()!).getByRole('status')).toHaveTextContent('Kept.');
     expect(card().querySelector('.border-dashed')).toBeNull();
 
-    fireEvent.click(within(review()!).getByRole('button', { name: 'Rückgängig' }));
+    fireEvent.click(within(review()!).getByRole('button', { name: 'Undo' }));
     await advance(0);
     expect(vi.mocked(assistantApi.decide).mock.calls.at(-1)).toEqual([
       BOARD,
@@ -368,9 +368,9 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
     expect(card().querySelector('.border-dashed')).not.toBeNull();
 
-    const typedDue = within(screen.getByRole('group', { name: 'Aus deinem Text' })).getByRole(
+    const typedDue = within(screen.getByRole('group', { name: 'From what you typed' })).getByRole(
       'checkbox',
-      { name: /^Fällig / },
+      { name: /^Due / },
     );
     // The typed row itself does nothing.
     fireEvent.click(typedDue);

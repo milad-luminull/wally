@@ -30,7 +30,7 @@ describe('ProtectedRoute', () => {
   it('shows a full-page skeleton while auth is loading, never the children', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' });
     renderProtected();
-    expect(screen.getByRole('status', { name: 'Lädt…' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
     expect(screen.queryByText('Geschützter Inhalt')).not.toBeInTheDocument();
   });
 

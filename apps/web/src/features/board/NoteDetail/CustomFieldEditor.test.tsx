@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { CustomFieldEditor } from './CustomFieldEditor';
 
 // The rows sort in the reader's language, which useLanguage supplies outside a provider here.
-const reader = vi.hoisted(() => ({ language: 'de' as 'de' | 'en' }));
+const reader = vi.hoisted(() => ({ language: 'en' as 'de' | 'en' }));
 vi.mock('@/i18n/LanguageProvider', async () => {
   const actual =
     await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
@@ -20,7 +20,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
 });
 
 afterEach(() => {
-  reader.language = 'de';
+  reader.language = 'en';
   vi.restoreAllMocks();
 });
 
@@ -29,19 +29,19 @@ describe('CustomFieldEditor', () => {
     const onSet = vi.fn();
     render(<CustomFieldEditor fields={{}} onSet={onSet} onRemove={vi.fn()} />);
 
-    await userEvent.type(screen.getByLabelText('Feldname'), 'Kunde');
-    await userEvent.type(screen.getByLabelText('Feldwert'), 'Müller GmbH{Enter}');
+    await userEvent.type(screen.getByLabelText('Field name'), 'Kunde');
+    await userEvent.type(screen.getByLabelText('Field value'), 'Müller GmbH{Enter}');
 
     expect(onSet).toHaveBeenCalledWith('Kunde', 'Müller GmbH');
-    expect(screen.getByLabelText('Feldname')).toHaveValue('');
-    expect(screen.getByLabelText('Feldwert')).toHaveValue('');
+    expect(screen.getByLabelText('Field name')).toHaveValue('');
+    expect(screen.getByLabelText('Field value')).toHaveValue('');
   });
 
   it('does not commit when only one of the two inputs is filled', async () => {
     const onSet = vi.fn();
     render(<CustomFieldEditor fields={{}} onSet={onSet} onRemove={vi.fn()} />);
 
-    await userEvent.type(screen.getByLabelText('Feldname'), 'Kunde{Enter}');
+    await userEvent.type(screen.getByLabelText('Field name'), 'Kunde{Enter}');
     expect(onSet).not.toHaveBeenCalled();
   });
 
@@ -51,8 +51,8 @@ describe('CustomFieldEditor', () => {
       <CustomFieldEditor fields={{ Kunde: 'Müller GmbH' }} onSet={onSet} onRemove={vi.fn()} />,
     );
 
-    await userEvent.type(screen.getByLabelText('Feldname'), 'kunde');
-    await userEvent.type(screen.getByLabelText('Feldwert'), 'Steiner AG{Enter}');
+    await userEvent.type(screen.getByLabelText('Field name'), 'kunde');
+    await userEvent.type(screen.getByLabelText('Field value'), 'Steiner AG{Enter}');
 
     expect(onSet).toHaveBeenCalledWith('Kunde', 'Steiner AG');
   });
@@ -70,7 +70,7 @@ describe('CustomFieldEditor', () => {
     const rendered = screen.getAllByText(/^(Kunde|Vertragsnr)$/).map((el) => el.textContent);
     expect(rendered).toEqual(['Kunde', 'Vertragsnr']);
 
-    await userEvent.click(screen.getByLabelText('Kunde entfernen'));
+    await userEvent.click(screen.getByLabelText('Remove Kunde'));
     expect(onRemove).toHaveBeenCalledWith('Kunde');
   });
 
@@ -104,8 +104,8 @@ describe('CustomFieldEditor', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Feldname')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Kunde entfernen')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Field name')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Remove Kunde')).not.toBeInTheDocument();
     // The values themselves stay readable.
     expect(screen.getByText('Müller GmbH')).toBeInTheDocument();
   });
