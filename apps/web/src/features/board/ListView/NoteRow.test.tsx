@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
+import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteRow } from './NoteRow';
 
@@ -98,6 +99,77 @@ describe('NoteRow with a pending change', () => {
     expect(p.onPause).toHaveBeenCalledTimes(1);
     fireEvent.blur(checkbox);
     expect(p.onPause).toHaveBeenLastCalledWith(false);
+  });
+
+  /** A pending mark whose suggestion also proposes a title, a reference or steps. */
+  const withProposals = (
+    fields: SuggestionMark['fields'],
+    extra: Partial<SuggestionFields>,
+    over: Partial<SuggestionMark> = {},
+  ) => {
+    const base = makeSuggestionMark();
+    return pending({
+      fields,
+      suggestion: { ...base.suggestion!, fields: { ...base.suggestion!.fields, ...extra } },
+      ...over,
+    });
+  };
+  const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+
+  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
+    const onOpen = vi.fn();
+    const p = withProposals(['dueDate'], { title: TITLE });
+    const row = (q: typeof p) => (
+      <NoteRow
+        note={makeNote({ dueDate: null })}
+        currentUserId="user-1"
+        onOpen={onOpen}
+        onToggleDone={vi.fn()}
+        canEdit
+        pending={q}
+      />
+    );
+    const { rerender } = render(row(p));
+    expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
+    const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(line).toHaveAttribute('aria-pressed', 'false');
+    // A full-width line of its own, under the title.
+    expect(line.closest('[data-proposed]')?.className).toContain('basis-full');
+    fireEvent.click(line);
+    expect(p.onSetField).toHaveBeenCalledWith('title', true);
+    fireEvent.keyDown(line, { key: 'Enter' });
+    expect(p.onSetField).toHaveBeenCalledTimes(2);
+    expect(p.onKeep).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+
+    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
+    rerender(row(taken));
+    const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
+    expect(taken.onRemove).toHaveBeenCalledWith('title');
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('shows the reference and the step count with an × each', () => {
+    const p = renderRow(
+      withProposals(
+        ['dueDate', 'reference', 'subtasks'],
+        {
+          reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
+          subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+        },
+        { subtasks: [0, 2] },
+      ),
+    );
+    expect(screen.getByText('Kunde: Müller GmbH')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Kunde: Müller GmbH' }),
+    );
+    expect(p.onRemove).toHaveBeenCalledWith('reference');
+    expect(screen.getByText('2 Schritte')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: 2 Schritte' }));
+    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
   });
 
   it('looks like any other row once kept, with only the faint Undo left', () => {

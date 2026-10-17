@@ -443,6 +443,14 @@ export const en = {
       priorityHigh: 'High priority',
       priorityLow: 'Low priority',
       assignee: 'Assigned to {{name}}',
+      reference: '{{key}}: {{value}}',
+      subtasks_one: '{{count}} step',
+      subtasks_other: '{{count}} steps',
+    },
+    title: {
+      proposed: 'Suggested: {{title}}',
+      take: 'Take the suggested title',
+      mine: 'Keep my title',
     },
   },
   home: {

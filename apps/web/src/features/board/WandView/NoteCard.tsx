@@ -14,6 +14,7 @@ import { ProposedField } from '../Suggestions/ProposedField';
 import {
   pendingKeys,
   proposedDateLabel,
+  proposedTitle,
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
@@ -74,6 +75,19 @@ export function NoteCard({
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
+  // The offered title shows ticked or not, and only while the change is pending (R2).
+  const offeredTitle = !overlay && removable ? proposedTitle(pending.mark) : null;
+  const titleTaken = pending?.mark.fields.includes('title') ?? false;
+  const offeredTitleLabel =
+    offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
+  const referenceLabel =
+    proposed.reference &&
+    t('suggest.fields.reference', {
+      key: proposed.reference.key,
+      value: proposed.reference.value,
+    });
+  const stepsLabel =
+    proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
   const corner = overlay || !pending ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
 
   const body = (
@@ -90,13 +104,58 @@ export function NoteCard({
         {note.title || t('common.untitled')}
       </span>
 
+      {/* A cleaner title is a second line beside the person's own, never a replacement
+          (BRAND rule 7): a tap takes it into the change, its × keeps the person's. */}
+      {offeredTitle && offeredTitleLabel && pending && (
+        <ProposedField
+          className="-mt-1 items-start"
+          name={offeredTitleLabel}
+          label={
+            <span
+              className={cn(
+                'line-clamp-2 text-12 leading-snug',
+                titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
+              )}
+            >
+              {offeredTitleLabel}
+            </span>
+          }
+          reason={offeredTitle.reason}
+          toggle={{
+            pressed: titleTaken,
+            onToggle: () => pending.onSetField('title', !titleTaken),
+            description: t('suggest.title.take'),
+          }}
+          removeLabel={t('suggest.title.mine')}
+          onRemove={() => pending.onRemove('title')}
+        />
+      )}
+
       {description && (
         <span className="-mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
           {description}
         </span>
       )}
 
-      <div className="flex items-center gap-2">
+      {/* A card shows no properties of its own, so the proposed reference takes a meta line
+          of its own under the description. */}
+      {proposed.reference && referenceLabel && (
+        <ProposedField
+          className="-mt-1"
+          name={referenceLabel}
+          label={
+            <span className="line-clamp-1 break-all text-12 leading-snug text-fg-meta-on-note">
+              {referenceLabel}
+            </span>
+          }
+          reason={proposed.reference.reason}
+          onRemove={removable ? () => pending?.onRemove('reference') : undefined}
+        />
+      )}
+
+      {/* Wraps when a full proposal (date, steps, priority, person, each with its ×) is
+          wider than the card, so the last values move down a line instead of being clipped. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span
           className={cn(
             'flex items-center gap-1 whitespace-nowrap text-12 tabular-nums',
@@ -128,11 +187,25 @@ export function NoteCard({
           )}
         </span>
 
-        {checklistLabel && (
-          <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
-            <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
-            {checklistLabel}
-          </span>
+        {proposed.subtasks && stepsLabel ? (
+          <ProposedField
+            name={stepsLabel}
+            label={
+              <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
+                <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+                {stepsLabel}
+              </span>
+            }
+            reason={proposed.subtasks.reason}
+            onRemove={removable ? () => pending?.onRemove('subtasks') : undefined}
+          />
+        ) : (
+          checklistLabel && (
+            <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
+              <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+              {checklistLabel}
+            </span>
+          )
         )}
 
         <span className="flex-1" />

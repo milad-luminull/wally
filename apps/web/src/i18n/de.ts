@@ -467,6 +467,15 @@ export const de = {
       priorityHigh: 'Priorität hoch',
       priorityLow: 'Priorität niedrig',
       assignee: 'Zuständig: {{name}}',
+      reference: '{{key}}: {{value}}',
+      subtasks_one: '{{count}} Schritt',
+      subtasks_other: '{{count}} Schritte',
+    },
+    title: {
+      /** The second line under the person's own title (BRAND rule 7). */
+      proposed: 'Vorschlag: {{title}}',
+      take: 'Vorschlag für den Titel übernehmen',
+      mine: 'Meinen Titel behalten',
     },
   },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */
