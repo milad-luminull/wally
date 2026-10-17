@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV3 } from 'ai/test';
 import { z } from 'zod';
-import { createTurnRunner } from './runTurn.js';
+import { createTurnRunner, ELIDED_TOOL_RESULT, toolDefinitionsJson } from './runTurn.js';
 import type { AttemptInfo, TurnInput, TurnTool, TurnUsage } from './types.js';
 
 const usage = {
@@ -77,6 +77,7 @@ describe('createTurnRunner', () => {
     expect(a.settled).toEqual([
       { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
     ]);
+    expect(out.unsettledSteps).toBe(0);
     expect(out.usage).toEqual({
       inputTokens: 10,
       cachedInputTokens: 2,
@@ -395,10 +396,160 @@ describe('createTurnRunner', () => {
     expect(out.toolCalls.map((c) => c.toolCallId)).toEqual(['c1', 'c2']);
   });
 
+  /**
+   * What the turn service relies on when a tool stops the turn (turn.ts): the tool aborts the
+   * signal and throws. The library keeps the throw as an error-text tool result and ends the
+   * step; whether the runner then throws depends on whether another step is allowed.
+   */
+  function stoppingTool(controller: AbortController) {
+    const stop = new Error('TOOL_LIMIT');
+    const t = tools({
+      list_notes: {
+        execute: vi.fn(async () => {
+          controller.abort(stop);
+          throw stop;
+        }),
+      },
+    });
+    return { t, stop };
+  }
+
+  it('returns output when a tool stops the turn in the last allowed step', async () => {
+    const controller = new AbortController();
+    const { t } = stoppingTool(controller);
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => toolCall('c1', 'list_notes', { boardId: 'b1' }),
+    });
+    const a = attempts();
+    const out = await createTurnRunner(model)(
+      input({ maxSteps: 1, abortSignal: controller.signal, onAttempt: a.onAttempt }, t),
+    );
+    expect(controller.signal.aborted).toBe(true);
+    expect(out.finishReason).toBe('tool-calls');
+    expect(out.messages.at(-1)).toMatchObject({
+      role: 'tool',
+      content: [
+        { type: 'tool-result', output: { type: 'error-text', value: 'Error: TOOL_LIMIT' } },
+      ],
+    });
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toHaveLength(1);
+  });
+
+  it('throws the abort reason before announcing the next step', async () => {
+    const controller = new AbortController();
+    const { t, stop } = stoppingTool(controller);
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => toolCall('c1', 'list_notes', { boardId: 'b1' }),
+    });
+    const a = attempts();
+    await expect(
+      createTurnRunner(model)(
+        input({ maxSteps: 3, abortSignal: controller.signal, onAttempt: a.onAttempt }, t),
+      ),
+    ).rejects.toBe(stop);
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toHaveLength(1);
+  });
+
   it('passes the abort signal to the model call', async () => {
     const model = new MockLanguageModelV3({ doGenerate: [text('ok')] });
     const controller = new AbortController();
     await createTurnRunner(model)(input({ abortSignal: controller.signal }));
     expect(model.doGenerateCalls[0]!.abortSignal).toBe(controller.signal);
+  });
+
+  it('leaves the reservation unsettled when the provider reports no usage', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        {
+          ...text('Ohne Zählung.'),
+          usage: {
+            inputTokens: {
+              total: undefined,
+              noCache: undefined,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+          },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }));
+    expect(out.text).toBe('Ohne Zählung.');
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toEqual([]);
+    expect(out.unsettledSteps).toBe(1);
+    expect(out.usage).toEqual({
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+    });
+  });
+
+  it('passes the provider options it was built with to every model call', async () => {
+    const providerOptions = { vertex: { thinkingConfig: { thinkingLevel: 'low' } } };
+    const model = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('ok')],
+    });
+    await createTurnRunner(model, { providerOptions })(input({}));
+    expect(model.doGenerateCalls).toHaveLength(2);
+    for (const call of model.doGenerateCalls) expect(call.providerOptions).toEqual(providerOptions);
+    const plain = new MockLanguageModelV3({ doGenerate: [text('ok')] });
+    await createTurnRunner(plain)(input({}));
+    expect(plain.doGenerateCalls[0]!.providerOptions).toBeUndefined();
+  });
+
+  it('sends earlier tool results elided, keeping the calls, and stores them in full', async () => {
+    const marker = 'MARKER-Mueller-anrufen';
+    const t = tools({
+      list_notes: {
+        execute: vi.fn(async () => ({ notes: [{ id: 'n1', title: marker }], truncated: false })),
+      },
+    });
+    const first = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Eine Notiz.')],
+    });
+    const earlier = await createTurnRunner(first)(input({}, t));
+    expect(JSON.stringify(earlier.messages)).toContain(marker);
+
+    const second = new MockLanguageModelV3({ doGenerate: [text('Weiter.')] });
+    const out = await createTurnRunner(second)(
+      input({ history: earlier.messages, userMessage: 'Und jetzt?' }, t),
+    );
+    const sent = JSON.stringify(second.doGenerateCalls[0]!.prompt);
+    expect(sent).not.toContain(marker);
+    expect(sent).toContain(ELIDED_TOOL_RESULT);
+    // The model still sees what it called, and what it answered.
+    expect(second.doGenerateCalls[0]!.prompt).toContainEqual(
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.arrayContaining([
+          expect.objectContaining({ type: 'tool-call', toolCallId: 'c1', toolName: 'list_notes' }),
+        ]),
+      }),
+    );
+    expect(sent).toContain('Eine Notiz.');
+    // Elision is per call: the stored history keeps the result.
+    expect(JSON.stringify(out.messages)).toContain(marker);
+    expect(out.messages.slice(0, earlier.messages.length)).toEqual(earlier.messages);
+  });
+
+  it('describes the tools as the library sends them, JSON Schemas included', async () => {
+    const t = tools();
+    const definitions = JSON.parse(await toolDefinitionsJson([t.list, t.create])) as {
+      name: string;
+      description: string;
+      inputSchema: { type: string; properties: Record<string, unknown> };
+    }[];
+    expect(definitions.map((d) => d.name)).toEqual(['list_notes', 'create_note']);
+    expect(definitions[1]).toMatchObject({
+      description: 'Create a note',
+      inputSchema: { type: 'object', properties: { boardId: {}, input: {} } },
+    });
   });
 });

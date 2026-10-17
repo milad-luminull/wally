@@ -179,3 +179,72 @@ export type AssistantAuditDoc = {
   occurredAt: Timestamp;
   expiresAt: Timestamp;
 };
+
+/** users/{uid}/assistantUsage/{YYYY-MM-DD}: the user's assistant tokens for one UTC day. */
+export type AssistantUsageDoc = {
+  /** Reserved worst case, replaced by the actual usage on settlement. */
+  tokens: number;
+  /**
+   * attemptId -> startedAt millis, for the model calls in flight that were reserved on this
+   * day. The per-user bound also counts the previous day's live slots (see reserveAttempt).
+   */
+  inFlight: Record<string, number>;
+  updatedAt: Timestamp;
+};
+
+/** assistantSpend/{YYYY-MM}: the deployment key's spend for one UTC month. */
+export type AssistantSpendDoc = {
+  microUsd: number;
+  updatedAt: Timestamp;
+};
+
+/** users/{uid}/assistantAttempts/{attemptId}: one reserved, then settled, model call. */
+export type AssistantAttemptDoc = {
+  day: string;
+  month: string;
+  reservedTokens: number;
+  reservedMicroUsd: number;
+  /** The price at reservation, used again at settlement; both 0 on the user's own key. */
+  inputMicroUsdPerToken: number;
+  outputMicroUsdPerToken: number;
+  state: 'RESERVED' | 'SETTLED';
+  settledTokens?: number;
+  settledMicroUsd?: number;
+  createdAt: Timestamp;
+  settledAt?: Timestamp;
+  /** createdAt + ATTEMPT_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};
+
+/** One visible entry of an assistant conversation, as the panel shows it. */
+export type AssistantEntryDoc = {
+  role: 'user' | 'assistant';
+  text: string;
+  chips: { id: string; title: string }[];
+  partial: boolean;
+  stopped: 'TOOL_LIMIT' | 'TIMEOUT' | 'LENGTH' | null;
+  at: Timestamp;
+};
+
+/** users/{uid}/assistantConversations/{id}: one read-only assistant conversation on a board. */
+export type AssistantConversationDoc = {
+  boardId: string;
+  /** The provider:model the conversation is pinned to. */
+  model: string;
+  status: 'OPEN' | 'CLOSED';
+  turns: number;
+  /** The library's own messages, opaque JSON, replayed on continuation. */
+  messages: unknown[];
+  entries: AssistantEntryDoc[];
+  usage: {
+    inputTokens: number;
+    cachedInputTokens: number;
+    outputTokens: number;
+    reasoningTokens: number;
+  };
+  toolCalls: number;
+  createdAt: Timestamp;
+  lastTurnAt: Timestamp;
+  /** lastTurnAt + CONVERSATION_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};

@@ -368,10 +368,33 @@ Three things worth understanding:
 `--update-env-vars` to change one without touching the others.
 
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
-(`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
+(`provider:model`, default `vertex:gemini-2.5-flash`), `ASSISTANT_VERTEX_LOCATION`
 (default `europe-west1`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
 and the Cloud Run service account needs `roles/aiplatform.user`. `GET /health` reports
 the configured model without calling it.
+
+The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
+Gemini 3.8 Flash is served only on the `global` endpoint for this project: it answers 404
+in `europe-west1` and `europe-west4`. Using it means setting
+`ASSISTANT_MODEL=vertex:gemini-3.8-flash` together with `ASSISTANT_VERTEX_LOCATION=global`,
+which moves processing outside the EU and needs the owner's decision under D4.
+
+Two caps bound spend: `ASSISTANT_DAILY_CAP_TOKENS` (default `300000`) is each user's daily
+token allowance on any key, and `ASSISTANT_MONTHLY_CAP_MICRO_USD` (default `15000000`, that
+is 15 USD) is the monthly ceiling on the deployment key. The monthly cap is computed from
+the price table in `apps/api/src/lib/assistant/budget/prices.ts`; check that table against
+the vendor's pricing page before changing `ASSISTANT_MODEL`.
+
+To call Vertex from a local machine, the API uses the Firebase service account
+(`FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`) when both are set. That account then
+needs `roles/aiplatform.user`, and the Vertex AI API (`aiplatform.googleapis.com`) must be
+enabled on the project. On Cloud Run the variables are absent and the runtime service
+account applies. One real turn can be run by hand, against whatever Firestore the
+environment points at:
+
+```bash
+pnpm --filter @wally/api assistant:smoke <uid> <boardId> "<question>"
+```
 
 ### 9c. Make the service publicly reachable
 
@@ -868,11 +891,13 @@ The release remains subject to the existing CI and production environment approv
 
 Before promotion:
 
-1. Deploy `firestore.indexes.json`, including both TTL policies, `boardOperations.expiresAt`
-   and `assistantAudit.expiresAt`, to the configured named database. Confirm both TTL
+1. Deploy `firestore.indexes.json`, including all four TTL policies, `boardOperations.expiresAt`,
+   `assistantAudit.expiresAt`, `assistantConversations.expiresAt` and
+   `assistantAttempts.expiresAt`, to the configured named database. Confirm all four TTL
    policies are active in Firestore. TTL removal is asynchronous, usually within 24 hours
-   after expiry; seven days (receipts) and 30 days (assistant audit records) are retention
-   targets, not exact erasure times. Do not enable TTL on `boardCleanup`.
+   after expiry; seven days (receipts and assistant attempts) and 30 days (assistant audit
+   records, and assistant conversations after their last turn) are retention targets, not
+   exact erasure times. Do not enable TTL on `boardCleanup`.
 2. Run the reconciliation command below against the intended database in dry-run mode.
    Review its counts, then apply repairs if needed. Repairs re-read each board transactionally.
 3. Run emulator/browser tests, lint, typecheck and build. The full authenticated Playwright

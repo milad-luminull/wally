@@ -11,9 +11,11 @@ import { loadEnv } from './env.js';
 import firestorePlugin from './plugins/firestore.js';
 import firebasePlugin, { type AuthVerifier } from './plugins/firebase.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
+import assistantRoutes from './routes/assistant.js';
 import boardRoutes from './routes/boards.js';
 import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
+import type { TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
 
 /** gRPC status code Firestore raises when updating or reading a document that isn't there. */
@@ -25,6 +27,12 @@ export interface BuildAppOptions {
   /** Overrides Firebase token verification — tests pass a fake to avoid real tokens. */
   authVerifier?: AuthVerifier;
   logger?: boolean;
+  /** Overrides the model runner — tests pass a fake so no model is called. */
+  assistantRunner?: TurnRunner;
+  /** Overrides the deployment switch for tests (the env is cached per process). */
+  assistantEnabled?: boolean;
+  /** Overrides the turn deadline for tests. */
+  assistantDeadlineMs?: number;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -125,6 +133,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(healthRoutes);
   await app.register(meRoutes);
   await app.register(boardRoutes);
+  await app.register(assistantRoutes, {
+    runner: options.assistantRunner,
+    enabled: options.assistantEnabled,
+    deadlineMs: options.assistantDeadlineMs,
+  });
 
   return app;
 }

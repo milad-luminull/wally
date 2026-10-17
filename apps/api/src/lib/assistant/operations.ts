@@ -61,6 +61,20 @@ export type OperationName = keyof typeof operationInputs;
 export type OperationInput<N extends OperationName> = z.infer<(typeof operationInputs)[N]>;
 export const operationNames = Object.keys(operationInputs) as OperationName[];
 
+/**
+ * What the model is offered: each input without `boardId`. The conversation's board is bound
+ * by the server, which adds it to every call before runOperation checks it, so the model
+ * never has to know or name a board id. Everything else (note ids, expected revisions,
+ * list filters) stays as the model must supply it; the objects stay strict, so a model that
+ * names a board anyway is refused by the schema.
+ */
+export const modelOperationInputs = Object.fromEntries(
+  operationNames.map((name) => [
+    name,
+    (operationInputs[name] as z.AnyZodObject).omit({ boardId: true }),
+  ]),
+) as Record<OperationName, z.AnyZodObject>;
+
 /** MCP tool annotations: https://modelcontextprotocol.io/specification/2025-06-18/server/tools */
 export interface OperationAnnotations {
   readOnlyHint: boolean;

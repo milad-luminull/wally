@@ -88,7 +88,10 @@ export interface TurnOutput {
   text: string;
   pendingApprovals: PendingApproval[];
   toolCalls: ToolCallRecord[];
+  /** The steps whose usage was reported, summed. */
   usage: TurnUsage;
+  /** Steps whose usage the provider did not report: their reservations stay charged. */
+  unsettledSteps: number;
   steps: number;
   finishReason: TurnFinishReason;
   /** The full history to store: the input history plus everything this turn produced. */

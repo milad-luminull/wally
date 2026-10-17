@@ -25,11 +25,20 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
   // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
-  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-3.8-flash'),
+  // The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
+  // Gemini 3.8 Flash is served only on the `global` endpoint for this project. To use it,
+  // set ASSISTANT_MODEL=vertex:gemini-3.8-flash together with
+  // ASSISTANT_VERTEX_LOCATION=global; that moves processing outside the EU and needs the
+  // owner's decision under D4.
+  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-2.5-flash'),
   // Vertex region and project for the deployment route. The project falls back to
   // FIREBASE_PROJECT_ID. The Cloud Run service account needs roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('europe-west1'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
+  // Per-user daily cap, in tokens, on every key; and the deployment key's monthly cap in
+  // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.
+  ASSISTANT_DAILY_CAP_TOKENS: z.coerce.number().int().positive().default(300_000),
+  ASSISTANT_MONTHLY_CAP_MICRO_USD: z.coerce.number().int().positive().default(15_000_000),
 });
 
 export type Env = z.infer<typeof envSchema>;
