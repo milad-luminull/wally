@@ -31,13 +31,16 @@ the theme; components use semantic tokens only.
 | `--primary`           | `#18181B` | `#EDEDEF` | The everyday filled button         |
 | `--accent` (marigold) | `#FFB224` | `#FFB224` | See below                          |
 
-### Marigold has three jobs and no others
+### Marigold has four jobs and no others
 
 1. The single primary action on a screen — `<Button variant="accent">`. At most one at rest:
    "New note" on the board, "Invite" in the share popover.
 2. The back note of the mark.
 3. The auth backdrop's glow, as a soft tint only. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
+4. The dot and its countdown ring on a note whose Wallybot changes are still pending, never
+   a fill or an edge colour, and gone the moment the changes are kept or undone
+   (`rfcs/WALLYBOT_INLINE.md`).
 
 Text on marigold is near-black (`#1A1300`, 10.2:1) — never white. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
@@ -158,8 +161,9 @@ contract for when it arrives, and `brandGuards.test.ts` already enforces the fir
 
 1. No sparkle, wand, robot or brain icon anywhere in the product.
 2. The AI has no name and no pronoun. Copy says "Wally set the date", never "I set the date".
-3. AI output uses the same type, colour and layout as user input. The only marker is a dashed
-   line, and only until accepted.
+3. AI output uses the same type, colour and layout as user input. The only markers are a
+   dashed edge and the marigold dot with its countdown, and only until the changes are kept
+   or undone.
 4. Every AI action is reversible in one step, and the reversal is visible where the action
    happened.
 5. The AI never interrupts. No toasts, no modals, no badges counting suggestions.
