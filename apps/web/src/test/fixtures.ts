@@ -1,4 +1,5 @@
 import type { MemberDto, NoteDetailDto, NoteDto, WhiteboardDto } from '@wally/shared';
+import type { SuggestionMark } from '@/features/board/Suggestions/useSuggestions';
 
 export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
   return {
@@ -58,6 +59,34 @@ export function makeBoard(overrides: Partial<WhiteboardDto> = {}): WhiteboardDto
     assistantEnabled: false,
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+export function makeSuggestionMark(overrides: Partial<SuggestionMark> = {}): SuggestionMark {
+  return {
+    phase: 'pending',
+    suggestion: {
+      id: 's1',
+      boardId: 'board-1',
+      noteId: 'note-1',
+      status: 'PENDING',
+      baseRevision: 1,
+      fields: {
+        dueDate: { value: '2026-10-23', reason: 'Freitag' },
+        priority: { value: 'HOCH', reason: 'dringend' },
+        assignee: {
+          value: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' },
+          reason: 'Anna',
+        },
+      },
+      kept: null,
+      createdAt: '2026-10-17T10:00:00.000Z',
+    },
+    fields: ['dueDate', 'priority', 'assignee'],
+    countdownEndsAt: Date.now() + 6000,
+    countdownMs: 6000,
+    paused: false,
     ...overrides,
   };
 }

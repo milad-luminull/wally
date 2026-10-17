@@ -9,6 +9,14 @@ import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '.
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { PrivateBadge } from '../PrivateBadge';
+import { PendingDot } from '../Suggestions/PendingDot';
+import { ProposedField } from '../Suggestions/ProposedField';
+import {
+  pendingKeys,
+  proposedDateLabel,
+  proposedValues,
+  type PendingProps,
+} from '../Suggestions/pendingProps';
 import { CopyDragContext } from './copyDrag';
 
 interface NoteCardProps {
@@ -30,6 +38,8 @@ interface NoteCardProps {
    * The board clears this in the same commit that writes the new position.
    */
   dragging?: boolean;
+  /** A change Wallybot proposed for this note, still pending or just kept (§3.3). */
+  pending?: PendingProps;
 }
 
 /**
@@ -49,14 +59,19 @@ export function NoteCard({
   style,
   overlay = false,
   dragging = false,
+  pending,
 }: NoteCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { priority: priorityLabels } = useEnumLabels();
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const description = note.description.trim();
   const isDone = note.status === 'DONE';
   const copying = useContext(CopyDragContext);
+  // The overlay is a picture of the card in flight: it shows the note as it stands.
+  const proposed = proposedValues(note, overlay ? undefined : pending);
+  const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
+  const corner = overlay || !pending ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
 
   const body = (
     <>
@@ -64,6 +79,9 @@ export function NoteCard({
         className={cn(
           'line-clamp-3 text-14 font-medium leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
+          // Room for the dot, or the Undo after it, in the card's top-right corner.
+          corner === 'dot' && 'pr-4',
+          corner === 'undo' && 'pr-[4.5rem]',
         )}
       >
         {note.title || t('common.untitled')}
@@ -84,7 +102,27 @@ export function NoteCard({
           style={{ fontWeight: due.weight }}
         >
           {isDone && <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
-          {due.label}
+          {proposed.dueDate && proposedDate ? (
+            <ProposedField
+              name={t('suggest.fields.dueDate', { date: proposedDate })}
+              label={
+                <span
+                  className={cn(
+                    'text-12 tabular-nums',
+                    dueToneClass[
+                      dueInfo({ status: 'OPEN', dueDate: proposed.dueDate.value }, t).tone
+                    ],
+                  )}
+                >
+                  {proposedDate}
+                </span>
+              }
+              reason={proposed.dueDate.reason}
+              onRemove={() => pending?.onRemove('dueDate')}
+            />
+          ) : (
+            due.label
+          )}
         </span>
 
         {checklistLabel && (
@@ -96,15 +134,49 @@ export function NoteCard({
 
         <span className="flex-1" />
 
-        {!isDone && (
-          <PriorityIcon
-            priority={note.priority}
-            label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
+        {proposed.priority ? (
+          <ProposedField
+            name={t(
+              proposed.priority.value === 'HOCH'
+                ? 'suggest.fields.priorityHigh'
+                : 'suggest.fields.priorityLow',
+            )}
+            label={
+              <PriorityIcon
+                priority={proposed.priority.value}
+                label={t('board.priorityPrefix', {
+                  label: priorityLabels[proposed.priority.value],
+                })}
+              />
+            }
+            reason={proposed.priority.reason}
+            onRemove={() => pending?.onRemove('priority')}
           />
+        ) : (
+          !isDone && (
+            <PriorityIcon
+              priority={note.priority}
+              label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
+            />
+          )
         )}
 
         {note.visibility === 'PRIVATE' ? (
           <PrivateBadge className="text-fg-meta-on-note" />
+        ) : proposed.assignee ? (
+          <ProposedField
+            name={t('suggest.fields.assignee', {
+              name: proposed.assignee.value.displayName ?? proposed.assignee.value.email,
+            })}
+            label={
+              <AssigneeAvatar
+                user={proposed.assignee.value}
+                isYou={proposed.assignee.value.id === currentUserId}
+              />
+            }
+            reason={proposed.assignee.reason}
+            onRemove={() => pending?.onRemove('assignee')}
+          />
         ) : (
           note.assignee && (
             <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
@@ -155,6 +227,7 @@ export function NoteCard({
       style={style}
       surface={surface}
       body={body}
+      pending={pending}
     />
   );
 }
@@ -169,6 +242,7 @@ interface RestingProps {
   style?: CSSProperties;
   surface: string;
   body: ReactNode;
+  pending?: PendingProps;
 }
 
 /** Split out so the overlay variant above never calls `useDraggable`. */
@@ -182,10 +256,12 @@ function RestingNoteCard({
   style,
   surface,
   body,
+  pending,
 }: RestingProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
   // A copy-drag leaves the original in place: only the copy is travelling.
   const hidden = dragging || (isDragging && !copying);
+  const dashed = pending !== undefined && pending.mark.phase !== 'kept';
 
   const wrapperStyle: CSSProperties = {
     ...style,
@@ -198,15 +274,28 @@ function RestingNoteCard({
       style={wrapperStyle}
       data-note-id={note.id}
       data-dragging={hidden || undefined}
+      className="relative"
     >
       <button
         type="button"
         {...listeners}
         {...attributes}
+        data-pending={pending?.mark.phase}
         onClick={onOpen}
+        // Enter keeps and Esc discards while a change is pending; every other key, every key
+        // on a card with nothing pending, and every key mid-drag (Esc cancels the drag, not
+        // the change) still reaches dnd-kit's keyboard sensor.
+        onKeyDown={(e) => {
+          if (!isDragging && pendingKeys(e, pending)) return;
+          listeners?.onKeyDown?.(e);
+        }}
+        onMouseEnter={() => pending?.onPause(true)}
+        onMouseLeave={() => pending?.onPause(false)}
+        onFocus={() => pending?.onPause(true)}
+        onBlur={() => pending?.onPause(false)}
         className={cn(
           surface,
-          'group/note cursor-grab',
+          'peer/note group/note cursor-grab',
           // Hover/press easing only — never a transition on `opacity`, so picking a card
           // up hides it on the same frame the overlay appears instead of cross-fading.
           'transition-[transform,box-shadow,border-color] duration-150 ease-ds',
@@ -219,6 +308,9 @@ function RestingNoteCard({
           selected
             ? 'border-transparent shadow-e2 ring-2 ring-inset ring-[color:var(--note-selected)]'
             : 'border-[color:var(--note-border)] shadow-pin',
+          // A pending change: the edge goes dashed in the note's own border colour, never
+          // marigold (BRAND job 4: marigold is the dot and its ring alone).
+          dashed && 'border-dashed',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column
           // does not reflow under the cursor mid-drag.
@@ -230,6 +322,20 @@ function RestingNoteCard({
       >
         {body}
       </button>
+      {/* Beside the card, not inside it: once kept this is the Undo button, and a button
+          cannot sit inside the card's own. The dot lets the pointer through to the card, so
+          hovering it still pauses the ring. It lifts with the card on hover. */}
+      {pending && !hidden && (
+        <PendingDot
+          mark={pending.mark}
+          onUndo={pending.onUndo}
+          className={cn(
+            'absolute right-2 top-2 transition-transform duration-150 ease-ds',
+            'peer-hover/note:-translate-y-0.5 motion-reduce:peer-hover/note:translate-y-0',
+            pending.mark.phase !== 'kept' && 'pointer-events-none',
+          )}
+        />
+      )}
     </div>
   );
 }

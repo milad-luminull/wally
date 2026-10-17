@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
-import { makeNote } from '@/test/fixtures';
+import { makeNote, makeSuggestionMark } from '@/test/fixtures';
+import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteCard } from './NoteCard';
 
 /**
@@ -129,5 +130,88 @@ describe('NoteCard content', () => {
     renderCard(makeNote({ assignee: nora }));
 
     expect(screen.queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+  });
+});
+
+describe('NoteCard with a pending change', () => {
+  const pending = (over: Partial<SuggestionMark> = {}) => ({
+    mark: makeSuggestionMark(over),
+    onKeep: vi.fn(),
+    onDiscard: vi.fn(),
+    onUndo: vi.fn(),
+    onRemove: vi.fn(),
+    onPause: vi.fn(),
+  });
+  const renderCard = (p = pending()) => {
+    render(
+      <DndContext>
+        <NoteCard
+          note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          pending={p}
+        />
+      </DndContext>,
+    );
+    return p;
+  };
+
+  it('draws a dashed edge, the dot, and each proposed field in its place with an ×', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).toContain('border-dashed');
+    expect(card.className).not.toMatch(/\banimate-/);
+    expect(screen.getByRole('img', { name: /Vorgeschlagene/ })).toBeInTheDocument();
+    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna' }));
+    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+  });
+
+  it('keeps on Enter, discards on Esc, and never opens the note for those keys', () => {
+    const onOpen = vi.fn();
+    const p = pending();
+    render(
+      <DndContext>
+        <NoteCard
+          note={makeNote()}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={onOpen}
+          pending={p}
+        />
+      </DndContext>,
+    );
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(p.onKeep).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(card, { key: 'Escape' });
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('pauses the countdown on hover and focus, and resumes on leave and blur', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    fireEvent.mouseEnter(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+    fireEvent.focus(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+  });
+
+  it('looks like any other note once kept, with only the faint Undo left', () => {
+    const p = renderCard(pending({ phase: 'kept', countdownEndsAt: null }));
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).not.toContain('border-dashed');
+    expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
+    );
+    expect(p.onUndo).toHaveBeenCalledTimes(1);
   });
 });

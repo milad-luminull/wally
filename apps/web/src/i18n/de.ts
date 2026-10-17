@@ -452,6 +452,24 @@ export const de = {
       dropNamed: 'Vorschlag entfernen: {{label}}',
     },
   },
+  /** The dashed card after Enter (WALLYBOT_INLINE.md §3.3). No name, no first person. */
+  suggest: {
+    dotAria: 'Vorgeschlagene Änderungen, werden gleich übernommen',
+    dotAriaWaiting: 'Vorgeschlagene Änderungen, warten auf Enter',
+    dotAriaAsking: 'Wird ausgefüllt',
+    dotAriaKept: 'Änderungen übernommen',
+    undo: 'Rückgängig',
+    undoAria: 'Übernommene Änderungen rückgängig machen',
+    remove: 'Vorschlag entfernen: {{label}}',
+    reason: 'Wegen: {{reason}}',
+    hint: '↵ behalten · Esc verwerfen',
+    fields: {
+      dueDate: 'Fällig {{date}}',
+      priorityHigh: 'Priorität hoch',
+      priorityLow: 'Priorität niedrig',
+      assignee: 'Zuständig: {{name}}',
+    },
+  },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */
   home: {
     title: 'Deine Wände',

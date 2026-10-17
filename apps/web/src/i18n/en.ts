@@ -429,6 +429,23 @@ export const en = {
       dropNamed: 'Remove suggestion: {{label}}',
     },
   },
+  suggest: {
+    dotAria: 'Proposed changes, applied in a moment',
+    dotAriaWaiting: 'Proposed changes, waiting for Enter',
+    dotAriaAsking: 'Filling in',
+    dotAriaKept: 'Changes kept',
+    undo: 'Undo',
+    undoAria: 'Undo the kept changes',
+    remove: 'Remove suggestion: {{label}}',
+    reason: 'Because: {{reason}}',
+    hint: '↵ keep · Esc discard',
+    fields: {
+      dueDate: 'Due {{date}}',
+      priorityHigh: 'High priority',
+      priorityLow: 'Low priority',
+      assignee: 'Assigned to {{name}}',
+    },
+  },
   home: {
     title: 'Your boards',
     shared: 'Shared with you',
