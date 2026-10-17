@@ -94,6 +94,7 @@ export function createTurnRunner(
         maxOutputTokens: input.maxOutputTokens,
       });
     }
+    const forceRead = input.userMessage !== undefined && !input.approvals?.length;
     const settled: TurnUsage[] = [];
     let unsettledSteps = 0;
     const executed: ToolCallRecord[] = [];
@@ -116,6 +117,14 @@ export function createTurnRunner(
           messageCount: stepMessages.length,
           maxOutputTokens: input.maxOutputTokens,
         });
+        // A question reads the board before it is answered: left to choose, the model can
+        // answer without reading (WALLY_AGENT.md §3.4). The first step of a turn that carries
+        // a user message must call a tool; prepareStep's `toolChoice` applies to that step only
+        // (ai docs/03-ai-sdk-core/15-tools-and-tool-calling.mdx, "prepareStep callback" and
+        // "Tool Choice"), so later steps stay automatic and can answer. A response without a
+        // tool call then throws ToolChoiceViolationError, which the caller reports as a
+        // provider error. A continuation that answers approvals is not forced.
+        if (stepNumber === 0 && forceRead) return { toolChoice: 'required' };
         return {};
       },
       onStepEnd: async (step) => {
