@@ -139,6 +139,9 @@ function collectKeys(notes: { customFields: Record<string, string> }[]): string[
   return [...byFolded.values()].sort((a, b) => a.localeCompare(b, 'de'));
 }
 
+/** The fields a chip sets while writing: what the review's first group lists besides the words. */
+const TYPED_KEYS: readonly SuggestionFieldKey[] = ['dueDate', 'priority', 'assignee'];
+
 /** Each value once, first occurrence first. */
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
@@ -211,14 +214,14 @@ function acceptReference(
   return { key: parsedKey.data, value: parsedValue.data, reason: reference.reason };
 }
 
-/** Blank and repeated steps drop out; what remains is capped at what a suggestion carries. */
+/**
+ * The runner already trimmed the steps, dropped the blank and repeated ones and cut them to
+ * `SUGGESTION_MAX_SUBTASKS` (`modelSuggestionSchema`); one step left is no breakdown.
+ */
 function acceptSubtasks(
   subtasks: NonNullable<ModelSuggestion['subtasks']>,
 ): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
-  const items = unique(subtasks.items.map((item) => item.trim()).filter(Boolean)).slice(
-    0,
-    SUGGESTION_MAX_SUBTASKS,
-  );
+  const { items } = subtasks;
   return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
 }
 
@@ -315,8 +318,10 @@ export async function suggestForCapture(
     language: ctx.language,
   });
   // Every note the caller can see, done ones too: a key in use anywhere on the board is one
-  // a reference should reuse.
-  const fieldKeys = collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }));
+  // a reference should reuse. Read only when a reference may be proposed at all.
+  const fieldKeys = open.includes('reference')
+    ? collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }))
+    : [];
   const prompt = buildCapturePrompt({
     title: note.title,
     description: note.description,
@@ -404,7 +409,10 @@ export async function suggestForCapture(
     baseRevision: note.revision,
     ...(fields.title ? { baseTitle: note.title } : {}),
     fields,
-    typed: request.locked,
+    // The chips' fields the person set, each once (R4); the title is in the first group anyway.
+    typed: suggestionFieldKeys.filter(
+      (key) => TYPED_KEYS.includes(key) && request.locked.includes(key),
+    ),
     operationIds: mintOperationIds(),
     status: 'PENDING',
     decision: null,
@@ -910,7 +918,13 @@ export async function decideSuggestion(
     if (subtasks.length === 0) fields = fields.filter((key) => key !== 'subtasks');
     // A proposal holding nothing but a title runs no countdown (R2): one that fires anyway
     // leaves the title waiting for the person, neither written nor discarded.
-    if (fields.length === 0 && countdown && proposed.includes('title'))
+    // Only while the record is still pending: on a settled one the claim below answers.
+    if (
+      fields.length === 0 &&
+      countdown &&
+      proposed.includes('title') &&
+      current.status === 'PENDING'
+    )
       return toDto(db, board, current);
     if (fields.length === 0) {
       const { doc } = await claim(

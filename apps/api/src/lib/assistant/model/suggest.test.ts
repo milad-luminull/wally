@@ -181,24 +181,77 @@ describe('createSuggestionRunner', () => {
     }
   });
 
-  it('returns no fields when the steps or the reference break the lengths the wire leaves out', async () => {
-    const base = { dueDate: null, priority: null, assignee: null, ...none };
+  it('drops only the optional field that breaks a length the wire leaves out, keeping the rest', async () => {
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
+    const base = { dueDate: date, priority: null, assignee: null, ...none };
     const steps = (items: string[]) => ({ items, confidence: 0.7, reason: 'Schritte' });
     const cases = {
-      'six steps': { ...base, subtasks: steps(['a', 'b', 'c', 'd', 'e', 'f']) },
-      'an empty step': { ...base, subtasks: steps(['Unterlagen prüfen', '']) },
+      'a title over 200 characters': {
+        ...base,
+        title: { value: 'x'.repeat(300), confidence: 0.9, reason: 'kürzer' },
+      },
       'an empty reference key': {
         ...base,
         reference: { key: '', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde' },
       },
+      'an over-long reference value': {
+        ...base,
+        reference: { key: 'Kunde', value: 'x'.repeat(2_000), confidence: 0.9, reason: 'Kunde' },
+      },
+      'only blank steps': { ...base, subtasks: steps([' ', '']) },
+      'an over-long step': { ...base, subtasks: steps(['Anrufen', 'x'.repeat(1_000)]) },
     };
     for (const [name, fields] of Object.entries(cases)) {
       const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
       const a = attempts();
       const out = await createSuggestionRunner(model)(input(a.onAttempt));
-      expect(out.fields, name).toBeNull();
+      expect(out.fields, name).toEqual({ ...base });
       expect(a.settled, name).toHaveLength(1);
     }
+  });
+
+  it('keeps the first five of six steps, beside the date', async () => {
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
+    const steps = { items: ['a', 'b', 'c', 'd', 'e', 'f'], confidence: 0.7, reason: 'Schritte' };
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        reply(
+          JSON.stringify({
+            dueDate: date,
+            priority: null,
+            assignee: null,
+            ...none,
+            subtasks: steps,
+          }),
+        ),
+      ],
+    });
+    const out = await createSuggestionRunner(model)(input(attempts().onAttempt));
+    expect(out.fields?.dueDate).toEqual(date);
+    expect(out.fields?.subtasks).toEqual({ ...steps, items: ['a', 'b', 'c', 'd', 'e'] });
+  });
+
+  it('trims the steps and drops the blank and the doubled ones before counting five', async () => {
+    const steps = {
+      items: [' a', 'a', ' ', 'b ', 'c', 'd', 'e', 'f'],
+      confidence: 0.7,
+      reason: 'Schritte',
+    };
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        reply(
+          JSON.stringify({
+            dueDate: null,
+            priority: null,
+            assignee: null,
+            ...none,
+            subtasks: steps,
+          }),
+        ),
+      ],
+    });
+    const out = await createSuggestionRunner(model)(input(attempts().onAttempt));
+    expect(out.fields?.subtasks?.items).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 
   it('cuts a reason that runs long to 120 characters instead of dropping the proposal', async () => {
@@ -337,11 +390,17 @@ describe('a suggestion call as it reaches Vertex', () => {
       'maximum',
       'anyOf',
       'items',
+      'maxItems',
       'description',
     ];
     expect([...keywords].filter((k) => !documented.includes(k))).toEqual([]);
     expect(keywords).not.toContain('pattern');
     expect(keywords).not.toContain('maxLength');
+    // The step count is one the page documents for arrays, so the provider is told it too.
+    type Node = { properties?: Record<string, Node>; anyOf?: Node[]; type?: unknown };
+    const subtasks = (schema as Node).properties!.subtasks!;
+    const branch = subtasks.anyOf?.find((n) => n.type === 'object') ?? subtasks;
+    expect(branch.properties!.items).toMatchObject({ type: 'array', maxItems: 5 });
   });
 });
 

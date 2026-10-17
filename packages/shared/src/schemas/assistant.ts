@@ -111,7 +111,10 @@ export const suggestionFieldsSchema = z.object({
       reason: reasonSchema,
     })
     .nullable(),
-  /** Two to five steps; the person keeps them one by one in the review. */
+  /**
+   * One step or more, at most `SUGGESTION_MAX_SUBTASKS`: the server proposes two to five (a
+   * single step is no breakdown), and the person keeps them one by one in the review.
+   */
   subtasks: z
     .object({
       items: z

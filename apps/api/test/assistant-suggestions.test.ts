@@ -13,6 +13,7 @@ import {
 import { dayKey } from '../src/lib/assistant/budget/ledger.js';
 import { estimateTokens } from '../src/lib/assistant/budget/estimate.js';
 import { suggestionSchemaJson } from '../src/lib/assistant/model/index.js';
+import { modelSuggestionSchema } from '../src/lib/assistant/model/suggest.js';
 import { FieldValue, Timestamp, Transaction } from 'firebase-admin/firestore';
 import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
@@ -25,14 +26,18 @@ let lastInput: SuggestionInput | null = null;
 
 /** Slice 3's fields, which these replies propose nothing for. */
 const noProposal = { title: null, reference: null, subtasks: null };
-/** Keyed on the title line: the fake answers like a model would. */
+/**
+ * Keyed on the title line: the fake answers like a model would, and its reply gets the one
+ * check a real runner's reply gets, so the route sees what a runner hands over.
+ */
 const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> => {
   lastInput = input;
   const lease = await input.onAttempt({ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 });
   const title = input.prompt.split('\n')[0]!.slice('Title: '.length);
   const settle = async (fields: SuggestionOutput['fields']): Promise<SuggestionOutput> => {
     await lease.settle(usage);
-    return { fields, usage, finishReason: 'stop' };
+    const checked = modelSuggestionSchema.safeParse(fields);
+    return { fields: checked.success ? checked.data : null, usage, finishReason: 'stop' };
   };
   if (title.startsWith('fail'))
     throw Object.assign(new Error('quota for secret-project'), {
@@ -1077,7 +1082,8 @@ describe('capture suggestions', () => {
       title: null,
       dueDate: { value: '2026-10-23' },
     });
-    expect(s.typed).toEqual(['title']);
+    // `typed` names the chips' fields only: the title is in the first group whatever it says.
+    expect(s.typed).toEqual([]);
   });
 
   it("keeps a subset: the date, the reference and one of three steps; the title stays the person's", async () => {
@@ -1486,5 +1492,78 @@ describe('capture suggestions', () => {
     expect((await note(n.id)).customFields).toEqual({ kunde: 'Alt GmbH' });
     const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
     expect(audits.docs.map((d) => d.data().commandType)).toEqual(['note.update', 'note.update']);
+  });
+
+  // These run as the viewer, on private notes: the owner and the editor already come close to
+  // the route's per-user rate limit of 30 captures a minute in this file.
+
+  it('a countdown keep of a title-only proposal is refused once undone, and replays a discard', async () => {
+    const fx = await createBoardFixture(ctx);
+    const own = async (title: string) =>
+      (await createNote(fx.viewToken, fx.boardId, { title, visibility: 'PRIVATE' })).json();
+    const n = await own('titleonly');
+    const { suggestion } = (await suggest(fx.viewToken, fx.boardId, n.id)).json();
+    const kept = await decide(fx.viewToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['title'],
+      source: 'click',
+    });
+    expect(kept.json().suggestion.kept.fields).toEqual(['title']);
+    const undone = await decide(fx.viewToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(undone.json().suggestion.status).toBe('UNDONE');
+    // A countdown that fires late on the undone record is settled, not "left waiting".
+    const late = await decide(fx.viewToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'countdown',
+    });
+    expect(late.statusCode).toBe(409);
+    expect(late.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
+    expect((await stored(fx.viewerId, suggestion.id)).status).toBe('UNDONE');
+    expect(await note(n.id)).toMatchObject({ title: 'titleonly', revision: n.revision + 2 });
+
+    // On a discarded one it is a keep of nothing, which replays the discard.
+    const other = await own('titleonly zwei');
+    const second = (await suggest(fx.viewToken, fx.boardId, other.id)).json().suggestion;
+    await decide(fx.viewToken, fx.boardId, second.id, { decision: 'discard', source: 'esc' });
+    const fired = await decide(fx.viewToken, fx.boardId, second.id, {
+      decision: 'keep',
+      source: 'countdown',
+    });
+    expect(fired.statusCode).toBe(200);
+    expect(fired.json().suggestion).toMatchObject({ status: 'DISCARDED', kept: null });
+    expect((await note(other.id)).revision).toBe(other.revision);
+  });
+
+  it('reads no board keys for a note that has a property already: the prompt lists none', async () => {
+    const fx = await createBoardFixture(ctx);
+    await createNote(fx.editToken, fx.boardId, { title: 'Alt', customFields: { Kunde: 'Alt' } });
+    const n = (
+      await createNote(fx.viewToken, fx.boardId, {
+        title: 'Freitag',
+        visibility: 'PRIVATE',
+        customFields: { Projekt: 'X' },
+      })
+    ).json();
+    const s = (await suggest(fx.viewToken, fx.boardId, n.id)).json().suggestion;
+    expect(s.fields).toMatchObject({ dueDate: { value: '2026-10-23' }, reference: null });
+    // No reference can be proposed, so the board's keys are never read for the prompt.
+    expect(lastInput?.prompt).toContain('Properties on this board: none');
+    expect(lastInput?.prompt).not.toContain('Kunde');
+  });
+
+  it("records as typed only the chips' fields, each once", async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await createNote(fx.viewToken, fx.boardId, { title: 'all nobody', visibility: 'PRIVATE' })
+    ).json();
+    const res = await suggest(fx.viewToken, fx.boardId, n.id, ['title', 'dueDate', 'dueDate']);
+    expect(res.statusCode).toBe(200);
+    const { suggestion } = res.json();
+    expect(suggestion.fields).toMatchObject({ dueDate: null, priority: { value: 'HOCH' } });
+    expect(suggestion.typed).toEqual(['dueDate']);
+    expect((await stored(fx.viewerId, suggestion.id)).typed).toEqual(['dueDate']);
   });
 });

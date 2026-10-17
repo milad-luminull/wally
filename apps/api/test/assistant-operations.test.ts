@@ -199,8 +199,17 @@ describe('runOperation', () => {
 
     const replayed = await runOperation(as(owner), del);
     expect(replayed.revision).toBe(deleted.revision);
+    expect(replayed.data).toEqual(deleted.data);
     expect((await deleteAudits()).size).toBe(1);
 
+    // A refusal writes nothing: the note keeps its revision and no audit row is added.
+    const audits = (await assistantAuditCol(ctx.db).get()).size;
+    const revisionNow = async () =>
+      (
+        (await runOperation(as(owner), call('get_note', { boardId, noteId }))).data as {
+          revision: number;
+        }
+      ).revision;
     await expect(
       runOperation(
         as(owner),
@@ -218,6 +227,8 @@ describe('runOperation', () => {
         }),
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
+    expect(await revisionNow()).toBe(deleted.revision);
+    expect((await assistantAuditCol(ctx.db).get()).size).toBe(audits);
   });
 
   it('refuses a stale revision without applying anything', async () => {
