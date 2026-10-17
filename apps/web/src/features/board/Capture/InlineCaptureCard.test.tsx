@@ -357,6 +357,17 @@ describe('InlineCaptureCard', () => {
     expect(marks.map((m) => m.textContent)).toEqual(['Freitag', '@anna', 'dringend']);
   });
 
+  it('a person alone is the only field reported as decided here, never a Wallybot-only field', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+      'Müller anrufen @anna',
+    );
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['assignee']));
+  });
+
   it('commits the date and the priority but not a dropped person', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();

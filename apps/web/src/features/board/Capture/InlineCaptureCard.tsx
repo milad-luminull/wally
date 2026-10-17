@@ -205,12 +205,15 @@ export function InlineCaptureCard({
   function locked(): SuggestionFieldKey[] {
     const f = fields();
     const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
-    return suggestionFieldKeys.filter((key) =>
-      key === 'dueDate'
-        ? f.dueDate !== null
-        : key === 'priority'
-          ? f.priority !== null || placedByPriority
-          : f.assigneeId !== null,
+    return suggestionFieldKeys.filter(
+      (key) =>
+        key === 'dueDate'
+          ? f.dueDate !== null
+          : key === 'priority'
+            ? f.priority !== null || placedByPriority
+            : key === 'assignee'
+              ? f.assigneeId !== null
+              : false, // title, reference, subtasks: only Wallybot proposes them, never a chip
     );
   }
   /** Words in either field make a note; whitespace alone in both does not. */
