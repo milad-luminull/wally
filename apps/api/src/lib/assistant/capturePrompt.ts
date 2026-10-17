@@ -40,7 +40,8 @@ export function buildCaptureInstructions(ctx: {
 
 /**
  * The note's words, the board's members and its property keys, as data: `id: name` per line,
- * so the model answers with ids, and the keys in one line, so a reference can reuse one.
+ * so the model answers with ids, and one key per line, so a reference can reuse one (a key
+ * may hold a comma, so a list on one line could not be read back).
  */
 export function buildCapturePrompt(input: {
   title: string;
@@ -56,7 +57,9 @@ export function buildCapturePrompt(input: {
       : 'Members: none',
   );
   lines.push(
-    `Properties on this board: ${input.fieldKeys.length ? input.fieldKeys.join(', ') : 'none'}`,
+    input.fieldKeys.length
+      ? `Properties on this board:\n${input.fieldKeys.join('\n')}`
+      : 'Properties on this board: none',
   );
   return lines.join('\n');
 }

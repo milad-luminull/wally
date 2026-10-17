@@ -283,6 +283,9 @@ describe('createSuggestionRunner', () => {
     expect(json).toContain('memberId');
     expect(json).toContain('"subtasks"');
     expect(json).toContain('"reference"');
+    // "or null" is said of the title as a whole; its value is only ever a title.
+    expect(json).toContain('"description":"A cleaner title, or null."');
+    expect(json).toContain('"description":"A shorter title with the same meaning."');
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {

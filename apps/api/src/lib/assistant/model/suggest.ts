@@ -48,10 +48,11 @@ export const modelSuggestionWireSchema = z.object({
   assignee: z.object({ memberId: z.string(), confidence, reason: z.string() }).nullable(),
   title: z
     .object({
-      value: z.string().describe('A shorter title with the same meaning, or null.'),
+      value: z.string().describe('A shorter title with the same meaning.'),
       confidence,
       reason: z.string(),
     })
+    .describe('A cleaner title, or null.')
     .nullable(),
   reference: z
     .object({

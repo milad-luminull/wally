@@ -1002,7 +1002,7 @@ describe('capture suggestions', () => {
         reason: 'drei Schritte',
       },
     });
-    expect(lastInput?.prompt).toContain('Properties on this board: Kunde');
+    expect(lastInput?.prompt).toContain('Properties on this board:\nKunde');
     expect(lastInput?.maxOutputTokens).toBe(512);
     expect((await stored(fx.editorId, suggestion.id)).typed).toEqual(['priority']);
   });

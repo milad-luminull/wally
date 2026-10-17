@@ -95,7 +95,9 @@ describe('the capture prompt', () => {
       members: [{ id: 'u-anna', name: 'Anna Berg' }],
       fieldKeys: ['Kunde', 'Vertragsnr'],
     });
-    expect(prompt).toContain('Properties on this board: Kunde, Vertragsnr');
+    // One key per line, as the members are: a key may itself hold a comma.
+    expect(prompt).toContain('Properties on this board:\nKunde\nVertragsnr');
+    expect(prompt.endsWith('Properties on this board:\nKunde\nVertragsnr')).toBe(true);
     expect(prompt.indexOf('u-anna: Anna Berg')).toBeLessThan(
       prompt.indexOf('Properties on this board:'),
     );
