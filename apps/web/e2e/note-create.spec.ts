@@ -6,7 +6,7 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
 
   await signIn(page);
 
-  const title = `E2E-Notiz ${Date.now()}`;
+  const title = `E2E note ${Date.now()}`;
   // Enter writes the note where the card stood; no panel opens.
   const panel = await captureNote(page, title);
   await expect(panel).toBeHidden();
