@@ -53,6 +53,7 @@ export const operationInputs = {
   toggle_subtask: z
     .object({ ...noteRef, subtaskId: id, input: z.object({ done: z.boolean() }).strict() })
     .strict(),
+  delete_subtask: z.object({ ...noteRef, subtaskId: id }).strict(),
   assign_note: z.object({ ...noteRef, input: noteAssignSchema.strict() }).strict(),
   delete_note: z.object(noteRef).strict(),
 } as const;
@@ -103,6 +104,7 @@ export const operationAnnotations: Record<OperationName, OperationAnnotations> =
   reopen_note: write(true),
   add_subtask: write(false),
   toggle_subtask: write(false),
+  delete_subtask: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
   assign_note: write(false),
   delete_note: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
 };

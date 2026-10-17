@@ -20,6 +20,7 @@ describe('operation inputs', () => {
         'complete_note',
         'create_note',
         'delete_note',
+        'delete_subtask',
         'get_note',
         'list_members',
         'list_notes',
@@ -39,12 +40,23 @@ describe('operation inputs', () => {
       'reopen_note',
       'add_subtask',
       'toggle_subtask',
+      'delete_subtask',
       'assign_note',
       'delete_note',
     ] as const) {
       const result = operationInputs[name].safeParse({ boardId: 'board-1', noteId: 'note-1' });
       expect(result.success, name).toBe(false);
     }
+  });
+
+  it('delete_subtask names the subtask and the revision it was computed against', () => {
+    expect(operationInputs.delete_subtask.safeParse({ ...note, subtaskId: 's' }).success).toBe(
+      true,
+    );
+    expect(operationInputs.delete_subtask.safeParse(note).success).toBe(false);
+    expect(
+      operationInputs.delete_subtask.safeParse({ ...note, subtaskId: 's', input: {} }).success,
+    ).toBe(false);
   });
 
   it('create_note takes no revision and accepts an empty input', () => {
@@ -109,9 +121,17 @@ describe('operation annotations', () => {
       idempotentHint: false,
     });
     for (const name of operationNames) {
-      if (name === 'delete_note') continue;
+      if (name === 'delete_note' || name === 'delete_subtask') continue;
       expect(operationAnnotations[name].destructiveHint, name).toBe(false);
     }
+  });
+
+  it('marks delete_subtask destructive and idempotent: a repeat finds nothing more to delete', () => {
+    expect(operationAnnotations.delete_subtask).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+    });
   });
 });
 
@@ -119,6 +139,9 @@ describe('riskOf', () => {
   const me = 'user-me';
   it('deleting is always a named confirm', () => {
     expect(riskOf('delete_note', note, me, { visibility: 'SHARED' })).toBe('DELETE');
+  });
+  it('deleting a subtask needs no named confirm', () => {
+    expect(riskOf('delete_subtask', { ...note, subtaskId: 's' }, me, null)).toBeNull();
   });
   it('assigning to someone else is a named confirm, to oneself or nobody is not', () => {
     expect(riskOf('assign_note', { ...note, input: { assigneeId: 'other' } }, me, null)).toBe(
