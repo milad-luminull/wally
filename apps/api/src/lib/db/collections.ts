@@ -19,7 +19,11 @@ import {
   type Preferences,
 } from '@wally/shared';
 import type {
+  AssistantAttemptDoc,
   AssistantAuditDoc,
+  AssistantConversationDoc,
+  AssistantSpendDoc,
+  AssistantUsageDoc,
   HistoryEventDoc,
   MemberDoc,
   NoteDoc,
@@ -72,6 +76,34 @@ export const shareLinksCol = (db: Firestore): CollectionReference<ShareLinkDoc> 
 /** One contents-free record per command the assistant committed; the id is the operation id. */
 export const assistantAuditCol = (db: Firestore): CollectionReference<AssistantAuditDoc> =>
   db.collection('assistantAudit').withConverter(converter<AssistantAuditDoc>());
+
+export const assistantUsageCol = (
+  db: Firestore,
+  userId: string,
+): CollectionReference<AssistantUsageDoc> =>
+  usersCol(db)
+    .doc(userId)
+    .collection('assistantUsage')
+    .withConverter(converter<AssistantUsageDoc>());
+export const assistantAttemptsCol = (
+  db: Firestore,
+  userId: string,
+): CollectionReference<AssistantAttemptDoc> =>
+  usersCol(db)
+    .doc(userId)
+    .collection('assistantAttempts')
+    .withConverter(converter<AssistantAttemptDoc>());
+export const assistantConversationsCol = (
+  db: Firestore,
+  userId: string,
+): CollectionReference<AssistantConversationDoc> =>
+  usersCol(db)
+    .doc(userId)
+    .collection('assistantConversations')
+    .withConverter(converter<AssistantConversationDoc>());
+/** The deployment key's monthly spend, one document per month, shared by every instance. */
+export const assistantSpendCol = (db: Firestore): CollectionReference<AssistantSpendDoc> =>
+  db.collection('assistantSpend').withConverter(converter<AssistantSpendDoc>());
 
 /**
  * Emails are compared with exact equality because Firestore has no case-insensitive

@@ -16,6 +16,7 @@ function baseView(overrides: Partial<BoardViewState> = {}): BoardViewState {
     fieldKey: null,
     fieldValue: null,
     noteId: null,
+    askOpen: false,
     ...overrides,
   };
 }

@@ -115,8 +115,11 @@ async function request<T>(
   const encodedBody = options.body !== undefined ? JSON.stringify(options.body) : undefined;
   const method = options.method ?? 'GET';
   const resource = resourceForPath(path);
+  // A question to the board writes no board state: no revision, no lane, nothing to recover.
+  const asksAssistant = /^\/whiteboards\/[^/]+\/assistant\//.test(path);
   const isBoardMutation =
     method !== 'GET' &&
+    !asksAssistant &&
     (resource !== undefined || path.startsWith('/share-links/') || path === '/whiteboards');
   const createsNote = method === 'POST' && /^\/whiteboards\/[^/]+\/notes$/.test(path);
   const redeemsLink = path.startsWith('/share-links/');

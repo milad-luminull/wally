@@ -26,6 +26,8 @@ interface ShareSheetProps {
   ownerId: string;
   isOwner: boolean;
   isBelowTablet: boolean;
+  /** Extra classes for the trigger, for the top bar's phone-width padding. */
+  triggerClassName?: string;
 }
 
 function ShareBody({
@@ -139,14 +141,20 @@ function ShareBody({
   );
 }
 
-export function ShareSheet({ boardId, ownerId, isOwner, isBelowTablet }: ShareSheetProps) {
+export function ShareSheet({
+  boardId,
+  ownerId,
+  isOwner,
+  isBelowTablet,
+  triggerClassName,
+}: ShareSheetProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // The command palette's "Share board" lands here.
   useOpenRequest('share', () => setOpen(true));
 
   const trigger = (
-    <Button variant="outline" aria-label={t('share.trigger')}>
+    <Button variant="outline" aria-label={t('share.trigger')} className={triggerClassName}>
       <UserPlus strokeWidth={1.75} />
       <span className="hidden sm:inline">{t('share.trigger')}</span>
     </Button>

@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/seed.ts",
-    "maintenance": "tsx src/maintenance.ts"
+    "maintenance": "tsx src/maintenance.ts",
+    "assistant:smoke": "tsx src/assistant-smoke.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "5.0.112",

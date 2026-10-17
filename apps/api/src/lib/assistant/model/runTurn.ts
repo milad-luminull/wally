@@ -6,10 +6,17 @@ import {
   type LanguageModelUsage,
   type ModelMessage,
   type ToolApprovalStatus,
+  type ToolResultPart,
   type ToolSet,
+  zodSchema,
 } from 'ai';
 import type { Env } from '../../../env.js';
-import { parseModelRef, resolveLanguageModel } from './config.js';
+import {
+  defaultProviderOptions,
+  parseModelRef,
+  resolveLanguageModel,
+  type ModelProviderOptions,
+} from './config.js';
 import type {
   AttemptLease,
   PendingApproval,
@@ -17,6 +24,7 @@ import type {
   TurnInput,
   TurnOutput,
   TurnRunner,
+  TurnTool,
   TurnUsage,
 } from './types.js';
 
@@ -27,7 +35,10 @@ import type {
  * its usage afterwards; the library's own retries are off, so every call is one the ledger
  * has seen.
  */
-export function createTurnRunner(model: LanguageModel): TurnRunner {
+export function createTurnRunner(
+  model: LanguageModel,
+  options: { providerOptions?: ModelProviderOptions } = {},
+): TurnRunner {
   return async (input: TurnInput): Promise<TurnOutput> => {
     // The library collects approval responses only from a trailing tool message; a user
     // message after it would run the approved write and then fail before any model call.
@@ -50,6 +61,7 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
         t.needsApproval ? 'user-approval' : 'not-applicable',
       ]),
     );
+    // What is stored: the history as it was, plus this turn.
     const messages: ModelMessage[] = [
       ...(input.history as ModelMessage[]),
       ...(input.userMessage !== undefined
@@ -83,15 +95,18 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       });
     }
     const settled: TurnUsage[] = [];
+    let unsettledSteps = 0;
     const executed: ToolCallRecord[] = [];
     const result = await generateText({
       model,
       instructions: input.instructions,
-      messages,
+      // What is sent: earlier tool results elided, so a continuation reads the board again.
+      messages: elideEarlierToolResults(messages),
       tools,
       toolApproval,
       maxRetries: 0,
       maxOutputTokens: input.maxOutputTokens,
+      ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
       abortSignal: input.abortSignal,
       stopWhen: stepCountIs(input.maxSteps),
       prepareStep: async ({ stepNumber, messages: stepMessages }) => {
@@ -105,8 +120,12 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       },
       onStepEnd: async (step) => {
         const usage = toUsage(step.usage);
-        settled.push(usage);
-        await lease?.settle(usage);
+        // Usage the provider did not report keeps the reservation (WALLY_AGENT.md §3.2):
+        // the step may have been billed, so its worst case stays charged.
+        if (usage) {
+          settled.push(usage);
+          await lease?.settle(usage);
+        } else unsettledSteps++;
         lease = undefined;
       },
       onToolExecutionEnd: ({ toolCall, toolOutput }) => {
@@ -151,11 +170,54 @@ export function createTurnRunner(model: LanguageModel): TurnRunner {
       pendingApprovals,
       toolCalls,
       usage: sum(settled),
+      unsettledSteps,
       steps: result.steps.length,
       finishReason: result.finishReason,
       messages: [...messages, ...result.responseMessages],
     };
   };
+}
+
+/**
+ * The tool definitions as the library sends them: name, description and the JSON Schema it
+ * derives from each input schema. For sizing a request outside the boundary.
+ */
+export async function toolDefinitionsJson(tools: TurnTool[]): Promise<string> {
+  const definitions = await Promise.all(
+    tools.map(async (t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: await zodSchema(t.inputSchema).jsonSchema,
+    })),
+  );
+  return JSON.stringify(definitions);
+}
+
+export const ELIDED_TOOL_RESULT = '[earlier result omitted; read the board again]';
+
+/**
+ * Board content from an earlier turn is not reused as context (WALLY_AGENT.md §3.4): the
+ * caller may no longer see it, and re-sending it would spend the caps on every turn. Every
+ * tool result already in the history is replaced by a short placeholder, per call; the tool
+ * calls and the assistant's text stay, so the model still sees what it did. A denied write
+ * holds no board content and keeps its denial. Results produced during this call are not in
+ * `history` and reach the model in full.
+ */
+function elideEarlierToolResults(history: ModelMessage[]): ModelMessage[] {
+  const elided: ToolResultPart['output'] = { type: 'text', value: ELIDED_TOOL_RESULT };
+  return history.map((message): ModelMessage => {
+    if (
+      (message.role !== 'tool' && message.role !== 'assistant') ||
+      !Array.isArray(message.content)
+    )
+      return message;
+    const content = (message.content as { type: string }[]).map((part) =>
+      part.type === 'tool-result' && (part as ToolResultPart).output.type !== 'execution-denied'
+        ? { ...(part as ToolResultPart), output: elided }
+        : part,
+    );
+    return { ...message, content } as ModelMessage;
+  });
 }
 
 /** The runner for the deployment's configured model. */
@@ -166,16 +228,27 @@ export function createConfiguredTurnRunner(
     | 'ASSISTANT_VERTEX_LOCATION'
     | 'ASSISTANT_VERTEX_PROJECT'
     | 'FIREBASE_PROJECT_ID'
+    | 'FIREBASE_CLIENT_EMAIL'
+    | 'FIREBASE_PRIVATE_KEY'
   >,
 ): TurnRunner {
-  return createTurnRunner(resolveLanguageModel(parseModelRef(env.ASSISTANT_MODEL), env));
+  const ref = parseModelRef(env.ASSISTANT_MODEL);
+  return createTurnRunner(resolveLanguageModel(ref, env), {
+    providerOptions: defaultProviderOptions(ref),
+  });
 }
 
-function toUsage(usage: LanguageModelUsage): TurnUsage {
+const isCount = (n: number | undefined): n is number =>
+  typeof n === 'number' && Number.isFinite(n) && n >= 0;
+
+/** Null when the provider did not report a usable input or output count. */
+function toUsage(usage: LanguageModelUsage): TurnUsage | null {
+  const { inputTokens, outputTokens } = usage;
+  if (!isCount(inputTokens) || !isCount(outputTokens)) return null;
   return {
-    inputTokens: usage.inputTokens ?? 0,
+    inputTokens,
     cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-    outputTokens: usage.outputTokens ?? 0,
+    outputTokens,
     reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
   };
 }

@@ -14,6 +14,7 @@ const view: BoardViewState = {
   fieldKey: null,
   fieldValue: null,
   noteId: null,
+  askOpen: false,
 };
 
 describe('filterNotes', () => {
