@@ -21,6 +21,11 @@ export interface SuggestionMark {
   fields: SuggestionFieldKey[];
   /** The proposed steps still in the change, by index; all of them at first. */
   subtasks: number[];
+  /**
+   * The person said "use mine" (the × on the title line, plan R2): the offered title is gone
+   * from the card and the review for this proposal, and cannot be ticked again.
+   */
+  titleDismissed: boolean;
   countdownEndsAt: number | null;
   countdownMs: number;
   paused: boolean;
@@ -32,7 +37,10 @@ export interface SuggestionsController {
   discard: (noteId: string, source: 'esc') => void;
   undo: (noteId: string, source: 'esc' | 'click' | 'shortcut') => void;
   undoLast: () => boolean;
-  /** The card's ×: `setField(noteId, field, false)`. */
+  /**
+   * The card's ×: `setField(noteId, field, false)`, except on the title line, where it is
+   * "use mine" and drops the offered title altogether (R2). The last field out discards.
+   */
   remove: (noteId: string, field: SuggestionFieldKey) => void;
   /**
    * Ticks a proposed field into the change or out of it. Taking out the last one discards the
@@ -241,6 +249,7 @@ export function useSuggestions(
         subtasks: suggestion.fields.subtasks
           ? suggestion.fields.subtasks.items.map((_, i) => i)
           : [],
+        titleDismissed: false,
         countdownEndsAt: endsAt,
         countdownMs: COUNTDOWN_MS,
         paused: false,
@@ -277,6 +286,7 @@ export function useSuggestions(
                 suggestion,
                 fields: suggestion.kept?.fields ?? [],
                 subtasks: suggestion.kept?.subtasks ?? [],
+                titleDismissed: false,
                 countdownEndsAt: null,
                 countdownMs: COUNTDOWN_MS,
                 paused: false,
@@ -325,6 +335,7 @@ export function useSuggestions(
         suggestion: null,
         fields: [],
         subtasks: [],
+        titleDismissed: false,
         countdownEndsAt: null,
         countdownMs: COUNTDOWN_MS,
         paused: false,
@@ -423,6 +434,8 @@ export function useSuggestions(
       const mark = latestMarks.current.get(noteId);
       if (mark?.phase !== 'pending' || !mark.suggestion || deciding.current.has(noteId)) return;
       if (mark.suggestion.fields[field] === null) return;
+      // A title the person turned down with "use mine" is no longer on offer.
+      if (field === 'title' && on && mark.titleDismissed) return;
       // Always in the enum's order, the order the server records.
       const fields = on
         ? suggestionFieldKeys.filter((k) => k === field || mark.fields.includes(k))
@@ -442,9 +455,14 @@ export function useSuggestions(
       if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
       const items = mark.suggestion?.fields.subtasks?.items ?? [];
       if (!Number.isInteger(index) || index < 0 || index >= items.length) return;
+      // With the steps out of the change (the × or every step unticked), none is ticked: one
+      // step ticked back in is that step alone, whichever way the group went out.
+      const inChange = mark.fields.includes('subtasks');
+      if (!on && !inChange) return;
+      const base = inChange ? mark.subtasks : [];
       const subtasks = on
-        ? [...new Set([...mark.subtasks, index])].sort((a, b) => a - b)
-        : mark.subtasks.filter((i) => i !== index);
+        ? [...new Set([...base, index])].sort((a, b) => a - b)
+        : base.filter((i) => i !== index);
       const fields =
         subtasks.length === 0
           ? mark.fields.filter((k) => k !== 'subtasks')
@@ -454,8 +472,24 @@ export function useSuggestions(
     [choose],
   );
   const remove = useCallback<SuggestionsController['remove']>(
-    (noteId, field) => setField(noteId, field, false),
-    [setField],
+    (noteId, field) => {
+      if (field !== 'title') {
+        setField(noteId, field, false);
+        return;
+      }
+      // "Use mine": the offered title goes, ticked or not; a change that held nothing else
+      // goes with it, as the last × always has.
+      const mark = latestMarks.current.get(noteId);
+      if (mark?.phase !== 'pending' || !mark.suggestion || deciding.current.has(noteId)) return;
+      if (mark.suggestion.fields.title === null) return;
+      choose(
+        noteId,
+        { ...mark, titleDismissed: true },
+        mark.fields.filter((k) => k !== 'title'),
+        mark.subtasks,
+      );
+    },
+    [choose, setField],
   );
   const setPaused = useCallback<SuggestionsController['setPaused']>(
     (noteId, paused) => {

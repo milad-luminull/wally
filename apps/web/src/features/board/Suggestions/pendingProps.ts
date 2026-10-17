@@ -99,10 +99,11 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
 
 /**
  * The title a pending change offers, ticked or not: the card and the review show the line in
- * both states, and it counts as taken only while `title` is in the mark's fields.
+ * both states, and it counts as taken only while `title` is in the mark's fields. Once the
+ * person chose "use mine" (the line's ×), nothing is offered any more (R2).
  */
 export function proposedTitle(mark: SuggestionMark): Proposed<'title'> | null {
-  if (mark.phase === 'asking') return null;
+  if (mark.phase === 'asking' || mark.titleDismissed) return null;
   return mark.suggestion?.fields.title ?? null;
 }
 
