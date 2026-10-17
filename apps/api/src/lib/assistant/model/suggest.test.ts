@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { MockLanguageModelV3 } from 'ai/test';
+import { createGoogleVertex } from '@ai-sdk/google-vertex';
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
+import { suggestionCallSettings } from './config.js';
 import { createSuggestionRunner } from './suggest.js';
-import type { AttemptInfo, TurnUsage } from './types.js';
+import type { AttemptInfo, ModelRef, TurnUsage } from './types.js';
 
 const usage = {
   inputTokens: { total: 40, noCache: 40, cacheRead: 0, cacheWrite: 0 },
@@ -92,5 +95,193 @@ describe('createSuggestionRunner', () => {
     await expect(createSuggestionRunner(model)(input(a.onAttempt))).rejects.toMatchObject({
       name: 'AI_APICallError',
     });
+  });
+
+  it('returns no fields when the wire shape fits but the date or a reason does not', async () => {
+    const reason = 'x'.repeat(121);
+    for (const fields of [
+      {
+        dueDate: { value: 'Freitag', confidence: 0.9, reason: 'Freitag' },
+        priority: null,
+        assignee: null,
+      },
+      { dueDate: null, priority: { value: 'HOCH', confidence: 0.9, reason }, assignee: null },
+      {
+        dueDate: null,
+        priority: null,
+        assignee: { memberId: '', confidence: 0.9, reason: 'Anna' },
+      },
+    ]) {
+      const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
+      const a = attempts();
+      const out = await createSuggestionRunner(model)(input(a.onAttempt));
+      expect(out.fields, JSON.stringify(fields)).toBeNull();
+      expect(a.settled).toHaveLength(1);
+    }
+  });
+
+  it('sends and announces the answer allowance plus the thinking room, with the options', async () => {
+    const model = new MockLanguageModelV3({ doGenerate: [reply('{}')] });
+    const a = attempts();
+    const providerOptions = { vertex: { thinkingConfig: { thinkingLevel: 'low' } } };
+    await createSuggestionRunner(model, { providerOptions, thinkingTokens: 768 })(
+      input(a.onAttempt),
+    );
+    expect(a.seen).toEqual([{ stepNumber: 0, messageCount: 1, maxOutputTokens: 1024 }]);
+    expect(model.doGenerateCalls[0]!.maxOutputTokens).toBe(1024);
+    expect(model.doGenerateCalls[0]!.providerOptions).toEqual(providerOptions);
+  });
+});
+
+/** The parts of a Gemini request body these tests read. */
+interface GeminiBody {
+  generationConfig: {
+    maxOutputTokens: number;
+    thinkingConfig: unknown;
+    responseMimeType: string;
+    responseJsonSchema: unknown;
+  };
+}
+/** The parts of an Anthropic Messages request body these tests read. */
+interface ClaudeBody {
+  max_tokens: number;
+  thinking?: unknown;
+  tools: { name: string }[];
+  tool_choice: unknown;
+}
+
+/**
+ * The configured settings, through the real Vertex provider with fetch stubbed (express-mode
+ * key, so no sign-in and no network): what the request body carries is what Vertex would get.
+ */
+describe('a suggestion call as it reaches Vertex', () => {
+  const answer = JSON.stringify({ dueDate: null, priority: null, assignee: null });
+  async function send(ref: ModelRef) {
+    const bodies: GeminiBody[] = [];
+    const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as never);
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            { content: { role: 'model', parts: [{ text: answer }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata: { promptTokenCount: 40, candidatesTokenCount: 12, totalTokenCount: 52 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    const model = createGoogleVertex({ apiKey: 'test-key', fetch })(ref.model);
+    const a = attempts();
+    const out = await createSuggestionRunner(
+      model,
+      suggestionCallSettings(ref),
+    )(input(a.onAttempt));
+    expect(out.fields).toEqual({ dueDate: null, priority: null, assignee: null });
+    expect(bodies).toHaveLength(1);
+    return { body: bodies[0]!, announced: a.seen[0]!.maxOutputTokens };
+  }
+
+  it('keeps thinking inside the allowance it announces, leaving the answer its 256', async () => {
+    for (const [model, thinking, total] of [
+      ['gemini-2.5-flash', { thinkingBudget: 0 }, 256],
+      ['gemini-2.5-flash-lite', { thinkingBudget: 0 }, 256],
+      ['gemini-2.5-pro', { thinkingBudget: 128 }, 384],
+      ['gemini-3.8-flash', { thinkingLevel: 'low' }, 1024],
+    ] as const) {
+      const { body, announced } = await send({ provider: 'vertex', model });
+      const config = body.generationConfig;
+      expect(config.thinkingConfig, model).toEqual(thinking);
+      expect(config.maxOutputTokens, model).toBe(total);
+      expect(announced, model).toBe(total);
+      if ('thinkingBudget' in thinking)
+        expect(config.maxOutputTokens - thinking.thinkingBudget, model).toBe(256);
+    }
+  });
+
+  it('sends only schema keywords Gemini documents for structured output, and the library header', async () => {
+    const { body } = await send({ provider: 'vertex', model: 'gemini-2.5-flash' });
+    const schema = body.generationConfig.responseJsonSchema;
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+    const keywords = new Set<string>();
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      for (const [key, value] of Object.entries(node)) {
+        keywords.add(key);
+        if (key === 'properties') Object.values(value as object).forEach(walk);
+        else if (key === 'anyOf') (value as unknown[]).forEach(walk);
+      }
+    };
+    walk(schema);
+    // `$schema` is the library's own header on every schema it sends; the page does not list it.
+    const documented = [
+      '$schema',
+      'type',
+      'properties',
+      'required',
+      'additionalProperties',
+      'enum',
+      'minimum',
+      'maximum',
+      'anyOf',
+      'description',
+    ];
+    expect([...keywords].filter((k) => !documented.includes(k))).toEqual([]);
+    expect(keywords).not.toContain('pattern');
+    expect(keywords).not.toContain('maxLength');
+  });
+});
+
+/** Claude on Vertex, with fetch and the sign-in stubbed: how the same call reaches Anthropic's API. */
+describe('a suggestion call as it reaches Claude on Vertex', () => {
+  const g = globalThis as { AI_SDK_LOG_WARNINGS?: boolean };
+  beforeAll(() => void (g.AI_SDK_LOG_WARNINGS = false));
+  afterAll(() => void delete g.AI_SDK_LOG_WARNINGS);
+  it('asks for the schema through a JSON tool within the allowance, and reads its input back', async () => {
+    const bodies: ClaudeBody[] = [];
+    const fields = {
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+      priority: null,
+      assignee: null,
+    };
+    const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as never);
+      return new Response(
+        JSON.stringify({
+          id: 'msg_1',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-sonnet-5-5',
+          content: [{ type: 'tool_use', id: 'toolu_1', name: 'json', input: fields }],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: { input_tokens: 40, output_tokens: 30 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    const ref: ModelRef = { provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' };
+    const model = createVertexAnthropic({
+      project: 'wally-test',
+      location: 'europe-west1',
+      generateAuthToken: async () => 'test-token',
+      fetch,
+    })(ref.model);
+    const a = attempts();
+    const out = await createSuggestionRunner(
+      model,
+      suggestionCallSettings(ref),
+    )(input(a.onAttempt));
+    expect(out.fields).toEqual(fields);
+    expect(a.seen[0]!.maxOutputTokens).toBe(256);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]!.max_tokens).toBe(256);
+    expect(bodies[0]!.thinking).toBeUndefined();
+    expect(bodies[0]!.tools.map((t) => t.name)).toEqual(['json']);
+    // Vertex has no native output format here, and this model refuses a forced tool, so the
+    // library offers the JSON tool without forcing it (and warns): a prose reply is "nothing".
+    expect(bodies[0]!.tool_choice).toMatchObject({ type: 'auto' });
+    expect(a.settled).toEqual([
+      { inputTokens: 40, cachedInputTokens: 0, outputTokens: 30, reasoningTokens: 0 },
+    ]);
   });
 });

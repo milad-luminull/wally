@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultProviderOptions,
+  GEMINI_25_PRO_MIN_THINKING_BUDGET,
   GEMINI_25_THINKING_BUDGET,
+  GEMINI_3_SUGGESTION_THINKING_TOKENS,
   parseModelRef,
   resolveLanguageModel,
+  suggestionCallSettings,
 } from './config.js';
 
 const env: Parameters<typeof resolveLanguageModel>[1] = {
@@ -79,5 +82,44 @@ describe('defaultProviderOptions', () => {
       defaultProviderOptions({ provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' }),
     ).toBeUndefined();
     expect(defaultProviderOptions({ provider: 'vertex', model: 'gemma-3-27b-it' })).toBeUndefined();
+  });
+});
+
+describe('suggestionCallSettings', () => {
+  it('turns thinking off on Gemini 2.5 Flash and Flash-Lite, with no room added', () => {
+    for (const model of ['gemini-2.5-flash', 'gemini-2.5-flash-lite']) {
+      expect(suggestionCallSettings({ provider: 'vertex', model }), model).toEqual({
+        providerOptions: { vertex: { thinkingConfig: { thinkingBudget: 0 } } },
+        thinkingTokens: 0,
+      });
+    }
+  });
+  it('gives Gemini 2.5 Pro its minimum budget and exactly that much room', () => {
+    expect(suggestionCallSettings({ provider: 'vertex', model: 'gemini-2.5-pro' })).toEqual({
+      providerOptions: {
+        vertex: { thinkingConfig: { thinkingBudget: GEMINI_25_PRO_MIN_THINKING_BUDGET } },
+      },
+      thinkingTokens: GEMINI_25_PRO_MIN_THINKING_BUDGET,
+    });
+  });
+  it('gives Gemini 3 and later the lowest level 3.8 Flash lists, with room for it', () => {
+    expect(suggestionCallSettings({ provider: 'vertex', model: 'gemini-3.8-flash' })).toEqual({
+      providerOptions: { vertex: { thinkingConfig: { thinkingLevel: 'low' } } },
+      thinkingTokens: GEMINI_3_SUGGESTION_THINKING_TOKENS,
+    });
+  });
+  it('never lets a numeric budget exceed the room it adds', () => {
+    for (const model of ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro']) {
+      const settings = suggestionCallSettings({ provider: 'vertex', model });
+      const budget = (
+        settings.providerOptions?.vertex?.thinkingConfig as { thinkingBudget: number }
+      ).thinkingBudget;
+      expect(budget, model).toBeLessThanOrEqual(settings.thinkingTokens);
+    }
+  });
+  it('leaves Claude on Vertex alone', () => {
+    expect(
+      suggestionCallSettings({ provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' }),
+    ).toEqual({ thinkingTokens: 0 });
   });
 });

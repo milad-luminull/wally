@@ -80,3 +80,56 @@ export function defaultProviderOptions(ref: ModelRef): ModelProviderOptions | un
     : { thinkingLevel: 'low' };
   return { vertex: { thinkingConfig } };
 }
+
+/**
+ * Gemini 2.5 Pro's lowest thinking budget. Vertex AI's thinking page: Pro takes 128 to 32,768
+ * and its thinking cannot be turned off; Flash and Flash-Lite turn it off with a budget of 0.
+ */
+export const GEMINI_25_PRO_MIN_THINKING_BUDGET = 128;
+
+/**
+ * Room added for a Gemini 3+ model's thinking at `thinkingLevel: 'low'`, which no setting turns
+ * off on 3.8 or 3.7 Flash (their lowest listed level is LOW) and which has no token bound of its
+ * own. Sized so a 256-token answer gets the same 1024 total a question step runs 'low' with
+ * (turn.ts); whether that is always enough is unverified, and running short ends as
+ * finishReason 'length', which the runner reports as nothing proposed.
+ */
+export const GEMINI_3_SUGGESTION_THINKING_TOKENS = 768;
+
+/** How one suggestion call bounds the model's thinking, and how much room that thinking takes. */
+export interface SuggestionCallSettings {
+  providerOptions?: ModelProviderOptions;
+  /**
+   * Tokens the call may spend thinking, on top of the answer's allowance. Thinking counts
+   * inside the request's maxOutputTokens and is billed as output (Gemini API thinking page),
+   * so the runner sends and announces the answer's allowance plus this.
+   */
+  thinkingTokens: number;
+}
+
+/**
+ * A suggestion's answer is a few short JSON fields (WALLYBOT_INLINE.md §4), so it gets its
+ * own thinking settings rather than a question step's (`defaultProviderOptions`, sized for
+ * 1024): off where the model allows it, the documented minimum otherwise, with that minimum
+ * added to the call's allowance so thinking can never use up the answer's room. Claude on
+ * Vertex thinks only when asked to, so it needs nothing.
+ */
+export function suggestionCallSettings(ref: ModelRef): SuggestionCallSettings {
+  if (ref.provider !== 'vertex' || !ref.model.startsWith('gemini-')) return { thinkingTokens: 0 };
+  if (ref.model.startsWith('gemini-2.5-pro'))
+    return {
+      providerOptions: {
+        vertex: { thinkingConfig: { thinkingBudget: GEMINI_25_PRO_MIN_THINKING_BUDGET } },
+      },
+      thinkingTokens: GEMINI_25_PRO_MIN_THINKING_BUDGET,
+    };
+  if (ref.model.startsWith('gemini-2.5'))
+    return {
+      providerOptions: { vertex: { thinkingConfig: { thinkingBudget: 0 } } },
+      thinkingTokens: 0,
+    };
+  return {
+    providerOptions: { vertex: { thinkingConfig: { thinkingLevel: 'low' } } },
+    thinkingTokens: GEMINI_3_SUGGESTION_THINKING_TOKENS,
+  };
+}

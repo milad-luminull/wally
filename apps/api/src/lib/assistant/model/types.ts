@@ -104,9 +104,13 @@ export type TurnRunner = (input: TurnInput) => Promise<TurnOutput>;
 export interface SuggestionInput {
   instructions: string;
   prompt: string;
+  /** The answer's allowance. The runner adds the configured model's thinking room on top. */
   maxOutputTokens: number;
   abortSignal?: AbortSignal;
-  /** Called once before the call. Throwing means the call is not dispatched. */
+  /**
+   * Called once before the call. Throwing means the call is not dispatched. `info.maxOutputTokens`
+   * is everything the call may produce and be billed for, thinking included: reserve that.
+   */
   onAttempt: (info: AttemptInfo) => Promise<AttemptLease>;
 }
 export interface ModelSuggestion {
