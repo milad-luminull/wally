@@ -109,6 +109,11 @@ describe('the capture prompt', () => {
       /^reference: .*like Customer: Müller GmbH, Project: Relaunch, Contract number: 4711\./m,
     );
     expect(CAPTURE_INSTRUCTIONS_PREFIX).not.toMatch(/Kunde|Projekt|Vertragsnr/);
+    // English examples must not pull a German note toward an English key: a new key follows
+    // the note's words, as the title and the subtasks do.
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(
+      /^reference: .*a new key is in the language of the words\./m,
+    );
     // Capture is bilingual: German words people type still mark a priority.
     expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^priority: .*dringend, wichtig, sofort/m);
     expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^priority: .*irgendwann, nebenbei/m);
