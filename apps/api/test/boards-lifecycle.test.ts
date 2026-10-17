@@ -22,7 +22,7 @@ afterAll(async () => {
   await ctx.app.close();
 });
 
-const create = (token: string, name = 'Projekt Nord', key = randomUUID()) =>
+const create = (token: string, name = 'Project North', key = randomUUID()) =>
   ctx.app.inject({
     method: 'POST',
     url: '/whiteboards',
@@ -41,7 +41,7 @@ describe('board.create', () => {
     expect(res.statusCode).toBe(201);
     const dto = res.json();
     expect(dto).toMatchObject({
-      name: 'Projekt Nord',
+      name: 'Project North',
       ownerId: fx.ownerId,
       currentUserRole: 'OWNER',
       revision: 1,
@@ -49,18 +49,18 @@ describe('board.create', () => {
     expect(dto.id).not.toBe(fx.ownerId);
     expect(res.headers['x-resource-revision']).toBe('1');
     expect(await listIds(fx.ownerToken)).toEqual(
-      expect.arrayContaining([{ id: dto.id, name: 'Projekt Nord', currentUserRole: 'OWNER' }]),
+      expect.arrayContaining([{ id: dto.id, name: 'Project North', currentUserRole: 'OWNER' }]),
     );
   });
 
   it('replays the same operation id instead of creating twice', async () => {
     const key = randomUUID();
-    const first = await create(fx.ownerToken, 'Einmal', key);
-    const second = await create(fx.ownerToken, 'Einmal', key);
+    const first = await create(fx.ownerToken, 'Once', key);
+    const second = await create(fx.ownerToken, 'Once', key);
     expect(second.statusCode).toBe(201);
     expect(second.json()).toEqual(first.json());
-    expect((await create(fx.ownerToken, 'Anders', key)).statusCode).toBe(409);
-    expect((await listIds(fx.ownerToken)).filter((b) => b.name === 'Einmal')).toHaveLength(1);
+    expect((await create(fx.ownerToken, 'Different', key)).statusCode).toBe(409);
+    expect((await listIds(fx.ownerToken)).filter((b) => b.name === 'Once')).toHaveLength(1);
   });
 
   it('refuses a blank name and a missing operation id', async () => {
@@ -77,8 +77,8 @@ describe('board.create', () => {
   it('stops at MAX_OWN_BOARDS live boards', async () => {
     // The fixture owner already owns their provisioned board.
     for (let i = 1; i < MAX_OWN_BOARDS; i++)
-      expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
-    const over = await create(fx.ownerToken, 'Eine zu viel');
+      expect((await create(fx.ownerToken, `Board ${i}`)).statusCode).toBe(201);
+    const over = await create(fx.ownerToken, 'One too many');
     expect(over.statusCode).toBe(422);
     expect(over.json().error).toBe('BOARD_LIMIT_REACHED');
   });
@@ -104,14 +104,14 @@ describe('board.delete', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: owner,
-        payload: { title: 'Weg damit' },
+        payload: { title: 'Away with it' },
       })
     ).json();
     await ctx.inject({
       method: 'POST',
       url: `/notes/${note.id}/subtasks`,
       headers: owner,
-      payload: { text: 'Teil' },
+      payload: { text: 'Part' },
     });
     await ctx.inject({
       method: 'POST',
@@ -161,7 +161,7 @@ describe('board.delete', () => {
           method: 'POST',
           url: `/whiteboards/${fx.boardId}/notes`,
           headers: owner,
-          payload: { title: `Notiz ${i}` },
+          payload: { title: `Note ${i}` },
         })
       ).json();
       ids.push(note.id);
@@ -170,7 +170,7 @@ describe('board.delete', () => {
           method: 'POST',
           url: `/notes/${note.id}/subtasks`,
           headers: owner,
-          payload: { text: 'Teil' },
+          payload: { text: 'Part' },
         });
     }
     // One note's deletion fails; the others go through.
@@ -193,7 +193,7 @@ describe('board.delete', () => {
       method: 'PATCH',
       url: `/whiteboards/${fx.boardId}`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { name: 'Umbenannt' },
+      payload: { name: 'Renamed' },
     });
     const stale = await ctx.app.inject({
       method: 'DELETE',
@@ -212,10 +212,10 @@ describe('board.delete', () => {
 
   it('frees a slot under MAX_OWN_BOARDS', async () => {
     for (let i = 1; i < MAX_OWN_BOARDS; i++)
-      expect((await create(fx.ownerToken, `Wand ${i}`)).statusCode).toBe(201);
-    expect((await create(fx.ownerToken, 'Zu viel')).statusCode).toBe(422);
+      expect((await create(fx.ownerToken, `Board ${i}`)).statusCode).toBe(201);
+    expect((await create(fx.ownerToken, 'Too many')).statusCode).toBe(422);
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
-    expect((await create(fx.ownerToken, 'Passt wieder')).statusCode).toBe(201);
+    expect((await create(fx.ownerToken, 'Fits again')).statusCode).toBe(201);
   });
 });
 
@@ -235,7 +235,7 @@ describe('board.leave', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: owner,
-        payload: { title: 'Für Editor' },
+        payload: { title: 'For the editor' },
       })
     ).json();
     const assigned = await ctx.inject({

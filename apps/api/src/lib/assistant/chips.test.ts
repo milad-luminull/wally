@@ -3,23 +3,23 @@ import { resolveChips } from './chips.js';
 
 describe('resolveChips', () => {
   const visible = new Map([
-    ['n1', 'Müller anrufen'],
-    ['n2', 'Angebot schreiben'],
+    ['n1', 'Call Müller'],
+    ['n2', 'Write the quote'],
   ]);
   it('replaces a valid marker with the title and lists the note once', () => {
-    const out = resolveChips('Offen: [note:n1] und [note:n2]. Zuerst [note:n1].', visible);
-    expect(out.text).toBe('Offen: Müller anrufen und Angebot schreiben. Zuerst Müller anrufen.');
+    const out = resolveChips('Open: [note:n1] and [note:n2]. First [note:n1].', visible);
+    expect(out.text).toBe('Open: Call Müller and Write the quote. First Call Müller.');
     expect(out.chips).toEqual([
-      { id: 'n1', title: 'Müller anrufen' },
-      { id: 'n2', title: 'Angebot schreiben' },
+      { id: 'n1', title: 'Call Müller' },
+      { id: 'n2', title: 'Write the quote' },
     ]);
   });
   it('drops a marker the caller cannot see without leaving a trace', () => {
-    const out = resolveChips('Siehe [note:secret] und [note:n1].', visible);
-    expect(out.text).toBe('Siehe und Müller anrufen.');
-    expect(out.chips).toEqual([{ id: 'n1', title: 'Müller anrufen' }]);
+    const out = resolveChips('See [note:secret] and [note:n1].', visible);
+    expect(out.text).toBe('See and Call Müller.');
+    expect(out.chips).toEqual([{ id: 'n1', title: 'Call Müller' }]);
   });
   it('leaves text without markers unchanged', () => {
-    expect(resolveChips('Nichts offen.', visible)).toEqual({ text: 'Nichts offen.', chips: [] });
+    expect(resolveChips('Nothing open.', visible)).toEqual({ text: 'Nothing open.', chips: [] });
   });
 });

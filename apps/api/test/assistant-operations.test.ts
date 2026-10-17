@@ -54,7 +54,7 @@ describe('runOperation', () => {
 
   it('creates, lists and reads a note', async () => {
     await fixture();
-    const created = await create(owner, { title: 'Müller anrufen', priority: 'HOCH' });
+    const created = await create(owner, { title: 'Call Müller', priority: 'HOCH' });
     expect(created.revision).toBe(1);
     const noteId = idOf(created);
 
@@ -64,7 +64,7 @@ describe('runOperation', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       id: noteId,
-      title: 'Müller anrufen',
+      title: 'Call Müller',
       revision: 1,
       priority: 'HOCH',
     });
@@ -72,7 +72,7 @@ describe('runOperation', () => {
 
     const detail = await runOperation(as(owner), call('get_note', { boardId, noteId }));
     expect(detail.revision).toBe(1);
-    expect(detail.data).toMatchObject({ id: noteId, title: 'Müller anrufen', subtasks: [] });
+    expect(detail.data).toMatchObject({ id: noteId, title: 'Call Müller', subtasks: [] });
     expect(detail.data).not.toHaveProperty('history');
   });
 
@@ -88,14 +88,14 @@ describe('runOperation', () => {
 
   it('passes filters through to the query', async () => {
     await fixture();
-    await create(owner, { title: 'hoch', priority: 'HOCH' });
-    await create(owner, { title: 'niedrig', priority: 'NIEDRIG' });
+    await create(owner, { title: 'high', priority: 'HOCH' });
+    await create(owner, { title: 'low', priority: 'NIEDRIG' });
     const list = await runOperation(
       as(owner),
-      call('list_notes', { boardId, priority: ['HOCH'], q: 'ho' }),
+      call('list_notes', { boardId, priority: ['HOCH'], q: 'hi' }),
     );
     expect((list.data as { notes: { title: string }[] }).notes.map((n) => n.title)).toEqual([
-      'hoch',
+      'high',
     ]);
   });
 
@@ -126,7 +126,7 @@ describe('runOperation', () => {
     expect(moved.revision).toBe(3);
     const sub = await runOperation(
       as(owner),
-      call('add_subtask', { boardId, noteId, expectedRevision: 3, input: { text: 'Teil 1' } }),
+      call('add_subtask', { boardId, noteId, expectedRevision: 3, input: { text: 'Part 1' } }),
     );
     const subtaskId = idOf(sub);
     const toggled = await runOperation(
@@ -176,7 +176,7 @@ describe('runOperation', () => {
     const noteId = idOf(await create(owner, { title: 'x' }));
     const sub = await runOperation(
       as(owner),
-      call('add_subtask', { boardId, noteId, expectedRevision: 1, input: { text: 'Teil 1' } }),
+      call('add_subtask', { boardId, noteId, expectedRevision: 1, input: { text: 'Part 1' } }),
     );
     const subtaskId = idOf(sub);
     const del = call('delete_subtask', {

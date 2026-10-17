@@ -95,10 +95,10 @@ describe('whiteboard routes', () => {
         method: 'PATCH',
         url: `/whiteboards/${fx.boardId}`,
         headers: ctx.authHeader(fx.ownerToken),
-        payload: { name: 'Neuer Name' },
+        payload: { name: 'New name' },
       });
       expect(res.statusCode).toBe(200);
-      expect(res.json().name).toBe('Neuer Name');
+      expect(res.json().name).toBe('New name');
     });
 
     it('replays a receipt written before assistantEnabled existed, reading it as false', async () => {
@@ -112,7 +112,7 @@ describe('whiteboard routes', () => {
           'idempotency-key': randomUUID(),
           'x-expected-revision': String(revision),
         },
-        payload: { name: 'Neuer Name' },
+        payload: { name: 'New name' },
       };
       const first = await ctx.inject(request);
       expect(first.statusCode).toBe(200);
@@ -124,7 +124,7 @@ describe('whiteboard routes', () => {
 
       const replay = await ctx.inject(request);
       expect(replay.statusCode).toBe(200);
-      expect(replay.json()).toMatchObject({ name: 'Neuer Name', assistantEnabled: false });
+      expect(replay.json()).toMatchObject({ name: 'New name', assistantEnabled: false });
     });
 
     it('403s for an EDIT member', async () => {

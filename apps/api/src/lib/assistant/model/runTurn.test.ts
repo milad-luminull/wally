@@ -55,7 +55,7 @@ function input(partial: Partial<TurnInput>, t = tools()): TurnInput {
   return {
     instructions: 'You are Wally.',
     history: [],
-    userMessage: 'Was ist heute offen?',
+    userMessage: 'What is open today?',
     tools: [t.list, t.create],
     maxOutputTokens: 256,
     maxSteps: 4,
@@ -109,7 +109,7 @@ describe('createTurnRunner', () => {
   it('executes a read tool and continues to the answer, one attempt per step', async () => {
     const t = tools();
     const model = new MockLanguageModelV3({
-      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Drei Notizen.')],
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Three notes.')],
     });
     const a = attempts();
     const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }, t));
@@ -122,7 +122,7 @@ describe('createTurnRunner', () => {
         output: { notes: [], truncated: false, total: 0 },
       },
     ]);
-    expect(out.text).toBe('Drei Notizen.');
+    expect(out.text).toBe('Three notes.');
     expect(out.steps).toBe(2);
     expect(a.seen.map((s) => s.stepNumber)).toEqual([0, 1]);
     expect(a.settled).toHaveLength(2);
@@ -153,7 +153,7 @@ describe('createTurnRunner', () => {
     });
     const paused = await createTurnRunner(first)(input({}, t));
     for (const approved of [true, false]) {
-      const second = new MockLanguageModelV3({ doGenerate: [text('Fertig.')] });
+      const second = new MockLanguageModelV3({ doGenerate: [text('Finished.')] });
       const out = await createTurnRunner(second)(
         input(
           {
@@ -164,7 +164,7 @@ describe('createTurnRunner', () => {
           t,
         ),
       );
-      expect(out.text).toBe('Fertig.');
+      expect(out.text).toBe('Finished.');
       expect(second.doGenerateCalls).toHaveLength(1);
       expect(second.doGenerateCalls[0]!.toolChoice).not.toEqual({ type: 'required' });
     }
@@ -174,7 +174,7 @@ describe('createTurnRunner', () => {
     const t = tools();
     const model = new MockLanguageModelV3({
       doGenerate: [
-        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Call Müller' } }),
       ],
     });
     const out = await createTurnRunner(model)(input({}, t));
@@ -184,7 +184,7 @@ describe('createTurnRunner', () => {
     expect(out.pendingApprovals[0]).toMatchObject({
       toolCallId: 'c2',
       toolName: 'create_note',
-      input: { boardId: 'b1', input: { title: 'Müller anrufen' } },
+      input: { boardId: 'b1', input: { title: 'Call Müller' } },
     });
     expect(out.pendingApprovals[0]!.approvalId).toEqual(expect.any(String));
     expect(out.finishReason).toBe('tool-calls');
@@ -194,11 +194,11 @@ describe('createTurnRunner', () => {
     const t = tools();
     const first = new MockLanguageModelV3({
       doGenerate: [
-        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Call Müller' } }),
       ],
     });
     const paused = await createTurnRunner(first)(input({}, t));
-    const second = new MockLanguageModelV3({ doGenerate: [text('Erledigt.')] });
+    const second = new MockLanguageModelV3({ doGenerate: [text('Done.')] });
     const out = await createTurnRunner(second)(
       input(
         {
@@ -212,13 +212,13 @@ describe('createTurnRunner', () => {
     expect(t.create.execute).toHaveBeenCalledTimes(1);
     expect(t.create.execute).toHaveBeenCalledWith({
       boardId: 'b1',
-      input: { title: 'Müller anrufen' },
+      input: { title: 'Call Müller' },
     });
     expect(out.toolCalls[0]).toMatchObject({
       toolName: 'create_note',
       output: { id: 'n1', revision: 1 },
     });
-    expect(out.text).toBe('Erledigt.');
+    expect(out.text).toBe('Done.');
     expect(out.pendingApprovals).toEqual([]);
   });
 
@@ -226,11 +226,11 @@ describe('createTurnRunner', () => {
     const t = tools();
     const first = new MockLanguageModelV3({
       doGenerate: [
-        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Call Müller' } }),
       ],
     });
     const paused = await createTurnRunner(first)(input({}, t));
-    const second = new MockLanguageModelV3({ doGenerate: [text('Erledigt.')] });
+    const second = new MockLanguageModelV3({ doGenerate: [text('Done.')] });
     const a = attempts();
     await createTurnRunner(second)(
       input(
@@ -257,7 +257,7 @@ describe('createTurnRunner', () => {
     const t = tools();
     const first = new MockLanguageModelV3({
       doGenerate: [
-        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Call Müller' } }),
       ],
     });
     const paused = await createTurnRunner(first)(input({}, t));
@@ -287,7 +287,7 @@ describe('createTurnRunner', () => {
     const t = tools();
     const first = new MockLanguageModelV3({
       doGenerate: [
-        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Müller anrufen' } }),
+        toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'Call Müller' } }),
       ],
     });
     const paused = await createTurnRunner(first)(input({}, t));
@@ -298,7 +298,7 @@ describe('createTurnRunner', () => {
         input(
           {
             history: paused.messages,
-            userMessage: 'Und noch etwas',
+            userMessage: 'And one more thing',
             approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved: true }],
             onAttempt: a.onAttempt,
           },
@@ -330,7 +330,7 @@ describe('createTurnRunner', () => {
     expect(paused.pendingApprovals).toHaveLength(1);
     expect(paused.pendingApprovals[0]!.input).toEqual({ boardId: 'b1', title: 'T' });
 
-    const second = new MockLanguageModelV3({ doGenerate: [text('Erledigt.')] });
+    const second = new MockLanguageModelV3({ doGenerate: [text('Done.')] });
     const out = await createTurnRunner(second)(
       input(
         {
@@ -357,7 +357,7 @@ describe('createTurnRunner', () => {
       doGenerate: [toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'x' } })],
     });
     const paused = await createTurnRunner(first)(input({}, t));
-    const second = new MockLanguageModelV3({ doGenerate: [text('Verworfen.')] });
+    const second = new MockLanguageModelV3({ doGenerate: [text('Discarded.')] });
     const out = await createTurnRunner(second)(
       input(
         {
@@ -375,7 +375,7 @@ describe('createTurnRunner', () => {
       ),
     );
     expect(t.create.execute).not.toHaveBeenCalled();
-    expect(out.text).toBe('Verworfen.');
+    expect(out.text).toBe('Discarded.');
     expect(second.doGenerateCalls).toHaveLength(1);
   });
 
@@ -536,12 +536,12 @@ describe('createTurnRunner', () => {
     const model = new MockLanguageModelV3({
       doGenerate: [
         { ...toolCall('c1', 'list_notes', { boardId: 'b1' }), usage: unreported },
-        { ...text('Ohne Zählung.'), usage: unreported },
+        { ...text('Not counted.'), usage: unreported },
       ],
     });
     const a = attempts();
     const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }));
-    expect(out.text).toBe('Ohne Zählung.');
+    expect(out.text).toBe('Not counted.');
     expect(a.seen).toHaveLength(2);
     expect(a.settled).toEqual([]);
     expect(out.unsettledSteps).toBe(2);
@@ -570,23 +570,23 @@ describe('createTurnRunner', () => {
   });
 
   it('sends earlier tool results elided, keeping the calls, and stores them in full', async () => {
-    const marker = 'MARKER-Mueller-anrufen';
+    const marker = 'MARKER-call-Mueller';
     const t = tools({
       list_notes: {
         execute: vi.fn(async () => ({ notes: [{ id: 'n1', title: marker }], truncated: false })),
       },
     });
     const first = new MockLanguageModelV3({
-      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Eine Notiz.')],
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('One note.')],
     });
     const earlier = await createTurnRunner(first)(input({}, t));
     expect(JSON.stringify(earlier.messages)).toContain(marker);
 
     const second = new MockLanguageModelV3({
-      doGenerate: [toolCall('c3', 'list_notes', { boardId: 'b1' }), text('Weiter.')],
+      doGenerate: [toolCall('c3', 'list_notes', { boardId: 'b1' }), text('Go on.')],
     });
     const out = await createTurnRunner(second)(
-      input({ history: earlier.messages, userMessage: 'Und jetzt?' }, t),
+      input({ history: earlier.messages, userMessage: 'And now?' }, t),
     );
     const sent = JSON.stringify(second.doGenerateCalls[0]!.prompt);
     expect(sent).not.toContain(marker);
@@ -600,7 +600,7 @@ describe('createTurnRunner', () => {
         ]),
       }),
     );
-    expect(sent).toContain('Eine Notiz.');
+    expect(sent).toContain('One note.');
     // Elision is per call: the stored history keeps the result.
     expect(JSON.stringify(out.messages)).toContain(marker);
     expect(out.messages.slice(0, earlier.messages.length)).toEqual(earlier.messages);

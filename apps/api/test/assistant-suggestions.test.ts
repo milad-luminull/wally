@@ -50,8 +50,8 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
     // The first word after `all` is the member the model names; the rest is ordinary text.
     const memberId = title.slice('all '.length).split(' ')[0] || 'nobody';
     return settle({
-      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
-      priority: { value: 'HOCH', confidence: 0.8, reason: 'dringend' },
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
+      priority: { value: 'HOCH', confidence: 0.8, reason: 'urgent' },
       assignee: { memberId, confidence: 0.95, reason: 'Anna' },
       ...noProposal,
     });
@@ -60,7 +60,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
   if (title.startsWith('unknown'))
     return {
       fields: {
-        dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+        dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
         priority: null,
         assignee: null,
         ...noProposal,
@@ -71,7 +71,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
   // A date before the person's today (2026-10-17 in these tests).
   if (title.startsWith('past'))
     return settle({
-      dueDate: { value: '2026-10-01', confidence: 0.9, reason: 'Anfang Oktober' },
+      dueDate: { value: '2026-10-01', confidence: 0.9, reason: 'early October' },
       priority: null,
       assignee: null,
       ...noProposal,
@@ -79,15 +79,20 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
   // Slice 3: a cleaner title, a property and three steps beside a date.
   if (title.startsWith('review'))
     return settle({
-      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
       priority: null,
       assignee: null,
-      title: { value: 'Angebot an Müller', confidence: 0.8, reason: 'kürzer' },
-      reference: { key: 'kunde', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde genannt' },
+      title: { value: 'Quote for Müller', confidence: 0.8, reason: 'shorter' },
+      reference: {
+        key: 'customer',
+        value: 'Müller GmbH',
+        confidence: 0.9,
+        reason: 'customer named',
+      },
       subtasks: {
-        items: ['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden'],
+        items: ['Check the documents', 'Write the quote', 'Send the quote'],
         confidence: 0.8,
-        reason: 'drei Schritte',
+        reason: 'three steps',
       },
     });
   // A "cleaner" title that is the note's own: nothing to offer.
@@ -96,7 +101,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       dueDate: null,
       priority: null,
       assignee: null,
-      title: { value: 'sametitle', confidence: 0.9, reason: 'gleich' },
+      title: { value: 'sametitle', confidence: 0.9, reason: 'same' },
       reference: null,
       subtasks: null,
     });
@@ -107,8 +112,8 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       priority: null,
       assignee: null,
       title: null,
-      reference: { key: 'Kun.de', value: 'x', confidence: 0.9, reason: 'Punkt im Namen' },
-      subtasks: { items: ['a', 'a', ' '], confidence: 0.9, reason: 'doppelt' },
+      reference: { key: 'Cust.omer', value: 'x', confidence: 0.9, reason: 'dot in the name' },
+      subtasks: { items: ['a', 'a', ' '], confidence: 0.9, reason: 'doubled' },
     });
   // Doubled and blank steps beside two real ones: the two survive, in order.
   if (title.startsWith('dupsteps'))
@@ -118,7 +123,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       assignee: null,
       title: null,
       reference: null,
-      subtasks: { items: [' a', 'a', ' ', 'b '], confidence: 0.9, reason: 'doppelt' },
+      subtasks: { items: [' a', 'a', ' ', 'b '], confidence: 0.9, reason: 'doubled' },
     });
   // A cleaner title and nothing else: the countdown has nothing it may keep (plan R2).
   if (title.startsWith('titleonly'))
@@ -126,19 +131,19 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       dueDate: null,
       priority: null,
       assignee: null,
-      title: { value: 'Nur ein Titel', confidence: 0.9, reason: 'kürzer' },
+      title: { value: 'Just a title', confidence: 0.9, reason: 'shorter' },
       reference: null,
       subtasks: null,
     });
   if (title.startsWith('unsure'))
     return settle({
-      dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'vielleicht' },
+      dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'maybe' },
       priority: null,
       assignee: null,
       ...noProposal,
     });
   return settle({
-    dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+    dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
     priority: null,
     assignee: null,
     ...noProposal,
@@ -221,7 +226,7 @@ describe('capture suggestions', () => {
   it('proposes the fields the note leaves empty and reserves then settles the call', async () => {
     const fx = await createBoardFixture(ctx);
     const n = (
-      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor dringend' })
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor urgent' })
     ).json();
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(200);
@@ -232,8 +237,8 @@ describe('capture suggestions', () => {
       status: 'PENDING',
       baseRevision: n.revision,
       fields: {
-        dueDate: { value: '2026-10-23', reason: 'Freitag' },
-        priority: { value: 'HOCH', reason: 'dringend' },
+        dueDate: { value: '2026-10-23', reason: 'Friday' },
+        priority: { value: 'HOCH', reason: 'urgent' },
         assignee: { value: { id: 'fx-editor', displayName: 'Editor' }, reason: 'Anna' },
         title: null,
         reference: null,
@@ -248,7 +253,7 @@ describe('capture suggestions', () => {
     expect(usageDoc?.tokens).toBe(70);
     expect(usageDoc?.inFlight).toEqual({});
     // The prompt carries the words and the members by id; the note was not changed.
-    expect(lastInput?.prompt).toContain('Title: all fx-editor dringend');
+    expect(lastInput?.prompt).toContain('Title: all fx-editor urgent');
     expect(lastInput?.prompt).toContain('fx-editor: Editor');
     expect((await note(n.id)).revision).toBe(n.revision);
   });
@@ -261,14 +266,14 @@ describe('capture suggestions', () => {
         dueDate: '2026-10-20',
         priority: 'HOCH',
         assigneeId: 'fx-editor',
-        customFields: { Projekt: 'X' },
+        customFields: { Project: 'X' },
       })
     ).json();
     await ctx.inject({
       method: 'POST',
       url: `/notes/${n.id}/subtasks`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { text: 'Schritt' },
+      payload: { text: 'Step' },
     });
     // Every field is filled, the note has a property and a step, and the title was the
     // person's own decision.
@@ -314,7 +319,7 @@ describe('capture suggestions', () => {
   it('reads a record from slice 2, with no title, reference or subtasks, as proposing nothing there', async () => {
     const fx = await createBoardFixture(ctx);
     const n = (
-      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor dringend' })
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor urgent' })
     ).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).update({
@@ -372,7 +377,7 @@ describe('capture suggestions', () => {
 
   it('keeps the reservation when the provider reports no usage', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'unknown Freitag' })).json();
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'unknown Friday' })).json();
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.fields.dueDate).toMatchObject({ value: '2026-10-23' });
@@ -528,7 +533,7 @@ describe('capture suggestions', () => {
       method: 'PATCH',
       url: `/notes/${n.id}`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { title: 'Geändert' },
+      payload: { title: 'Changed' },
     });
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'keep',
@@ -537,7 +542,7 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
     expect(await note(n.id)).toMatchObject({
-      title: 'Geändert',
+      title: 'Changed',
       dueDate: null,
       priority: 'MITTEL',
     });
@@ -595,14 +600,14 @@ describe('capture suggestions', () => {
 
   it('refuses an undo once the note moved on, and the record stays kept', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag' })).json();
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Friday' })).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
     await ctx.inject({
       method: 'PATCH',
       url: `/notes/${n.id}`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { title: 'Danach' },
+      payload: { title: 'Afterwards' },
     });
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'undo',
@@ -610,7 +615,7 @@ describe('capture suggestions', () => {
     });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
-    expect(await note(n.id)).toMatchObject({ title: 'Danach', dueDate: '2026-10-23' });
+    expect(await note(n.id)).toMatchObject({ title: 'Afterwards', dueDate: '2026-10-23' });
     const stored = (
       await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
     ).data()!;
@@ -619,7 +624,7 @@ describe('capture suggestions', () => {
 
   it('discards without touching the note, and a keep after that is refused', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag' })).json();
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Friday' })).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'discard',
@@ -636,8 +641,8 @@ describe('capture suggestions', () => {
 
   it('lists the pending suggestions of this person on this board only', async () => {
     const fx = await createBoardFixture(ctx);
-    const a = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag a' })).json();
-    const b = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag b' })).json();
+    const a = (await createNote(fx.ownerToken, fx.boardId, { title: 'Friday a' })).json();
+    const b = (await createNote(fx.ownerToken, fx.boardId, { title: 'Friday b' })).json();
     const sa = (await suggest(fx.ownerToken, fx.boardId, a.id)).json().suggestion;
     const sb = (await suggest(fx.ownerToken, fx.boardId, b.id)).json().suggestion;
     await decide(fx.ownerToken, fx.boardId, sb.id, { decision: 'discard', source: 'esc' });
@@ -658,10 +663,10 @@ describe('capture suggestions', () => {
         suggestion: (await suggest(fx.editToken, fx.boardId, n.id)).json().suggestion,
       };
     };
-    const fresh = await make('Freitag frisch');
-    const gone = await make('Freitag weg');
-    const moved = await make('Freitag bewegt');
-    const old = await make('Freitag alt');
+    const fresh = await make('Friday fresh');
+    const gone = await make('Friday gone');
+    const moved = await make('Friday moved');
+    const old = await make('Friday old');
     expect(
       (
         await ctx.inject({
@@ -671,9 +676,7 @@ describe('capture suggestions', () => {
         })
       ).statusCode,
     ).toBeLessThan(300);
-    expect((await patchTitle(fx.editToken, moved.note.id, 'Freitag, geändert')).statusCode).toBe(
-      200,
-    );
+    expect((await patchTitle(fx.editToken, moved.note.id, 'Friday, changed')).statusCode).toBe(200);
     await assistantSuggestionsCol(ctx.db, fx.editorId)
       .doc(old.suggestion.id)
       .update({ createdAt: Timestamp.fromMillis(Date.now() - 25 * 3_600_000) });
@@ -694,7 +697,7 @@ describe('capture suggestions', () => {
 
   it('never discards a day-old record that another tab kept while the pending list was read', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.editToken, fx.boardId, { title: 'Freitag behalten' })).json();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'Friday kept' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
     const keep = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
@@ -741,7 +744,7 @@ describe('capture suggestions', () => {
   it('a VIEW member keeps a due date on their own private note', async () => {
     const fx = await createBoardFixture(ctx);
     const priv = (
-      await createNote(fx.viewToken, fx.boardId, { title: 'Freitag', visibility: 'PRIVATE' })
+      await createNote(fx.viewToken, fx.boardId, { title: 'Friday', visibility: 'PRIVATE' })
     ).json();
     const { suggestion } = (await suggest(fx.viewToken, fx.boardId, priv.id)).json();
     const res = await decide(fx.viewToken, fx.boardId, suggestion.id, {
@@ -754,7 +757,7 @@ describe('capture suggestions', () => {
 
   it('is invisible to an outsider, on another board, and when the switch is off', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag' })).json();
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Friday' })).json();
     expect((await suggest(fx.outsiderToken, fx.boardId, n.id)).statusCode).toBe(404);
     // The editor's own board does not hold this note. That board is reachable with the
     // switch on (its pending list answers 200), so the 404 is the note-to-board binding in
@@ -830,7 +833,7 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.dueDate.apply,
     });
-    expect((await patchTitle(fx.ownerToken, n.id, 'Geändert')).statusCode).toBe(200);
+    expect((await patchTitle(fx.ownerToken, n.id, 'Changed')).statusCode).toBe(200);
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       source: 'enter',
@@ -840,7 +843,7 @@ describe('capture suggestions', () => {
     // The due date the keep wrote is gone again; the person's edit stays.
     const after = await note(n.id);
     expect(after).toMatchObject({
-      title: 'Geändert',
+      title: 'Changed',
       dueDate: null,
       priority: 'MITTEL',
       assigneeId: null,
@@ -952,7 +955,7 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.assignee.undo,
     });
-    expect((await patchTitle(fx.ownerToken, n.id, 'Danach')).statusCode).toBe(200);
+    expect((await patchTitle(fx.ownerToken, n.id, 'Afterwards')).statusCode).toBe(200);
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'shortcut',
@@ -961,7 +964,7 @@ describe('capture suggestions', () => {
     expect(res.json().error).toBe('STALE_REVISION');
     // Not half undone: the assignee the undo removed is back, beside the person's edit.
     expect(await note(n.id)).toMatchObject({
-      title: 'Danach',
+      title: 'Afterwards',
       dueDate: '2026-10-23',
       priority: 'HOCH',
       assigneeId: 'fx-editor',
@@ -982,10 +985,10 @@ describe('capture suggestions', () => {
 
   it("proposes a title, a reference under the board's own key, and steps, and records what was typed", async () => {
     const fx = await createBoardFixture(ctx);
-    // The board already uses "Kunde"; the model answers with "kunde".
+    // The board already uses "Customer"; the model answers with "customer".
     await createNote(fx.editToken, fx.boardId, {
-      title: 'Alt',
-      customFields: { Kunde: 'Alt GmbH' },
+      title: 'Old',
+      customFields: { Customer: 'Old GmbH' },
     });
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
     const res = await suggest(fx.editToken, fx.boardId, n.id, ['priority']);
@@ -995,14 +998,14 @@ describe('capture suggestions', () => {
     expect(suggestion.fields).toMatchObject({
       dueDate: { value: '2026-10-23' },
       priority: null,
-      title: { value: 'Angebot an Müller', reason: 'kürzer' },
-      reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Kunde genannt' },
+      title: { value: 'Quote for Müller', reason: 'shorter' },
+      reference: { key: 'Customer', value: 'Müller GmbH', reason: 'customer named' },
       subtasks: {
-        items: ['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden'],
-        reason: 'drei Schritte',
+        items: ['Check the documents', 'Write the quote', 'Send the quote'],
+        reason: 'three steps',
       },
     });
-    expect(lastInput?.prompt).toContain('Properties on this board:\nKunde');
+    expect(lastInput?.prompt).toContain('Properties on this board:\nCustomer');
     expect(lastInput?.maxOutputTokens).toBe(512);
     expect((await stored(fx.editorId, suggestion.id)).typed).toEqual(['priority']);
   });
@@ -1042,7 +1045,7 @@ describe('capture suggestions', () => {
 
     const only = (await createNote(fx.editToken, fx.boardId, { title: 'titleonly' })).json();
     const proposal = (await suggest(fx.editToken, fx.boardId, only.id)).json().suggestion;
-    expect(proposal.fields.title).toEqual({ value: 'Nur ein Titel', reason: 'kürzer' });
+    expect(proposal.fields.title).toEqual({ value: 'Just a title', reason: 'shorter' });
     const fired = await decide(fx.editToken, fx.boardId, proposal.id, {
       decision: 'keep',
       source: 'countdown',
@@ -1058,7 +1061,7 @@ describe('capture suggestions', () => {
       source: 'click',
     });
     expect(ticked.json().suggestion.kept.fields).toEqual(['title']);
-    expect((await note(only.id)).title).toBe('Nur ein Titel');
+    expect((await note(only.id)).title).toBe('Just a title');
   });
 
   it('never proposes a reference or steps on a note that has them, nor a title that was locked', async () => {
@@ -1066,14 +1069,14 @@ describe('capture suggestions', () => {
     const n = (
       await createNote(fx.editToken, fx.boardId, {
         title: 'review',
-        customFields: { Projekt: 'X' },
+        customFields: { Project: 'X' },
       })
     ).json();
     await ctx.inject({
       method: 'POST',
       url: `/notes/${n.id}/subtasks`,
       headers: ctx.authHeader(fx.editToken),
-      payload: { text: 'Schritt' },
+      payload: { text: 'Step' },
     });
     const s = (await suggest(fx.editToken, fx.boardId, n.id, ['title'])).json().suggestion;
     expect(s.fields).toMatchObject({
@@ -1105,10 +1108,10 @@ describe('capture suggestions', () => {
     const after = await note(n.id);
     expect(after).toMatchObject({ title: 'review', dueDate: '2026-10-23' });
     // No other note on this board uses the key, so it is written as the model spelled it.
-    expect(after.customFields).toEqual({ kunde: 'Müller GmbH' });
+    expect(after.customFields).toEqual({ customer: 'Müller GmbH' });
     expect(after.subtaskSummary).toEqual({ total: 1, done: 0 });
     expect((await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text)).toEqual([
-      'Angebot schreiben',
+      'Write the quote',
     ]);
     const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
     expect(audits.docs.map((d) => d.data().commandType).sort()).toEqual([
@@ -1141,8 +1144,8 @@ describe('capture suggestions', () => {
   it('refuses a keep once a property was set on the note after the proposal', async () => {
     const fx = await createBoardFixture(ctx);
     await createNote(fx.editToken, fx.boardId, {
-      title: 'Alt',
-      customFields: { Kunde: 'Alt GmbH' },
+      title: 'Old',
+      customFields: { Customer: 'Old GmbH' },
     });
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
@@ -1152,7 +1155,7 @@ describe('capture suggestions', () => {
       method: 'PATCH',
       url: `/notes/${n.id}`,
       headers: ctx.authHeader(fx.editToken),
-      payload: { fieldChanges: { set: { Kunde: 'Zwischen' } } },
+      payload: { fieldChanges: { set: { Customer: 'Interim' } } },
     });
     const stale = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
@@ -1162,7 +1165,7 @@ describe('capture suggestions', () => {
     expect(stale.json().error).toBe('STALE_REVISION');
     const after = await note(n.id);
     expect(after).toMatchObject({ title: 'review', dueDate: null });
-    expect(after.customFields).toEqual({ Kunde: 'Zwischen' });
+    expect(after.customFields).toEqual({ Customer: 'Interim' });
     expect(after.subtaskSummary.total).toBe(0);
   });
 
@@ -1182,17 +1185,17 @@ describe('capture suggestions', () => {
       revision: n.revision + 6,
     });
     const keptNote = await note(n.id);
-    expect(keptNote).toMatchObject({ title: 'Angebot an Müller' });
-    expect(keptNote.customFields).toEqual({ kunde: 'Müller GmbH' });
+    expect(keptNote).toMatchObject({ title: 'Quote for Müller' });
+    expect(keptNote.customFields).toEqual({ customer: 'Müller GmbH' });
     const steps = (await noteDetail(fx.editToken, n.id)).subtasks;
     expect(steps.map((t) => t.text)).toEqual([
-      'Unterlagen prüfen',
-      'Angebot schreiben',
-      'Angebot senden',
+      'Check the documents',
+      'Write the quote',
+      'Send the quote',
     ]);
     const record = await stored(fx.editorId, suggestion.id);
     expect(record.applied).toMatchObject({
-      before: { title: 'review', reference: { key: 'kunde', previous: null } },
+      before: { title: 'review', reference: { key: 'customer', previous: null } },
       subtasks: [0, 1, 2],
       subtaskIds: steps.map((t) => t.id),
     });
@@ -1261,9 +1264,9 @@ describe('capture suggestions', () => {
     });
     const steps = (await noteDetail(fx.editToken, n.id)).subtasks;
     expect(steps.map((t) => t.text)).toEqual([
-      'Unterlagen prüfen',
-      'Angebot schreiben',
-      'Angebot senden',
+      'Check the documents',
+      'Write the quote',
+      'Send the quote',
     ]);
     // The step that committed before the cut replayed its receipt: same id, one audit row.
     expect((await stored(fx.editorId, suggestion.id)).applied?.subtaskIds).toEqual(
@@ -1284,20 +1287,20 @@ describe('capture suggestions', () => {
     const fx = await createBoardFixture(ctx);
     const other = (
       await createNote(fx.editToken, fx.boardId, {
-        title: 'Alt',
-        customFields: { Kunde: 'Alt GmbH' },
+        title: 'Old',
+        customFields: { Customer: 'Old GmbH' },
       })
     ).json();
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
-    // The model said "kunde"; the board's spelling is "Kunde", and that is what is written.
+    // The model said "customer"; the board's spelling is "Customer", and that is what is written.
     const kept = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       fields: ['reference'],
       source: 'click',
     });
     expect(kept.statusCode).toBe(200);
-    expect((await note(n.id)).customFields).toEqual({ Kunde: 'Müller GmbH' });
+    expect((await note(n.id)).customFields).toEqual({ Customer: 'Müller GmbH' });
     const undone = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
@@ -1305,7 +1308,7 @@ describe('capture suggestions', () => {
     expect(undone.statusCode).toBe(200);
     expect((await note(n.id)).customFields).toEqual({});
     // The other note's value under the same key is untouched.
-    expect((await note(other.id)).customFields).toEqual({ Kunde: 'Alt GmbH' });
+    expect((await note(other.id)).customFields).toEqual({ Customer: 'Old GmbH' });
   });
 
   it('a keep refused part way deletes the steps it added and puts the title back', async () => {
@@ -1322,7 +1325,7 @@ describe('capture suggestions', () => {
         boardId: fx.boardId,
         noteId: n.id,
         expectedRevision: n.revision,
-        input: { title: 'Angebot an Müller' },
+        input: { title: 'Quote for Müller' },
       },
       operationId: record.operationIds.title!.apply,
     });
@@ -1332,7 +1335,7 @@ describe('capture suggestions', () => {
         boardId: fx.boardId,
         noteId: n.id,
         expectedRevision: n.revision + 1,
-        input: { text: 'Unterlagen prüfen' },
+        input: { text: 'Check the documents' },
       },
       operationId: record.operationIds.subtasks![0]!.apply,
     });
@@ -1408,7 +1411,7 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.subtasks![2]!.undo,
     });
-    expect((await patchTitle(fx.editToken, n.id, 'Danach')).statusCode).toBe(200);
+    expect((await patchTitle(fx.editToken, n.id, 'Afterwards')).statusCode).toBe(200);
     const texts = async () => (await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text);
     const first = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
@@ -1417,7 +1420,7 @@ describe('capture suggestions', () => {
     expect(first.statusCode).toBe(409);
     expect(first.json().error).toBe('STALE_REVISION');
     // Not half undone: the deleted step is back, under a new id.
-    expect(await texts()).toEqual(['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden']);
+    expect(await texts()).toEqual(['Check the documents', 'Write the quote', 'Send the quote']);
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
     // Each repeat replays the delete's receipt and is refused again; the step is not doubled.
     for (const source of ['esc', 'esc'] as const) {
@@ -1428,7 +1431,7 @@ describe('capture suggestions', () => {
       });
       expect(again.statusCode).toBe(409);
       expect(again.json().error).toBe('STALE_REVISION');
-      expect(await texts()).toEqual(['Unterlagen prüfen', 'Angebot schreiben', 'Angebot senden']);
+      expect(await texts()).toEqual(['Check the documents', 'Write the quote', 'Send the quote']);
       expect((await note(n.id)).revision).toBe(revision);
     }
     expect((await note(n.id)).subtaskSummary.total).toBe(3);
@@ -1461,8 +1464,8 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
     expect((await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text)).toEqual([
-      'Angebot schreiben',
-      'Angebot senden',
+      'Write the quote',
+      'Send the quote',
     ]);
     expect((await note(n.id)).revision).toBe(kept.revision + 1);
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
@@ -1477,19 +1480,19 @@ describe('capture suggestions', () => {
       fields: ['reference'],
       source: 'click',
     });
-    expect((await note(n.id)).customFields).toEqual({ kunde: 'Müller GmbH' });
+    expect((await note(n.id)).customFields).toEqual({ customer: 'Müller GmbH' });
     // No route reaches this state: a reference is proposed only on a note with no property
     // (R7), and one set later makes the keep stale. The record is edited to hold a previous
     // value, so the restore branch of R8 runs through the real undo.
     await assistantSuggestionsCol(ctx.db, fx.editorId)
       .doc(suggestion.id)
-      .update({ 'applied.before.reference.previous': 'Alt GmbH' });
+      .update({ 'applied.before.reference.previous': 'Old GmbH' });
     const undone = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
     });
     expect(undone.statusCode).toBe(200);
-    expect((await note(n.id)).customFields).toEqual({ kunde: 'Alt GmbH' });
+    expect((await note(n.id)).customFields).toEqual({ customer: 'Old GmbH' });
     const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
     expect(audits.docs.map((d) => d.data().commandType)).toEqual(['note.update', 'note.update']);
   });
@@ -1525,7 +1528,7 @@ describe('capture suggestions', () => {
     expect(await note(n.id)).toMatchObject({ title: 'titleonly', revision: n.revision + 2 });
 
     // On a discarded one it is a keep of nothing, which replays the discard.
-    const other = await own('titleonly zwei');
+    const other = await own('titleonly two');
     const second = (await suggest(fx.viewToken, fx.boardId, other.id)).json().suggestion;
     await decide(fx.viewToken, fx.boardId, second.id, { decision: 'discard', source: 'esc' });
     const fired = await decide(fx.viewToken, fx.boardId, second.id, {
@@ -1539,19 +1542,19 @@ describe('capture suggestions', () => {
 
   it('reads no board keys for a note that has a property already: the prompt lists none', async () => {
     const fx = await createBoardFixture(ctx);
-    await createNote(fx.editToken, fx.boardId, { title: 'Alt', customFields: { Kunde: 'Alt' } });
+    await createNote(fx.editToken, fx.boardId, { title: 'Old', customFields: { Customer: 'Old' } });
     const n = (
       await createNote(fx.viewToken, fx.boardId, {
-        title: 'Freitag',
+        title: 'Friday',
         visibility: 'PRIVATE',
-        customFields: { Projekt: 'X' },
+        customFields: { Project: 'X' },
       })
     ).json();
     const s = (await suggest(fx.viewToken, fx.boardId, n.id)).json().suggestion;
     expect(s.fields).toMatchObject({ dueDate: { value: '2026-10-23' }, reference: null });
     // No reference can be proposed, so the board's keys are never read for the prompt.
     expect(lastInput?.prompt).toContain('Properties on this board: none');
-    expect(lastInput?.prompt).not.toContain('Kunde');
+    expect(lastInput?.prompt).not.toContain('Customer');
   });
 
   it("records as typed only the chips' fields, each once", async () => {

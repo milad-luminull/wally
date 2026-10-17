@@ -76,7 +76,7 @@ describe('member/invite routes (owner-only)', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: ctx.authHeader(fx.ownerToken),
-        payload: { title: 'Zugewiesen', assigneeId: fx.editorId },
+        payload: { title: 'Assigned', assigneeId: fx.editorId },
       });
       expect(created.statusCode).toBe(201);
       const noteId = created.json().id;

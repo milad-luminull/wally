@@ -66,14 +66,14 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
       truncated: boolean;
     };
     const ids = result.notes.map((n) => `[note:${n.id}]`).join(' ');
-    return finish(`Offen: ${ids}${result.truncated ? ' (mehr)' : ''}`, [
+    return finish(`Open: ${ids}${result.truncated ? ' (more)' : ''}`, [
       { toolCallId: 'c1', toolName: 'list_notes', input: {}, output: result },
     ]);
   }
   if (message === 'thinking') {
     // The providers count thinking inside outputTokens; reasoningTokens is a part of it.
     await lease.settle({ ...usage, reasoningTokens: 15 });
-    return finish('Gedacht.');
+    return finish('Thought.');
   }
   if (message === 'grow') {
     // A second step after a read: it sends the read's result, so it reserves more.
@@ -141,7 +141,7 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     // The overrun falls in the last allowed step: the loop ends without another model call,
     // so nothing throws and the runner returns output.
     await overrun();
-    return finish('Fertig.');
+    return finish('Done.');
   }
   if (message === 'limit-next') {
     // The step ends, then the next step is announced before its model call fails on the
@@ -161,7 +161,7 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     await new Promise<void>((resolve) =>
       input.abortSignal?.addEventListener('abort', () => resolve(), { once: true }),
     );
-    return finish('Zu spät.');
+    return finish('Too late.');
   }
   if (message === 'limit') {
     for (let i = 0; i < 13; i++) {
@@ -178,7 +178,7 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     );
   }
   if (message === 'echo-instructions') return finish(input.instructions);
-  return finish(`Antwort auf: ${message}`);
+  return finish(`Answer to: ${message}`);
 };
 
 describe('assistant turns', () => {
@@ -228,7 +228,7 @@ describe('assistant turns', () => {
 
   it('answers from the live board and lists the notes it relied on', async () => {
     const fx = await createBoardFixture(ctx);
-    const note = (await createNote(fx.ownerToken, fx.boardId, 'Müller anrufen')).json();
+    const note = (await createNote(fx.ownerToken, fx.boardId, 'Call Müller')).json();
     const res = await turn(fx.ownerToken, fx.boardId, 'list');
     expect(res.statusCode).toBe(200);
     const { conversation } = res.json();
@@ -240,8 +240,8 @@ describe('assistant turns', () => {
     });
     expect(conversation.entries[1]).toMatchObject({
       role: 'assistant',
-      text: 'Offen: Müller anrufen',
-      chips: [{ id: note.id, title: 'Müller anrufen' }],
+      text: 'Open: Call Müller',
+      chips: [{ id: note.id, title: 'Call Müller' }],
       partial: false,
       stopped: null,
     });
@@ -252,7 +252,7 @@ describe('assistant turns', () => {
 
   it('offers the model read tools that never ask for a board id', async () => {
     const fx = await createBoardFixture(ctx);
-    expect((await turn(fx.ownerToken, fx.boardId, 'eins')).statusCode).toBe(200);
+    expect((await turn(fx.ownerToken, fx.boardId, 'one')).statusCode).toBe(200);
     expect(offered.map((t) => t.name).sort()).toEqual(['get_note', 'list_members', 'list_notes']);
     for (const t of offered) {
       const schema = t.inputSchema as z.AnyZodObject;
@@ -265,8 +265,8 @@ describe('assistant turns', () => {
   it('binds every read to the conversation board, so a note from another board is not found', async () => {
     const fx = await createBoardFixture(ctx);
     // The editor owns a board of their own; its note is visible to them there, not here.
-    const elsewhere = (await createNote(fx.editToken, fx.editorId, 'Anderes Board')).json();
-    const here = (await createNote(fx.ownerToken, fx.boardId, 'Hier')).json();
+    const elsewhere = (await createNote(fx.editToken, fx.editorId, 'Other board')).json();
+    const here = (await createNote(fx.ownerToken, fx.boardId, 'Here')).json();
     const foreign = await turn(fx.editToken, fx.boardId, `get:${elsewhere.id}`);
     expect(foreign.json().conversation.entries[1]).toMatchObject({
       text: 'error:NOT_FOUND',
@@ -274,8 +274,8 @@ describe('assistant turns', () => {
     });
     const own = await turn(fx.editToken, fx.boardId, `get:${here.id}`);
     expect(own.json().conversation.entries[1]).toMatchObject({
-      text: 'Hier',
-      chips: [{ id: here.id, title: 'Hier' }],
+      text: 'Here',
+      chips: [{ id: here.id, title: 'Here' }],
     });
   });
 
@@ -289,7 +289,7 @@ describe('assistant turns', () => {
   it('reserves each later step with the tool results gathered so far this turn', async () => {
     const fx = await createBoardFixture(ctx);
     for (let i = 0; i < 10; i++)
-      await createNote(fx.ownerToken, fx.boardId, `${i} ${'Langer Titel '.repeat(12)}`);
+      await createNote(fx.ownerToken, fx.boardId, `${i} ${'Long title '.repeat(12)}`);
     const res = await turn(fx.ownerToken, fx.boardId, 'grow');
     expect(res.statusCode).toBe(200);
     const resultChars = Number(
@@ -327,10 +327,10 @@ describe('assistant turns', () => {
 
   it('drops a stored chip once its note is out of sight, keeping the text', async () => {
     const fx = await createBoardFixture(ctx);
-    const note = (await createNote(fx.ownerToken, fx.boardId, 'Bald privat')).json();
-    const first = (await turn(fx.editToken, fx.boardId, `markers:Siehe [note:${note.id}].`)).json()
+    const note = (await createNote(fx.ownerToken, fx.boardId, 'Soon private')).json();
+    const first = (await turn(fx.editToken, fx.boardId, `markers:See [note:${note.id}].`)).json()
       .conversation;
-    expect(first.entries[1].chips).toEqual([{ id: note.id, title: 'Bald privat' }]);
+    expect(first.entries[1].chips).toEqual([{ id: note.id, title: 'Soon private' }]);
     const patch = await ctx.inject({
       method: 'PATCH',
       url: `/notes/${note.id}`,
@@ -345,12 +345,12 @@ describe('assistant turns', () => {
         headers: ctx.authHeader(fx.editToken),
       });
       expect(res.statusCode, path).toBe(200);
-      expect(res.json().entries[1], path).toMatchObject({ text: 'Siehe Bald privat.', chips: [] });
+      expect(res.json().entries[1], path).toMatchObject({ text: 'See Soon private.', chips: [] });
     }
     // The owner still sees the note, and so the chip.
     const owner = await turn(fx.ownerToken, fx.boardId, `markers:[note:${note.id}]`);
     expect(owner.json().conversation.entries[1].chips).toEqual([
-      { id: note.id, title: 'Bald privat' },
+      { id: note.id, title: 'Soon private' },
     ]);
   });
 
@@ -382,18 +382,18 @@ describe('assistant turns', () => {
 
   it('drops chips for notes the caller cannot see', async () => {
     const fx = await createBoardFixture(ctx);
-    const shared = (await createNote(fx.ownerToken, fx.boardId, 'Sichtbar')).json();
+    const shared = (await createNote(fx.ownerToken, fx.boardId, 'Visible')).json();
     const secret = (
-      await createNote(fx.ownerToken, fx.boardId, 'Geheim', { visibility: 'PRIVATE' })
+      await createNote(fx.ownerToken, fx.boardId, 'Secret', { visibility: 'PRIVATE' })
     ).json();
     const res = await turn(
       fx.editToken,
       fx.boardId,
-      `markers:Siehe [note:${secret.id}] und [note:${shared.id}].`,
+      `markers:See [note:${secret.id}] and [note:${shared.id}].`,
     );
     expect(res.json().conversation.entries[1]).toMatchObject({
-      text: 'Siehe und Sichtbar.',
-      chips: [{ id: shared.id, title: 'Sichtbar' }],
+      text: 'See and Visible.',
+      chips: [{ id: shared.id, title: 'Visible' }],
     });
   });
 
@@ -434,11 +434,11 @@ describe('assistant turns', () => {
 
   it('continues a conversation and starts a new one when none is given', async () => {
     const fx = await createBoardFixture(ctx);
-    const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
-    const second = (await turn(fx.ownerToken, fx.boardId, 'zwei', first.id)).json().conversation;
+    const first = (await turn(fx.ownerToken, fx.boardId, 'one')).json().conversation;
+    const second = (await turn(fx.ownerToken, fx.boardId, 'two', first.id)).json().conversation;
     expect(second.id).toBe(first.id);
     expect(second.entries).toHaveLength(4);
-    const third = (await turn(fx.ownerToken, fx.boardId, 'drei')).json().conversation;
+    const third = (await turn(fx.ownerToken, fx.boardId, 'three')).json().conversation;
     expect(third.id).not.toBe(first.id);
     const latest = await ctx.inject({
       method: 'GET',
@@ -462,7 +462,7 @@ describe('assistant turns', () => {
 
   it('stops at the tool-call limit and says so, keeping the conversation', async () => {
     const fx = await createBoardFixture(ctx);
-    const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
+    const first = (await turn(fx.ownerToken, fx.boardId, 'one')).json().conversation;
     const res = await turn(fx.ownerToken, fx.boardId, 'limit', first.id);
     expect(res.statusCode).toBe(200);
     const c = res.json().conversation;
@@ -475,7 +475,7 @@ describe('assistant turns', () => {
 
   it('stops at the tool-call limit even when the runner still returns output', async () => {
     const fx = await createBoardFixture(ctx);
-    const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
+    const first = (await turn(fx.ownerToken, fx.boardId, 'one')).json().conversation;
     const res = await turn(fx.ownerToken, fx.boardId, 'limit-last', first.id);
     expect(res.statusCode).toBe(200);
     const c = res.json().conversation;
@@ -520,7 +520,7 @@ describe('assistant turns', () => {
     await assistantUsageCol(ctx.db, fx.ownerId)
       .doc(day)
       .set({ tokens: 300_000, inFlight: {}, updatedAt: Timestamp.now() });
-    const res = await turn(fx.ownerToken, fx.boardId, 'eins');
+    const res = await turn(fx.ownerToken, fx.boardId, 'one');
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({
       error: 'ASSISTANT_DAILY_CAP',
@@ -531,21 +531,21 @@ describe('assistant turns', () => {
 
   it('answers 409 on a conversation pinned to another model, and 404 off, for outsiders, and on a closed one', async () => {
     const fx = await createBoardFixture(ctx);
-    const first = (await turn(fx.ownerToken, fx.boardId, 'eins')).json().conversation;
+    const first = (await turn(fx.ownerToken, fx.boardId, 'one')).json().conversation;
     await assistantConversationsCol(ctx.db, fx.ownerId)
       .doc(first.id)
       .update({ model: 'vertex:old-model' });
-    expect((await turn(fx.ownerToken, fx.boardId, 'zwei', first.id)).statusCode).toBe(409);
-    expect((await turn(fx.ownerToken, fx.boardId, 'zwei', first.id)).json().error).toBe(
+    expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).statusCode).toBe(409);
+    expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).json().error).toBe(
       'ASSISTANT_CONVERSATION_CLOSED',
     );
     await assistantConversationsCol(ctx.db, fx.ownerId)
       .doc(first.id)
       .update({ model: 'vertex:gemini-3.8-flash', status: 'CLOSED' });
-    expect((await turn(fx.ownerToken, fx.boardId, 'zwei', first.id)).statusCode).toBe(409);
-    expect((await turn(fx.outsiderToken, fx.boardId, 'eins')).statusCode).toBe(404);
+    expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).statusCode).toBe(409);
+    expect((await turn(fx.outsiderToken, fx.boardId, 'one')).statusCode).toBe(404);
     await whiteboardsCol(ctx.db).doc(fx.boardId).update({ assistantDisabled: true });
-    expect((await turn(fx.ownerToken, fx.boardId, 'eins')).statusCode).toBe(404);
+    expect((await turn(fx.ownerToken, fx.boardId, 'one')).statusCode).toBe(404);
     expect(
       (
         await ctx.inject({
@@ -575,7 +575,7 @@ describe('assistant turns', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/assistant/turns`,
         headers: ctx.authHeader(fx.ownerToken),
-        payload: { ...body('eins'), ...payload },
+        payload: { ...body('one'), ...payload },
       });
     const zone = await post({ timeZone: 'Mars/Olympus_Mons' });
     expect(zone.statusCode).toBe(400);
@@ -592,9 +592,9 @@ describe('assistant turns', () => {
     const fx = await createBoardFixture(ctx);
     // A caller of its own, so the other tests' turns do not count against this budget.
     const token = registerTestUser(ctx, 'rl-assistant', 'rl-assistant@fixture.de');
-    let res = await turn(token, fx.boardId, 'eins');
+    let res = await turn(token, fx.boardId, 'one');
     for (let i = 0; i < 30 && res.statusCode !== 429; i++)
-      res = await turn(token, fx.boardId, 'eins');
+      res = await turn(token, fx.boardId, 'one');
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({ error: 'RATE_LIMITED', message: expect.any(String) });
     expect(res.json().resetsAt).toBeUndefined();

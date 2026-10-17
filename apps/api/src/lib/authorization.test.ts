@@ -87,7 +87,7 @@ describe('requireWhiteboardAccess({ kind: noteParam })', () => {
       .doc(id)
       .set({
         whiteboardId: 'u-owner',
-        title: 'Anna wegen Müller fragen',
+        title: 'Ask Anna about Müller',
         status: 'OPEN',
         completedAt: null,
         priority: 'MITTEL',

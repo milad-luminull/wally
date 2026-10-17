@@ -46,11 +46,11 @@ describe('assistant conversations', () => {
     );
     const after = await appendTurn(ctx.db, 'u1', c.id, {
       expectedTurns: 0,
-      user: entry('user', 'Was ist offen?'),
-      assistant: entry('assistant', 'Nichts.'),
+      user: entry('user', 'What is open?'),
+      assistant: entry('assistant', 'Nothing.'),
       messages: [
-        { role: 'user', content: 'Was ist offen?' },
-        { role: 'assistant', content: 'Nichts.' },
+        { role: 'user', content: 'What is open?' },
+        { role: 'assistant', content: 'Nothing.' },
       ],
       usage,
       toolCalls: 1,
@@ -69,8 +69,8 @@ describe('assistant conversations', () => {
       model: 'vertex:gemini-3.8-flash',
     });
     expect(dto.entries.map((e) => [e.role, e.text])).toEqual([
-      ['user', 'Was ist offen?'],
-      ['assistant', 'Nichts.'],
+      ['user', 'What is open?'],
+      ['assistant', 'Nothing.'],
     ]);
     expect(dto).not.toHaveProperty('messages');
   });

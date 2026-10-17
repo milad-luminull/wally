@@ -188,7 +188,7 @@ describe('membership integrity', () => {
       url: '/whiteboards/mi-owner/notes',
       headers: ctx.authHeader(ownerToken),
       payload: {
-        title: 'Zugewiesen',
+        title: 'Assigned',
         priority: 'MITTEL',
         horizon: 'HEUTE',
         freeX: 0,
@@ -221,7 +221,7 @@ describe('membership integrity', () => {
       url: '/whiteboards/mi-owner/notes',
       headers: ctx.authHeader(ownerToken),
       payload: {
-        title: 'Zugewiesen',
+        title: 'Assigned',
         priority: 'MITTEL',
         horizon: 'HEUTE',
         freeX: 0,

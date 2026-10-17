@@ -34,7 +34,7 @@ async function createNote(token: string, payload: Record<string, unknown> = {}) 
     method: 'POST',
     url: `/whiteboards/${fx.boardId}/notes`,
     headers: as(token),
-    payload: { title: 'Anna wegen Müller fragen', ...payload },
+    payload: { title: 'Ask Anna about Müller', ...payload },
   });
 }
 async function list(token: string, query = ''): Promise<Row[]> {
@@ -76,7 +76,7 @@ describe('private notes: reads', () => {
 
   it('never reveals another person’s private note through search, tags or properties', async () => {
     const note = (
-      await createNote(fx.editToken, { tags: ['geheim'], customFields: { Kunde: 'Müller' } })
+      await createNote(fx.editToken, { tags: ['secret'], customFields: { Customer: 'Müller' } })
     ).json();
     await makePrivate(note.id, fx.editorId);
 
@@ -86,14 +86,14 @@ describe('private notes: reads', () => {
       headers: as(fx.ownerToken),
     });
     expect(tags.json()).toEqual([]);
-    expect(await list(fx.ownerToken, '?q=geheim')).toEqual([]);
-    expect(await list(fx.ownerToken, '?field=Kunde')).toEqual([]);
-    expect((await list(fx.editToken, '?q=geheim')).map((n) => n.id)).toEqual([note.id]);
+    expect(await list(fx.ownerToken, '?q=secret')).toEqual([]);
+    expect(await list(fx.ownerToken, '?field=Customer')).toEqual([]);
+    expect((await list(fx.editToken, '?q=secret')).map((n) => n.id)).toEqual([note.id]);
   });
 
   it('filters by visibility', async () => {
-    const mine = (await createNote(fx.editToken, { title: 'Privat' })).json();
-    const shared = (await createNote(fx.editToken, { title: 'Für alle' })).json();
+    const mine = (await createNote(fx.editToken, { title: 'Private' })).json();
+    const shared = (await createNote(fx.editToken, { title: 'For everyone' })).json();
     await makePrivate(mine.id, fx.editorId);
 
     expect((await list(fx.editToken, '?visibility=PRIVATE')).map((n) => n.id)).toEqual([mine.id]);
@@ -115,9 +115,7 @@ describe('private notes: reads', () => {
     for (const headers of [owner, as(fx.viewToken)])
       for (const call of calls)
         expect((await ctx.inject({ ...call, headers })).statusCode, call.url).toBe(404);
-    expect((await notesCol(ctx.db).doc(note.id).get()).data()!.title).toBe(
-      'Anna wegen Müller fragen',
-    );
+    expect((await notesCol(ctx.db).doc(note.id).get()).data()!.title).toBe('Ask Anna about Müller');
     expect((await subtasksCol(ctx.db, note.id).get()).size).toBe(0);
   });
 
@@ -157,7 +155,7 @@ describe('private notes: writes', () => {
     expect((await createNote(fx.viewToken)).statusCode).toBe(403);
     const note = (await createNote(fx.viewToken, { visibility: 'PRIVATE' })).json();
     const v = as(fx.viewToken);
-    expect((await patch(fx.viewToken, note.id, { title: 'Neu' })).statusCode).toBe(200);
+    expect((await patch(fx.viewToken, note.id, { title: 'New' })).statusCode).toBe(200);
     for (const call of [
       {
         method: 'POST' as const,
@@ -166,7 +164,7 @@ describe('private notes: writes', () => {
       },
       { method: 'POST' as const, url: `/notes/${note.id}/complete`, payload: {} },
       { method: 'POST' as const, url: `/notes/${note.id}/reopen`, payload: {} },
-      { method: 'POST' as const, url: `/notes/${note.id}/subtasks`, payload: { text: 'Anrufen' } },
+      { method: 'POST' as const, url: `/notes/${note.id}/subtasks`, payload: { text: 'Call' } },
     ])
       expect((await ctx.inject({ ...call, headers: v })).statusCode, call.url).toBeLessThan(300);
     const copy = await ctx.inject({
@@ -189,7 +187,7 @@ describe('private notes: writes', () => {
       method: 'POST',
       url: sub(),
       headers: as(fx.viewToken),
-      payload: { text: 'Anrufen' },
+      payload: { text: 'Call' },
     });
     expect(added.statusCode).toBe(201);
     const subtaskId = added.json().id;
@@ -202,15 +200,15 @@ describe('private notes: writes', () => {
       payload: { done: true },
     });
     expect(done.statusCode).toBe(200);
-    expect(await stored()).toMatchObject({ done: true, text: 'Anrufen' });
+    expect(await stored()).toMatchObject({ done: true, text: 'Call' });
     const edited = await ctx.inject({
       method: 'PATCH',
       url: sub(`/${subtaskId}`),
       headers: as(fx.viewToken),
-      payload: { text: 'Zurückrufen' },
+      payload: { text: 'Call back' },
     });
     expect(edited.statusCode).toBe(200);
-    expect(await stored()).toMatchObject({ done: true, text: 'Zurückrufen' });
+    expect(await stored()).toMatchObject({ done: true, text: 'Call back' });
     const removed = await ctx.inject({
       method: 'DELETE',
       url: sub(`/${subtaskId}`),
@@ -226,7 +224,7 @@ describe('private notes: writes', () => {
         method: 'POST',
         url: `/notes/${shared.id}/subtasks`,
         headers: as(fx.ownerToken),
-        payload: { text: 'Für alle' },
+        payload: { text: 'For everyone' },
       })
     ).json();
     const refused = await ctx.inject({
@@ -312,7 +310,7 @@ describe('private notes: writes', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: { ...as(fx.viewToken), 'idempotency-key': key },
-        payload: { title: 'Nur für mich', visibility: 'PRIVATE' },
+        payload: { title: 'Just for me', visibility: 'PRIVATE' },
       });
     const first = await send();
     expect(first.statusCode).toBe(201);
@@ -326,7 +324,7 @@ describe('private notes: writes', () => {
         method: 'PATCH',
         url: `/notes/${first.json().id}`,
         headers: { ...as(fx.viewToken), 'idempotency-key': editKey, 'x-expected-revision': '1' },
-        payload: { title: 'Geändert' },
+        payload: { title: 'Changed' },
       });
     expect((await edit()).statusCode).toBe(200);
     expect((await edit()).statusCode).toBe(200);
@@ -350,7 +348,7 @@ describe('private notes: replay after a role change', () => {
         method: 'PATCH',
         url: `/notes/${shared.id}`,
         headers: { ...as(fx.editToken), 'idempotency-key': key, 'x-expected-revision': '1' },
-        payload: { title: 'Vom Bearbeiter' },
+        payload: { title: 'From the editor' },
       });
     expect((await edit()).statusCode).toBe(200);
 
@@ -361,7 +359,7 @@ describe('private notes: replay after a role change', () => {
     // Replaying with the same key would otherwise return the stored 200; the role is re-checked.
     expect((await edit()).statusCode).toBe(403);
     const after = (await notesCol(ctx.db).doc(shared.id).get()).data()!;
-    expect(after.title).toBe('Vom Bearbeiter');
+    expect(after.title).toBe('From the editor');
     expect(after.revision).toBe(before.revision);
   });
 
@@ -372,7 +370,7 @@ describe('private notes: replay after a role change', () => {
         method: 'POST',
         url: `/whiteboards/${fx.boardId}/notes`,
         headers: { ...as(fx.editToken), 'idempotency-key': key },
-        payload: { title: 'Nur für mich', visibility: 'PRIVATE' },
+        payload: { title: 'Just for me', visibility: 'PRIVATE' },
       });
     const first = await send();
     expect(first.statusCode).toBe(201);

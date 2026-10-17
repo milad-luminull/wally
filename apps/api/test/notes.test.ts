@@ -38,7 +38,7 @@ describe('note routes', () => {
       method: 'POST',
       url: `/whiteboards/${boardId}/notes`,
       headers: ctx.authHeader(token),
-      payload: { title: 'Testnotiz', ...overrides },
+      payload: { title: 'Test note', ...overrides },
     });
     return res;
   }
@@ -126,17 +126,17 @@ describe('note routes', () => {
 
     it('q filter matches title, description, custom fields, and tags, case-insensitively', async () => {
       const fx = await createBoardFixture(ctx);
-      await createNote(fx.boardId, fx.ownerToken, { title: 'Cyber-Police prüfen' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Check the cyber policy' });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'Irrelevant',
-        customFields: { Vertrag: 'Cyber-Paket Plus' },
+        customFields: { Contract: 'Cyber Package Plus' },
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'Irrelevant', tags: ['cyber'] });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'Irrelevant',
-        description: 'Angebot für die Cyber-Deckung einholen',
+        description: 'Get a quote for the cyber cover',
       });
-      await createNote(fx.boardId, fx.ownerToken, { title: 'Ganz anderes Thema' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Something else entirely' });
 
       const res = await ctx.inject({
         method: 'GET',
@@ -151,28 +151,28 @@ describe('note routes', () => {
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'A',
-        customFields: { Kunde: 'Müller GmbH' },
+        customFields: { Customer: 'Müller GmbH' },
       });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'B',
-        customFields: { Kunde: 'Steiner AG' },
+        customFields: { Customer: 'Steiner AG' },
       });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'C',
-        customFields: { Vertragsnr: '4711' },
+        customFields: { 'Contract number': '4711' },
       });
       await createNote(fx.boardId, fx.ownerToken, { title: 'D' });
 
       const byKey = await ctx.inject({
         method: 'GET',
-        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('kunde')}`,
+        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('customer')}`,
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(byKey.json()).toHaveLength(2);
 
       const byPair = await ctx.inject({
         method: 'GET',
-        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('Kunde:müller gmbh')}`,
+        url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent('Customer:müller gmbh')}`,
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(byPair.json()).toHaveLength(1);
@@ -211,9 +211,9 @@ describe('note routes', () => {
       // entirely, so this ordering is done in memory. Both halves matter: an undated note
       // must come last AND must still be in the list at all.
       const fx = await createBoardFixture(ctx);
-      await createNote(fx.boardId, fx.ownerToken, { title: 'Ohne Datum' });
-      await createNote(fx.boardId, fx.ownerToken, { title: 'Spät', dueDate: '2027-01-31' });
-      await createNote(fx.boardId, fx.ownerToken, { title: 'Früh', dueDate: '2026-01-31' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'No date' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Late', dueDate: '2027-01-31' });
+      await createNote(fx.boardId, fx.ownerToken, { title: 'Early', dueDate: '2026-01-31' });
 
       const res = await ctx.inject({
         method: 'GET',
@@ -222,9 +222,9 @@ describe('note routes', () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().map((n: { title: string }) => n.title)).toEqual([
-        'Früh',
-        'Spät',
-        'Ohne Datum',
+        'Early',
+        'Late',
+        'No date',
       ]);
     });
   });
@@ -232,7 +232,7 @@ describe('note routes', () => {
   describe('POST /whiteboards/:id/notes (create)', () => {
     it('201s for owner and EDIT, and writes a CREATED history event', async () => {
       const fx = await createBoardFixture(ctx);
-      const res = await createNote(fx.boardId, fx.editToken, { title: 'Neue Notiz' });
+      const res = await createNote(fx.boardId, fx.editToken, { title: 'New note' });
       expect(res.statusCode).toBe(201);
       const note = res.json();
 
@@ -295,10 +295,13 @@ describe('note routes', () => {
       const fx = await createBoardFixture(ctx);
 
       const withFields = await createNote(fx.boardId, fx.ownerToken, {
-        customFields: { Kunde: 'Müller GmbH', Vertragsnr: '4711' },
+        customFields: { Customer: 'Müller GmbH', 'Contract number': '4711' },
       });
       expect(withFields.statusCode).toBe(201);
-      expect(withFields.json().customFields).toEqual({ Kunde: 'Müller GmbH', Vertragsnr: '4711' });
+      expect(withFields.json().customFields).toEqual({
+        Customer: 'Müller GmbH',
+        'Contract number': '4711',
+      });
 
       const without = await createNote(fx.boardId, fx.ownerToken);
       expect(without.json().customFields).toEqual({});
@@ -307,9 +310,9 @@ describe('note routes', () => {
     it('persists a description, and defaults it to an empty string', async () => {
       const fx = await createBoardFixture(ctx);
       const withText = await createNote(fx.boardId, fx.ownerToken, {
-        description: 'Erste Zeile\nzweite Zeile',
+        description: 'First line\nsecond line',
       });
-      expect(withText.json().description).toBe('Erste Zeile\nzweite Zeile');
+      expect(withText.json().description).toBe('First line\nsecond line');
 
       const without = await createNote(fx.boardId, fx.ownerToken);
       expect(without.json().description).toBe('');
@@ -336,10 +339,10 @@ describe('note routes', () => {
 
       for (const customFields of [
         tooMany,
-        { Kunde: 'A', kunde: 'B' }, // same property in two casings
-        { 'Kunde.Name': 'A' }, // Firestore field-path metacharacter
+        { Customer: 'A', customer: 'B' }, // same property in two casings
+        { 'Customer.Name': 'A' }, // Firestore field-path metacharacter
         { [`${'k'.repeat(41)}`]: 'A' }, // key over FIELD_KEY_MAX_LENGTH
-        { Kunde: 'v'.repeat(201) }, // value over FIELD_VALUE_MAX_LENGTH
+        { Customer: 'v'.repeat(201) }, // value over FIELD_VALUE_MAX_LENGTH
       ]) {
         const res = await createNote(fx.boardId, fx.ownerToken, { customFields });
         expect(res.statusCode).toBe(400);
@@ -360,7 +363,7 @@ describe('note routes', () => {
         method: 'PATCH',
         url: `/notes/${noteId}`,
         headers: ctx.authHeader(fx.editToken),
-        payload: { title: 'Geändert' },
+        payload: { title: 'Changed' },
       });
       expect(ok.statusCode).toBe(200);
 
@@ -392,12 +395,12 @@ describe('note routes', () => {
           payload,
         });
 
-      const set = await patch({ customFields: { Kunde: 'Müller GmbH' } });
-      expect(set.json().customFields).toEqual({ Kunde: 'Müller GmbH' });
+      const set = await patch({ customFields: { Customer: 'Müller GmbH' } });
+      expect(set.json().customFields).toEqual({ Customer: 'Müller GmbH' });
 
       // Touching an unrelated field must not disturb them.
-      const untouched = await patch({ title: 'Anderer Titel' });
-      expect(untouched.json().customFields).toEqual({ Kunde: 'Müller GmbH' });
+      const untouched = await patch({ title: 'Another title' });
+      expect(untouched.json().customFields).toEqual({ Customer: 'Müller GmbH' });
 
       const cleared = await patch({ customFields: {} });
       expect(cleared.json().customFields).toEqual({});
@@ -454,17 +457,17 @@ describe('note routes', () => {
 
       it('resolves set and remove against existing keys case-insensitively', async () => {
         const { fx, noteId } = await setup();
-        await patchAs(fx.ownerToken, noteId, { customFields: { Kunde: 'Alt', Vertrag: 'X' } });
+        await patchAs(fx.ownerToken, noteId, { customFields: { Customer: 'Old', Contract: 'X' } });
 
         const set = await patchAs(fx.ownerToken, noteId, {
-          fieldChanges: { set: { kunde: 'Neu' } },
+          fieldChanges: { set: { customer: 'New' } },
         });
-        expect(set.json().customFields).toEqual({ Kunde: 'Neu', Vertrag: 'X' });
+        expect(set.json().customFields).toEqual({ Customer: 'New', Contract: 'X' });
 
         const removed = await patchAs(fx.ownerToken, noteId, {
-          fieldChanges: { remove: ['VERTRAG'] },
+          fieldChanges: { remove: ['CONTRACT'] },
         });
-        expect(removed.json().customFields).toEqual({ Kunde: 'Neu' });
+        expect(removed.json().customFields).toEqual({ Customer: 'New' });
       });
 
       it('adds a tag once, and removes it', async () => {
@@ -480,7 +483,7 @@ describe('note routes', () => {
       it('400s when the merged result goes over the limit', async () => {
         const { fx, noteId } = await setup();
         const full = Object.fromEntries(
-          Array.from({ length: MAX_FIELDS_PER_NOTE }, (_, i) => [`Feld ${i}`, 'x']),
+          Array.from({ length: MAX_FIELDS_PER_NOTE }, (_, i) => [`Field ${i}`, 'x']),
         );
         await patchAs(fx.ownerToken, noteId, { customFields: full });
 
@@ -499,7 +502,7 @@ describe('note routes', () => {
         const { fx, noteId } = await setup();
         const fields = await patchAs(fx.ownerToken, noteId, {
           customFields: {},
-          fieldChanges: { set: { Kunde: 'x' } },
+          fieldChanges: { set: { Customer: 'x' } },
         });
         expect(fields.statusCode).toBe(400);
 
@@ -521,10 +524,10 @@ describe('note routes', () => {
           payload,
         });
 
-      expect((await patch({ description: 'Kurz notiert' })).json().description).toBe(
-        'Kurz notiert',
+      expect((await patch({ description: 'Noted briefly' })).json().description).toBe(
+        'Noted briefly',
       );
-      expect((await patch({ title: 'Anderer Titel' })).json().description).toBe('Kurz notiert');
+      expect((await patch({ title: 'Another title' })).json().description).toBe('Noted briefly');
       expect((await patch({ description: '' })).json().description).toBe('');
     });
 
@@ -657,7 +660,7 @@ describe('note routes', () => {
         method: 'POST',
         url: `/notes/${noteId}/subtasks`,
         headers: ctx.authHeader(fx.ownerToken),
-        payload: { text: 'Hängt am Note' },
+        payload: { text: 'Hangs on the note' },
       });
       expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(1);
       expect((await historyCol(ctx.db, noteId).get()).size).toBe(1); // the CREATED event
@@ -687,20 +690,20 @@ describe('note routes', () => {
     async function doneNoteWithEverything() {
       const fx = await createBoardFixture(ctx);
       const created = await createNote(fx.boardId, fx.ownerToken, {
-        title: 'Vorlage',
-        description: 'Was zu tun ist',
+        title: 'Template',
+        description: 'What needs doing',
         priority: 'HOCH',
         horizon: 'DIESE_WOCHE',
         freeX: 100,
         freeY: 200,
         dueDate: '2026-11-02',
         assigneeId: fx.editorId,
-        tags: ['kunde'],
-        customFields: { Kunde: 'Müller GmbH' },
+        tags: ['customer'],
+        customFields: { Customer: 'Müller GmbH' },
         colour: 'BUTTER',
       });
       const noteId = created.json().id as string;
-      for (const text of ['Erstens', 'Zweitens']) {
+      for (const text of ['First', 'Second']) {
         await ctx.inject({
           method: 'POST',
           url: `/notes/${noteId}/subtasks`,
@@ -731,8 +734,8 @@ describe('note routes', () => {
 
       expect(copy.id).not.toBe(noteId);
       expect(copy).toMatchObject({
-        title: 'Vorlage',
-        description: 'Was zu tun ist',
+        title: 'Template',
+        description: 'What needs doing',
         status: 'OPEN',
         completedAt: null,
         priority: 'HOCH',
@@ -740,8 +743,8 @@ describe('note routes', () => {
         freeX: 100,
         freeY: 200,
         dueDate: '2026-11-02',
-        tags: ['kunde'],
-        customFields: { Kunde: 'Müller GmbH' },
+        tags: ['customer'],
+        customFields: { Customer: 'Müller GmbH' },
         colour: 'BUTTER',
         subtaskSummary: { total: 2, done: 1 },
       });
@@ -755,8 +758,8 @@ describe('note routes', () => {
       });
       const subtasks = detail.json().subtasks as { text: string; done: boolean }[];
       expect(subtasks.map((s) => [s.text, s.done])).toEqual([
-        ['Erstens', true],
-        ['Zweitens', false],
+        ['First', true],
+        ['Second', false],
       ]);
       expect(detail.json().history).toEqual([
         expect.objectContaining({ type: 'CREATED', metadata: { duplicatedFrom: noteId } }),
@@ -775,7 +778,7 @@ describe('note routes', () => {
     it('applies the title, description and placement the client sends', async () => {
       const { fx, noteId } = await doneNoteWithEverything();
       const res = await duplicate(noteId, fx.ownerToken, {
-        title: 'Noch nicht gespeichert',
+        title: 'Not saved yet',
         description: '',
         horizon: 'SPAETER',
         priority: 'NIEDRIG',
@@ -783,7 +786,7 @@ describe('note routes', () => {
         freeY: 400,
       });
       expect(res.json()).toMatchObject({
-        title: 'Noch nicht gespeichert',
+        title: 'Not saved yet',
         description: '',
         horizon: 'SPAETER',
         priority: 'NIEDRIG',
