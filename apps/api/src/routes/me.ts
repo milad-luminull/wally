@@ -49,6 +49,8 @@ export default async function meRoutes(fastify: FastifyInstance) {
         if (preferences?.lastBoardId !== undefined) {
           update['preferences.lastBoardId'] = preferences.lastBoardId;
         }
+        if (preferences?.wallybot !== undefined)
+          update['preferences.wallybot'] = preferences.wallybot;
 
         const boards = { ...(current?.preferences?.boards ?? {}) };
         const touchedAt = Date.now();
@@ -80,6 +82,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
               ...(preferences?.lastBoardId !== undefined && {
                 lastBoardId: preferences.lastBoardId,
               }),
+              ...(preferences?.wallybot !== undefined && { wallybot: preferences.wallybot }),
               boards,
             },
           }),

@@ -15,8 +15,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MenuItem, MenuSeparator } from '@/components/ui/menu';
 import { Segmented } from '@/components/ui/segmented';
+import { Switch } from '@/components/ui/switch';
 import { useTheme } from '@/lib/theme';
-import { useCanvasPattern } from '@/lib/preferences';
+import { useCanvasPattern, useWallybotPreferences } from '@/lib/preferences';
 import { openShortcutsHelp } from '@/lib/shortcuts';
 import { initialsOf } from './util/noteDerived';
 
@@ -41,6 +42,7 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
   const { language, setLanguage, isSaving, saveFailed } = useLanguage();
   const { theme, setTheme } = useTheme();
   const [canvasPattern, setCanvasPattern] = useCanvasPattern();
+  const [wallybot, setWallybot] = useWallybotPreferences();
   if (!user) return null;
   const onShowShortcuts = openShortcutsHelp;
 
@@ -149,6 +151,21 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
                 ? t('account.language.saving')
                 : ''}
           </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
+          <div className="flex min-w-0 flex-col">
+            <Label htmlFor="account-wallybot" className="text-12 font-medium text-fg-3">
+              {t('account.wallybot.label')}
+            </Label>
+            <p className="text-12 text-fg-faint">{t('account.wallybot.hint')}</p>
+          </div>
+          <Switch
+            id="account-wallybot"
+            aria-label={t('account.wallybot.alwaysAsk')}
+            checked={!wallybot.autoApply}
+            onCheckedChange={(on) => setWallybot({ autoApply: !on })}
+          />
         </div>
 
         <MenuSeparator />

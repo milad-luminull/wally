@@ -17,11 +17,18 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return { ...actual, useLanguage: () => mockUseLanguage() };
 });
 
+const mockUseWallybotPreferences = vi.fn();
+vi.mock('@/lib/preferences', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/preferences')>('@/lib/preferences');
+  return { ...actual, useWallybotPreferences: () => mockUseWallybotPreferences() };
+});
+
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { AccountMenu } from './AccountMenu';
 
 describe('AccountMenu', () => {
   let setLanguage: ReturnType<typeof vi.fn>;
+  let setWallybot: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,6 +43,8 @@ describe('AccountMenu', () => {
       isSaving: false,
       saveFailed: false,
     });
+    setWallybot = vi.fn();
+    mockUseWallybotPreferences.mockReturnValue([{ autoApply: true }, setWallybot]);
   });
 
   async function openMenu() {
@@ -82,5 +91,15 @@ describe('AccountMenu', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'Sprache konnte nicht gespeichert werden.',
     );
+  });
+
+  it('offers "always ask me" for Wallybot and saves the switch', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AccountMenu />);
+    await user.click(screen.getByRole('button', { name: 'Konto' }));
+    const alwaysAsk = screen.getByRole('switch', { name: 'Immer fragen' });
+    expect(alwaysAsk).toHaveAttribute('aria-checked', 'false');
+    await user.click(alwaysAsk);
+    expect(setWallybot).toHaveBeenCalledWith({ autoApply: false });
   });
 });

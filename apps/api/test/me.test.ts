@@ -340,6 +340,34 @@ describe('/me', () => {
       expect(response.json().preferences.lastBoardId).toBe('board_42');
     });
 
+    it('saves the Wallybot preference by its own path and defaults it when absent', async () => {
+      const token = registerTestUser(ctx, 'u-wb', 'wb@example.com', 'WB');
+      const before = await ctx.inject({
+        method: 'GET',
+        url: '/me',
+        headers: ctx.authHeader(token),
+      });
+      expect(before.json().preferences.wallybot).toEqual({ autoApply: true });
+      const res = await ctx.inject({
+        method: 'PATCH',
+        url: '/me',
+        headers: ctx.authHeader(token),
+        payload: { preferences: { wallybot: { autoApply: false } } },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().preferences.wallybot).toEqual({ autoApply: false });
+      const theme = await ctx.inject({
+        method: 'PATCH',
+        url: '/me',
+        headers: ctx.authHeader(token),
+        payload: { preferences: { theme: 'dark' } },
+      });
+      expect(theme.json().preferences).toMatchObject({
+        theme: 'dark',
+        wallybot: { autoApply: false },
+      });
+    });
+
     it('rejects unknown keys and board ids that could escape a field path', async () => {
       const token = registerTestUser(ctx, 'pref-bad', 'pref-bad@example.com');
 

@@ -100,6 +100,11 @@ export const en = {
       saving: 'Saving…',
       saveFailed: 'Could not save your language.',
     },
+    wallybot: {
+      label: 'Wallybot',
+      alwaysAsk: 'Always ask me',
+      hint: 'Always ask me: suggestions wait for Enter instead of applying on their own.',
+    },
   },
   validation: {
     email: {

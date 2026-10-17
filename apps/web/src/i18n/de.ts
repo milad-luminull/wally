@@ -108,6 +108,11 @@ export const de = {
       saving: 'Wird gespeichert…',
       saveFailed: 'Sprache konnte nicht gespeichert werden.',
     },
+    wallybot: {
+      label: 'Wallybot',
+      alwaysAsk: 'Immer fragen',
+      hint: 'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
+    },
   },
   validation: {
     email: {

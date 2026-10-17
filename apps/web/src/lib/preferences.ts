@@ -6,6 +6,7 @@ import {
   type MeDto,
   type Preferences,
   type PreferencesUpdate,
+  type WallybotPreferences,
 } from '@wally/shared';
 import { useMe } from '@/i18n/useProfileLanguage';
 import { useQueryKeys } from '@/features/board/hooks/queryKeys';
@@ -73,6 +74,14 @@ export function useCanvasPattern() {
   const save = useSavePreferences();
   const setPattern = useCallback((canvas: CanvasPattern) => save({ canvas }), [save]);
   return [pattern, setPattern] as const;
+}
+
+/** Wallybot's one setting so far (WALLYBOT_INLINE.md §3.7): off means every proposal waits. */
+export function useWallybotPreferences() {
+  const wallybot = usePreferences().wallybot;
+  const save = useSavePreferences();
+  const setWallybot = useCallback((next: WallybotPreferences) => save({ wallybot: next }), [save]);
+  return [wallybot, setWallybot] as const;
 }
 
 /** Records the open board as the one `/` returns to. A no-op once it already is. */
