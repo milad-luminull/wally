@@ -8,13 +8,13 @@ import { matchesFieldFilter } from './queries.js';
  * `packages/shared` has no test runner, which is why the shared half lives here.
  */
 describe('the property-key fold', () => {
-  it('treats Kunde, kunde and KUNDE as one property', () => {
-    expect(customFieldsSchema.safeParse({ Kunde: 'A', kunde: 'B' }).success).toBe(false);
-    expect(customFieldsSchema.safeParse({ Kunde: 'A', KUNDE: 'B' }).success).toBe(false);
-    expect(customFieldsSchema.safeParse({ kunde: 'A', KUNDE: 'B' }).success).toBe(false);
-    expect(findFieldKey({ Kunde: 'A' }, 'kunde')).toBe('Kunde');
-    expect(findFieldKey({ Kunde: 'A' }, ' KUNDE ')).toBe('Kunde');
-    expect(foldFieldKey('Kunde')).toBe(foldFieldKey('KUNDE'));
+  it('treats Customer, customer and CUSTOMER as one property', () => {
+    expect(customFieldsSchema.safeParse({ Customer: 'A', customer: 'B' }).success).toBe(false);
+    expect(customFieldsSchema.safeParse({ Customer: 'A', CUSTOMER: 'B' }).success).toBe(false);
+    expect(customFieldsSchema.safeParse({ customer: 'A', CUSTOMER: 'B' }).success).toBe(false);
+    expect(findFieldKey({ Customer: 'A' }, 'customer')).toBe('Customer');
+    expect(findFieldKey({ Customer: 'A' }, ' CUSTOMER ')).toBe('Customer');
+    expect(foldFieldKey('Customer')).toBe(foldFieldKey('CUSTOMER'));
   });
 
   it('keeps Straße and STRASSE as two properties: a case fold, not a full fold', () => {
@@ -32,14 +32,14 @@ describe('the property-key fold', () => {
 });
 
 describe('matchesFieldFilter', () => {
-  const fields = { Kunde: 'Müller GmbH', Straße: 'Hauptweg 1' };
+  const fields = { Customer: 'Müller GmbH', Straße: 'Hauptweg 1' };
 
   it('matches a key in any case, alone or with its value', () => {
-    expect(matchesFieldFilter(fields, 'kunde')).toBe(true);
-    expect(matchesFieldFilter(fields, 'KUNDE')).toBe(true);
-    expect(matchesFieldFilter(fields, 'Kunde:müller gmbh')).toBe(true);
-    expect(matchesFieldFilter(fields, 'KUNDE:MÜLLER GMBH')).toBe(true);
-    expect(matchesFieldFilter(fields, 'Kunde:Steiner AG')).toBe(false);
+    expect(matchesFieldFilter(fields, 'customer')).toBe(true);
+    expect(matchesFieldFilter(fields, 'CUSTOMER')).toBe(true);
+    expect(matchesFieldFilter(fields, 'Customer:müller gmbh')).toBe(true);
+    expect(matchesFieldFilter(fields, 'CUSTOMER:MÜLLER GMBH')).toBe(true);
+    expect(matchesFieldFilter(fields, 'Customer:Steiner AG')).toBe(false);
   });
 
   it('does not match STRASSE to Straße', () => {
@@ -52,6 +52,6 @@ describe('matchesFieldFilter', () => {
   });
 
   it('matches nothing on a note without properties', () => {
-    expect(matchesFieldFilter({}, 'Kunde')).toBe(false);
+    expect(matchesFieldFilter({}, 'Customer')).toBe(false);
   });
 });

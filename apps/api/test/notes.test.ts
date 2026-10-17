@@ -179,11 +179,11 @@ describe('note routes', () => {
       expect(byPair.json()[0].title).toBe('A');
     });
 
-    it('field filter folds case without a locale: KUNDE finds Kunde, STRASSE does not find Straße', async () => {
+    it('field filter folds case without a locale: CUSTOMER finds Customer, STRASSE does not find Straße', async () => {
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'Customer',
-        customFields: { Kunde: 'Müller GmbH' },
+        customFields: { Customer: 'Müller GmbH' },
       });
       await createNote(fx.boardId, fx.ownerToken, {
         title: 'Street',
@@ -200,8 +200,8 @@ describe('note routes', () => {
         return res.json().map((n: { title: string }) => n.title);
       };
 
-      expect(await titles('KUNDE')).toEqual(['Customer']);
-      expect(await titles('KUNDE:MÜLLER GMBH')).toEqual(['Customer']);
+      expect(await titles('CUSTOMER')).toEqual(['Customer']);
+      expect(await titles('CUSTOMER:MÜLLER GMBH')).toEqual(['Customer']);
       expect(await titles('straße')).toEqual(['Street']);
       expect(await titles('STRASSE')).toEqual([]);
     });

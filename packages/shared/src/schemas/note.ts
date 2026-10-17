@@ -158,8 +158,8 @@ export const noteListQuerySchema = z.object({
   assignedToMe: booleanQueryParam,
   status: z.enum(['OPEN', 'DONE', 'ALL']).optional().default('ALL'),
   /**
-   * Custom-property filter, either `"Kunde"` (note has that property at all) or
-   * `"Kunde:Müller GmbH"` (property equals that value). Split on the FIRST colon, so
+   * Custom-property filter, either `"Customer"` (note has that property at all) or
+   * `"Customer:Müller GmbH"` (property equals that value). Split on the FIRST colon, so
    * values may contain colons.
    */
   field: z

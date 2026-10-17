@@ -103,7 +103,7 @@ export const suggestionFieldsSchema = z.object({
   title: z
     .object({ value: z.string().min(1).max(NOTE_TITLE_MAX_LENGTH), reason: reasonSchema })
     .nullable(),
-  /** One property, "Kunde: Müller GmbH"; the key is one the board already uses when it fits (R7). */
+  /** One property, "Customer: Müller GmbH"; the key is one the board already uses when it fits (R7). */
   reference: z
     .object({
       key: z.string().min(1).max(FIELD_KEY_MAX_LENGTH),

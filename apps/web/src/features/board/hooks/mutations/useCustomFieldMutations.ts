@@ -27,7 +27,7 @@ function currentFields(
 }
 
 /** Adds or overwrites one property. Matching an existing key case-insensitively keeps
- * "Kunde" and "kunde" from becoming two rows that shadow each other. */
+ * "Customer" and "customer" from becoming two rows that shadow each other. */
 function withField(fields: CustomFields, key: string, value: string): CustomFields {
   const existing = findFieldKey(fields, key);
   return { ...fields, [existing ?? key]: value };

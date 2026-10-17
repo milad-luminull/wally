@@ -9,10 +9,10 @@ afterEach(() => {
 });
 
 describe('collectKeys', () => {
-  it('keeps one spelling per key, the first seen: Kunde, kunde and KUNDE are one', () => {
-    expect(collectKeys(notes({ Kunde: 'A' }, { kunde: 'B' }, { KUNDE: 'C' }), 'de')).toEqual([
-      'Kunde',
-    ]);
+  it('keeps one spelling per key, the first seen: Customer, customer and CUSTOMER are one', () => {
+    expect(
+      collectKeys(notes({ Customer: 'A' }, { customer: 'B' }, { CUSTOMER: 'C' }), 'de'),
+    ).toEqual(['Customer']);
   });
 
   it('keeps Straße and STRASSE apart', () => {

@@ -8,11 +8,12 @@ export const i18n = i18next.createInstance();
 
 /**
  * Initialises the one i18next instance. Called from exactly two places: main.tsx with browser
- * detection, and src/test/setup.ts pinned to German.
+ * detection, and src/test/setup.ts pinned to English (src/i18n/germanSurface.test.tsx renders
+ * German).
  *
  * Explicit rather than init-on-import so neither entry point depends on module evaluation
- * order, and so the test suite never inherits jsdom's `navigator.language` ('en-US') and
- * silently flips every assertion to English.
+ * order, and so the test suite's language is the one setup.ts pins, never whatever jsdom's
+ * `navigator.language` happens to be.
  *
  * `initReactI18next` registers this as react-i18next's default instance, which is what lets a
  * bare `useTranslation()` resolve with no `I18nextProvider` in the tree — load-bearing for the

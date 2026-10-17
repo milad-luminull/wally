@@ -202,8 +202,8 @@ function accept(
 }
 
 /**
- * The key folds to the board's own spelling when the board already uses it ("kunde" becomes
- * "Kunde"), so a keep never starts a near-duplicate property. A key or value the property
+ * The key folds to the board's own spelling when the board already uses it ("customer" becomes
+ * "Customer"), so a keep never starts a near-duplicate property. A key or value the property
  * schema refuses drops the reference.
  */
 function acceptReference(

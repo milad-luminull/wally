@@ -26,10 +26,10 @@ import { canSeeNote } from '../notes.js';
 import { requireAccess, notFound, revisionOf, type Actor } from './context.js';
 
 /**
- * The `?field=` filter: "Kunde" (the note has the property) or "Kunde:Müller GmbH" (and it
+ * The `?field=` filter: "Customer" (the note has the property) or "Customer:Müller GmbH" (and it
  * equals that value). Split on the first colon only, so a value may itself contain one. Key and
  * value compare case-insensitively through the shared, locale-neutral fold (`foldFieldKey`), so
- * "kunde" finds "Kunde" for every caller and "STRASSE" never finds "Straße".
+ * "customer" finds "Customer" for every caller and "STRASSE" never finds "Straße".
  */
 export function matchesFieldFilter(customFields: Record<string, string>, field: string): boolean {
   const separator = field.indexOf(':');

@@ -24,7 +24,7 @@ interface CustomFieldEditorProps {
 }
 
 /**
- * Free-form key/value properties on a note, replacing the old fixed "Bezug" field.
+ * Free-form key/value properties on a note, replacing the old fixed reference field.
  *
  * Rows are sorted by key, for the reader's language, so the panel does not reshuffle when a
  * property is edited — Firestore returns map keys in its own order, which is not the
@@ -53,7 +53,7 @@ export function CustomFieldEditor({
     const value = valueDraft.trim();
     if (!key || !value) return;
     if (atCapacity && !findFieldKey(fields, key)) return;
-    // Typing "kunde" when "Kunde" exists edits that property rather than adding a twin.
+    // Typing "customer" when "Customer" exists edits that property rather than adding a twin.
     onSet(
       findFieldKey(fields, key) ?? key.slice(0, FIELD_KEY_MAX_LENGTH),
       value.slice(0, FIELD_VALUE_MAX_LENGTH),

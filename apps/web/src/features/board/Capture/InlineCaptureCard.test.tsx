@@ -15,15 +15,18 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   },
   membersApi: { list: vi.fn() },
 }));
-// German input: the parser is bilingual. It reads the person's language, German here, while the
-// catalogue on screen is the suite's English, so the cases marked below keep German words.
-vi.mock('@/i18n/LanguageProvider', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+// No LanguageProvider here (it would fetch /me); useLanguage answers what the provider would,
+// the active i18n language (LanguageProvider keeps the two equal). The card parses in that
+// language, so the suite's English cases read English and the German cases, marked below,
+// switch the whole card to German with `inGerman()`: German words, German copy.
+vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+  const { i18n } = await import('@/i18n');
+  const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: normalizeLocale(i18n.language) ?? FALLBACK_LOCALE,
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -31,6 +34,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   };
 });
 
+import { i18n } from '@/i18n';
 import { membersApi, notesApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
@@ -60,6 +64,12 @@ function renderCard(
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A German person's card: the parser reads German and the copy is German, as in the app.
+ * Awaited before render; src/test/setup.ts switches back to English after each test.
+ */
+const inGerman = () => i18n.changeLanguage('de');
 
 /** The board's own shortcut hook, as the board binds it: N opens a capture, Esc closes. */
 function BoardKeys({ onN, onEsc }: { onN: () => void; onEsc: () => void }) {
@@ -122,16 +132,17 @@ describe('InlineCaptureCard', () => {
   });
 
   it('commits on Enter with the title and the kept chips, then reports the note', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Müller anrufen Freitag @anna dringend',
     );
-    expect(screen.getByRole('button', { name: /^Due/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Assigned to Anna Kowalski' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'High priority' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Fällig/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Zuständig: Anna Kowalski' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Priorität hoch' })).toBeInTheDocument();
     await user.keyboard('{Enter}');
     await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith('n-new', false, ['dueDate', 'priority', 'assignee']),
@@ -151,18 +162,19 @@ describe('InlineCaptureCard', () => {
   });
 
   it('removing a chip keeps that field out of the commit', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
     await user.type(title, 'Müller anrufen Freitag @anna');
     const chip = document.querySelector<HTMLElement>('[data-chip="assignee"]')!;
     await user.click(
       within(chip).getByRole('button', {
-        name: 'Remove suggestion: Assigned to Anna Kowalski',
+        name: 'Vorschlag entfernen: Zuständig: Anna Kowalski',
       }),
     );
-    expect(screen.queryByRole('button', { name: 'Assigned to Anna Kowalski' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Zuständig: Anna Kowalski' })).toBeNull();
     expect(title).toHaveFocus();
     await user.keyboard('{Enter}');
     await waitFor(() => expect(notesApi.update).toHaveBeenCalled());
@@ -171,14 +183,15 @@ describe('InlineCaptureCard', () => {
   });
 
   it('a tapped chip is set aside and its field stays out of the commit', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Angebot dringend',
     );
-    const chip = screen.getByRole('button', { name: 'High priority' });
+    const chip = screen.getByRole('button', { name: 'Priorität hoch' });
     expect(chip).toHaveAttribute('aria-pressed', 'true');
     await user.click(chip);
     expect(chip).toHaveAttribute('aria-pressed', 'false');
@@ -277,14 +290,15 @@ describe('InlineCaptureCard', () => {
     };
 
     it('proposes the priority but leaves the note where it was placed', async () => {
-      // German input: the parser is bilingual.
+      // German input through a German card: the parser reads the person's language.
+      await inGerman();
       const { onDone } = renderCard('card', 'SHARED', priorityZone);
       const user = userEvent.setup();
       await user.type(
-        screen.getByRole('textbox', { name: 'Title of the new note' }),
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
         'Bericht dringend',
       );
-      expect(screen.getByRole('button', { name: 'High priority' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'Priorität hoch' })).toHaveAttribute(
         'aria-pressed',
         'false',
       );
@@ -294,14 +308,15 @@ describe('InlineCaptureCard', () => {
     });
 
     it('moves the note when the person keeps the priority chip', async () => {
-      // German input: the parser is bilingual.
+      // German input through a German card: the parser reads the person's language.
+      await inGerman();
       const { onDone } = renderCard('card', 'SHARED', priorityZone);
       const user = userEvent.setup();
       await user.type(
-        screen.getByRole('textbox', { name: 'Title of the new note' }),
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
         'Bericht dringend',
       );
-      await user.click(screen.getByRole('button', { name: 'High priority' }));
+      await user.click(screen.getByRole('button', { name: 'Priorität hoch' }));
       await user.keyboard('{Enter}');
       await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
       expect(notesApi.move).toHaveBeenCalledWith(
@@ -352,12 +367,13 @@ describe('InlineCaptureCard', () => {
   });
 
   it('underlines every matched word in the field, in text order', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
       .type(
-        screen.getByRole('textbox', { name: 'Title of the new note' }),
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
         'Müller anrufen Freitag @anna dringend',
       );
     const marks = screen.getAllByTestId('capture-mark');
@@ -376,15 +392,16 @@ describe('InlineCaptureCard', () => {
   });
 
   it('commits the date and the priority but not a dropped person', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Müller anrufen Freitag @anna dringend',
     );
     await user.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna Kowalski' }),
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna Kowalski' }),
     );
     await user.keyboard('{Enter}');
     await waitFor(() =>
@@ -402,21 +419,22 @@ describe('InlineCaptureCard', () => {
   });
 
   it('names each chip and its × after the suggestion it stands for', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
       .type(
-        screen.getByRole('textbox', { name: 'Title of the new note' }),
+        screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
         'Müller anrufen Freitag @anna dringend',
       );
     const removes = screen
-      .getAllByRole('button', { name: /^Remove suggestion/ })
+      .getAllByRole('button', { name: /^Vorschlag entfernen/ })
       .map((b) => b.getAttribute('aria-label'));
     expect(removes).toEqual([
-      expect.stringMatching(/^Remove suggestion: Due /),
-      'Remove suggestion: Assigned to Anna Kowalski',
-      'Remove suggestion: High priority',
+      expect.stringMatching(/^Vorschlag entfernen: Fällig /),
+      'Vorschlag entfernen: Zuständig: Anna Kowalski',
+      'Vorschlag entfernen: Priorität hoch',
     ]);
   });
 
@@ -435,16 +453,17 @@ describe('InlineCaptureCard', () => {
   });
 
   it('a private capture proposes no person and commits without an assignment', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard('card', 'PRIVATE');
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Müller anrufen @anna dringend',
     );
     expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject({ visibility: 'PRIVATE' });
     // The API answers any other assignee of a private note with PRIVATE_NOTE_NOT_ASSIGNABLE.
-    expect(screen.queryByRole('button', { name: /Assigned to/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Zuständig/ })).toBeNull();
     expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual(['dringend']);
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
@@ -584,11 +603,12 @@ describe('InlineCaptureCard', () => {
   });
 
   it('stops underlining a match once its chip is dropped', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
       'Müller anrufen Freitag @anna',
     );
     expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual([
@@ -596,21 +616,45 @@ describe('InlineCaptureCard', () => {
       '@anna',
     ]);
     await user.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna Kowalski' }),
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna Kowalski' }),
     );
     expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual(['Freitag']);
   });
 
   it('formats the proposed date in the language the line was read in', async () => {
-    // German input: the parser is bilingual. It reads German (useLanguage above); the date it
-    // found is labelled the same way, even while the catalogue is English.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
-      .type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Bericht Freitag');
+      .type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht Freitag');
     // German order and weekday (`Fr., 16.10.`), not English (`Fri, 10/16`).
+    expect(screen.getByRole('button', { name: /^Fällig / })).toHaveAccessibleName(
+      /^Fällig Fr\., \d{2}\.\d{2}\.$/,
+    );
+  });
+
+  it('reads an English line on an English card: Friday, @anna and urgent become chips', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      'Call Müller Friday @anna urgent',
+    );
+    expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual([
+      'Friday',
+      '@anna',
+      'urgent',
+    ]);
+    // English order and weekday (`Fri, 10/16`).
     expect(screen.getByRole('button', { name: /^Due / })).toHaveAccessibleName(
-      /^Due Fr\., \d{2}\.\d{2}\.$/,
+      /^Due Fri, \d{2}\/\d{2}$/,
+    );
+    expect(screen.getByRole('button', { name: 'Assigned to Anna Kowalski' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'High priority' })).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('n-new', false, ['dueDate', 'priority', 'assignee']),
     );
   });
 
@@ -622,7 +666,8 @@ describe('InlineCaptureCard', () => {
   });
 
   it('owns its keys while a chip has focus: n is no new note, Esc discards', async () => {
-    // German input: the parser is bilingual.
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const onN = vi.fn();
     const onEsc = vi.fn();
     const onDone = vi.fn();
@@ -639,9 +684,9 @@ describe('InlineCaptureCard', () => {
       </>,
     );
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Freitag');
+    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Freitag');
     await user.tab();
-    expect(screen.getByRole('button', { name: /^Due/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /^Fällig/ })).toHaveFocus();
     await user.keyboard('n');
     expect(onN).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
