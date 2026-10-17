@@ -13,4 +13,9 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
 
   await page.getByLabel('Notizen durchsuchen').fill(title);
   await expect(page.getByText(title)).toBeVisible();
+  // The capture turn has no model in CI, so the card never shows a dot; this pins that the AI
+  // look is absent on a plain note.
+  await expect(
+    page.locator('[data-note-id]', { hasText: title }).locator('[data-pending]'),
+  ).toHaveCount(0);
 });

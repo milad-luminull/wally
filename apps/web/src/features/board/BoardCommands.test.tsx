@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -55,7 +55,7 @@ function renderCommands(
   const onDuplicateNote = vi.fn();
   const onNewNote = vi.fn();
   const onOpenAssistant = vi.fn();
-  renderWithProviders(
+  const { unmount } = renderWithProviders(
     <>
       {alongside}
       <BoardCommands
@@ -80,11 +80,12 @@ function renderCommands(
         onResetView={vi.fn()}
         assistantEnabled
         onOpenAssistant={onOpenAssistant}
+        onUndoSuggestion={() => false}
         {...overrides}
       />
     </>,
   );
-  return { onDuplicateNote, onNewNote, onOpenAssistant };
+  return { onDuplicateNote, onNewNote, onOpenAssistant, unmount };
 }
 
 describe('BoardCommands', () => {
@@ -184,5 +185,29 @@ describe('BoardCommands', () => {
     await user.keyboard('{Escape}');
     await user.keyboard(ASK);
     expect(onOpenAssistant).not.toHaveBeenCalled();
+  });
+
+  it('⌘Z undoes the last kept change when there is one, and leaves the key alone otherwise', () => {
+    const undoKey = { key: 'z', [isMac ? 'metaKey' : 'ctrlKey']: true };
+    const kept = vi.fn(() => true);
+    const { unmount } = renderCommands({ onUndoSuggestion: kept });
+    // fireEvent returns false when a listener prevented the event's default.
+    expect(fireEvent.keyDown(document.body, undoKey)).toBe(false);
+    expect(kept).toHaveBeenCalledTimes(1);
+    // ⌘⇧Z is redo, never an undo.
+    expect(fireEvent.keyDown(document.body, { ...undoKey, key: 'Z', shiftKey: true })).toBe(true);
+    expect(kept).toHaveBeenCalledTimes(1);
+    unmount();
+
+    const nothing = vi.fn(() => false);
+    renderCommands({ onUndoSuggestion: nothing }, <input aria-label="Feld" />);
+    expect(fireEvent.keyDown(document.body, undoKey)).toBe(true);
+    expect(nothing).toHaveBeenCalledTimes(1);
+
+    // In a field, ⌘Z is the field's own undo.
+    const field = screen.getByRole('textbox', { name: 'Feld' });
+    field.focus();
+    expect(fireEvent.keyDown(field, undoKey)).toBe(true);
+    expect(nothing).toHaveBeenCalledTimes(1);
   });
 });

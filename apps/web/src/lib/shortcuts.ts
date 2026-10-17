@@ -13,6 +13,12 @@ export interface Shortcut {
   handler: (event: KeyboardEvent) => void;
   /** Fire even when focus is in a text field (for `mod+` chords like ⌘K). */
   allowInInputs?: boolean;
+  /**
+   * The handler decides whether the key's default is prevented, so a key it has no use for
+   * this time (⌘Z with nothing to undo) still reaches the browser. Otherwise a matched key
+   * is always prevented.
+   */
+  handlerOwnsDefault?: boolean;
 }
 
 const SEQUENCE_TIMEOUT_MS = 1000;
@@ -83,14 +89,14 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[], enabled = true) {
             Date.now() - prefix.at < SEQUENCE_TIMEOUT_MS &&
             matchesChord(event, steps[1]!)
           ) {
-            event.preventDefault();
+            if (!shortcut.handlerOwnsDefault) event.preventDefault();
             shortcut.handler(event);
             return;
           }
           continue;
         }
         if (matchesChord(event, steps[0]!)) {
-          event.preventDefault();
+          if (!shortcut.handlerOwnsDefault) event.preventDefault();
           shortcut.handler(event);
           return;
         }

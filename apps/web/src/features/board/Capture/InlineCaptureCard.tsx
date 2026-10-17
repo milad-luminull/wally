@@ -11,7 +11,8 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { NoteVisibility } from '@wally/shared';
+import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
+import { suggestionFieldKeys } from '@wally/shared';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
@@ -126,8 +127,11 @@ export function InlineCaptureCard({
   placement: CapturePlacement;
   visibility: NoteVisibility;
   layout: 'card' | 'row';
-  /** `noteId` is null when the capture was cancelled; `open` asks for the note's sidebar. */
-  onDone: (noteId: string | null, open: boolean) => void;
+  /**
+   * `noteId` is null when the capture was cancelled; `open` asks for the note's sidebar;
+   * `locked` names the fields the person decided here, so Wallybot never proposes them.
+   */
+  onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /**
    * Hears each id the note being written is shown under (its temp id, then its real one),
    * before the board shows it, so the board can leave that note to this card until it is done.
@@ -197,6 +201,18 @@ export function InlineCaptureCard({
       priority: parse?.priority && applies('priority') ? parse.priority.value : null,
     };
   }
+  /** The fields the person decided here: a kept chip, or a placement on the priority wall (R3). */
+  function locked(): SuggestionFieldKey[] {
+    const f = fields();
+    const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+    return suggestionFieldKeys.filter((key) =>
+      key === 'dueDate'
+        ? f.dueDate !== null
+        : key === 'priority'
+          ? f.priority !== null || placedByPriority
+          : f.assigneeId !== null,
+    );
+  }
   /** Words in either field make a note; whitespace alone in both does not. */
   const hasWords = Boolean(title.trim() || description.trim());
   async function commit(thenOpen: boolean) {
@@ -205,7 +221,12 @@ export function InlineCaptureCard({
     settling.current = true;
     try {
       await controller.commit(
-        { title: trimmed, description: asTyped(description), fields: fields() },
+        {
+          title: trimmed,
+          description: asTyped(description),
+          fields: fields(),
+          locked: locked(),
+        },
         thenOpen,
       );
     } catch {

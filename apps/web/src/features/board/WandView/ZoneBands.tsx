@@ -1,12 +1,13 @@
 import { useDroppable } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { NoteDto, NoteVisibility } from '@wally/shared';
+import type { NoteDto, NoteVisibility, SuggestionFieldKey } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { NoteGroup } from '../util/noteDerived';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CapturePlacement } from '../Capture/useCapture';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
 /** Droppable-region id convention consumed by WandView's onDragEnd. */
@@ -20,7 +21,7 @@ interface ZoneCapture {
   boardId: string;
   placement: Extract<CapturePlacement, { kind: 'zone' }>;
   visibility: NoteVisibility;
-  onDone: (noteId: string | null, open: boolean) => void;
+  onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
 }
 
@@ -36,6 +37,8 @@ interface ZoneBandProps {
   activeDragId: string | null;
   /** Every note on the board is hidden by the filters — say so, rather than "empty". */
   filteredOut: boolean;
+  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
 function ZoneBand({
@@ -48,6 +51,7 @@ function ZoneBand({
   onCreateInZone,
   activeDragId,
   filteredOut,
+  pendingFor,
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
@@ -125,6 +129,7 @@ function ZoneBand({
               selected={selectedNoteId === note.id}
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
+              pending={pendingFor?.(note.id)}
             />
           ))}
         </div>
@@ -157,7 +162,7 @@ interface ZoneBandsProps {
   capture: CapturePlacement | null;
   /** Changes with every capture, so each one gets a fresh card. */
   captureKey?: number;
-  onCaptureDone: (noteId: string | null, open: boolean) => void;
+  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   visibility: NoteVisibility;
@@ -167,6 +172,8 @@ interface ZoneBandsProps {
   onCreateInZone: (key: string) => void;
   activeDragId: string | null;
   filteredOut: boolean;
+  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
 /** Horizon → columns side by side; Priority → rows stacked. Never rendered in Frei mode —

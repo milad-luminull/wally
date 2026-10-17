@@ -10,12 +10,14 @@ import {
   type CanvasPattern,
   type NoteDto,
   type NoteVisibility,
+  type SuggestionFieldKey,
 } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CapturePlacement } from '../Capture/useCapture';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
@@ -32,7 +34,7 @@ interface WandCanvasProps {
   capture: CapturePlacement | null;
   /** Changes with every capture, so each one gets a fresh card. */
   captureKey?: number;
-  onCaptureDone: (noteId: string | null, open: boolean) => void;
+  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
@@ -42,6 +44,8 @@ interface WandCanvasProps {
   /** True when the board has notes but the active filter hides all of them. */
   filtered: boolean;
   activeDragId: string | null;
+  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
 /**
@@ -83,6 +87,7 @@ export function WandCanvas({
   canEditShared,
   filtered,
   activeDragId,
+  pendingFor,
 }: WandCanvasProps) {
   const { t } = useTranslation();
   const { setNodeRef } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
@@ -127,6 +132,7 @@ export function WandCanvas({
               selected={selectedNoteId === note.id}
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
+              pending={pendingFor?.(note.id)}
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
           ))}

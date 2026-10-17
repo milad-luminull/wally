@@ -87,6 +87,8 @@ interface BoardCommandsProps {
   /** The board's question panel is on; without it there is no entry, no key, no help row. */
   assistantEnabled: boolean;
   onOpenAssistant: () => void;
+  /** Undoes the last kept Wallybot change still in its window; false when there is none. */
+  onUndoSuggestion: () => boolean;
 }
 
 function Kbd({ children }: { children: string }) {
@@ -133,6 +135,15 @@ export function BoardCommands(props: BoardCommandsProps) {
         if (!props.noteOpen) return;
         (document.activeElement as HTMLElement | null)?.blur();
         props.onCloseNote();
+      },
+    },
+    {
+      // Not in a field, where ⌘Z is the field's own undo; with nothing to undo here the key
+      // is left to the browser. The chord matcher ignores Shift, and ⌘⇧Z is redo.
+      keys: 'mod+z',
+      handlerOwnsDefault: true,
+      handler: (event) => {
+        if (!event.shiftKey && props.onUndoSuggestion()) event.preventDefault();
       },
     },
   ];

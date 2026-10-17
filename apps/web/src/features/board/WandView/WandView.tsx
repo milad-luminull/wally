@@ -23,6 +23,7 @@ import {
   type NoteHorizon,
   type NotePriority,
   type NoteVisibility,
+  type SuggestionFieldKey,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { BoardAccess } from '../util/permissions';
@@ -38,6 +39,7 @@ import {
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
 import type { CapturePlacement } from '../Capture/useCapture';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
 import { NoteCard } from './NoteCard';
@@ -63,11 +65,13 @@ interface WandViewProps {
   captureKey?: number;
   /** A zone's plus or a double-click asks for a new note written there. */
   onCapture: (placement: CapturePlacement) => void;
-  onCaptureDone: (noteId: string | null, open: boolean) => void;
+  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
+  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
@@ -97,6 +101,7 @@ export function WandView({
   onCaptureDone,
   onCaptureNoteId,
   visibility,
+  pendingFor,
 }: WandViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -412,6 +417,7 @@ export function WandView({
             visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
+            pendingFor={pendingFor}
           />
         ) : (
           <ZoneBands
@@ -429,6 +435,7 @@ export function WandView({
             onCreateInZone={handleCreateInZone}
             activeDragId={activeId}
             filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
+            pendingFor={pendingFor}
           />
         )}
 

@@ -103,7 +103,7 @@ describe('InlineCaptureCard', () => {
     expect(notesApi.create).not.toHaveBeenCalled();
     await userEvent.setup().keyboard('{Escape}');
     expect(notesApi.create).not.toHaveBeenCalled();
-    expect(onDone).toHaveBeenCalledWith(null, false);
+    expect(onDone).toHaveBeenCalledWith(null, false, []);
   });
 
   it('creates the note on the first keystroke with the placement and visibility', async () => {
@@ -131,7 +131,9 @@ describe('InlineCaptureCard', () => {
     expect(screen.getByRole('button', { name: 'Zuständig: Anna Kowalski' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Priorität hoch' })).toBeInTheDocument();
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('n-new', false, ['dueDate', 'priority', 'assignee']),
+    );
     const update = vi.mocked(notesApi.update).mock.calls.at(-1)!;
     expect(update[0]).toBe('n-new');
     expect(update[1]).toMatchObject({ title: 'Müller anrufen Freitag @anna dringend' });
@@ -177,7 +179,7 @@ describe('InlineCaptureCard', () => {
     await user.click(chip);
     expect(chip).toHaveAttribute('aria-pressed', 'false');
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(notesApi.move).not.toHaveBeenCalled();
   });
 
@@ -211,7 +213,7 @@ describe('InlineCaptureCard', () => {
     await user.tab();
     await user.tab();
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
-    expect(onDone).toHaveBeenCalledWith(null, false);
+    expect(onDone).toHaveBeenCalledWith(null, false, []);
   });
 
   it('blur with a title commits the note', async () => {
@@ -219,7 +221,7 @@ describe('InlineCaptureCard', () => {
     const user = userEvent.setup();
     await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bleibt');
     await user.tab();
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({ title: 'Bleibt' });
     expect(notesApi.remove).not.toHaveBeenCalled();
   });
@@ -233,7 +235,7 @@ describe('InlineCaptureCard', () => {
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
     expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject({ title: '' });
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
       title: '',
       description: 'nur Text',
@@ -244,7 +246,7 @@ describe('InlineCaptureCard', () => {
   it('a click elsewhere with nothing typed sends no request', async () => {
     const { onDone } = renderCard();
     await userEvent.setup().tab();
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
     expect(notesApi.create).not.toHaveBeenCalled();
     expect(notesApi.remove).not.toHaveBeenCalled();
     expect(notesApi.update).not.toHaveBeenCalled();
@@ -282,7 +284,7 @@ describe('InlineCaptureCard', () => {
         'false',
       );
       await user.keyboard('{Enter}');
-      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
       expect(notesApi.move).not.toHaveBeenCalled();
     });
 
@@ -295,13 +297,34 @@ describe('InlineCaptureCard', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Priorität hoch' }));
       await user.keyboard('{Enter}');
-      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
       expect(notesApi.move).toHaveBeenCalledWith(
         'n-new',
         { mode: 'PRIORITY', priority: 'HOCH' },
         expect.anything(),
       );
     });
+
+    it('hands over the priority as decided by the placement, with no chip at all', async () => {
+      const { onDone } = renderCard('card', 'SHARED', priorityZone);
+      const user = userEvent.setup();
+      await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht');
+      await user.keyboard('{Enter}');
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
+    });
+  });
+
+  it('a plain title in a horizon zone hands over no decided field', async () => {
+    const { onDone } = renderCard('card', 'SHARED', {
+      kind: 'zone',
+      axis: 'horizon',
+      key: 'HEUTE',
+      at: { freeX: 0, freeY: 0 },
+    });
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
 
   it('Esc after typing deletes the note', async () => {
@@ -310,7 +333,7 @@ describe('InlineCaptureCard', () => {
     await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Weg');
     await user.keyboard('{Escape}');
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
-    expect(onDone).toHaveBeenCalledWith(null, false);
+    expect(onDone).toHaveBeenCalledWith(null, false, []);
     expect(notesApi.update).not.toHaveBeenCalled();
   });
 
@@ -319,7 +342,7 @@ describe('InlineCaptureCard', () => {
     const user = userEvent.setup();
     await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Details');
     await user.keyboard('{Meta>}{Enter}{/Meta}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', true));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', true, []));
   });
 
   it('underlines every matched word in the field, in text order', async () => {
@@ -345,7 +368,9 @@ describe('InlineCaptureCard', () => {
       screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna Kowalski' }),
     );
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('n-new', false, ['dueDate', 'priority']),
+    );
     expect(
       (vi.mocked(notesApi.update).mock.calls.at(-1)![1] as { dueDate?: string }).dueDate,
     ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -401,7 +426,7 @@ describe('InlineCaptureCard', () => {
     expect(screen.queryByRole('button', { name: /Zuständig/ })).toBeNull();
     expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual(['dringend']);
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
     expect(notesApi.assign).not.toHaveBeenCalled();
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
       title: 'Müller anrufen @anna dringend',
@@ -475,7 +500,7 @@ describe('InlineCaptureCard', () => {
       await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Notiz');
       await user.keyboard('{Shift>}{Enter}{/Shift}');
       await user.keyboard('{Escape}');
-      await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false));
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
       // The `n` typed into the title stays an `n`; Enter and Esc stop at the capture.
       expect(onN).not.toHaveBeenCalled();
       expect(onEsc).not.toHaveBeenCalled();
@@ -506,7 +531,7 @@ describe('InlineCaptureCard', () => {
     // The create landed mid-commit; the commit is still waiting on its update.
     expect(title).toHaveAttribute('readonly');
     await act(async () => resolveUpdate(created({ title: 'Spät' })));
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
 
   it('Shift+Enter in the title goes back to a text line that is already open', async () => {
@@ -530,7 +555,7 @@ describe('InlineCaptureCard', () => {
     await user.keyboard('{Shift>}{Enter}{/Shift}');
     const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
     await user.type(text, '  drei Varianten  {Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
       title: 'Angebot',
       description: '  drei Varianten  ',
@@ -599,7 +624,7 @@ describe('InlineCaptureCard', () => {
     expect(onN).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
     expect(onEsc).not.toHaveBeenCalled();
   });
 
@@ -616,6 +641,6 @@ describe('InlineCaptureCard', () => {
     expect(title).toHaveValue('Nochmal');
     expect(title).toHaveFocus();
     await user.keyboard('{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
 });

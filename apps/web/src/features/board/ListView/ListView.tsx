@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info, StickyNote, X } from 'lucide-react';
-import type { NoteDto, NoteStatus, NoteVisibility } from '@wally/shared';
+import type { NoteDto, NoteStatus, NoteVisibility, SuggestionFieldKey } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { groupByAxis } from '../util/noteDerived';
 import type { BoardAccess } from '../util/permissions';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteRow } from './NoteRow';
 
 const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
@@ -64,10 +65,12 @@ interface ListViewProps {
     id?: number;
     boardId: string;
     visibility: NoteVisibility;
-    onDone: (noteId: string | null, open: boolean) => void;
+    onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
     /** Hears each id the note is shown under, so the list leaves it to its row. */
     onNoteId?: (noteId: string) => void;
   } | null;
+  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
 /**
@@ -96,6 +99,7 @@ export function ListView({
   access,
   isBelowDesktop,
   capture,
+  pendingFor,
 }: ListViewProps) {
   const { t } = useTranslation();
   // `t` belongs in these deps: react-i18next returns a new reference after languageChanged, so
@@ -177,6 +181,7 @@ export function ListView({
                   onOpen={() => onOpenNote(note.id)}
                   onToggleDone={() => onToggleDone(note.id, note.status)}
                   canEdit={access.canEditNote(note)}
+                  pending={pendingFor?.(note.id)}
                 />
               ))}
             </div>

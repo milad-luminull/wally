@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { NoteDto } from '@wally/shared';
+import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
 import type { CapturePlacement } from './useCapture';
 
@@ -66,12 +66,15 @@ export function useCaptureSession({
   axis,
   openNoteId,
   openNote,
+  onCommitted,
 }: {
   boardId: string;
   view: BoardView;
   axis: BoardAxis;
   openNoteId: string | null;
   openNote: (noteId: string | null) => void;
+  /** Hears each committed note with the fields the person decided in it (the shell asks Wallybot). */
+  onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const nextId = useRef(1);
@@ -79,6 +82,8 @@ export function useCaptureSession({
   const currentId = useRef<number | null>(null);
   const latestOpenNote = useRef(openNote);
   latestOpenNote.current = openNote;
+  const latestOnCommitted = useRef(onCommitted);
+  latestOnCommitted.current = onCommitted;
   // The note just committed, focused once the board has drawn its card in the card's place.
   const committed = useRef<string | null>(null);
 
@@ -118,8 +123,9 @@ export function useCaptureSession({
 
   const shownId = shown?.id;
   const onCaptureDone = useCallback(
-    (noteId: string | null, open: boolean) => {
+    (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => {
       if (shownId === undefined || !end(shownId)) return;
+      if (noteId) latestOnCommitted.current?.(noteId, locked);
       // The panel takes the focus itself when it opens.
       if (noteId && open) latestOpenNote.current(noteId);
       else if (noteId) committed.current = noteId;
