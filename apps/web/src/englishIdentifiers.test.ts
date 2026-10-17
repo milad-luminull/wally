@@ -4,9 +4,12 @@ import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
 
 /**
- * Keeps German out of the code. ADR-0014: no German identifier, file name, test id or comment
- * anywhere in `apps/web/src`, `apps/api/src` or `packages/shared/src`; the catalogue VALUES
- * (`i18n/de.ts`) and the German capture-parser word list are the only German in the tree.
+ * Keeps the board-view German out of the code (ADR-0014). Across `apps/web/src`, `apps/api/src`
+ * and `packages/shared/src` it bans five words — `wand`, `frei`, `liste`, `horizont`, `alle` —
+ * from identifiers and path segments, and a few patterns built on them (`Wand…`, `wand-`,
+ * `Frei mode`, `ALLE`) from comments and strings. It is NOT a general German detector: any
+ * other German word (`Kunde`, `Bezug`) passes it, so review still has to catch those. The
+ * catalogue VALUES (`i18n/de.ts`) and the German capture-parser word list are exempt.
  *
  * A test rather than a lint rule, for the same reason brandGuards.test.ts is one: apps/web's
  * eslint config carries only react-hooks and react-refresh, and a custom rule would mean a new
@@ -51,10 +54,6 @@ const ALLOWED_WAND_LITERALS: ReadonlyArray<(text: string) => boolean> = [
   (text) => text === 'wand',
   // The same value inside a URL query, as the web app reads it (`?view=wand`).
   (text) => /[?&]view=wand\b/.test(text),
-  // The command palette's search keywords for the "ask the board" entry. They sit beside the
-  // English words so a German user typing `wand` or `fragen` still finds it (cmdk matches on
-  // this value, not on the label); the same job as a catalogue value, so it waits with them.
-  (text) => text === 'ask question wand fragen',
   // English prose about the banned magic-wand icon (brandGuards.test.ts's test title).
   (text) => text === 'imports no sparkle, wand, robot or brain icon from lucide-react',
 ];

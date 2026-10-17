@@ -39,6 +39,7 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   },
 }));
 
+import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
@@ -153,6 +154,34 @@ describe('BoardCommands', () => {
 
     await user.keyboard(ASK);
     expect(onOpenAssistant).toHaveBeenCalledTimes(2);
+  });
+
+  it('finds the question entry by its English keyword: typing wall', async () => {
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'wall');
+    // cmdk filters on the value and the keywords, not on the label.
+    expect(await screen.findByText('Ask the wall…')).toBeInTheDocument();
+  });
+
+  it('does not find the question entry by the German keywords when the palette is English', async () => {
+    const user = userEvent.setup();
+    renderCommands({ assistantEnabled: true });
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'fragen');
+    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
+  });
+
+  it('finds the question entry by fragen when the palette is German', async () => {
+    await i18n.changeLanguage('de');
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'fragen');
+    expect(await screen.findByText('Wand fragen…')).toBeInTheDocument();
   });
 
   it('does not open the question panel with mod+j behind an open dialog', async () => {

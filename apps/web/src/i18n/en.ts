@@ -192,6 +192,7 @@ export const en = {
     duplicateNote: 'Duplicate note',
     share: 'Share board',
     ask: 'Ask the wall…',
+    askKeywords: 'wall',
     viewWall: 'Switch to wall',
     viewList: 'Switch to list',
     showDone: 'Show completed',

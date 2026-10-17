@@ -301,7 +301,11 @@ function CommandPalette({
                 <span className="flex-1">{t('palette.share')}</span>
               </CommandItem>
               {assistantEnabled && (
-                <CommandItem value="ask question wand fragen" onSelect={() => run(onOpenAssistant)}>
+                <CommandItem
+                  value="ask question"
+                  keywords={t('palette.askKeywords').split(' ')}
+                  onSelect={() => run(onOpenAssistant)}
+                >
                   {/* The question panel carries no icon; an icon-wide gap keeps the label in
                       line with the iconed rows. */}
                   <span aria-hidden className="size-4 shrink-0" />
