@@ -37,7 +37,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /** A layer above the board (dialog, sheet, popover, select) owns the keyboard. */
-function overlayIsOpen(): boolean {
+export function overlayIsOpen(): boolean {
   return Boolean(
     document.querySelector(
       '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',

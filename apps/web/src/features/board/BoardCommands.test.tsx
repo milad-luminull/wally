@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -34,10 +34,12 @@ import { BoardCommands } from './BoardCommands';
 
 const PALETTE = isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}';
 const MOD = isMac ? '{Meta>}d{/Meta}' : '{Control>}d{/Control}';
+const ASK = isMac ? '{Meta>}j{/Meta}' : '{Control>}j{/Control}';
 
 function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> = {}) {
   const onDuplicateNote = vi.fn();
   const onNewNote = vi.fn();
+  const onOpenAssistant = vi.fn();
   renderWithProviders(
     <BoardCommands
       boardId="board-1"
@@ -59,10 +61,12 @@ function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> 
       onSetDone={vi.fn()}
       onSetMine={vi.fn()}
       onResetView={vi.fn()}
+      assistantEnabled
+      onOpenAssistant={onOpenAssistant}
       {...overrides}
     />,
   );
-  return { onDuplicateNote, onNewNote };
+  return { onDuplicateNote, onNewNote, onOpenAssistant };
 }
 
 describe('BoardCommands', () => {
@@ -99,5 +103,50 @@ describe('BoardCommands', () => {
     expect(await screen.findByText('Neue private Notiz')).toBeInTheDocument();
     expect(screen.queryByText('Neue Notiz')).not.toBeInTheDocument();
     expect(screen.queryByText('Notiz duplizieren')).not.toBeInTheDocument();
+  });
+
+  it('lists the question entry and opens it with mod+j when the assistant is on', async () => {
+    const { onOpenAssistant } = renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    await user.click(await screen.findByText('Wand fragen…'));
+    // The palette runs its actions on the next frame, once the dialog has let go of focus.
+    await waitFor(() => expect(onOpenAssistant).toHaveBeenCalledTimes(1));
+
+    await user.keyboard(ASK);
+    expect(onOpenAssistant).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not open the question panel with mod+j behind an open dialog', async () => {
+    const { onOpenAssistant } = renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    // The shortcuts sheet, not the palette: cmdk claims Ctrl+J itself, which would hide the bug.
+    await user.keyboard('?');
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    await user.keyboard(ASK);
+    expect(onOpenAssistant).not.toHaveBeenCalled();
+  });
+
+  it('shows the mod+j hint on the palette entry', async () => {
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    const entry = (await screen.findByText('Wand fragen…')).closest('[cmdk-item]');
+    expect(entry).toHaveTextContent(/J$/);
+  });
+
+  it('has no question entry and no shortcut when the assistant is off', async () => {
+    const { onOpenAssistant } = renderCommands({ assistantEnabled: false });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    expect(await screen.findByText('Neue Notiz')).toBeInTheDocument();
+    expect(screen.queryByText('Wand fragen…')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.keyboard(ASK);
+    expect(onOpenAssistant).not.toHaveBeenCalled();
   });
 });

@@ -57,6 +57,8 @@ function renderTopBar(overrides: Partial<Parameters<typeof TopBar>[0]> = {}) {
       onSetAxis={vi.fn()}
       onResetView={vi.fn()}
       onNewNote={onNewNote}
+      assistantEnabled={false}
+      onOpenAssistant={vi.fn()}
       {...overrides}
     />,
   );
@@ -78,5 +80,89 @@ describe('TopBar new-note button', () => {
 
     expect(onNewNote).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Neue Notiz' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TopBar question button', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('is absent when the assistant is off', () => {
+    renderTopBar({ assistantEnabled: false });
+    expect(screen.queryByRole('button', { name: 'Fragen' })).not.toBeInTheDocument();
+  });
+
+  it('shows at every width when the assistant is on and opens the panel on click', async () => {
+    const onOpenAssistant = vi.fn();
+    renderTopBar({ assistantEnabled: true, onOpenAssistant });
+    const button = screen.getByRole('button', { name: 'Fragen' });
+    expect(button).not.toHaveClass('hidden');
+    await userEvent.click(button);
+    expect(onOpenAssistant).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * jsdom has no layout, so these pin the classes that make the bar fit a 375px phone: the
+ * left side is the one flex item that shrinks (and the name truncates inside it), the
+ * controls sit in a cluster that never shrinks, and nothing in that cluster is hidden.
+ * Live, before this, the name's heading was 0px wide and the name ran under the Ask button.
+ */
+describe('TopBar at phone width', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** The element that is a direct child of the header and contains `el`. */
+  function barSlot(el: HTMLElement): HTMLElement {
+    const header = el.closest('header');
+    let node: HTMLElement = el;
+    while (node.parentElement && node.parentElement !== header) node = node.parentElement;
+    return node;
+  }
+
+  function hiddenAncestors(el: HTMLElement): HTMLElement[] {
+    const found: HTMLElement[] = [];
+    for (let n: HTMLElement | null = el; n && n.tagName !== 'HEADER'; n = n.parentElement) {
+      if (n.classList.contains('hidden')) found.push(n);
+    }
+    return found;
+  }
+
+  it('lets the board name shrink and truncate instead of running under the controls', () => {
+    renderTopBar({ assistantEnabled: true });
+    const name = screen.getByRole('button', { name: 'Meine Wand' });
+    const heading = screen.getByRole('heading', { level: 1 });
+
+    expect(name).toHaveClass('truncate', 'max-w-full');
+    // A block button sizes to its content, so the cap must sit on the heading.
+    expect(name).not.toHaveClass('max-w-[260px]');
+    expect(heading).toHaveClass('min-w-0', 'max-w-[260px]');
+    expect(barSlot(heading)).toHaveClass('min-w-0', 'flex-1');
+  });
+
+  it('truncates a viewer’s board name the same way', () => {
+    renderTopBar({ isOwner: false });
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading.firstElementChild).toHaveClass('truncate', 'max-w-full');
+    expect(barSlot(heading)).toHaveClass('min-w-0', 'flex-1');
+  });
+
+  it('keeps all five controls, Ask included, in one cluster that never shrinks', () => {
+    renderTopBar({ assistantEnabled: true });
+    const ask = screen.getByRole('button', { name: 'Fragen' });
+    const controls = [
+      ask,
+      screen.getByRole('button', { name: 'Anzeige' }),
+      screen.getByRole('button', { name: 'Teilen' }),
+      screen.getByRole('button', { name: 'Neue Notiz' }),
+      screen.getByRole('button', { name: 'Konto' }),
+    ];
+
+    const cluster = barSlot(ask);
+    expect(cluster).toHaveClass('shrink-0');
+    for (const control of controls) {
+      expect(barSlot(control)).toBe(cluster);
+      expect(hiddenAncestors(control)).toEqual([]);
+    }
+    // The name lives in the other, shrinking slot.
+    expect(barSlot(screen.getByRole('heading', { level: 1 }))).not.toBe(cluster);
   });
 });

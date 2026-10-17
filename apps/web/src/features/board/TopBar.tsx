@@ -77,6 +77,9 @@ interface TopBarProps {
   onSetAxis: (axis: BoardAxis) => void;
   onResetView: () => void;
   onNewNote: () => void;
+  /** The board's question panel is on; without it the bar has no Ask button. */
+  assistantEnabled: boolean;
+  onOpenAssistant: () => void;
 }
 
 /**
@@ -103,7 +106,11 @@ function DisplayMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" aria-label={t('board.topBar.display.label')}>
+        <Button
+          variant="ghost"
+          aria-label={t('board.topBar.display.label')}
+          className={PHONE_ICON_BUTTON}
+        >
           <SlidersHorizontal strokeWidth={1.75} />
           <span className="hidden md:inline">{t('board.topBar.display.label')}</span>
         </Button>
@@ -145,6 +152,17 @@ function DisplayMenu({
   );
 }
 
+/*
+ * A 375px phone has to hold the home mark, the board name, its switcher and five controls
+ * (Ask, Display, Share, New, account). On a coarse pointer every button grows to px-4, which
+ * left the name no room at all, so below md the icon-only buttons drop to px-3 — 40px wide,
+ * the coarse-pointer floor in docs/BRAND.md — and the Ask text button to px-1.5 with that
+ * same 40px minimum. From md up the shared button sizes apply unchanged.
+ */
+const PHONE_ICON_BUTTON = 'max-md:[@media(pointer:coarse)]:px-3';
+const PHONE_TEXT_BUTTON =
+  'max-md:px-2 max-md:[@media(pointer:coarse)]:min-w-10 max-md:[@media(pointer:coarse)]:px-1.5';
+
 export function TopBar({
   board,
   boardId,
@@ -160,6 +178,8 @@ export function TopBar({
   onSetAxis,
   onResetView,
   onNewNote,
+  assistantEnabled,
+  onOpenAssistant,
 }: TopBarProps) {
   const { t } = useTranslation();
   const newNoteLabel = t(
@@ -205,8 +225,10 @@ export function TopBar({
   const overflowCount = otherMembers.length - visibleMembers.length;
 
   return (
-    <header className="z-header flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
-      <div className="flex min-w-0 items-center gap-2">
+    <header className="z-header flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-3 md:gap-1.5 lg:px-4 [@media(pointer:coarse)]:h-14">
+      {/* The one part of the bar that gives way: it takes the free space and, when there is
+          none, shrinks until the board name truncates. The controls on the right never do. */}
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 md:gap-2">
         <Link
           to="/boards"
           aria-label={t('board.topBar.home')}
@@ -215,7 +237,8 @@ export function TopBar({
         >
           <BrandMark size={20} />
         </Link>
-        <span aria-hidden className="text-16 font-light text-fg-faint">
+        {/* Decoration only: on a phone its width goes to the name instead. */}
+        <span aria-hidden className="hidden shrink-0 text-16 font-light text-fg-faint sm:inline">
           /
         </span>
 
@@ -237,7 +260,10 @@ export function TopBar({
               className="h-7 min-w-0 max-w-[260px] rounded-md border border-border-strong bg-surface px-1.5 text-14 font-medium text-fg-1 outline-none ring-2 ring-[color:var(--ring-alpha)]"
             />
           ) : (
-            <h1 className="min-w-0 text-14 font-medium text-fg-1">
+            /* The cap sits here, and the button is max-w-full: a block button sizes to its
+               content rather than to its parent, so a cap on the button alone let a long
+               name spill out of a zero-width heading and under the controls. */
+            <h1 className="min-w-0 max-w-[260px] text-14 font-medium text-fg-1">
               {isOwner ? (
                 <button
                   type="button"
@@ -248,12 +274,12 @@ export function TopBar({
                     setEditingName(true);
                   }}
                   title={t('board.topBar.renameTitle')}
-                  className="block h-7 max-w-[260px] truncate rounded-md px-1.5 text-left transition-colors duration-100 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+                  className="block h-7 max-w-full truncate rounded-md px-1.5 text-left transition-colors duration-100 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
                 >
                   {board.name}
                 </button>
               ) : (
-                <span className="block max-w-[260px] truncate px-1.5">{board.name}</span>
+                <span className="block max-w-full truncate px-1.5">{board.name}</span>
               )}
             </h1>
           )}
@@ -277,72 +303,91 @@ export function TopBar({
         </p>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
+        {/* Commands, not search: the filter row's field is the board's one search box. Hidden
+            on small screens, where there is no keyboard to make the palette worth it. */}
+        <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
+          <Button
+            variant="ghost"
+            onClick={openCommandPalette}
+            aria-label={t('palette.trigger')}
+            className="hidden text-fg-3 md:inline-flex"
+          >
+            <Command strokeWidth={1.75} />
+            <kbd aria-hidden className="kbd hidden lg:inline-flex">
+              {MOD_KEY}K
+            </kbd>
+          </Button>
+        </IconTooltip>
 
-      {/* Commands, not search: the filter row's field is the board's one search box. Hidden
-          on small screens, where there is no keyboard to make the palette worth it. */}
-      <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
-        <Button
-          variant="ghost"
-          onClick={openCommandPalette}
-          aria-label={t('palette.trigger')}
-          className="hidden text-fg-3 md:inline-flex"
-        >
-          <Command strokeWidth={1.75} />
-          <kbd aria-hidden className="kbd hidden lg:inline-flex">
-            {MOD_KEY}K
-          </kbd>
-        </Button>
-      </IconTooltip>
-
-      <DisplayMenu
-        view={view}
-        axis={axis}
-        isDesktop={isDesktop}
-        isCustomized={isCustomized}
-        onSetView={onSetView}
-        onSetAxis={onSetAxis}
-        onResetView={onResetView}
-      />
-
-      {otherMembers.length > 0 && (
-        <div
-          className="ml-1 hidden items-center sm:flex"
-          aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
-        >
-          {visibleMembers.map((m) => (
-            <Avatar
-              key={m.id}
-              className="-ml-1.5 ring-2 ring-surface first:ml-0"
-              title={m.displayName ?? m.email}
+        {assistantEnabled && (
+          <IconTooltip label={t('shortcuts.ask')} shortcut={[MOD_KEY, 'J']}>
+            <Button
+              variant="ghost"
+              onClick={onOpenAssistant}
+              className={`text-fg-3 ${PHONE_TEXT_BUTTON}`}
             >
-              <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
-            </Avatar>
-          ))}
-          {overflowCount > 0 && (
-            <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
-              +{overflowCount}
-            </span>
-          )}
+              {t('assistant.ask')}
+            </Button>
+          </IconTooltip>
+        )}
+
+        <DisplayMenu
+          view={view}
+          axis={axis}
+          isDesktop={isDesktop}
+          isCustomized={isCustomized}
+          onSetView={onSetView}
+          onSetAxis={onSetAxis}
+          onResetView={onResetView}
+        />
+
+        {otherMembers.length > 0 && (
+          <div
+            className="ml-1 hidden items-center sm:flex"
+            aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
+          >
+            {visibleMembers.map((m) => (
+              <Avatar
+                key={m.id}
+                className="-ml-1.5 ring-2 ring-surface first:ml-0"
+                title={m.displayName ?? m.email}
+              >
+                <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
+              </Avatar>
+            ))}
+            {overflowCount > 0 && (
+              <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
+                +{overflowCount}
+              </span>
+            )}
+          </div>
+        )}
+
+        <ShareSheet
+          boardId={boardId}
+          ownerId={board.ownerId}
+          isOwner={isOwner}
+          isBelowTablet={isBelowTablet}
+          triggerClassName={PHONE_ICON_BUTTON}
+        />
+
+        <IconTooltip label={newNoteLabel} shortcut={['N']}>
+          <Button
+            variant="accent"
+            aria-label={newNoteLabel}
+            onClick={onNewNote}
+            className={PHONE_ICON_BUTTON}
+          >
+            <Plus strokeWidth={2} />
+            <span className="hidden md:inline">{newNoteLabel}</span>
+          </Button>
+        </IconTooltip>
+
+        {/* The divider is a desktop nicety; on a phone its 15px go to the board name. */}
+        <div className="flex items-center md:ml-1 md:border-l md:border-border-subtle md:pl-2.5">
+          <AccountMenu />
         </div>
-      )}
-
-      <ShareSheet
-        boardId={boardId}
-        ownerId={board.ownerId}
-        isOwner={isOwner}
-        isBelowTablet={isBelowTablet}
-      />
-
-      <IconTooltip label={newNoteLabel} shortcut={['N']}>
-        <Button variant="accent" aria-label={newNoteLabel} onClick={onNewNote}>
-          <Plus strokeWidth={2} />
-          <span className="hidden md:inline">{newNoteLabel}</span>
-        </Button>
-      </IconTooltip>
-
-      <div className="ml-1 flex items-center border-l border-border-subtle pl-2.5">
-        <AccountMenu />
       </div>
     </header>
   );
