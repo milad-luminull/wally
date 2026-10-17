@@ -24,7 +24,7 @@ function subscribe(callback: () => void) {
 
 /**
  * Returns the current breakpoint plus booleans. Used to *unmount* (not just hide)
- * desktop-only canvas/drag code below 1080px — see WandView's caller in BoardPage.
+ * desktop-only canvas/drag code below 1080px — see WallView's caller in BoardPage.
  */
 export function useBreakpoint() {
   const breakpoint = useSyncExternalStore(subscribe, getBreakpoint, () => 'desktop');

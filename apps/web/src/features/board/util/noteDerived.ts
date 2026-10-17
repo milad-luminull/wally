@@ -118,11 +118,11 @@ export function defaultZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | Note
 }
 
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even
- * empty) so callers that need every band rendered (WandView's ZoneBands) don't have to
+ * empty) so callers that need every band rendered (WallView's ZoneBands) don't have to
  * special-case it; ListView filters out empty groups itself per its own empty-state rule. */
 export function groupByAxis(notes: NoteDto[], axis: BoardAxis, t: T): NoteGroup<string>[] {
   if (axis === 'free') {
-    return [{ key: 'ALLE', label: t('board.group.all'), notes: sortNotes(notes) }];
+    return [{ key: 'ALL', label: t('board.group.all'), notes: sortNotes(notes) }];
   }
   const labels = enumLabels(t);
   if (axis === 'priority') {

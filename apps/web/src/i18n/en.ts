@@ -250,7 +250,7 @@ export const en = {
       },
       view: {
         ariaLabel: 'View',
-        wand: 'Board',
+        wall: 'Board',
         list: 'List',
       },
       boardNameAria: 'Board name',

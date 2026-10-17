@@ -10,7 +10,7 @@ import type { CapturePlacement } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
-/** Droppable-region id convention consumed by WandView's onDragEnd. */
+/** Droppable-region id convention consumed by WallView's onDragEnd. */
 export function zoneDroppableId(axis: BoardAxis, key: string) {
   return `zone:${axis}:${key}`;
 }
@@ -176,8 +176,8 @@ interface ZoneBandsProps {
   pendingFor?: (noteId: string) => PendingProps | undefined;
 }
 
-/** Horizon → columns side by side; Priority → rows stacked. Never rendered in Frei mode —
- * WandCanvas swaps this out entirely for the absolute-position free canvas. */
+/** Horizon → columns side by side; Priority → rows stacked. Never rendered in free mode —
+ * WallCanvas swaps this out entirely for the absolute-position free canvas. */
 export function ZoneBands({
   axis,
   groups,

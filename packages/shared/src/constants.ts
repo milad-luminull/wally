@@ -29,9 +29,9 @@ export const BOARD_NAME_MAX_LENGTH = 120;
 export const FREE_CANVAS_WIDTH = 2400;
 export const FREE_CANVAS_HEIGHT = 1400;
 /** Rendered width of a note card — keep in sync with NoteCard's `w-[…]`. Used only to
- * clamp Frei-mode drag bounds on the client; the API does not validate against it. */
+ * clamp free-mode drag bounds on the client; the API does not validate against it. */
 export const NOTE_CARD_WIDTH = 248;
-/** Approximate rendered height of a note card — used to clamp Frei-mode drag bounds. */
+/** Approximate rendered height of a note card — used to clamp free-mode drag bounds. */
 export const NOTE_CARD_HEIGHT = 104;
 
 /** Per-board view settings kept on a profile; the least recently touched are pruned past this. */

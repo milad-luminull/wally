@@ -41,12 +41,12 @@ import { groupByAxis } from '../util/noteDerived';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
-import { WandCanvas, FREE_CANVAS_DROPPABLE_ID } from './WandCanvas';
+import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
 import { CopyDragContext } from './copyDrag';
 import { useQueryKeys } from '../hooks/queryKeys';
 
-interface WandViewProps {
+interface WallViewProps {
   boardId: string;
   notes: NoteDto[];
   /** Notes on the board before filtering — distinguishes "empty board" from "filter hides
@@ -82,10 +82,10 @@ function noteLabel(note: NoteDto | undefined, t: T): string {
   return note?.title || t('board.dnd.untitled');
 }
 
-/** Wraps ZoneBands (Horizon/Priority) or WandCanvas (Frei) in a single DndContext, so
+/** Wraps ZoneBands (Horizon/Priority) or WallCanvas (free) in a single DndContext, so
  * dragging works identically regardless of axis — only the drop-target interpretation in
  * handleDragEnd differs. */
-export function WandView({
+export function WallView({
   boardId,
   notes,
   totalNoteCount,
@@ -102,7 +102,7 @@ export function WandView({
   onCaptureNoteId,
   visibility,
   pendingFor,
-}: WandViewProps) {
+}: WallViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
   const { t } = useTranslation();
@@ -387,7 +387,7 @@ export function WandView({
   function handleCreateInZone(key: string) {
     if (axis === 'free') return;
     // The zone decides where the card shows in this axis, but freeX/freeY still has to be
-    // something sensible: it is what Frei mode reads once the user switches over, and the
+    // something sensible: it is what free mode reads once the user switches over, and the
     // schema default of {0, 0} would stack every one of them in the corner there.
     onCapture({ kind: 'zone', axis, key, at: nextFreeNotePosition(notes) });
   }
@@ -402,7 +402,7 @@ export function WandView({
         onDragCancel={handleDragCancel}
       >
         {axis === 'free' ? (
-          <WandCanvas
+          <WallCanvas
             boardId={boardId}
             notes={shownNotes}
             filtered={totalNoteCount > 0}

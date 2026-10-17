@@ -6,7 +6,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { boardAccess } from '../util/permissions';
 import type { CapturePlacement } from '../Capture/useCapture';
-import { WandView } from './WandView';
+import { WallView } from './WallView';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -58,7 +58,7 @@ function Wall({
   const notes = [makeNote({ id: 'n1', title: 'Vorhanden', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
   return (
-    <WandView
+    <WallView
       boardId="board-1"
       notes={notes}
       totalNoteCount={notes.length}
@@ -94,7 +94,7 @@ function doubleClickCanvas(container: HTMLElement) {
   fireEvent.doubleClick(canvas!, { clientX: 300, clientY: 200 });
 }
 
-describe('WandView: every create path writes the note in place, with its visibility', () => {
+describe('WallView: every create path writes the note in place, with its visibility', () => {
   describe('a viewer (every new note is private)', () => {
     const viewer = boardAccess('VIEW', 'me', 'all');
 

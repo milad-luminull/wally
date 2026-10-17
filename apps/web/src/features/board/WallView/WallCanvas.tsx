@@ -22,7 +22,7 @@ import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
 
-interface WandCanvasProps {
+interface WallCanvasProps {
   boardId: string;
   notes: NoteDto[];
   currentUserId: string | undefined;
@@ -49,10 +49,10 @@ interface WandCanvasProps {
 }
 
 /**
- * Frei mode's canvas: a fixed FREE_CANVAS_WIDTH x FREE_CANVAS_HEIGHT absolute-pixel area
+ * Free mode's canvas: a fixed FREE_CANVAS_WIDTH x FREE_CANVAS_HEIGHT absolute-pixel area
  * (not percentage-based, so positions survive window resizes — see constants.ts) that
  * notes are placed on via {freeX, freeY}. One useDroppable region covers the whole
- * canvas; WandView's onDragEnd computes the new position from the drag delta.
+ * canvas; WallView's onDragEnd computes the new position from the drag delta.
  */
 /** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */
 /* Literal class names, so Tailwind's content scan and the stylesheet agree on them. */
@@ -72,7 +72,7 @@ function emptyStateKeys(filtered: boolean, canEditShared: boolean) {
   } as const;
 }
 
-export function WandCanvas({
+export function WallCanvas({
   boardId,
   notes,
   currentUserId,
@@ -88,7 +88,7 @@ export function WandCanvas({
   filtered,
   activeDragId,
   pendingFor,
-}: WandCanvasProps) {
+}: WallCanvasProps) {
   const { t } = useTranslation();
   const { setNodeRef } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,7 +113,7 @@ export function WandCanvas({
     <div className="relative h-full min-w-0 flex-1">
       <div
         ref={scrollRef}
-        data-testid="wand-canvas"
+        data-testid="wall-canvas"
         className="wally-scroll h-full w-full overflow-auto"
         onDoubleClick={handleDoubleClick}
       >

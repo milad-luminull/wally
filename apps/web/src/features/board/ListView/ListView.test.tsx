@@ -97,7 +97,7 @@ describe('ListView', () => {
     expect(titles.indexOf('Weitere Heute-Notiz')).toBeLessThan(titles.indexOf('Heute-Notiz'));
   });
 
-  it('collapses to a single "Alle Notizen" group in Frei mode', () => {
+  it('collapses to a single "Alle Notizen" group in free mode', () => {
     render(
       <ListView
         notes={notes}

@@ -47,7 +47,7 @@ interface NoteCardProps {
 /**
  * A note card.
  *
- * Movement during a drag belongs to `<DragOverlay>` (see WandView), not to this component,
+ * Movement during a drag belongs to `<DragOverlay>` (see WallView), not to this component,
  * for two reasons: the board's zones are scroll containers, so a card translated in place
  * gets clipped the moment it crosses a column edge; and a note moving between zones is
  * re-parented, so React unmounts and remounts it — any mount-triggered animation here

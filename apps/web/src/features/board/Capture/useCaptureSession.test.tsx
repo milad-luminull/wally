@@ -47,7 +47,7 @@ import { boardAccess } from '../util/permissions';
 import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import { ListView } from '../ListView/ListView';
-import { WandView } from '../WandView/WandView';
+import { WallView } from '../WallView/WallView';
 import { useCaptureSession } from './useCaptureSession';
 
 const BOARD = 'board-1';
@@ -143,7 +143,7 @@ function Board({
           }
         />
       ) : (
-        <WandView
+        <WallView
           boardId={BOARD}
           notes={boardNotes}
           totalNoteCount={boardNotes.length}
@@ -406,7 +406,7 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
   it('a second double-click on the canvas while the first capture has text moves the capture', async () => {
     const { container } = renderBoard('wand', 'free');
     await screen.findByText('Vorhanden');
-    const canvas = screen.getByTestId('wand-canvas');
+    const canvas = screen.getByTestId('wall-canvas');
     fireEvent.doubleClick(canvas, { clientX: 300, clientY: 200 });
     await userEvent.type(await titleField(), 'Links');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));

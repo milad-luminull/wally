@@ -13,7 +13,7 @@ test('mobile viewport shows list-only with no drag/canvas affordance', async ({ 
   await expect(page.getByRole('button', { name: 'Wand' })).toHaveCount(0);
   await expect(page.getByText(/Notizen frei verschieben geht am Rechner/)).toBeVisible();
 
-  // No draggable note card should exist on the page at all (WandView/DndContext never mounts).
+  // No draggable note card should exist on the page at all (WallView/DndContext never mounts).
   // Since slice 2 the list rows carry data-note-id too, so target dnd-kit's drag attributes.
   await expect(page.locator('[aria-roledescription="draggable"]')).toHaveCount(0);
 

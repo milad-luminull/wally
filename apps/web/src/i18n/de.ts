@@ -264,7 +264,7 @@ export const de = {
       },
       view: {
         ariaLabel: 'Ansicht',
-        wand: 'Wand',
+        wall: 'Wand',
         list: 'Liste',
       },
       boardNameAria: 'Name der Wand',

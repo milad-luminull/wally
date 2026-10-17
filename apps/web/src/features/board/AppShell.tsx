@@ -20,7 +20,7 @@ import {
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
 import { FilterBar } from './FilterBar';
-import { WandView } from './WandView/WandView';
+import { WallView } from './WallView/WallView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
@@ -59,7 +59,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
   // Below 1080px the canvas/drag surface is desktop-only (SPEC §11 + the plan's
   // reconciled decision) — force list view there instead of just hiding the tab, and
-  // never mount WandView (its DndContext/sensors never initialize on a small screen).
+  // never mount WallView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
   // Wallybot's fill-in after Enter (WALLYBOT_INLINE.md §3.3): the capture hands over the fields
@@ -178,7 +178,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         {notesQuery.isLoading ? (
           <BoardSkeleton columns={isDesktop ? 3 : 1} />
         ) : effectiveView === 'wand' ? (
-          <WandView
+          <WallView
             boardId={boardId}
             notes={filteredNotes}
             totalNoteCount={boardNotes.length}

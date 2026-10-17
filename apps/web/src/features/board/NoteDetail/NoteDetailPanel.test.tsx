@@ -481,7 +481,7 @@ describe('NoteDetailPanel', () => {
 
   // In the Priority axis the zone is the priority, so a "Zeile" control would be a second
   // copy of the Priority row directly above it.
-  it('shows no separate zone control for the Priority axis or in Frei mode', async () => {
+  it('shows no separate zone control for the Priority axis or in free mode', async () => {
     const { rerender } = renderPanel({ axis: 'priority' });
     await screen.findByLabelText('Titel');
     expect(screen.queryByText('Zeile')).not.toBeInTheDocument();

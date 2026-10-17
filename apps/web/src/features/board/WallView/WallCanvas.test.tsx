@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { WandCanvas } from './WandCanvas';
+import { WallCanvas } from './WallCanvas';
 
 // The canvas reads its backdrop from the profile; signed out, that query never runs.
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -18,12 +18,12 @@ vi.mock('../Capture/InlineCaptureCard', () => ({
   ),
 }));
 
-describe('WandCanvas capture', () => {
+describe('WallCanvas capture', () => {
   it('asks for a capture at the double-click point', () => {
     const onCapture = vi.fn();
     renderWithProviders(
       <DndContext>
-        <WandCanvas
+        <WallCanvas
           notes={[]}
           filtered={false}
           currentUserId="u1"
@@ -39,7 +39,7 @@ describe('WandCanvas capture', () => {
         />
       </DndContext>,
     );
-    const surface = screen.getByTestId('wand-canvas');
+    const surface = screen.getByTestId('wall-canvas');
     fireEvent.doubleClick(surface, { clientX: 300, clientY: 200 });
     // jsdom lays the canvas out at the origin, unscrolled: the point is the client point.
     expect(onCapture).toHaveBeenCalledWith({ kind: 'free', x: 300, y: 200 });
@@ -48,7 +48,7 @@ describe('WandCanvas capture', () => {
   it('renders the capture card at its placement', () => {
     renderWithProviders(
       <DndContext>
-        <WandCanvas
+        <WallCanvas
           notes={[]}
           filtered={false}
           currentUserId="u1"

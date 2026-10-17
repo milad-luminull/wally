@@ -17,7 +17,7 @@ vi.mock('@/lib/preferences', async (importOriginal) => ({
 import { assistantApi } from '@/lib/resources';
 import { makeNote } from '@/test/fixtures';
 import { createTestQueryClient } from '@/test/renderWithProviders';
-import { NoteCard } from '../WandView/NoteCard';
+import { NoteCard } from '../WallView/NoteCard';
 import { PendingReview } from '../NoteDetail/PendingReview';
 import { COUNTDOWN_MS, useSuggestions, type SuggestionsController } from './useSuggestions';
 import { usePendingFor } from './usePendingFor';

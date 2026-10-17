@@ -8,9 +8,9 @@ import { cn } from '@/lib/cn';
  * which read as unstyled links rather than a control. A track with a moving thumb makes
  * the set of options, and which one is live, legible at a glance.
  *
- * Deliberately plain `<button>` elements: the accessible names ("Wand", "Liste",
- * "Horizont", …) are what the test suite drives the board with, so the role must stay
- * `button` rather than becoming a radiogroup.
+ * Deliberately plain `<button>` elements: the accessible names (the view and axis labels
+ * from the catalogue, such as "Board", "List", "Horizon") are what the test suite drives the
+ * board with, so the role must stay `button` rather than becoming a radiogroup.
  */
 export interface SegmentedOption<T extends string> {
   value: T;
