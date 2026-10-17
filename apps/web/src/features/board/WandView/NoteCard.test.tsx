@@ -140,6 +140,8 @@ describe('NoteCard with a pending change', () => {
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   });
   const renderCard = (p = pending()) => {

@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import type { NoteDto, SuggestionDto, SuggestionFieldKey } from '@wally/shared';
+import type { NoteDto, SuggestionFieldKey, SuggestionFields } from '@wally/shared';
 import { parseIsoDate } from '@/i18n/dates';
 import type { SuggestionMark } from './useSuggestions';
 
@@ -10,6 +10,10 @@ export interface PendingProps {
   onDiscard: () => void;
   onUndo: () => void;
   onRemove: (field: SuggestionFieldKey) => void;
+  /** Ticks a proposed field into the change or out of it (the review's rows, the title line). */
+  onSetField: (field: SuggestionFieldKey, on: boolean) => void;
+  /** Ticks one proposed step in or out, by its index. */
+  onSetSubtask: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
 }
 
@@ -38,8 +42,12 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
   return false;
 }
 
+type Proposed<K extends SuggestionFieldKey> = NonNullable<SuggestionFields[K]>;
 type ProposedValues = {
-  [K in SuggestionFieldKey]: NonNullable<SuggestionDto['fields'][K]> | null;
+  [K in Exclude<SuggestionFieldKey, 'subtasks'>]: Proposed<K> | null;
+} & {
+  /** The proposed steps, with the indexes still ticked. */
+  subtasks: (Proposed<'subtasks'> & { kept: number[] }) | null;
 };
 const NONE: ProposedValues = {
   dueDate: null,
@@ -54,7 +62,9 @@ const NONE: ProposedValues = {
  * The proposed values a note shows in their places: only for the fields still in the change,
  * and only where the note has nothing of its own (plan R3), so a value the person set is never
  * covered. A done note shows no due date or priority, so none is proposed there; a private
- * note shows a lock, never an assignee.
+ * note shows a lock, never an assignee. The reference shows only on a note without properties
+ * and the steps only on a note without subtasks (R7). The title is a second line beside the
+ * person's own, so it shows whatever the note's title is, once ticked (R2).
  *
  * Once kept, the kept values stay in their places until the refetched note carries them (its
  * revision reaches the one the keep produced), so a date, a priority or a person never blinks
@@ -77,11 +87,23 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('assignee') && note.visibility !== 'PRIVATE' && note.assignee === null
         ? fields.assignee
         : null,
-    // The title line, the reference and the subtasks are drawn by the review's own slices.
-    title: null,
-    reference: null,
-    subtasks: null,
+    title: has('title') ? fields.title : null,
+    reference:
+      has('reference') && Object.keys(note.customFields).length === 0 ? fields.reference : null,
+    subtasks:
+      has('subtasks') && note.subtaskSummary.total === 0 && fields.subtasks
+        ? { ...fields.subtasks, kept: mark.subtasks }
+        : null,
   };
+}
+
+/**
+ * The title a pending change offers, ticked or not: the card and the review show the line in
+ * both states, and it counts as taken only while `title` is in the mark's fields.
+ */
+export function proposedTitle(mark: SuggestionMark): Proposed<'title'> | null {
+  if (mark.phase === 'asking') return null;
+  return mark.suggestion?.fields.title ?? null;
 }
 
 /** A proposed due date as the card shows it: weekday and day, in the reader's language. */

@@ -11,6 +11,8 @@ describe('NoteRow with a pending change', () => {
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   });
   const rowOf = () => screen.getByText('Angebotsvergleich freigeben').closest('[role="button"]')!;
@@ -129,6 +131,8 @@ describe('NoteRow just after a keep', () => {
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   };
   it('shows the kept date, without an ×, until the refetched note carries it', () => {

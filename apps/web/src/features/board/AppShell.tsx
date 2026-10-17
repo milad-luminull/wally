@@ -85,6 +85,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onDiscard: () => suggestions.discard(noteId, 'esc'),
         onUndo: () => suggestions.undo(noteId, 'esc'),
         onRemove: (field) => suggestions.remove(noteId, field),
+        onSetField: (field, on) => suggestions.setField(noteId, field, on),
+        onSetSubtask: (index, on) => suggestions.setSubtask(noteId, index, on),
         onPause: (paused) => suggestions.setPaused(noteId, paused),
       };
     },

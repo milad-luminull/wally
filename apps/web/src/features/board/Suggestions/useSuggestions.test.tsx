@@ -603,6 +603,217 @@ describe('useSuggestions', () => {
     });
   });
 
+  describe('the title, the reference and the steps', () => {
+    const fields = (over: Partial<SuggestionDto['fields']>): SuggestionDto['fields'] => ({
+      dueDate: null,
+      priority: null,
+      assignee: null,
+      title: null,
+      reference: null,
+      subtasks: null,
+      ...over,
+    });
+    const DATE = { value: '2026-10-23', reason: 'Freitag' };
+    const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+
+    it('a proposed title waits for the person: the countdown keeps the date and leaves the title', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      expect(result.current.marks.get('n1')?.fields).toEqual(['dueDate']);
+      expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate'],
+        source: 'countdown',
+      });
+
+      // Ticked before the countdown ends: only the person can keep it, so the change waits.
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          id: 's2',
+          noteId: 'n2',
+          fields: fields({ dueDate: DATE, title: TITLE }),
+        }),
+      });
+      act(() => result.current.request('n2', []));
+      await flush();
+      act(() => result.current.setField('n2', 'title', true));
+      expect(result.current.marks.get('n2')?.fields).toEqual(['dueDate', 'title']);
+      expect(result.current.marks.get('n2')?.countdownEndsAt).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledTimes(1);
+      act(() => result.current.keep('n2', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
+        decision: 'keep',
+        fields: ['dueDate', 'title'],
+        source: 'enter',
+      });
+    });
+
+    it('a title alone runs no countdown and keeps only when ticked', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({ fields: fields({ title: TITLE }) }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = result.current.marks.get('n1');
+      expect(mark?.phase).toBe('pending');
+      expect(mark?.fields).toEqual([]);
+      expect(mark?.countdownEndsAt).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+      });
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).not.toHaveBeenCalled();
+      expect(result.current.marks.get('n1')?.phase).toBe('pending');
+      act(() => result.current.setField('n1', 'title', true));
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['title'],
+        source: 'enter',
+      });
+    });
+
+    it('stops the countdown once nothing but the title is left', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.setPaused('n1', true));
+      act(() => result.current.setField('n1', 'title', true));
+      act(() => result.current.setField('n1', 'dueDate', false));
+      expect(result.current.marks.get('n1')?.fields).toEqual(['title']);
+      // A pointer leaving the card does not bring a countdown back.
+      act(() => result.current.setPaused('n1', false));
+      expect(result.current.marks.get('n1')?.countdownEndsAt).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+      });
+      expect(assistantApi.decide).not.toHaveBeenCalled();
+      // A field the proposal does not hold cannot be ticked.
+      act(() => result.current.setField('n1', 'priority', true));
+      expect(result.current.marks.get('n1')?.fields).toEqual(['title']);
+      act(() => result.current.setField('n1', 'title', false));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'discard',
+        source: 'remove',
+      });
+      expect(result.current.marks.has('n1')).toBe(false);
+    });
+
+    it('steps are kept one by one', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = () => result.current.marks.get('n1')!;
+      expect(mark().fields).toEqual(['dueDate', 'subtasks']);
+      expect(mark().subtasks).toEqual([0, 1, 2]);
+      act(() => result.current.setSubtask('n1', 1, false));
+      expect(mark().subtasks).toEqual([0, 2]);
+      // An index the proposal does not hold changes nothing.
+      act(() => result.current.setSubtask('n1', 3, true));
+      expect(mark().subtasks).toEqual([0, 2]);
+      act(() => result.current.setSubtask('n1', 0, false));
+      act(() => result.current.setSubtask('n1', 2, false));
+      expect(mark().fields).toEqual(['dueDate']);
+      expect(mark().subtasks).toEqual([]);
+      act(() => result.current.setSubtask('n1', 1, true));
+      expect(mark().fields).toEqual(['dueDate', 'subtasks']);
+      expect(mark().subtasks).toEqual([1]);
+      act(() => result.current.setSubtask('n1', 0, true));
+      expect(mark().subtasks).toEqual([0, 1]);
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'subtasks'],
+        subtasks: [0, 1],
+        source: 'enter',
+      });
+    });
+
+    it('ticks the steps all at once again, and leaves them out of a keep that drops them', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.setField('n1', 'subtasks', false));
+      expect(result.current.marks.get('n1')?.fields).toEqual(['dueDate']);
+      act(() => result.current.setField('n1', 'subtasks', true));
+      expect(result.current.marks.get('n1')?.subtasks).toEqual([0, 1, 2]);
+      act(() => result.current.remove('n1', 'subtasks'));
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate'],
+        source: 'enter',
+      });
+    });
+
+    it('a restored record keeps its typed list and its kept subtasks after a keep', async () => {
+      const restored = dto({
+        id: 's9',
+        noteId: 'n9',
+        typed: ['assignee'],
+        fields: fields({ dueDate: DATE, subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' } }),
+      });
+      vi.mocked(assistantApi.pendingSuggestions).mockResolvedValue({ suggestions: [restored] });
+      vi.mocked(assistantApi.decide).mockImplementationOnce(async (_b, _id, body) => ({
+        suggestion: {
+          ...restored,
+          status: 'KEPT',
+          kept: { fields: body.fields ?? [], subtasks: body.subtasks ?? [], revision: 5 },
+        },
+      }));
+      const { result } = setup();
+      await flush();
+      expect(result.current.marks.get('n9')?.subtasks).toEqual([0, 1, 2]);
+      act(() => result.current.setSubtask('n9', 1, false));
+      act(() => result.current.keep('n9', 'enter'));
+      await flush();
+      const mark = result.current.marks.get('n9');
+      expect(mark?.phase).toBe('kept');
+      expect(mark?.suggestion?.typed).toEqual(['assignee']);
+      expect(mark?.fields).toEqual(['dueDate', 'subtasks']);
+      expect(mark?.subtasks).toEqual([0, 2]);
+    });
+  });
+
   describe('the pending list across visits', () => {
     it('reads the list from the server on every visit, never from an older cache', async () => {
       const queryClient = createTestQueryClient();

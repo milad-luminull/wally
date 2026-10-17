@@ -88,6 +88,7 @@ export function makeSuggestionMark(overrides: Partial<SuggestionMark> = {}): Sug
       createdAt: '2026-10-17T10:00:00.000Z',
     },
     fields: ['dueDate', 'priority', 'assignee'],
+    subtasks: [],
     countdownEndsAt: Date.now() + 6000,
     countdownMs: 6000,
     paused: false,

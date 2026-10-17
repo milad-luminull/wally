@@ -25,6 +25,8 @@ function pendingAt(phase: SuggestionPhase, onPause: (paused: boolean) => void): 
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause,
   };
 }
