@@ -1,7 +1,28 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CustomFieldEditor } from './CustomFieldEditor';
+
+// The rows sort in the reader's language, which useLanguage supplies outside a provider here.
+const reader = vi.hoisted(() => ({ language: 'de' as 'de' | 'en' }));
+vi.mock('@/i18n/LanguageProvider', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: reader.language,
+      setLanguage: () => {},
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
+afterEach(() => {
+  reader.language = 'de';
+  vi.restoreAllMocks();
+});
 
 describe('CustomFieldEditor', () => {
   it('commits a key/value pair on Enter and clears both inputs', async () => {
@@ -52,6 +73,26 @@ describe('CustomFieldEditor', () => {
     await userEvent.click(screen.getByLabelText('Kunde entfernen'));
     expect(onRemove).toHaveBeenCalledWith('Kunde');
   });
+
+  it.each(['de', 'en'] as const)(
+    'sorts rows for a reader of %s: Ärger before Zebra',
+    (language) => {
+      reader.language = language;
+      const compare = vi.spyOn(String.prototype, 'localeCompare');
+      render(
+        <CustomFieldEditor
+          fields={{ Zebra: '1', Ärger: '2' }}
+          onSet={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      );
+
+      // A code-point sort would put Zebra first (Z is U+005A, Ä is U+00C4).
+      const rendered = screen.getAllByText(/^(Ärger|Zebra)$/).map((el) => el.textContent);
+      expect(rendered).toEqual(['Ärger', 'Zebra']);
+      expect(compare.mock.calls.map(([, locale]) => locale)).toContain(language);
+    },
+  );
 
   it('hides the inputs and remove buttons when disabled', () => {
     render(

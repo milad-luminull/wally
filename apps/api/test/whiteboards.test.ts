@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { whiteboardsCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
@@ -319,6 +319,51 @@ describe('whiteboard routes', () => {
         headers: ctx.authHeader(fx.outsiderToken),
       });
       expect(forbidden.statusCode).toBe(404);
+    });
+
+    it("sorts tags in the caller's profile language", async () => {
+      const fx = await createBoardFixture(ctx);
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'Tagged', tags: ['Zebra', 'Ärger', 'apple'] },
+      });
+      // The viewer reads in English; the owner keeps the default German profile.
+      const switched = await ctx.inject({
+        method: 'PATCH',
+        url: '/me',
+        headers: ctx.authHeader(fx.viewToken),
+        payload: { language: 'en' },
+      });
+      expect(switched.statusCode).toBe(200);
+
+      const compare = vi.spyOn(String.prototype, 'localeCompare');
+      const tagsFor = async (token: string) => {
+        compare.mockClear();
+        const res = await ctx.inject({
+          method: 'GET',
+          url: `/whiteboards/${fx.boardId}/tags`,
+          headers: ctx.authHeader(token),
+        });
+        expect(res.statusCode).toBe(200);
+        return { tags: res.json(), locales: compare.mock.calls.map(([, locale]) => locale) };
+      };
+
+      try {
+        // Both orders are a reader's order, not code points (which would put Zebra before Ärger).
+        const english = await tagsFor(fx.viewToken);
+        expect(english.tags).toEqual(['apple', 'Ärger', 'Zebra']);
+        expect(english.locales).toContain('en');
+        expect(english.locales).not.toContain('de');
+
+        const german = await tagsFor(fx.ownerToken);
+        expect(german.tags).toEqual(['apple', 'Ärger', 'Zebra']);
+        expect(german.locales).toContain('de');
+        expect(german.locales).not.toContain('en');
+      } finally {
+        compare.mockRestore();
+      }
     });
   });
 

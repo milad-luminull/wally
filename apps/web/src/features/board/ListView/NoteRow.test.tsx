@@ -1,9 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteRow } from './NoteRow';
+
+// The rows sort in the reader's language, which useLanguage supplies outside a provider here.
+const reader = vi.hoisted(() => ({ language: 'de' as 'de' | 'en' }));
+vi.mock('@/i18n/LanguageProvider', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: reader.language,
+      setLanguage: () => {},
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
+afterEach(() => {
+  reader.language = 'de';
+  vi.restoreAllMocks();
+});
 
 describe('NoteRow with a pending change', () => {
   const pending = (over: Partial<SuggestionMark> = {}) => ({
@@ -257,4 +278,25 @@ describe('NoteRow without a pending change', () => {
     });
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['de', 'en'] as const)(
+    'shows the first property in the order of a reader of %s',
+    (language) => {
+      reader.language = language;
+      const compare = vi.spyOn(String.prototype, 'localeCompare');
+      render(
+        <NoteRow
+          note={makeNote({ customFields: { Zebra: 'stripes', Ärger: 'trouble' } })}
+          currentUserId="user-1"
+          onOpen={vi.fn()}
+          onToggleDone={vi.fn()}
+          canEdit
+        />,
+      );
+      // A code-point sort would pick Zebra (Z is U+005A, Ä is U+00C4).
+      expect(screen.getByText(/Ärger: trouble/)).toBeInTheDocument();
+      expect(screen.queryByText(/Zebra: stripes/)).toBeNull();
+      expect(compare.mock.calls.map(([, locale]) => locale)).toContain(language);
+    },
+  );
 });

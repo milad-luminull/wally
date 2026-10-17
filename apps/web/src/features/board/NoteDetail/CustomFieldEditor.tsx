@@ -9,6 +9,7 @@ import {
   type CustomFields,
 } from '@wally/shared';
 import { ghostFieldClassName } from '@/components/ui/field-styles';
+import { useLanguage } from '@/i18n/LanguageProvider';
 import { RemoveButton } from '@/components/ui/remove-button';
 import { cn } from '@/lib/cn';
 import { FieldLabel } from './Field';
@@ -25,8 +26,9 @@ interface CustomFieldEditorProps {
 /**
  * Free-form key/value properties on a note, replacing the old fixed "Bezug" field.
  *
- * Rows are sorted by key so the panel does not reshuffle when a property is edited —
- * Firestore returns map keys in its own order, which is not the insertion order.
+ * Rows are sorted by key, for the reader's language, so the panel does not reshuffle when a
+ * property is edited — Firestore returns map keys in its own order, which is not the
+ * insertion order.
  */
 export function CustomFieldEditor({
   fields,
@@ -36,11 +38,12 @@ export function CustomFieldEditor({
   disabled,
 }: CustomFieldEditorProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [keyDraft, setKeyDraft] = useState('');
   const [valueDraft, setValueDraft] = useState('');
   const datalistId = useId();
 
-  const entries = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b, 'de'));
+  const entries = Object.entries(fields).sort(([a], [b]) => a.localeCompare(b, language));
   const atCapacity = entries.length >= MAX_FIELDS_PER_NOTE;
   // Suggest only keys this note does not already carry.
   const suggestions = keySuggestions.filter((key) => !findFieldKey(fields, key));

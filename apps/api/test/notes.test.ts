@@ -179,6 +179,33 @@ describe('note routes', () => {
       expect(byPair.json()[0].title).toBe('A');
     });
 
+    it('field filter folds case without a locale: KUNDE finds Kunde, STRASSE does not find Straße', async () => {
+      const fx = await createBoardFixture(ctx);
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'Customer',
+        customFields: { Kunde: 'Müller GmbH' },
+      });
+      await createNote(fx.boardId, fx.ownerToken, {
+        title: 'Street',
+        customFields: { Straße: 'Hauptweg 1' },
+      });
+
+      const titles = async (field: string) => {
+        const res = await ctx.inject({
+          method: 'GET',
+          url: `/whiteboards/${fx.boardId}/notes?field=${encodeURIComponent(field)}`,
+          headers: ctx.authHeader(fx.ownerToken),
+        });
+        expect(res.statusCode).toBe(200);
+        return res.json().map((n: { title: string }) => n.title);
+      };
+
+      expect(await titles('KUNDE')).toEqual(['Customer']);
+      expect(await titles('KUNDE:MÜLLER GMBH')).toEqual(['Customer']);
+      expect(await titles('straße')).toEqual(['Street']);
+      expect(await titles('STRASSE')).toEqual([]);
+    });
+
     it('orders by due date, with undated notes last and none dropped', async () => {
       // Firestore sorts null first and omits documents missing the ordered field
       // entirely, so this ordering is done in memory. Both halves matter: an undated note

@@ -10,6 +10,7 @@ import {
   type UserSummary,
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
+import { useLanguage } from '@/i18n/LanguageProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -178,7 +179,11 @@ function NoteDetailContent({
   const { activeMembers } = useActiveMembers(boardId);
   // Same cached query the board renders from — no extra fetch.
   const { data: boardNotes } = useNotes(boardId);
-  const fieldKeySuggestions = useMemo(() => collectFieldKeys(boardNotes ?? []), [boardNotes]);
+  const { language } = useLanguage();
+  const fieldKeySuggestions = useMemo(
+    () => collectFieldKeys(boardNotes ?? [], language),
+    [boardNotes, language],
+  );
 
   const updateNote = useUpdateNote(boardId);
   const moveNote = useMoveNote(boardId);

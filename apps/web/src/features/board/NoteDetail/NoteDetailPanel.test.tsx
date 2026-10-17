@@ -11,6 +11,23 @@ import { resetToasts } from '@/lib/toast';
 import { boardAccess } from '../util/permissions';
 import { NoteDetailPanel } from './NoteDetailPanel';
 
+// No LanguageProvider here (it would fetch /me); useLanguage answers what the provider would,
+// the active i18n language, which the rows and property editor sort by.
+vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+  const { i18n } = await import('@/i18n');
+  const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: normalizeLocale(i18n.language) ?? FALLBACK_LOCALE,
+      setLanguage: () => {},
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
 vi.mock('@/lib/resources', () => ({
   notesApi: {
     get: vi.fn(),

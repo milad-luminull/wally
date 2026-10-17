@@ -2,6 +2,7 @@ import type { MouseEvent } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
+import { useLanguage } from '@/i18n/LanguageProvider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
 import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';
@@ -37,6 +38,7 @@ export function NoteRow({
   pending,
 }: NoteRowProps) {
   const { t, i18n } = useTranslation();
+  const { language } = useLanguage();
   const { priority: priorityLabels } = useEnumLabels();
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
@@ -72,10 +74,10 @@ export function NoteRow({
         ? t('common.you')
         : (note.assignee.displayName ?? note.assignee.email)
       : undefined;
-  // First property alphabetically, so the meta line is stable rather than following
-  // whatever order Firestore returns the map in.
+  // First property alphabetically for the reader's language, so the meta line is stable
+  // rather than following whatever order Firestore returns the map in.
   const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) =>
-    a.localeCompare(b, 'de'),
+    a.localeCompare(b, language),
   );
   const fieldLabel = firstField ? `${firstField[0]}: ${firstField[1]}` : undefined;
   const metaParts = [fieldLabel, assigneeName, checklistLabel || undefined].filter(Boolean);

@@ -8,6 +8,23 @@ import { i18n } from './index';
 import { de } from './de';
 import { en } from './en';
 
+// No LanguageProvider here (it would fetch /me); useLanguage answers what the provider would,
+// the active i18n language, which the rows and property editor sort by.
+vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+  const { i18n } = await import('@/i18n');
+  const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: normalizeLocale(i18n.language) ?? FALLBACK_LOCALE,
+      setLanguage: () => {},
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
 /**
  * The rest of the suite renders in German, which means the English catalogue is only ever
  * checked structurally (resources.test.ts) and never actually rendered. These are the few

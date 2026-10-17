@@ -16,6 +16,7 @@ import {
   customFieldKeySchema,
   customFieldValueSchema,
   findFieldKey,
+  foldFieldKey,
   suggestionFieldKeys,
 } from '@wally/shared';
 import type { Env } from '../../env.js';
@@ -126,17 +127,20 @@ function candidates(
 
 /**
  * The property keys the board's notes use, for the prompt: one spelling per key compared
- * case-insensitively (the first one seen), sorted for a German reader. Mirrors the web's
- * `collectFieldKeys`, so the model sees the keys the panel offers.
+ * through the shared, locale-neutral fold (the first one seen), sorted for the caller's
+ * language. Mirrors the web's `collectFieldKeys`, so the model sees the keys the panel offers.
  */
-function collectKeys(notes: { customFields: Record<string, string> }[]): string[] {
+export function collectKeys(
+  notes: { customFields: Record<string, string> }[],
+  language: Language,
+): string[] {
   const byFolded = new Map<string, string>();
   for (const note of notes)
     for (const key of Object.keys(note.customFields ?? {})) {
-      const folded = key.toLocaleLowerCase('de');
+      const folded = foldFieldKey(key);
       if (!byFolded.has(folded)) byFolded.set(folded, key);
     }
-  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, 'de'));
+  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, language));
 }
 
 /** The fields a chip sets while writing: what the review's first group lists besides the words. */
@@ -206,8 +210,8 @@ function acceptReference(
   reference: NonNullable<ModelSuggestion['reference']>,
   fieldKeys: string[],
 ): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
-  const wanted = reference.key.trim().toLocaleLowerCase('de');
-  const key = fieldKeys.find((k) => k.toLocaleLowerCase('de') === wanted) ?? reference.key.trim();
+  const wanted = foldFieldKey(reference.key);
+  const key = fieldKeys.find((k) => foldFieldKey(k) === wanted) ?? reference.key.trim();
   const parsedKey = customFieldKeySchema.safeParse(key);
   const parsedValue = customFieldValueSchema.safeParse(reference.value);
   if (!parsedKey.success || !parsedValue.success) return null;
@@ -320,7 +324,7 @@ export async function suggestForCapture(
   // Every note the caller can see, done ones too: a key in use anywhere on the board is one
   // a reference should reuse. Read only when a reference may be proposed at all.
   const fieldKeys = open.includes('reference')
-    ? collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }))
+    ? collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }), ctx.language)
     : [];
   const prompt = buildCapturePrompt({
     title: note.title,
