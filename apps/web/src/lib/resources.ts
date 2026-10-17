@@ -24,9 +24,19 @@ import {
   assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
+  captureSuggestRequestSchema,
+  captureSuggestResponseSchema,
+  suggestionDecisionSchema,
+  suggestionDecisionResponseSchema,
+  suggestionListSchema,
   type AssistantConversationDto,
   type AssistantTurnRequest,
   type AssistantTurnResponse,
+  type CaptureSuggestRequest,
+  type CaptureSuggestResponse,
+  type SuggestionDecision,
+  type SuggestionDto,
+  type SuggestionList,
   type Language,
   type MeDto,
   type WhiteboardDto,
@@ -142,6 +152,24 @@ export const assistantApi = {
       assistantTurnRequestSchema.parse(body),
       assistantTurnResponseSchema,
     ),
+  suggest: (boardId: string, body: CaptureSuggestRequest): Promise<CaptureSuggestResponse> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/captures`,
+      captureSuggestRequestSchema.parse(body),
+      captureSuggestResponseSchema,
+    ),
+  decide: (
+    boardId: string,
+    suggestionId: string,
+    body: SuggestionDecision,
+  ): Promise<{ suggestion: SuggestionDto }> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/suggestions/${suggestionId}/decision`,
+      suggestionDecisionSchema.parse(body),
+      suggestionDecisionResponseSchema,
+    ),
+  pendingSuggestions: (boardId: string): Promise<SuggestionList> =>
+    api.get(`/whiteboards/${boardId}/assistant/suggestions/pending`, suggestionListSchema),
 };
 
 export const subtasksApi = {
