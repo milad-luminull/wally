@@ -1,5 +1,12 @@
 import { generateText, NoObjectGeneratedError, Output, zodSchema, type LanguageModel } from 'ai';
 import { z } from 'zod';
+import {
+  FIELD_KEY_MAX_LENGTH,
+  FIELD_VALUE_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+  SUBTASK_TEXT_MAX_LENGTH,
+  SUGGESTION_MAX_SUBTASKS,
+} from '@wally/shared';
 import type { Env } from '../../../env.js';
 import {
   parseModelRef,
@@ -30,6 +37,28 @@ export const modelSuggestionWireSchema = z.object({
     .object({ value: z.enum(['HOCH', 'NIEDRIG']), confidence, reason: z.string() })
     .nullable(),
   assignee: z.object({ memberId: z.string(), confidence, reason: z.string() }).nullable(),
+  title: z
+    .object({
+      value: z.string().describe('A shorter title with the same meaning, or null.'),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  reference: z
+    .object({
+      key: z.string().describe("A property name, reusing one of the board's when it fits."),
+      value: z.string(),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  subtasks: z
+    .object({
+      items: z.array(z.string()).describe('Two to five short steps, in order.'),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
 });
 
 /** The longest reason the card shows (the shared `suggestionFieldsSchema` allows no more). */
@@ -42,12 +71,38 @@ const reason = z.string().transform((text) => text.slice(0, SUGGESTION_REASON_MA
 /**
  * What a suggestion must be once it arrives: the wire shape, plus the format and lengths. The
  * date is a real calendar day (`2026-04-31` is refused), the same check the response schema
- * makes, so a record that is stored can always be answered.
+ * makes, so a record that is stored can always be answered. A title, a property and each step
+ * fit what a note can hold, and there are at most as many steps as a suggestion may carry.
  */
 export const modelSuggestionSchema = z.object({
   dueDate: z.object({ value: z.string().date(), confidence, reason }).nullable(),
   priority: z.object({ value: z.enum(['HOCH', 'NIEDRIG']), confidence, reason }).nullable(),
   assignee: z.object({ memberId: z.string().min(1), confidence, reason }).nullable(),
+  title: z
+    .object({
+      value: z.string().trim().min(1).max(NOTE_TITLE_MAX_LENGTH),
+      confidence,
+      reason,
+    })
+    .nullable(),
+  reference: z
+    .object({
+      key: z.string().trim().min(1).max(FIELD_KEY_MAX_LENGTH),
+      value: z.string().trim().min(1).max(FIELD_VALUE_MAX_LENGTH),
+      confidence,
+      reason,
+    })
+    .nullable(),
+  subtasks: z
+    .object({
+      items: z
+        .array(z.string().trim().min(1).max(SUBTASK_TEXT_MAX_LENGTH))
+        .min(1)
+        .max(SUGGESTION_MAX_SUBTASKS),
+      confidence,
+      reason,
+    })
+    .nullable(),
 });
 
 /**

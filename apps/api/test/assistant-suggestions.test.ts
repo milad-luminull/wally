@@ -23,6 +23,8 @@ const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoni
 /** The last prompt the fake saw, so a test can assert what reached the model. */
 let lastInput: SuggestionInput | null = null;
 
+/** Slice 3's fields, which these replies propose nothing for. */
+const noProposal = { title: null, reference: null, subtasks: null };
 /** Keyed on the title line: the fake answers like a model would. */
 const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> => {
   lastInput = input;
@@ -37,7 +39,8 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       name: 'AI_APICallError',
       statusCode: 429,
     });
-  if (title.startsWith('nothing')) return settle({ dueDate: null, priority: null, assignee: null });
+  if (title.startsWith('nothing'))
+    return settle({ dueDate: null, priority: null, assignee: null, ...noProposal });
   if (title.startsWith('all')) {
     // The first word after `all` is the member the model names; the rest is ordinary text.
     const memberId = title.slice('all '.length).split(' ')[0] || 'nobody';
@@ -45,6 +48,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
       priority: { value: 'HOCH', confidence: 0.8, reason: 'dringend' },
       assignee: { memberId, confidence: 0.95, reason: 'Anna' },
+      ...noProposal,
     });
   }
   // The provider reported no usage: nothing is settled, so the reservation stays (R7).
@@ -54,6 +58,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
         dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
         priority: null,
         assignee: null,
+        ...noProposal,
       },
       usage: null,
       finishReason: 'stop',
@@ -64,17 +69,20 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       dueDate: { value: '2026-10-01', confidence: 0.9, reason: 'Anfang Oktober' },
       priority: null,
       assignee: null,
+      ...noProposal,
     });
   if (title.startsWith('unsure'))
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'vielleicht' },
       priority: null,
       assignee: null,
+      ...noProposal,
     });
   return settle({
     dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
     priority: null,
     assignee: null,
+    ...noProposal,
   });
 };
 

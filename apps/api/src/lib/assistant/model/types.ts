@@ -117,6 +117,9 @@ export interface ModelSuggestion {
   dueDate: { value: string; confidence: number; reason: string } | null;
   priority: { value: 'HOCH' | 'NIEDRIG'; confidence: number; reason: string } | null;
   assignee: { memberId: string; confidence: number; reason: string } | null;
+  title: { value: string; confidence: number; reason: string } | null;
+  reference: { key: string; value: string; confidence: number; reason: string } | null;
+  subtasks: { items: string[]; confidence: number; reason: string } | null;
 }
 export interface SuggestionOutput {
   /** null when the model produced nothing that validates against the schema. */

@@ -239,6 +239,7 @@ export async function suggestForCapture(
     title: note.title,
     description: note.description,
     members: memberRows,
+    fieldKeys: [], // Task 4: the board's property keys.
   });
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
