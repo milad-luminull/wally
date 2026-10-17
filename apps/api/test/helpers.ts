@@ -83,7 +83,7 @@ export async function buildTestApp(
   projectId: string,
   options: Pick<
     BuildAppOptions,
-    'assistantRunner' | 'assistantEnabled' | 'assistantDeadlineMs'
+    'assistantRunner' | 'suggestionRunner' | 'assistantEnabled' | 'assistantDeadlineMs'
   > = {},
 ): Promise<TestContext> {
   const db = getTestDb(projectId);

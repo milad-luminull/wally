@@ -5,6 +5,11 @@ import {
   assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
+  captureSuggestRequestSchema,
+  captureSuggestResponseSchema,
+  suggestionDecisionResponseSchema,
+  suggestionDecisionSchema,
+  suggestionListSchema,
 } from '@wally/shared';
 import { loadEnv } from '../env.js';
 import { BudgetError } from '../lib/assistant/budget/ledger.js';
@@ -13,7 +18,17 @@ import {
   loadConversation,
   toVisibleConversationDto,
 } from '../lib/assistant/conversations.js';
-import { createConfiguredTurnRunner, type TurnRunner } from '../lib/assistant/model/index.js';
+import {
+  createConfiguredSuggestionRunner,
+  createConfiguredTurnRunner,
+  type SuggestionRunner,
+  type TurnRunner,
+} from '../lib/assistant/model/index.js';
+import {
+  decideSuggestion,
+  pendingSuggestions,
+  suggestForCapture,
+} from '../lib/assistant/suggestions.js';
 import { assistantEnabledFor } from '../lib/assistant/switch.js';
 import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
@@ -23,6 +38,10 @@ import { AppError } from '../lib/errors.js';
 const params = z.object({
   id: z.string().min(1).max(128),
   conversationId: z.string().min(1).max(128).optional(),
+});
+const suggestionParams = z.object({
+  id: z.string().min(1).max(128),
+  suggestionId: z.string().min(1).max(128),
 });
 /**
  * A budget refusal carries the reset time; the per-route rate limit answers the same status
@@ -36,6 +55,7 @@ const refused = z.object({
 
 export interface AssistantRouteOptions {
   runner?: TurnRunner;
+  suggestionRunner?: SuggestionRunner;
   enabled?: boolean;
   deadlineMs?: number;
 }
@@ -54,6 +74,8 @@ export default async function assistantRoutes(
   // Built on first use: boot never needs model credentials.
   let runner: TurnRunner | undefined = options.runner;
   const getRunner = () => (runner ??= createConfiguredTurnRunner(env));
+  let suggestionRunner: SuggestionRunner | undefined = options.suggestionRunner;
+  const getSuggestionRunner = () => (suggestionRunner ??= createConfiguredSuggestionRunner(env));
 
   async function boardFor(
     request: Pick<FastifyRequest, 'server' | 'user'> & { params: { id: string } },
@@ -135,6 +157,65 @@ export default async function assistantRoutes(
       );
       if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
       return toVisibleConversationDto(request.server.db, request.user, conversation);
+    },
+  );
+
+  app.post(
+    '/whiteboards/:id/assistant/captures',
+    {
+      schema: {
+        params,
+        body: captureSuggestRequestSchema,
+        response: { 200: captureSuggestResponseSchema, 429: refused },
+      },
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
+      const { board, role } = await boardFor(request);
+      try {
+        const suggestion = await suggestForCapture(
+          { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
+          { actor: request.user, language: userLanguage(request.user), board, role },
+          request.body,
+        );
+        return { suggestion };
+      } catch (error) {
+        if (error instanceof BudgetError)
+          return reply
+            .code(429)
+            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    '/whiteboards/:id/assistant/suggestions/:suggestionId/decision',
+    {
+      schema: {
+        params: suggestionParams,
+        body: suggestionDecisionSchema,
+        response: { 200: suggestionDecisionResponseSchema },
+      },
+    },
+    async (request) => {
+      const { board, role } = await boardFor(request);
+      const suggestion = await decideSuggestion(
+        { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
+        { actor: request.user, language: userLanguage(request.user), board, role },
+        request.params.suggestionId,
+        request.body,
+      );
+      return { suggestion };
+    },
+  );
+
+  app.get(
+    '/whiteboards/:id/assistant/suggestions/pending',
+    { schema: { params, response: { 200: suggestionListSchema } } },
+    async (request) => {
+      const { board } = await boardFor(request);
+      return { suggestions: await pendingSuggestions(request.server.db, request.user, board.id) };
     },
   );
 }
