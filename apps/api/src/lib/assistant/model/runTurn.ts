@@ -3,7 +3,6 @@ import {
   stepCountIs,
   tool,
   type LanguageModel,
-  type LanguageModelUsage,
   type ModelMessage,
   type ToolApprovalStatus,
   type ToolResultPart,
@@ -27,6 +26,7 @@ import type {
   TurnTool,
   TurnUsage,
 } from './types.js';
+import { toUsage } from './usage.js';
 
 /**
  * The one function the rest of the API calls (through createConfiguredTurnRunner). Runs a
@@ -236,21 +236,6 @@ export function createConfiguredTurnRunner(
   return createTurnRunner(resolveLanguageModel(ref, env), {
     providerOptions: defaultProviderOptions(ref),
   });
-}
-
-const isCount = (n: number | undefined): n is number =>
-  typeof n === 'number' && Number.isFinite(n) && n >= 0;
-
-/** Null when the provider did not report a usable input or output count. */
-function toUsage(usage: LanguageModelUsage): TurnUsage | null {
-  const { inputTokens, outputTokens } = usage;
-  if (!isCount(inputTokens) || !isCount(outputTokens)) return null;
-  return {
-    inputTokens,
-    cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-    outputTokens,
-    reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
-  };
 }
 
 function sum(all: TurnUsage[]): TurnUsage {

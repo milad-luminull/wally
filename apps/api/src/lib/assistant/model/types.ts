@@ -99,3 +99,25 @@ export interface TurnOutput {
 }
 
 export type TurnRunner = (input: TurnInput) => Promise<TurnOutput>;
+
+/** One structured call for a capture (WALLYBOT_INLINE.md §4: one model call, strict JSON). */
+export interface SuggestionInput {
+  instructions: string;
+  prompt: string;
+  maxOutputTokens: number;
+  abortSignal?: AbortSignal;
+  /** Called once before the call. Throwing means the call is not dispatched. */
+  onAttempt: (info: AttemptInfo) => Promise<AttemptLease>;
+}
+export interface ModelSuggestion {
+  dueDate: { value: string; confidence: number; reason: string } | null;
+  priority: { value: 'HOCH' | 'NIEDRIG'; confidence: number; reason: string } | null;
+  assignee: { memberId: string; confidence: number; reason: string } | null;
+}
+export interface SuggestionOutput {
+  /** null when the model produced nothing that validates against the schema. */
+  fields: ModelSuggestion | null;
+  usage: TurnUsage | null;
+  finishReason: TurnFinishReason;
+}
+export type SuggestionRunner = (input: SuggestionInput) => Promise<SuggestionOutput>;
