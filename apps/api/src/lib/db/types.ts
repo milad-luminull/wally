@@ -279,6 +279,11 @@ export type AssistantSuggestionDoc = {
     fields: ('dueDate' | 'priority' | 'assignee')[];
     at: Timestamp;
   } | null;
+  /**
+   * Written by an undo, beside the keep's `decision`, which stays as the keep recorded it.
+   * Optional: records written before this field existed have none.
+   */
+  undone?: { source: string; at: Timestamp } | null;
   /** Written by a keep: what the note held before, and the revision the keep produced. */
   applied: {
     before: { dueDate: string | null; priority: NotePriority; assigneeId: string | null };

@@ -11,6 +11,9 @@ import {
   notesCol,
 } from '../src/lib/db/collections.js';
 import { dayKey } from '../src/lib/assistant/budget/ledger.js';
+import { estimateTokens } from '../src/lib/assistant/budget/estimate.js';
+import { suggestionSchemaJson } from '../src/lib/assistant/model/index.js';
+import { Timestamp } from 'firebase-admin/firestore';
 import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
@@ -55,6 +58,13 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       usage: null,
       finishReason: 'stop',
     };
+  // A date before the person's today (2026-10-17 in these tests).
+  if (title.startsWith('past'))
+    return settle({
+      dueDate: { value: '2026-10-01', confidence: 0.9, reason: 'Anfang Oktober' },
+      priority: null,
+      assignee: null,
+    });
   if (title.startsWith('unsure'))
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'vielleicht' },
@@ -244,6 +254,16 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.fields.dueDate).toMatchObject({ value: '2026-10-23' });
     expect(await inFlight(fx.ownerId)).toBe(1);
+    // Unsettled, the reservation is what stays charged: the instructions, the prompt and the
+    // response schema the library sends with them, plus the output allowance.
+    const charged = (
+      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
+    ).data()?.tokens;
+    expect(charged).toBe(
+      estimateTokens([lastInput!.instructions, lastInput!.prompt, await suggestionSchemaJson()]) +
+        16 +
+        256,
+    );
     expect((await stored(fx.ownerId, res.json().suggestion.id)).usage).toEqual({
       inputTokens: 0,
       outputTokens: 0,
@@ -284,6 +304,48 @@ describe('capture suggestions', () => {
     ).data()!;
     expect(stored.applied?.before).toEqual({ dueDate: null, priority: 'MITTEL', assigneeId: null });
     expect(stored.decision?.source).toBe('countdown');
+  });
+
+  it("drops a due date before the person's today, so nothing is proposed", async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'past' })).json();
+    const res = await suggest(fx.ownerToken, fx.boardId, n.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion).toBeNull();
+    expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+  });
+
+  it('proposes only on a note the caller wrote, before any model call', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const res = await suggest(fx.editToken, fx.boardId, n.id);
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe('NOT_FOUND');
+    expect(lastInput).toBeNull();
+    expect(
+      (await assistantUsageCol(ctx.db, fx.editorId).doc(dayKey(new Date())).get()).exists,
+    ).toBe(false);
+    expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(0);
+  });
+
+  it('keeps each named field once, in the canonical order', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['priority', 'dueDate', 'dueDate'],
+      source: 'enter',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.kept).toEqual({
+      fields: ['dueDate', 'priority'],
+      revision: n.revision + 2,
+    });
+    expect((await stored(fx.editorId, suggestion.id)).decision?.fields).toEqual([
+      'dueDate',
+      'priority',
+    ]);
   });
 
   it('keeps a subset when the person removed a field first', async () => {
@@ -373,6 +435,14 @@ describe('capture suggestions', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.status).toBe('UNDONE');
+    // The keep's own decision stays on the record; the undo is recorded beside it.
+    const record = await stored(fx.ownerId, suggestion.id);
+    expect(record.decision).toMatchObject({
+      source: 'enter',
+      fields: ['dueDate', 'priority', 'assignee'],
+    });
+    expect(record.undone).toMatchObject({ source: 'shortcut' });
+    expect(record.undone?.at).toBeInstanceOf(Timestamp);
     const after = await note(n.id);
     expect(after).toMatchObject({
       dueDate: null,
@@ -444,6 +514,51 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestions.map((s: { id: string }) => s.id)).toEqual([sa.id]);
     expect((await pending(fx.editToken, fx.boardId)).json().suggestions).toEqual([]);
+  });
+
+  it('leaves out, and discards, a pending record whose note is gone, moved on, or a day old', async () => {
+    const fx = await createBoardFixture(ctx);
+    // The editor's own notes: the owner's captures in this file already come close to the
+    // route's per-user rate limit of 30 a minute.
+    const make = async (title: string) => {
+      const n = (await createNote(fx.editToken, fx.boardId, { title })).json();
+      return {
+        note: n,
+        suggestion: (await suggest(fx.editToken, fx.boardId, n.id)).json().suggestion,
+      };
+    };
+    const fresh = await make('Freitag frisch');
+    const gone = await make('Freitag weg');
+    const moved = await make('Freitag bewegt');
+    const old = await make('Freitag alt');
+    expect(
+      (
+        await ctx.inject({
+          method: 'DELETE',
+          url: `/notes/${gone.note.id}`,
+          headers: ctx.authHeader(fx.editToken),
+        })
+      ).statusCode,
+    ).toBeLessThan(300);
+    expect((await patchTitle(fx.editToken, moved.note.id, 'Freitag, geändert')).statusCode).toBe(
+      200,
+    );
+    await assistantSuggestionsCol(ctx.db, fx.editorId)
+      .doc(old.suggestion.id)
+      .update({ createdAt: Timestamp.fromMillis(Date.now() - 25 * 3_600_000) });
+
+    const res = await pending(fx.editToken, fx.boardId);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestions.map((s: { id: string }) => s.id)).toEqual([fresh.suggestion.id]);
+    for (const skipped of [gone, moved, old])
+      expect((await stored(fx.editorId, skipped.suggestion.id)).status).toBe('DISCARDED');
+    expect((await stored(fx.editorId, fresh.suggestion.id)).status).toBe('PENDING');
+    // Discarded for good: a keep from a tab that still shows one is refused.
+    const keep = await decide(fx.editToken, fx.boardId, moved.suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(keep.statusCode).toBe(409);
   });
 
   it('a VIEW member keeps a due date on their own private note', async () => {

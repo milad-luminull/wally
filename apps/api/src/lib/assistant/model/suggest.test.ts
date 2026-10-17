@@ -4,7 +4,7 @@ import { MockLanguageModelV3 } from 'ai/test';
 import { createGoogleVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { suggestionCallSettings } from './config.js';
-import { createSuggestionRunner } from './suggest.js';
+import { createSuggestionRunner, suggestionSchemaJson } from './suggest.js';
 import type { AttemptInfo, ModelRef, TurnUsage } from './types.js';
 
 const usage = {
@@ -150,15 +150,19 @@ describe('createSuggestionRunner', () => {
     expect(a.settled).toEqual([]);
   });
 
-  it('returns no fields when the wire shape fits but the date or a reason does not', async () => {
-    const reason = 'x'.repeat(121);
+  it('returns no fields when the wire shape fits but the date or a member id does not', async () => {
     for (const fields of [
       {
         dueDate: { value: 'Freitag', confidence: 0.9, reason: 'Freitag' },
         priority: null,
         assignee: null,
       },
-      { dueDate: null, priority: { value: 'HOCH', confidence: 0.9, reason }, assignee: null },
+      // The right shape, but no such day: the stored record would fail the response schema.
+      {
+        dueDate: { value: '2026-04-31', confidence: 0.9, reason: 'Ende April' },
+        priority: null,
+        assignee: null,
+      },
       {
         dueDate: null,
         priority: null,
@@ -171,6 +175,34 @@ describe('createSuggestionRunner', () => {
       expect(out.fields, JSON.stringify(fields)).toBeNull();
       expect(a.settled).toHaveLength(1);
     }
+  });
+
+  it('cuts a reason that runs long to 120 characters instead of dropping the proposal', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        reply(
+          JSON.stringify({
+            dueDate: null,
+            priority: { value: 'HOCH', confidence: 0.9, reason: 'x'.repeat(200) },
+            assignee: null,
+          }),
+        ),
+      ],
+    });
+    const a = attempts();
+    const out = await createSuggestionRunner(model)(input(a.onAttempt));
+    expect(out.fields?.priority).toEqual({
+      value: 'HOCH',
+      confidence: 0.9,
+      reason: 'x'.repeat(120),
+    });
+  });
+
+  it('serialises the response schema it sends, for the reservation', async () => {
+    const json = await suggestionSchemaJson();
+    expect(JSON.parse(json)).toMatchObject({ type: 'object' });
+    expect(json).toContain('dueDate');
+    expect(json).toContain('memberId');
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {

@@ -200,8 +200,9 @@ export default async function assistantRoutes(
     },
     async (request) => {
       const { board, role } = await boardFor(request);
+      // A decision never calls the model, so it never builds the runner either.
       const suggestion = await decideSuggestion(
-        { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
+        { db: request.server.db, env, logger: request.log },
         { actor: request.user, language: userLanguage(request.user), board, role },
         request.params.suggestionId,
         request.body,

@@ -22,9 +22,16 @@ export function buildCaptureInstructions(ctx: {
   timeZone: string;
   language: Language;
 }): string {
+  // The weekday of the date the browser sent, so "Friday" or "next Friday" resolve without
+  // the model counting days. A calendar date's weekday is the same in every zone, so it is
+  // read in UTC: read in the person's zone from the server's local noon, a zone at +13 or
+  // +14 would already be on the next day.
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(
+    new Date(`${ctx.today}T12:00:00Z`),
+  );
   return (
     CAPTURE_INSTRUCTIONS_PREFIX +
-    `Today is ${ctx.today} in the time zone ${ctx.timeZone}. Write reasons in ${LANGUAGE_NAMES[ctx.language]}.`
+    `Today is ${ctx.today}, a ${weekday}, in the time zone ${ctx.timeZone}. Write reasons in ${LANGUAGE_NAMES[ctx.language]}.`
   );
 }
 

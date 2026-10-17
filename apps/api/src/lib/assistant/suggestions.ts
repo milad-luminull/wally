@@ -19,6 +19,7 @@ import {
   assistantSuggestionsCol,
   docsWithId,
   loadUsers,
+  notesCol,
   stripId,
   toIso,
   withId,
@@ -35,7 +36,11 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { buildCaptureInstructions, buildCapturePrompt } from './capturePrompt.js';
-import type { ModelSuggestion, SuggestionRunner } from './model/index.js';
+import {
+  suggestionSchemaJson,
+  type ModelSuggestion,
+  type SuggestionRunner,
+} from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 256;
@@ -44,14 +49,23 @@ export const SUGGESTION_DEADLINE_MS = 20_000;
 export const SUGGESTION_MIN_CONFIDENCE = 0.6;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
+/**
+ * A pending record older than this is not shown again (the ruling amending plan R5): the
+ * proposal was for a note just written, and a day later it is no longer that.
+ */
+export const SUGGESTION_PENDING_MAX_AGE_MS = 24 * 3_600_000;
 
+/** What a decision and the pending list need; neither calls the model. */
 export interface SuggestionDeps {
   db: Firestore;
   env: Env;
-  runner: SuggestionRunner;
   logger?: CommandLogger;
   now?: () => Date;
   deadlineMs?: number;
+}
+/** A capture also calls the model. */
+export interface CaptureDeps extends SuggestionDeps {
+  runner: SuggestionRunner;
 }
 export interface SuggestionContext {
   actor: Actor;
@@ -85,16 +99,24 @@ function candidates(
   return open;
 }
 
-/** Keeps a field only when it is a candidate, confident enough, and (for a person) a member. */
+/**
+ * Keeps a field only when it is a candidate, confident enough, and (for a person) a member. A
+ * due date before the person's today is dropped: nobody writes a task that was due last week.
+ * Both are YYYY-MM-DD, so the string order is the calendar order.
+ */
 function accept(
   fields: ModelSuggestion,
   open: SuggestionFieldKey[],
   memberIds: Set<string>,
+  today: string,
 ): AssistantSuggestionDoc['fields'] {
   const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
   return {
     dueDate:
-      open.includes('dueDate') && fields.dueDate && sure(fields.dueDate.confidence)
+      open.includes('dueDate') &&
+      fields.dueDate &&
+      sure(fields.dueDate.confidence) &&
+      fields.dueDate.value >= today
         ? { value: fields.dueDate.value, reason: fields.dueDate.reason }
         : null,
     priority:
@@ -166,7 +188,7 @@ async function toDto(
  * BudgetError and AppError only; the provider's own error becomes 502 without its wording.
  */
 export async function suggestForCapture(
-  deps: SuggestionDeps,
+  deps: CaptureDeps,
   ctx: SuggestionContext,
   request: CaptureSuggestRequest,
 ): Promise<SuggestionDto | null> {
@@ -175,6 +197,10 @@ export async function suggestForCapture(
   const { actor, board } = ctx;
   // Bound to the board: a note elsewhere is not found, exactly as a read operation would say.
   const note = await getNote(db, actor, request.noteId, board.id);
+  // Enrichment of a note the person just wrote (the slice), so only their own: on anyone
+  // else's a keep could be refused after the call was paid for, and the answer is the same
+  // 404 a note they cannot see gets.
+  if (note.createdBy?.id !== actor.id) throw notFound();
   if (!note.title.trim() && !note.description.trim()) return null;
   const open = candidates(note, request.locked);
   if (open.length === 0) return null;
@@ -193,6 +219,8 @@ export async function suggestForCapture(
     description: note.description,
     members: memberRows,
   });
+  // The response schema travels with the call, so the estimate counts its real size.
+  const schema = await suggestionSchemaJson();
   const model = env.ASSISTANT_MODEL;
   const price = priceFor(model);
   const caps = {
@@ -214,7 +242,7 @@ export async function suggestForCapture(
           userId: actor.id,
           now: clock(),
           estimate: {
-            inputTokens: estimateTokens([instructions, prompt]) + 16,
+            inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
             // The runner's allowance, thinking room included: everything the call may bill.
             outputTokens: info.maxOutputTokens,
           },
@@ -254,7 +282,7 @@ export async function suggestForCapture(
     ms: Date.now() - startedAt,
   });
   if (!output.fields) return null;
-  const fields = accept(output.fields, open, new Set(memberRows.map((m) => m.id)));
+  const fields = accept(output.fields, open, new Set(memberRows.map((m) => m.id)), request.today);
   if (proposedKeys(fields).length === 0) return null;
 
   const now = clock();
@@ -267,6 +295,7 @@ export async function suggestForCapture(
     operationIds: mintOperationIds(),
     status: 'PENDING',
     decision: null,
+    undone: null,
     applied: null,
     model,
     usage: {
@@ -309,6 +338,9 @@ async function claim(
   decision: { source: string; fields: SuggestionFieldKey[] },
   now: Date,
 ): Promise<{ doc: WithId<AssistantSuggestionDoc>; claimed: boolean }> {
+  // An undo is recorded beside the keep, so the keep's own decision (its source and fields)
+  // stays on the record after the undo.
+  const field = to === 'UNDONE' ? 'undone' : 'decision';
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
@@ -318,7 +350,9 @@ async function claim(
     const next: WithId<AssistantSuggestionDoc> = {
       ...current,
       status: to,
-      decision: { ...decision, at: Timestamp.fromDate(now) },
+      ...(field === 'undone'
+        ? { undone: { source: decision.source, at: Timestamp.fromDate(now) } }
+        : { decision: { ...decision, at: Timestamp.fromDate(now) } }),
       updatedAt: Timestamp.fromDate(now),
     };
     tx.set(ref, stripId(next));
@@ -580,7 +614,12 @@ export async function decideSuggestion(
     if (current.status === 'KEPT') return toDto(db, board, await completeKeep(deps, ctx, current));
     // What can still be kept: an assignee who left the board since drops out here.
     const proposed = proposedKeys(liveFields(board, current.fields));
-    const fields = (decision.fields ?? proposed).filter((key) => proposed.includes(key));
+    // Each field once, in the one order the chain and its receipts use: a field named twice
+    // would run its write twice under one operation id and be refused.
+    const requested = decision.fields ?? proposed;
+    const fields = suggestionFieldKeys.filter(
+      (key) => requested.includes(key) && proposed.includes(key),
+    );
     if (fields.length === 0) {
       const { doc } = await claim(
         db,
@@ -654,11 +693,17 @@ export async function decideSuggestion(
   return toDto(db, board, doc);
 }
 
-/** The caller's pending records on a board, oldest first, for a board that was just opened (plan R5). */
+/**
+ * The caller's pending records on a board, oldest first, for a board that was just opened
+ * (plan R5 as amended). A record that can no longer be what it was is left out and discarded
+ * in one batch, so it is never shown again: its note is gone, the note changed since the
+ * proposal (a keep would be refused), or it is more than a day old.
+ */
 export async function pendingSuggestions(
   db: Firestore,
   actor: Actor,
   board: WithId<WhiteboardDoc>,
+  now: Date = new Date(),
 ): Promise<SuggestionDto[]> {
   // Two equality filters need no composite index; the sort is done here.
   const docs = docsWithId(
@@ -667,6 +712,31 @@ export async function pendingSuggestions(
       .where('status', '==', 'PENDING')
       .get(),
   );
-  docs.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
-  return Promise.all(docs.map((doc) => toDto(db, board, doc)));
+  if (docs.length === 0) return [];
+  const notes = await db.getAll(...docs.map((doc) => notesCol(db).doc(doc.noteId)));
+  const byId = new Map(notes.map((snap) => [snap.id, snap.data()]));
+  const live: WithId<AssistantSuggestionDoc>[] = [];
+  const stale: WithId<AssistantSuggestionDoc>[] = [];
+  for (const doc of docs) {
+    const note = byId.get(doc.noteId);
+    const usable =
+      note !== undefined &&
+      !note.deletedAt &&
+      note.whiteboardId === board.id &&
+      (note.revision ?? 0) === doc.baseRevision &&
+      now.getTime() - doc.createdAt.toMillis() <= SUGGESTION_PENDING_MAX_AGE_MS;
+    (usable ? live : stale).push(doc);
+  }
+  if (stale.length > 0) {
+    const batch = db.batch();
+    const stamp = Timestamp.fromDate(now);
+    const col = assistantSuggestionsCol(db, actor.id);
+    // Only the status moves: no decision was taken, so none is recorded. A record decided in
+    // another tab between the read and this write is a lost race the next keep refuses anyway.
+    for (const doc of stale)
+      batch.update(col.doc(doc.id), { status: 'DISCARDED', updatedAt: stamp });
+    await batch.commit();
+  }
+  live.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+  return Promise.all(live.map((doc) => toDto(db, board, doc)));
 }

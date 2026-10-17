@@ -1,4 +1,4 @@
-import { generateText, NoObjectGeneratedError, Output, type LanguageModel } from 'ai';
+import { generateText, NoObjectGeneratedError, Output, zodSchema, type LanguageModel } from 'ai';
 import { z } from 'zod';
 import type { Env } from '../../../env.js';
 import {
@@ -32,12 +32,20 @@ export const modelSuggestionWireSchema = z.object({
   assignee: z.object({ memberId: z.string(), confidence, reason: z.string() }).nullable(),
 });
 
-const reason = z.string().max(120);
-/** What a suggestion must be once it arrives: the wire shape, plus the format and lengths. */
+/** The longest reason the card shows (the shared `suggestionFieldsSchema` allows no more). */
+export const SUGGESTION_REASON_MAX = 120;
+/**
+ * A reason that runs long is cut, not refused: one wordy reason must not cost the person
+ * every field of an otherwise good proposal.
+ */
+const reason = z.string().transform((text) => text.slice(0, SUGGESTION_REASON_MAX));
+/**
+ * What a suggestion must be once it arrives: the wire shape, plus the format and lengths. The
+ * date is a real calendar day (`2026-04-31` is refused), the same check the response schema
+ * makes, so a record that is stored can always be answered.
+ */
 export const modelSuggestionSchema = z.object({
-  dueDate: z
-    .object({ value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), confidence, reason })
-    .nullable(),
+  dueDate: z.object({ value: z.string().date(), confidence, reason }).nullable(),
   priority: z.object({ value: z.enum(['HOCH', 'NIEDRIG']), confidence, reason }).nullable(),
   assignee: z.object({ memberId: z.string().min(1), confidence, reason }).nullable(),
 });
@@ -86,6 +94,18 @@ export function createSuggestionRunner(
       throw error;
     }
   };
+}
+
+let schemaJson: Promise<string> | null = null;
+/**
+ * The response schema as the library sends it, serialised: part of every suggestion call's
+ * input, so the reservation counts it (as `toolDefinitionsJson` does for a turn's tools).
+ */
+export function suggestionSchemaJson(): Promise<string> {
+  schemaJson ??= Promise.resolve(zodSchema(modelSuggestionWireSchema).jsonSchema).then((schema) =>
+    JSON.stringify(schema),
+  );
+  return schemaJson;
 }
 
 /** The runner for the deployment's configured model. */

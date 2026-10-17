@@ -19,9 +19,27 @@ describe('the capture prompt', () => {
     });
     expect(a.startsWith(CAPTURE_INSTRUCTIONS_PREFIX)).toBe(true);
     expect(b.startsWith(CAPTURE_INSTRUCTIONS_PREFIX)).toBe(true);
-    expect(a).toContain('Today is 2026-10-17 in the time zone Europe/Berlin');
+    expect(a).toContain('Today is 2026-10-17, a Saturday, in the time zone Europe/Berlin.');
+    expect(b).toContain('Today is 2026-10-18, a Sunday, in the time zone Europe/Berlin.');
     expect(a).toContain('German');
     expect(b).toContain('English');
+  });
+
+  it("names the weekday of the date in the person's own time zone", () => {
+    // Late on the 17th in Los Angeles, already the 18th in Berlin: the date the browser sent
+    // decides, and the weekday is that date's.
+    const la = buildCaptureInstructions({
+      today: '2026-10-17',
+      timeZone: 'America/Los_Angeles',
+      language: 'en',
+    });
+    expect(la).toContain('Today is 2026-10-17, a Saturday,');
+    const kiritimati = buildCaptureInstructions({
+      today: '2026-10-17',
+      timeZone: 'Pacific/Kiritimati',
+      language: 'en',
+    });
+    expect(kiritimati).toContain('Today is 2026-10-17, a Saturday,');
   });
 
   it('names no person and no first person, and treats the note as data', () => {
