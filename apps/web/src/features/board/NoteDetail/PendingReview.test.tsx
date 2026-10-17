@@ -9,7 +9,7 @@ import { i18n } from '@/i18n';
 import { PendingReview } from './PendingReview';
 
 const note = makeNote({
-  title: 'Müller anrufen',
+  title: 'Call Müller',
   dueDate: '2026-10-23',
   priority: 'MITTEL',
   customFields: {},
@@ -18,13 +18,13 @@ const note = makeNote({
 
 const proposal: SuggestionFields = {
   dueDate: null,
-  priority: { value: 'HOCH', reason: 'dringend' },
+  priority: { value: 'HOCH', reason: 'urgent' },
   assignee: null,
-  title: { value: 'Müller GmbH zurückrufen', reason: 'klarer' },
-  reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
+  title: { value: 'Call Müller GmbH back', reason: 'clearer' },
+  reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
   subtasks: {
-    items: ['Nummer heraussuchen', 'Angebot öffnen', 'Rückruf notieren'],
-    reason: 'Anruf',
+    items: ['Look up the number', 'Open the quote', 'Note the call back'],
+    reason: 'call',
   },
 };
 
@@ -63,7 +63,7 @@ describe('PendingReview', () => {
     renderReview();
 
     const typed = screen.getByRole('group', { name: 'From what you typed' });
-    const title = within(typed).getByRole('checkbox', { name: 'Title: Müller anrufen' });
+    const title = within(typed).getByRole('checkbox', { name: 'Title: Call Müller' });
     // The title is the note itself: it stays, and cannot be taken off here.
     expect(title).toBeChecked();
     expect(title).toBeDisabled();
@@ -77,10 +77,10 @@ describe('PendingReview', () => {
     const added = screen.getByRole('group', { name: 'Added by Wallybot' });
     // Opt-in (R2): offered, never ticked at first.
     expect(
-      within(added).getByRole('checkbox', { name: 'Suggested: Müller GmbH zurückrufen' }),
+      within(added).getByRole('checkbox', { name: 'Suggested: Call Müller GmbH back' }),
     ).not.toBeChecked();
     expect(within(added).getByRole('checkbox', { name: 'High priority' })).toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Kunde: Müller GmbH' })).toBeChecked();
+    expect(within(added).getByRole('checkbox', { name: 'Customer: Müller GmbH' })).toBeChecked();
     for (const step of proposal.subtasks!.items) {
       expect(within(added).getByRole('checkbox', { name: `Step: ${step}` })).toBeChecked();
     }
@@ -91,22 +91,24 @@ describe('PendingReview', () => {
     renderReview({ fields: ['priority', 'subtasks'], subtasks: [0, 2] });
 
     const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-    expect(within(added).getByRole('checkbox', { name: 'Kunde: Müller GmbH' })).not.toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Step: Angebot öffnen' })).not.toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Step: Rückruf notieren' })).toBeChecked();
+    expect(
+      within(added).getByRole('checkbox', { name: 'Customer: Müller GmbH' }),
+    ).not.toBeChecked();
+    expect(within(added).getByRole('checkbox', { name: 'Step: Open the quote' })).not.toBeChecked();
+    expect(within(added).getByRole('checkbox', { name: 'Step: Note the call back' })).toBeChecked();
   });
 
   it('ticking rows reports to the controller', async () => {
     const user = userEvent.setup();
     const { pending } = renderReview();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Step: Angebot öffnen' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Step: Open the quote' }));
     expect(pending.onSetSubtask).toHaveBeenCalledWith(1, false);
 
-    await user.click(screen.getByRole('checkbox', { name: 'Suggested: Müller GmbH zurückrufen' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Suggested: Call Müller GmbH back' }));
     expect(pending.onSetField).toHaveBeenCalledWith('title', true);
 
-    await user.click(screen.getByRole('checkbox', { name: 'Kunde: Müller GmbH' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Customer: Müller GmbH' }));
     expect(pending.onSetField).toHaveBeenCalledWith('reference', false);
   });
 
@@ -194,7 +196,7 @@ describe('PendingReview', () => {
     const { moveTo } = renderReview();
     screen.getByRole('button', { name: 'Keep' }).focus();
     await user.keyboard('{Enter}');
-    const row = screen.getByRole('checkbox', { name: 'Kunde: Müller GmbH' });
+    const row = screen.getByRole('checkbox', { name: 'Customer: Müller GmbH' });
     row.focus();
     moveTo({ phase: 'kept' });
     expect(screen.getByRole('button', { name: 'Undo' })).not.toHaveFocus();

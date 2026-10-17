@@ -31,21 +31,21 @@ const owner = boardAccess('OWNER', 'user-1', 'all');
 const notes = [
   makeNote({
     id: 'n1',
-    title: 'Heute-Notiz',
+    title: 'Today note',
     horizon: 'HEUTE',
     priority: 'HOCH',
     dueDate: '2026-09-18',
   }),
   makeNote({
     id: 'n2',
-    title: 'Woche-Notiz',
+    title: 'Week note',
     horizon: 'DIESE_WOCHE',
     priority: 'MITTEL',
     dueDate: '2026-09-22',
   }),
   makeNote({
     id: 'n3',
-    title: 'Weitere Heute-Notiz',
+    title: 'Another today note',
     horizon: 'HEUTE',
     priority: 'NIEDRIG',
     dueDate: '2026-09-17',
@@ -92,9 +92,9 @@ describe('ListView', () => {
       />,
     );
 
-    const titles = screen.getAllByText(/Notiz$/).map((el) => el.textContent);
-    // "Weitere Heute-Notiz" is due 2026-09-17, before "Heute-Notiz" (2026-09-18).
-    expect(titles.indexOf('Weitere Heute-Notiz')).toBeLessThan(titles.indexOf('Heute-Notiz'));
+    const titles = screen.getAllByText(/ note$/).map((el) => el.textContent);
+    // "Another today note" is due 2026-09-17, before "Today note" (2026-09-18).
+    expect(titles.indexOf('Another today note')).toBeLessThan(titles.indexOf('Today note'));
   });
 
   it('collapses to a single "All notes" group in free mode', () => {
@@ -267,12 +267,12 @@ describe('ListView', () => {
 
     it('can only tick off their own private notes', () => {
       renderViewerList([
-        makeNote({ id: 'shared', title: 'Geteilte Notiz', visibility: 'SHARED', horizon: 'HEUTE' }),
+        makeNote({ id: 'shared', title: 'Shared note', visibility: 'SHARED', horizon: 'HEUTE' }),
         makeNote({
           id: 'mine',
-          title: 'Meine private Notiz',
+          title: 'My private note',
           visibility: 'PRIVATE',
-          createdBy: { id: 'me', displayName: 'Ich', email: 'ich@example.com' },
+          createdBy: { id: 'me', displayName: 'Me', email: 'me@example.com' },
           horizon: 'HEUTE',
         }),
       ]);
@@ -281,8 +281,8 @@ describe('ListView', () => {
         within(screen.getByText(title).closest('[role="button"]') as HTMLElement).getByRole(
           'checkbox',
         );
-      expect(checkboxOf('Geteilte Notiz')).toBeDisabled();
-      expect(checkboxOf('Meine private Notiz')).toBeEnabled();
+      expect(checkboxOf('Shared note')).toBeDisabled();
+      expect(checkboxOf('My private note')).toBeEnabled();
     });
 
     it('explains an empty board with the private-note copy', () => {
@@ -298,8 +298,8 @@ describe('ListView', () => {
     render(
       <ListView
         notes={[
-          makeNote({ id: 'p1', title: 'Privat-Notiz', visibility: 'PRIVATE', assignee: me }),
-          makeNote({ id: 's1', title: 'Geteilt-Notiz', assignee: me }),
+          makeNote({ id: 'p1', title: 'Private draft', visibility: 'PRIVATE', assignee: me }),
+          makeNote({ id: 's1', title: 'Shared draft', assignee: me }),
         ]}
         totalNoteCount={2}
         axis="horizon"
@@ -311,11 +311,11 @@ describe('ListView', () => {
       />,
     );
 
-    const privateRow = screen.getByText('Privat-Notiz').closest('[role="button"]') as HTMLElement;
+    const privateRow = screen.getByText('Private draft').closest('[role="button"]') as HTMLElement;
     expect(within(privateRow).getByRole('img', { name: 'Private note' })).toBeInTheDocument();
     expect(privateRow).not.toHaveTextContent('You');
 
-    const sharedRow = screen.getByText('Geteilt-Notiz').closest('[role="button"]') as HTMLElement;
+    const sharedRow = screen.getByText('Shared draft').closest('[role="button"]') as HTMLElement;
     expect(within(sharedRow).queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
     expect(sharedRow).toHaveTextContent('You');
   });

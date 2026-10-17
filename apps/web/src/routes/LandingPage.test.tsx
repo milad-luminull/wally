@@ -13,7 +13,7 @@ import { LandingPage } from './LandingPage';
 /** Prints where the landing sent the caller, so each redirect is observable. */
 function Where() {
   const location = useLocation();
-  return <p>Ziel: {location.pathname + location.search}</p>;
+  return <p>Target: {location.pathname + location.search}</p>;
 }
 
 function renderLanding(state?: unknown) {
@@ -28,8 +28,8 @@ function renderLanding(state?: unknown) {
   );
 }
 
-const own: WhiteboardSummaryDto = { id: 'own', name: 'Meine Wand', currentUserRole: 'OWNER' };
-const shared: WhiteboardSummaryDto = { id: 'shared', name: 'Team Nord', currentUserRole: 'EDIT' };
+const own: WhiteboardSummaryDto = { id: 'own', name: 'My Board', currentUserRole: 'OWNER' };
+const shared: WhiteboardSummaryDto = { id: 'shared', name: 'Team North', currentUserRole: 'EDIT' };
 
 describe('LandingPage', () => {
   beforeEach(() => {
@@ -39,31 +39,31 @@ describe('LandingPage', () => {
   it('goes straight into the one board a single-board user has', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
     renderLanding();
-    expect(await screen.findByText('Ziel: /boards/own')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards/own')).toBeInTheDocument();
   });
 
   it('goes to the board home with two or more boards', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
     renderLanding();
-    expect(await screen.findByText('Ziel: /boards')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('goes to the board home with no boards at all', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([]);
     renderLanding();
-    expect(await screen.findByText('Ziel: /boards')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('follows a share link the visitor arrived with', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
     renderLanding({ to: '/share/tok-1' });
-    expect(await screen.findByText('Ziel: /share/tok-1')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /share/tok-1')).toBeInTheDocument();
   });
 
   it('follows a board path the caller can open, keeping its query string', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
     renderLanding({ to: '/boards/shared?view=list' });
-    expect(await screen.findByText('Ziel: /boards/shared?view=list')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards/shared?view=list')).toBeInTheDocument();
   });
 
   // The bug this page exists to fix: a board from the previous account, or any board the new
@@ -71,13 +71,13 @@ describe('LandingPage', () => {
   it('drops a board path the caller cannot open', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
     renderLanding({ to: '/boards/someone-elses' });
-    expect(await screen.findByText('Ziel: /boards/own')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards/own')).toBeInTheDocument();
   });
 
   it('drops a return path that is not an in-app path', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
     renderLanding({ to: 'https://evil.example/boards/own' });
-    expect(await screen.findByText('Ziel: /boards')).toBeInTheDocument();
+    expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('offers a retry when the board list cannot be loaded', async () => {

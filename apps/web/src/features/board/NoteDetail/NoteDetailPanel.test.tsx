@@ -161,12 +161,12 @@ describe('NoteDetailPanel', () => {
       const field = await screen.findByLabelText('Title');
 
       await user.clear(field);
-      await user.type(field, 'Angebot prüfen');
+      await user.type(field, 'Check the quote');
 
       await waitFor(() =>
         expect(notesApi.update).toHaveBeenLastCalledWith(
           'note-1',
-          { title: 'Angebot prüfen' },
+          { title: 'Check the quote' },
           expect.objectContaining({
             operationId: expect.any(String),
             resource: expect.stringMatching(/^note:/),
@@ -183,18 +183,18 @@ describe('NoteDetailPanel', () => {
       const field = await screen.findByLabelText('Title');
 
       await user.clear(field);
-      await user.type(field, 'Angebot prüfen{Enter}');
+      await user.type(field, 'Check the quote{Enter}');
 
       expect(notesApi.update).toHaveBeenLastCalledWith(
         'note-1',
-        { title: 'Angebot prüfen' },
+        { title: 'Check the quote' },
         expect.objectContaining({
           operationId: expect.any(String),
           resource: expect.stringMatching(/^note:/),
           revision: expect.any(Number),
         }),
       );
-      expect(field).toHaveValue('Angebot prüfen');
+      expect(field).toHaveValue('Check the quote');
       expect(field).not.toHaveFocus();
     });
   });
@@ -215,13 +215,13 @@ describe('NoteDetailPanel', () => {
       const field = await screen.findByLabelText('Description');
       expect(field).toHaveAttribute('placeholder', 'Add a description…');
 
-      await user.type(field, 'Erste Zeile{Enter}zweite');
+      await user.type(field, 'First line{Enter}second');
 
       await waitFor(() =>
         expect(notesApi.update).toHaveBeenLastCalledWith(
           'note-1',
           {
-            description: 'Erste Zeile\nzweite',
+            description: 'First line\nsecond',
           },
           expect.objectContaining({
             operationId: expect.any(String),
@@ -234,10 +234,10 @@ describe('NoteDetailPanel', () => {
     });
 
     it('can be cleared', async () => {
-      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ description: 'Alt' }));
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ description: 'Old' }));
       const user = userEvent.setup();
       renderPanel();
-      const field = await screen.findByDisplayValue('Alt');
+      const field = await screen.findByDisplayValue('Old');
 
       await user.clear(field);
       await user.tab();
@@ -258,13 +258,13 @@ describe('NoteDetailPanel', () => {
       const { unmount } = renderPanel();
       const field = await screen.findByLabelText('Description');
 
-      await user.type(field, 'Kurz');
+      await user.type(field, 'Short');
       unmount();
 
       await waitFor(() =>
         expect(notesApi.update).toHaveBeenLastCalledWith(
           'note-1',
-          { description: 'Kurz' },
+          { description: 'Short' },
           expect.objectContaining({
             operationId: expect.any(String),
             resource: expect.stringMatching(/^note:/),
@@ -326,13 +326,15 @@ describe('NoteDetailPanel', () => {
     it('still names an assignee who is no longer an active member', async () => {
       vi.mocked(notesApi.get).mockResolvedValue(
         makeNoteDetail({
-          assignee: { id: 'user-gone', email: 'ex@example.com', displayName: 'Ex Kollegin' },
+          assignee: { id: 'user-gone', email: 'ex@example.com', displayName: 'Former colleague' },
         }),
       );
       renderPanel();
       await screen.findByLabelText('Title');
 
-      expect(screen.getByRole('combobox', { name: 'Assignee' })).toHaveTextContent('Ex Kollegin');
+      expect(screen.getByRole('combobox', { name: 'Assignee' })).toHaveTextContent(
+        'Former colleague',
+      );
     });
   });
 
@@ -550,7 +552,7 @@ describe('NoteDetailPanel', () => {
   describe('deleting', () => {
     beforeEach(() => {
       resetToasts();
-      vi.mocked(notesApi.list).mockResolvedValue([makeNote({ id: 'note-1', title: 'Angebot' })]);
+      vi.mocked(notesApi.list).mockResolvedValue([makeNote({ id: 'note-1', title: 'Quote' })]);
     });
 
     async function deleteFromPanel() {
@@ -581,17 +583,17 @@ describe('NoteDetailPanel', () => {
     it('removes the note at once and offers Undo, without calling the API yet', async () => {
       const { user } = await deleteFromPanel();
 
-      expect(await screen.findByText('“Angebot” deleted')).toBeInTheDocument();
+      expect(await screen.findByText('“Quote” deleted')).toBeInTheDocument();
       expect(notesApi.remove).not.toHaveBeenCalled();
 
       await user.click(screen.getByRole('button', { name: 'Undo' }));
-      expect(screen.queryByText('“Angebot” deleted')).not.toBeInTheDocument();
+      expect(screen.queryByText('“Quote” deleted')).not.toBeInTheDocument();
       expect(notesApi.remove).not.toHaveBeenCalled();
     });
 
     it('sends the DELETE once the undo window is closed', async () => {
       const { user } = await deleteFromPanel();
-      const toastItem = (await screen.findByText('“Angebot” deleted')).closest('li')!;
+      const toastItem = (await screen.findByText('“Quote” deleted')).closest('li')!;
 
       await user.click(within(toastItem).getByRole('button', { name: 'Close' }));
 

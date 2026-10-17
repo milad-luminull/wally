@@ -37,30 +37,27 @@ describe('BoardSwitcher', () => {
   it('offers the boards the caller does not own, marking the current one', async () => {
     const user = userEvent.setup();
     vi.mocked(boardsApi.list).mockResolvedValue([
-      makeBoard({ id: 'own', name: 'Meine Wand', currentUserRole: 'OWNER' }),
-      makeBoard({ id: 'shared', name: 'Team Nord', currentUserRole: 'EDIT' }),
+      makeBoard({ id: 'own', name: 'My Board', currentUserRole: 'OWNER' }),
+      makeBoard({ id: 'shared', name: 'Team North', currentUserRole: 'EDIT' }),
     ]);
 
     renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });
 
     await user.click(await screen.findByRole('button', { name: 'Switch board' }));
 
-    expect(screen.getByRole('link', { name: /Team Nord/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Team North/ })).toHaveAttribute(
       'href',
       '/boards/shared',
     );
     // aria-current is how a screen reader tells the two apart; the check mark is decorative.
-    expect(screen.getByRole('link', { name: /Meine Wand/ })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    expect(screen.getByRole('link', { name: /My Board/ })).toHaveAttribute('aria-current', 'page');
   });
 
   it('names the role the caller holds on each board', async () => {
     const user = userEvent.setup();
     vi.mocked(boardsApi.list).mockResolvedValue([
-      makeBoard({ id: 'own', name: 'Meine Wand', currentUserRole: 'OWNER' }),
-      makeBoard({ id: 'shared', name: 'Team Nord', currentUserRole: 'VIEW' }),
+      makeBoard({ id: 'own', name: 'My Board', currentUserRole: 'OWNER' }),
+      makeBoard({ id: 'shared', name: 'Team North', currentUserRole: 'VIEW' }),
     ]);
 
     renderWithProviders(<BoardSwitcher boardId="own" />, { route: '/boards/own' });

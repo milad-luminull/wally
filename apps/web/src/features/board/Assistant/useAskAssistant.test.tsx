@@ -37,12 +37,12 @@ describe('useAskAssistant', () => {
     const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
     let outcome;
     await act(async () => {
-      outcome = await result.current.ask('Was ist offen?', null);
+      outcome = await result.current.ask('What is open?', null);
     });
     expect(outcome).toEqual({ kind: 'answered', conversation: conversation('c1') });
     const [boardId, body] = vi.mocked(assistantApi.turn).mock.calls[0]!;
     expect(boardId).toBe('b1');
-    expect(body).toMatchObject({ message: 'Was ist offen?' });
+    expect(body).toMatchObject({ message: 'What is open?' });
     expect(body.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(body.timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
     expect(body).not.toHaveProperty('conversationId');
@@ -58,7 +58,7 @@ describe('useAskAssistant', () => {
     const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
     let outcome;
     await act(async () => {
-      outcome = await result.current.ask('zwei', 'c1');
+      outcome = await result.current.ask('two', 'c1');
     });
     expect(outcome).toMatchObject({ kind: 'answered', conversation: { id: 'c2' } });
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({ conversationId: 'c1' });
@@ -76,7 +76,7 @@ describe('useAskAssistant', () => {
     const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
     let outcome;
     await act(async () => {
-      outcome = await result.current.ask('eins', null);
+      outcome = await result.current.ask('one', null);
     });
     expect(outcome).toEqual({
       kind: 'refused',
@@ -92,7 +92,7 @@ describe('useAskAssistant', () => {
     const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
     let outcome;
     await act(async () => {
-      outcome = await result.current.ask('eins', null);
+      outcome = await result.current.ask('one', null);
     });
     expect(outcome).toEqual({ kind: 'refused', code: 'ASSISTANT_BUSY', resetsAt: null });
   });
@@ -107,7 +107,7 @@ describe('useAskAssistant', () => {
     const { result } = renderHook(() => useAskAssistant('b1'), { wrapper });
     let pending: Promise<unknown> = Promise.resolve();
     act(() => {
-      pending = result.current.ask('eins', null);
+      pending = result.current.ask('one', null);
     });
     await waitFor(() => expect(result.current.isPending).toBe(true));
     await act(async () => {
@@ -121,7 +121,7 @@ describe('useAskAssistant', () => {
     );
     let outcome;
     await act(async () => {
-      outcome = await result.current.ask('zwei', null);
+      outcome = await result.current.ask('two', null);
     });
     expect(outcome).toEqual({ kind: 'failed' });
   });

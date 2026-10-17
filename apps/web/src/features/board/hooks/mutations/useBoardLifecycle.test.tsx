@@ -19,8 +19,8 @@ import { useLeaveBoard } from './useLeaveBoard';
 
 // Hooks rendered outside AuthProvider read and write the signed-out scope.
 const keys = scopedQueryKeys(null);
-const own: WhiteboardSummaryDto = { id: 'own', name: 'Meine Wand', currentUserRole: 'OWNER' };
-const shared: WhiteboardSummaryDto = { id: 'shared', name: 'Team Nord', currentUserRole: 'EDIT' };
+const own: WhiteboardSummaryDto = { id: 'own', name: 'My Board', currentUserRole: 'OWNER' };
+const shared: WhiteboardSummaryDto = { id: 'shared', name: 'Team North', currentUserRole: 'EDIT' };
 
 function setup<T>(hook: () => T, boards: WhiteboardSummaryDto[] = [own, shared]) {
   const queryClient: QueryClient = createTestQueryClient();
@@ -42,11 +42,11 @@ describe('board lifecycle hooks', () => {
   });
 
   it('useCreateBoard adds the new board to the list and primes its board cache', async () => {
-    const created = makeBoard({ id: 'new', name: 'Projekt Nord' });
+    const created = makeBoard({ id: 'new', name: 'Project North' });
     vi.mocked(boardsApi.create).mockResolvedValue(created);
     const { queryClient, result } = setup(() => useCreateBoard());
 
-    await act(() => result.current.mutateAsync({ name: 'Projekt Nord' }));
+    await act(() => result.current.mutateAsync({ name: 'Project North' }));
 
     expect(listed(queryClient)).toEqual(['own', 'shared', 'new']);
     expect(queryClient.getQueryData(keys.board('new'))).toEqual(created);

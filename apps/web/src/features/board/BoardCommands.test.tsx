@@ -214,12 +214,12 @@ describe('BoardCommands', () => {
     unmount();
 
     const nothing = vi.fn(() => false);
-    renderCommands({ onUndoSuggestion: nothing }, <input aria-label="Feld" />);
+    renderCommands({ onUndoSuggestion: nothing }, <input aria-label="Field" />);
     expect(fireEvent.keyDown(document.body, undoKey)).toBe(true);
     expect(nothing).toHaveBeenCalledTimes(1);
 
     // In a field, ⌘Z is the field's own undo.
-    const field = screen.getByRole('textbox', { name: 'Feld' });
+    const field = screen.getByRole('textbox', { name: 'Field' });
     field.focus();
     expect(fireEvent.keyDown(field, undoKey)).toBe(true);
     expect(nothing).toHaveBeenCalledTimes(1);

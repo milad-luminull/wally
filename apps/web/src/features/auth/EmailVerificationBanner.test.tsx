@@ -134,8 +134,8 @@ describe('EmailVerificationBanner', () => {
   it('links to the board that the confirmed address just unlocked', async () => {
     const user = userEvent.setup();
     vi.mocked(boardsApi.list).mockResolvedValue([
-      makeBoard({ id: 'own', name: 'Meine Wand', currentUserRole: 'OWNER' }),
-      makeBoard({ id: 'shared', name: 'Team Nord', currentUserRole: 'EDIT' }),
+      makeBoard({ id: 'own', name: 'My Board', currentUserRole: 'OWNER' }),
+      makeBoard({ id: 'shared', name: 'Team North', currentUserRole: 'EDIT' }),
     ]);
     renderWithProviders(<EmailVerificationBanner />);
 
@@ -143,7 +143,7 @@ describe('EmailVerificationBanner', () => {
 
     // There is no board switcher in the app, so without this the newly activated invite is
     // invisible: the user stays on their own board with no way to reach the shared one.
-    expect(await screen.findByText(/Team Nord/)).toBeInTheDocument();
+    expect(await screen.findByText(/Team North/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open board' })).toHaveAttribute(
       'href',
       '/boards/shared',

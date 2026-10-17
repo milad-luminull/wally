@@ -8,7 +8,7 @@ function makeSubtask(overrides: Partial<SubtaskDto> = {}): SubtaskDto {
   return {
     id: 's1',
     noteId: 'n1',
-    text: 'Deckungssummen prüfen',
+    text: 'Check the cover amounts',
     done: false,
     sortIndex: 0,
     createdAt: '2026-09-10T00:00:00.000Z',
@@ -64,8 +64,8 @@ describe('SubtaskChecklist', () => {
     const onAdd = vi.fn();
     render(<SubtaskChecklist subtasks={[]} onAdd={onAdd} onToggle={vi.fn()} onRemove={vi.fn()} />);
 
-    await userEvent.type(screen.getByLabelText('Add subtask'), 'Vergleich versenden{Enter}');
-    expect(onAdd).toHaveBeenCalledWith('Vergleich versenden');
+    await userEvent.type(screen.getByLabelText('Add subtask'), 'Send the comparison{Enter}');
+    expect(onAdd).toHaveBeenCalledWith('Send the comparison');
   });
 
   it('renders no interactive controls when disabled', () => {

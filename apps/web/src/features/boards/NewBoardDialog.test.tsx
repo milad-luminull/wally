@@ -13,7 +13,7 @@ import { makeBoard } from '@/test/fixtures';
 import { NewBoardDialog } from './NewBoardDialog';
 
 function Opened() {
-  return <p>Geöffnet: {useParams().boardId}</p>;
+  return <p>Opened: {useParams().boardId}</p>;
 }
 
 function renderDialog() {
@@ -41,7 +41,7 @@ describe('NewBoardDialog', () => {
     expect(name).toHaveValue('My Board');
     await user.type(name, '{Enter}');
 
-    expect(await screen.findByText('Geöffnet: new-id')).toBeInTheDocument();
+    expect(await screen.findByText('Opened: new-id')).toBeInTheDocument();
     expect(vi.mocked(boardsApi.create).mock.calls[0]![0]).toBe('My Board');
   });
 
@@ -84,6 +84,6 @@ describe('NewBoardDialog', () => {
     await waitFor(() => expect(boardsApi.create).toHaveBeenCalledTimes(2));
     const [first, second] = vi.mocked(boardsApi.create).mock.calls;
     expect(second![1]!.operationId).toBe(first![1]!.operationId);
-    expect(await screen.findByText('Geöffnet: new-id')).toBeInTheDocument();
+    expect(await screen.findByText('Opened: new-id')).toBeInTheDocument();
   });
 });

@@ -55,7 +55,7 @@ function Wall({
   axis: 'horizon' | 'priority' | 'free';
   access: ReturnType<typeof boardAccess>;
 }) {
-  const notes = [makeNote({ id: 'n1', title: 'Vorhanden', horizon: 'HEUTE', priority: 'HOCH' })];
+  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
   return (
     <WallView

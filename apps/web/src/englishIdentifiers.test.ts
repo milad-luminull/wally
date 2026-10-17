@@ -14,9 +14,9 @@ import ts from 'typescript';
  * tree: identifiers, comments and string literals are told apart, and JSX text and regular
  * expressions are never mistaken for code.
  *
- * What it does NOT check is the content of ordinary strings: test data such as
- * `'Meine Wand'` or `'Freitag'` is German on purpose until the test data moves to English
- * (ADR-0014 step 3), and the catalogue-driven assertions follow the catalogues.
+ * What it does NOT check is the content of ordinary strings: the capture parser's German input
+ * cases (`'Müller anrufen Freitag'`) and the German smoke test stay German on purpose, and the
+ * catalogue-driven assertions follow the catalogues.
  */
 
 /** vitest runs with cwd at the package root (see vitest.config.ts). */

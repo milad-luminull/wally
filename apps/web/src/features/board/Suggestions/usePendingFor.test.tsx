@@ -33,8 +33,8 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   status: 'PENDING',
   baseRevision: 1,
   fields: {
-    dueDate: { value: '2026-10-23', reason: 'Freitag' },
-    priority: { value: 'HOCH', reason: 'dringend' },
+    dueDate: { value: '2026-10-23', reason: 'Friday' },
+    priority: { value: 'HOCH', reason: 'urgent' },
     assignee: null,
     title: null,
     reference: null,
@@ -145,7 +145,8 @@ const propose = async () => {
 };
 const mark = () => controller.marks.get(NOTE_ID);
 const card = () => document.querySelector<HTMLElement>('[data-note-id]')!;
-const cardButton = () => within(card()).getByText('Angebotsvergleich freigeben').closest('button')!;
+const cardButton = () =>
+  within(card()).getByText('Approve the quote comparison').closest('button')!;
 const review = () => document.querySelector<HTMLElement>('[data-pending-review]');
 const keeps = () =>
   vi.mocked(assistantApi.decide).mock.calls.filter(([, , body]) => body.decision === 'keep');
@@ -273,12 +274,12 @@ describe('the card and the review read one mark (§3.4)', () => {
   const full = () =>
     dto({
       fields: {
-        dueDate: { value: '2026-10-23', reason: 'Freitag' },
-        priority: { value: 'HOCH', reason: 'dringend' },
+        dueDate: { value: '2026-10-23', reason: 'Friday' },
+        priority: { value: 'HOCH', reason: 'urgent' },
         assignee: null,
-        title: { value: 'Angebot an Müller', reason: 'kürzer' },
-        reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
-        subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+        title: { value: 'Quote for Müller', reason: 'shorter' },
+        reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
+        subtasks: { items: ['Get prices', 'Compare', 'Approve'], reason: 'process' },
       },
     });
   const row = (name: string | RegExp) =>
@@ -293,22 +294,22 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
 
     expect(card().querySelector('.border-dashed')).not.toBeNull();
-    expect(within(card()).getByText('Kunde: Müller GmbH')).toBeInTheDocument();
+    expect(within(card()).getByText('Customer: Müller GmbH')).toBeInTheDocument();
     expect(within(card()).getByText('3 steps')).toBeInTheDocument();
     expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
-    const titleLine = within(card()).getByRole('button', { name: 'Suggested: Angebot an Müller' });
+    const titleLine = within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(titleLine).toHaveAttribute('aria-pressed', 'false');
 
-    fireEvent.click(row('Kunde: Müller GmbH'));
-    expect(within(card()).queryByText('Kunde: Müller GmbH')).toBeNull();
-    expect(row('Kunde: Müller GmbH')).not.toBeChecked();
+    fireEvent.click(row('Customer: Müller GmbH'));
+    expect(within(card()).queryByText('Customer: Müller GmbH')).toBeNull();
+    expect(row('Customer: Müller GmbH')).not.toBeChecked();
 
-    fireEvent.click(row('Step: Vergleichen'));
+    fireEvent.click(row('Step: Compare'));
     expect(within(card()).getByText('2 steps')).toBeInTheDocument();
 
-    fireEvent.click(row(/^Suggested: Angebot an Müller/));
+    fireEvent.click(row(/^Suggested: Quote for Müller/));
     expect(
-      within(card()).getByRole('button', { name: 'Suggested: Angebot an Müller' }),
+      within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' }),
     ).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(row('High priority'));

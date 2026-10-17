@@ -128,7 +128,7 @@ describe('TopBar at phone width', () => {
 
   it('lets the board name shrink and truncate instead of running under the controls', () => {
     renderTopBar({ assistantEnabled: true });
-    const name = screen.getByRole('button', { name: 'Meine Wand' });
+    const name = screen.getByRole('button', { name: 'My Board' });
     const heading = screen.getByRole('heading', { level: 1 });
 
     expect(name).toHaveClass('truncate', 'max-w-full');

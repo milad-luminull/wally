@@ -50,8 +50,8 @@ describe('useDuplicateNote', () => {
     const { result } = setup(
       makeNote({
         id: 'note-1',
-        title: 'Gerade getippt',
-        description: 'Und das',
+        title: 'Just typed',
+        description: 'And that',
         freeX: 10,
         freeY: 20,
       }),
@@ -64,8 +64,8 @@ describe('useDuplicateNote', () => {
     expect(notesApi.duplicate).toHaveBeenCalledWith(
       'note-1',
       {
-        title: 'Gerade getippt',
-        description: 'Und das',
+        title: 'Just typed',
+        description: 'And that',
         freeX: 34,
         freeY: 44,
       },
@@ -96,13 +96,13 @@ describe('useDuplicateNote', () => {
   });
 
   it('shows an open copy at once and swaps in the server copy when it lands', async () => {
-    const created = makeNote({ id: 'note-copy', title: 'Angebot' });
+    const created = makeNote({ id: 'note-copy', title: 'Quote' });
     let resolve!: (note: NoteDto) => void;
     vi.mocked(notesApi.duplicate).mockReturnValue(new Promise((r) => (resolve = r)));
     const { result, notes } = setup(
       makeNote({
         id: 'note-1',
-        title: 'Angebot',
+        title: 'Quote',
         status: 'DONE',
         completedAt: '2026-09-11T10:00:00.000Z',
       }),
@@ -114,7 +114,7 @@ describe('useDuplicateNote', () => {
     await waitFor(() => expect(notes()).toHaveLength(2));
     const optimistic = notes()[1]!;
     expect(optimistic.id).toMatch(/^temp-/);
-    expect(optimistic).toMatchObject({ title: 'Angebot', status: 'OPEN', completedAt: null });
+    expect(optimistic).toMatchObject({ title: 'Quote', status: 'OPEN', completedAt: null });
 
     await act(async () => resolve(created));
 
@@ -124,9 +124,9 @@ describe('useDuplicateNote', () => {
   });
 
   it('Undo removes the copy and deletes it on the server', async () => {
-    const created = makeNote({ id: 'note-copy', title: 'Angebot' });
+    const created = makeNote({ id: 'note-copy', title: 'Quote' });
     vi.mocked(notesApi.duplicate).mockResolvedValue(created);
-    const { result, notes, onUndo } = setup(makeNote({ id: 'note-1', title: 'Angebot' }));
+    const { result, notes, onUndo } = setup(makeNote({ id: 'note-1', title: 'Quote' }));
 
     act(() => result.current.duplicate('note-1'));
     await waitFor(() => expect(result.current.toasts).toHaveLength(1));

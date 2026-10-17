@@ -37,7 +37,7 @@ describe('NoteRow with a pending change', () => {
     onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   });
-  const rowOf = () => screen.getByText('Angebotsvergleich freigeben').closest('[role="button"]')!;
+  const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
   const renderRow = (p = pending(), onOpen = vi.fn()) => {
     render(
       <NoteRow
@@ -136,7 +136,7 @@ describe('NoteRow with a pending change', () => {
       ...over,
     });
   };
-  const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+  const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
   it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
     const onOpen = vi.fn();
@@ -152,8 +152,8 @@ describe('NoteRow with a pending change', () => {
       />
     );
     const { rerender } = render(row(p));
-    expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Suggested: Angebot an Müller' });
+    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
+    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(line).toHaveAttribute('aria-pressed', 'false');
     // What a press does, said only while the press would take the title.
     expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
@@ -168,7 +168,7 @@ describe('NoteRow with a pending change', () => {
 
     const taken = withProposals(['dueDate', 'title'], { title: TITLE });
     rerender(row(taken));
-    const takenLine = screen.getByRole('button', { name: 'Suggested: Angebot an Müller' });
+    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(takenLine).toHaveAttribute('aria-pressed', 'true');
     expect(takenLine).not.toHaveAttribute('aria-description');
     fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
@@ -181,14 +181,16 @@ describe('NoteRow with a pending change', () => {
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
         {
-          reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
-          subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+          reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
+          subtasks: { items: ['Get prices', 'Compare', 'Approve'], reason: 'process' },
         },
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Kunde: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Kunde: Müller GmbH' }));
+    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
+    );
     expect(p.onRemove).toHaveBeenCalledWith('reference');
     expect(screen.getByText('2 steps')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
@@ -269,9 +271,12 @@ describe('NoteRow without a pending change', () => {
         canEdit
       />,
     );
-    fireEvent.keyDown(screen.getByText('Angebotsvergleich freigeben').closest('[role="button"]')!, {
-      key: 'Enter',
-    });
+    fireEvent.keyDown(
+      screen.getByText('Approve the quote comparison').closest('[role="button"]')!,
+      {
+        key: 'Enter',
+      },
+    );
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 

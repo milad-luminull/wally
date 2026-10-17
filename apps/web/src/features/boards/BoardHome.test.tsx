@@ -30,7 +30,7 @@ function me(lastBoardId: string | null): MeDto {
     id: 'u-1',
     email: 'max@example.com',
     displayName: null,
-    language: 'de',
+    language: 'en',
     preferences: { ...DEFAULT_PREFERENCES, lastBoardId },
   } as MeDto;
 }

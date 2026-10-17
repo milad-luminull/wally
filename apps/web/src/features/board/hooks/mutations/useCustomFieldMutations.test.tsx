@@ -45,41 +45,41 @@ describe('custom field mutations', () => {
     queryClient.getQueryData<NoteDetailDto>(queryKeys.noteDetail(id))?.customFields;
 
   it('optimistically patches both the list and detail caches when setting a property', async () => {
-    const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH' });
+    const { note, queryClient, wrapper } = setup({ Customer: 'Müller GmbH' });
     vi.mocked(notesApi.update).mockResolvedValue({
       ...note,
-      customFields: { Kunde: 'Müller GmbH', Vertragsnr: '4711' },
+      customFields: { Customer: 'Müller GmbH', Reference: '4711' },
     });
 
     const { result } = renderHook(() => useSetCustomField(boardId), { wrapper });
-    result.current.mutate({ noteId: note.id, key: 'Vertragsnr', value: '4711' });
+    result.current.mutate({ noteId: note.id, key: 'Reference', value: '4711' });
 
     await waitFor(() => {
       expect(listFields(queryClient, note.id)).toEqual({
-        Kunde: 'Müller GmbH',
-        Vertragsnr: '4711',
+        Customer: 'Müller GmbH',
+        Reference: '4711',
       });
       expect(detailFields(queryClient, note.id)).toEqual({
-        Kunde: 'Müller GmbH',
-        Vertragsnr: '4711',
+        Customer: 'Müller GmbH',
+        Reference: '4711',
       });
     });
   });
 
   it('sends only the changed property, and patches the stored spelling optimistically', async () => {
-    const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
+    const { note, queryClient, wrapper } = setup({ Customer: 'Müller GmbH', Contract: 'X' });
     vi.mocked(notesApi.update).mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useSetCustomField(boardId), { wrapper });
-    result.current.mutate({ noteId: note.id, key: 'kunde', value: 'Steiner AG' });
+    result.current.mutate({ noteId: note.id, key: 'customer', value: 'Steiner AG' });
 
     // Never the whole cached map: that would drop a property a colleague added meanwhile.
-    // The server resolves "kunde" to the stored "Kunde" against its current copy.
+    // The server resolves "customer" to the stored "Customer" against its current copy.
     await waitFor(() =>
       expect(notesApi.update).toHaveBeenCalledWith(
         note.id,
         {
-          fieldChanges: { set: { kunde: 'Steiner AG' } },
+          fieldChanges: { set: { customer: 'Steiner AG' } },
         },
         expect.objectContaining({
           operationId: expect.any(String),
@@ -89,21 +89,21 @@ describe('custom field mutations', () => {
       ),
     );
     // The stored spelling wins, so the note keeps one property rather than gaining a twin.
-    expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Steiner AG', Vertrag: 'X' });
+    expect(listFields(queryClient, note.id)).toEqual({ Customer: 'Steiner AG', Contract: 'X' });
   });
 
   it('sends only the removed key', async () => {
-    const { note, wrapper } = setup({ Kunde: 'Müller GmbH', Vertrag: 'X' });
-    vi.mocked(notesApi.update).mockResolvedValue({ ...note, customFields: { Vertrag: 'X' } });
+    const { note, wrapper } = setup({ Customer: 'Müller GmbH', Contract: 'X' });
+    vi.mocked(notesApi.update).mockResolvedValue({ ...note, customFields: { Contract: 'X' } });
 
     const { result } = renderHook(() => useRemoveCustomField(boardId), { wrapper });
-    result.current.mutate({ noteId: note.id, key: 'Kunde' });
+    result.current.mutate({ noteId: note.id, key: 'Customer' });
 
     await waitFor(() =>
       expect(notesApi.update).toHaveBeenCalledWith(
         note.id,
         {
-          fieldChanges: { remove: ['Kunde'] },
+          fieldChanges: { remove: ['Customer'] },
         },
         expect.objectContaining({
           operationId: expect.any(String),
@@ -115,14 +115,14 @@ describe('custom field mutations', () => {
   });
 
   it('rolls both caches back when the request fails', async () => {
-    const { note, queryClient, wrapper } = setup({ Kunde: 'Müller GmbH' });
+    const { note, queryClient, wrapper } = setup({ Customer: 'Müller GmbH' });
     vi.mocked(notesApi.update).mockRejectedValue(new Error('nope'));
 
     const { result } = renderHook(() => useRemoveCustomField(boardId), { wrapper });
-    result.current.mutate({ noteId: note.id, key: 'Kunde' });
+    result.current.mutate({ noteId: note.id, key: 'Customer' });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(listFields(queryClient, note.id)).toEqual({ Kunde: 'Müller GmbH' });
-    expect(detailFields(queryClient, note.id)).toEqual({ Kunde: 'Müller GmbH' });
+    expect(listFields(queryClient, note.id)).toEqual({ Customer: 'Müller GmbH' });
+    expect(detailFields(queryClient, note.id)).toEqual({ Customer: 'Müller GmbH' });
   });
 });

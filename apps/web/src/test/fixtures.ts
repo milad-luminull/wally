@@ -6,7 +6,7 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     revision: 1,
     id: 'note-1',
     whiteboardId: 'board-1',
-    title: 'Angebotsvergleich freigeben',
+    title: 'Approve the quote comparison',
     description: '',
     status: 'OPEN',
     completedAt: null,
@@ -53,7 +53,7 @@ export function makeBoard(overrides: Partial<WhiteboardDto> = {}): WhiteboardDto
   return {
     revision: 1,
     id: 'board-1',
-    name: 'Meine Wand',
+    name: 'My Board',
     ownerId: 'user-1',
     currentUserRole: 'OWNER',
     assistantEnabled: false,
@@ -73,8 +73,8 @@ export function makeSuggestionMark(overrides: Partial<SuggestionMark> = {}): Sug
       status: 'PENDING',
       baseRevision: 1,
       fields: {
-        dueDate: { value: '2026-10-23', reason: 'Freitag' },
-        priority: { value: 'HOCH', reason: 'dringend' },
+        dueDate: { value: '2026-10-23', reason: 'Friday' },
+        priority: { value: 'HOCH', reason: 'urgent' },
         assignee: {
           value: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' },
           reason: 'Anna',

@@ -23,8 +23,8 @@ import { toast } from '@/lib/toast';
 const queryKeys = scopedQueryKeys(null);
 const boardId = 'board-1';
 
-const me: UserSummary = { id: 'user-me', email: 'me@example.com', displayName: 'Ich' };
-const other: UserSummary = { id: 'user-other', email: 'other@example.com', displayName: 'Andere' };
+const me: UserSummary = { id: 'user-me', email: 'me@example.com', displayName: 'Me' };
+const other: UserSummary = { id: 'user-other', email: 'other@example.com', displayName: 'Other' };
 
 describe('useSetNoteVisibility', () => {
   beforeEach(() => {

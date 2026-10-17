@@ -74,7 +74,7 @@ describe('AssistantContent', () => {
   });
 
   it('asks on Enter, keeps the question on screen while loading, then shows the answer with the notes read', async () => {
-    const note = makeNote({ id: 'n1', title: 'Müller anrufen', dueDate: null });
+    const note = makeNote({ id: 'n1', title: 'Call Müller', dueDate: null });
     vi.mocked(notesApi.list).mockResolvedValue([note]);
     let release: (v: { conversation: AssistantConversationDto }) => void = () => {};
     vi.mocked(assistantApi.turn).mockReturnValueOnce(
@@ -85,20 +85,20 @@ describe('AssistantContent', () => {
     const { onOpenNote } = renderContent();
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('What is open today?');
-    await user.type(field, 'Was ist offen?{Enter}');
-    expect(screen.getByText('Was ist offen?', { selector: 'p' })).toBeInTheDocument();
+    await user.type(field, 'What is open?{Enter}');
+    expect(screen.getByText('What is open?', { selector: 'p' })).toBeInTheDocument();
     expect(field).toBeDisabled();
     release({
       conversation: conversation([
-        entry('user', 'Was ist offen?'),
-        entry('assistant', 'Eine Notiz: Müller anrufen.', {
-          chips: [{ id: 'n1', title: 'Müller anrufen' }],
+        entry('user', 'What is open?'),
+        entry('assistant', 'One note: Call Müller.', {
+          chips: [{ id: 'n1', title: 'Call Müller' }],
         }),
       ]),
     });
-    expect(await screen.findByText('Eine Notiz: Müller anrufen.')).toBeInTheDocument();
+    expect(await screen.findByText('One note: Call Müller.')).toBeInTheDocument();
     expect(screen.getByText('Notes read')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Müller anrufen/ }));
+    await user.click(screen.getByRole('button', { name: /Call Müller/ }));
     expect(onOpenNote).toHaveBeenCalledWith('n1');
     expect(field).not.toBeDisabled();
     expect(field).toHaveValue('');
@@ -120,13 +120,13 @@ describe('AssistantContent', () => {
     vi.mocked(assistantApi.turn).mockResolvedValue({
       conversation: conversation([
         entry('user', 'What is overdue?'),
-        entry('assistant', 'Nichts.'),
+        entry('assistant', 'Nothing.'),
       ]),
     });
     renderContent();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'What is overdue?' }));
-    expect(await screen.findByText('Nichts.')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing.')).toBeInTheDocument();
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({
       message: 'What is overdue?',
     });
@@ -135,20 +135,20 @@ describe('AssistantContent', () => {
   it('shows the newest exchange first and the rest under "Earlier"', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
       conversation([
-        entry('user', 'eins'),
-        entry('assistant', 'Antwort eins'),
-        entry('user', 'zwei'),
-        entry('assistant', 'Antwort zwei'),
+        entry('user', 'one'),
+        entry('assistant', 'Answer one'),
+        entry('user', 'two'),
+        entry('assistant', 'Answer two'),
       ]),
     );
     renderContent();
-    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
-    const texts = screen.getAllByText(/Antwort (eins|zwei)/).map((el) => el.textContent);
-    expect(texts).toEqual(['Antwort zwei', 'Antwort eins']);
+    expect(await screen.findByText('Answer two')).toBeInTheDocument();
+    const texts = screen.getAllByText(/Answer (one|two)/).map((el) => el.textContent);
+    expect(texts).toEqual(['Answer two', 'Answer one']);
     expect(screen.getByText('Earlier')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New' })).toBeInTheDocument();
     // Restored on open, so nothing is announced; only an answer asked for here is.
-    expect(screen.getByText('Antwort zwei').closest('[aria-live]')).toBeNull();
+    expect(screen.getByText('Answer two').closest('[aria-live]')).toBeNull();
   });
 
   it('renders a cap refusal in the answer slot with the reset time, and keeps the question', async () => {
@@ -161,12 +161,12 @@ describe('AssistantContent', () => {
     );
     renderContent();
     const user = userEvent.setup();
-    await user.type(await screen.findByPlaceholderText('What is open today?'), 'eins{Enter}');
+    await user.type(await screen.findByPlaceholderText('What is open today?'), 'one{Enter}');
     expect(
       await screen.findByText(/Daily limit reached\. Available again from .+\./),
     ).toBeInTheDocument();
-    expect(screen.getByText('eins', { selector: 'p' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('What is open today?')).toHaveValue('eins');
+    expect(screen.getByText('one', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('What is open today?')).toHaveValue('one');
   });
 
   it('empties the field while the turn runs and puts the question back when the ask fails', async () => {
@@ -179,17 +179,17 @@ describe('AssistantContent', () => {
     renderContent();
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('What is open today?');
-    await user.type(field, 'Was ist offen?{Enter}');
+    await user.type(field, 'What is open?{Enter}');
     // Pending: the question is shown once, above the skeleton, and the field is empty.
     expect(field).toHaveValue('');
     expect(field).toBeDisabled();
-    const question = screen.getByText('Was ist offen?', { selector: 'p' });
+    const question = screen.getByText('What is open?', { selector: 'p' });
     expect(question.nextElementSibling?.querySelector('.wally-skeleton')).not.toBeNull();
     await act(async () => {
       fail(new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' }));
     });
     expect(await screen.findByText('No answer. Try again.')).toBeInTheDocument();
-    expect(field).toHaveValue('Was ist offen?');
+    expect(field).toHaveValue('What is open?');
   });
 
   it('caps the field at the length the API accepts', async () => {
@@ -203,9 +203,9 @@ describe('AssistantContent', () => {
   it('renders stopped and partial answers with their one line', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
       conversation([
-        entry('user', 'alles'),
-        entry('assistant', 'Viele.', { partial: true }),
-        entry('user', 'zu viel'),
+        entry('user', 'everything'),
+        entry('assistant', 'Many.', { partial: true }),
+        entry('user', 'too much'),
         entry('assistant', '', { stopped: 'TOOL_LIMIT' }),
       ]),
     );
@@ -216,17 +216,17 @@ describe('AssistantContent', () => {
 
   it('starts a fresh conversation on "New"', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
-      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     );
     vi.mocked(assistantApi.turn).mockResolvedValue({
-      conversation: conversation([entry('user', 'zwei'), entry('assistant', 'Antwort zwei')], 'c2'),
+      conversation: conversation([entry('user', 'two'), entry('assistant', 'Answer two')], 'c2'),
     });
     renderContent();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'New' }));
-    await waitFor(() => expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument());
-    await user.type(screen.getByPlaceholderText('What is open today?'), 'zwei{Enter}');
-    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Answer one')).not.toBeInTheDocument());
+    await user.type(screen.getByPlaceholderText('What is open today?'), 'two{Enter}');
+    expect(await screen.findByText('Answer two')).toBeInTheDocument();
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).not.toHaveProperty('conversationId');
   });
   it('gives focus back to the field when the turn settles and announces the answer politely', async () => {
@@ -239,8 +239,8 @@ describe('AssistantContent', () => {
     renderContent();
     const user = userEvent.setup();
     const field = await screen.findByPlaceholderText('What is open today?');
-    await user.type(field, 'eins{Enter}');
-    const region = screen.getByText('eins', { selector: 'p' }).closest('[aria-live]');
+    await user.type(field, 'one{Enter}');
+    const region = screen.getByText('one', { selector: 'p' }).closest('[aria-live]');
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toHaveAttribute('aria-busy', 'true');
     // A real browser drops focus from a disabled field to the body; jsdom keeps it there and
@@ -252,9 +252,9 @@ describe('AssistantContent', () => {
     });
     expect(document.activeElement).toBe(document.body);
     release({
-      conversation: conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation: conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     });
-    const answer = await screen.findByText('Antwort eins');
+    const answer = await screen.findByText('Answer one');
     expect(answer.closest('[aria-live]')).toBe(region);
     expect(region).toHaveAttribute('aria-busy', 'false');
     await waitFor(() => expect(field).toHaveFocus());
@@ -269,51 +269,48 @@ describe('AssistantContent', () => {
     );
     renderContent();
     const user = userEvent.setup();
-    await user.type(await screen.findByPlaceholderText('What is open today?'), 'eins{Enter}');
+    await user.type(await screen.findByPlaceholderText('What is open today?'), 'one{Enter}');
     const close = screen.getByRole('button', { name: 'Close' });
     act(() => close.focus());
     release({
-      conversation: conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation: conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     });
-    expect(await screen.findByText('Antwort eins')).toBeInTheDocument();
+    expect(await screen.findByText('Answer one')).toBeInTheDocument();
     expect(close).toHaveFocus();
   });
 
   it('shows earlier exchanges unfaded, in the same colour as the latest', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
       conversation([
-        entry('user', 'eins'),
-        entry('assistant', 'Antwort eins'),
-        entry('user', 'zwei'),
-        entry('assistant', 'Antwort zwei'),
+        entry('user', 'one'),
+        entry('assistant', 'Answer one'),
+        entry('user', 'two'),
+        entry('assistant', 'Answer two'),
       ]),
     );
     renderContent();
-    const older = await screen.findByText('Antwort eins');
+    const older = await screen.findByText('Answer one');
     for (let el: HTMLElement | null = older; el; el = el.parentElement) {
       expect(el.className).not.toMatch(/opacity-/);
     }
-    expect(older.className).toBe(screen.getByText('Antwort zwei').className);
+    expect(older.className).toBe(screen.getByText('Answer two').className);
   });
 
   it('shows only the new conversation when the open one closed under the panel (409)', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
-      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     );
     vi.mocked(assistantApi.turn)
       .mockRejectedValueOnce(new ApiError(409, { error: 'ASSISTANT_CONVERSATION_CLOSED' }))
       .mockResolvedValueOnce({
-        conversation: conversation(
-          [entry('user', 'zwei'), entry('assistant', 'Antwort zwei')],
-          'c2',
-        ),
+        conversation: conversation([entry('user', 'two'), entry('assistant', 'Answer two')], 'c2'),
       });
     renderContent();
     const user = userEvent.setup();
-    await screen.findByText('Antwort eins');
-    await user.type(screen.getByPlaceholderText('What is open today?'), 'zwei{Enter}');
-    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
-    expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument();
+    await screen.findByText('Answer one');
+    await user.type(screen.getByPlaceholderText('What is open today?'), 'two{Enter}');
+    expect(await screen.findByText('Answer two')).toBeInTheDocument();
+    expect(screen.queryByText('Answer one')).not.toBeInTheDocument();
     expect(screen.queryByText('Earlier')).not.toBeInTheDocument();
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({ conversationId: 'c1' });
     expect(vi.mocked(assistantApi.turn).mock.calls[1]![1]).not.toHaveProperty('conversationId');
@@ -321,28 +318,28 @@ describe('AssistantContent', () => {
 
   it('never shows the dismissed conversation again after "New" and an answer', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
-      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     );
     vi.mocked(assistantApi.turn).mockResolvedValue({
-      conversation: conversation([entry('user', 'zwei'), entry('assistant', 'Antwort zwei')], 'c2'),
+      conversation: conversation([entry('user', 'two'), entry('assistant', 'Answer two')], 'c2'),
     });
     renderContent();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'New' }));
-    await waitFor(() => expect(screen.queryByText('Antwort eins')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Answer one')).not.toBeInTheDocument());
     // Every DOM change from here on is checked, so a single intermediate commit that
     // re-renders the old conversation fails the test even if a later one removes it.
     let flashed = false;
     const observer = new MutationObserver((records) => {
       for (const record of records) {
         const nodes = [record.target, ...Array.from(record.addedNodes)];
-        if (nodes.some((node) => node.textContent?.includes('Antwort eins'))) flashed = true;
+        if (nodes.some((node) => node.textContent?.includes('Answer one'))) flashed = true;
       }
-      if (document.body.textContent?.includes('Antwort eins')) flashed = true;
+      if (document.body.textContent?.includes('Answer one')) flashed = true;
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-    await user.type(screen.getByPlaceholderText('What is open today?'), 'zwei{Enter}');
-    expect(await screen.findByText('Antwort zwei')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('What is open today?'), 'two{Enter}');
+    expect(await screen.findByText('Answer two')).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 20));
     observer.disconnect();
     expect(flashed).toBe(false);
@@ -358,7 +355,7 @@ describe('AssistantContent', () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(conversation([], 'c-empty'));
     vi.mocked(assistantApi.turn).mockResolvedValue({
       conversation: conversation(
-        [entry('user', 'What is overdue?'), entry('assistant', 'Nichts.')],
+        [entry('user', 'What is overdue?'), entry('assistant', 'Nothing.')],
         'c-empty',
       ),
     });
@@ -371,7 +368,7 @@ describe('AssistantContent', () => {
     expect(screen.getByRole('button', { name: 'What is open today?' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
     await user.click(example);
-    expect(await screen.findByText('Nichts.')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing.')).toBeInTheDocument();
     expect(vi.mocked(assistantApi.turn).mock.calls[0]![1]).toMatchObject({
       message: 'What is overdue?',
       conversationId: 'c-empty',
@@ -388,7 +385,7 @@ describe('AssistantContent', () => {
 
   it('keeps "New" after a failed ask and hides it only while a turn runs', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
-      conversation([entry('user', 'eins'), entry('assistant', 'Antwort eins')]),
+      conversation([entry('user', 'one'), entry('assistant', 'Answer one')]),
     );
     let fail: (error: unknown) => void = () => {};
     vi.mocked(assistantApi.turn).mockReturnValueOnce(
@@ -398,8 +395,8 @@ describe('AssistantContent', () => {
     );
     renderContent();
     const user = userEvent.setup();
-    await screen.findByText('Antwort eins');
-    await user.type(screen.getByPlaceholderText('What is open today?'), 'zwei{Enter}');
+    await screen.findByText('Answer one');
+    await user.type(screen.getByPlaceholderText('What is open today?'), 'two{Enter}');
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
     act(() => fail(new ApiError(500, { error: 'INTERNAL_SERVER_ERROR' })));
     expect(await screen.findByText('No answer. Try again.')).toBeInTheDocument();
@@ -408,11 +405,11 @@ describe('AssistantContent', () => {
 
   it('falls back to the busy line when the reset time cannot be read', async () => {
     vi.mocked(assistantApi.turn).mockRejectedValue(
-      new ApiError(429, { error: 'ASSISTANT_MONTHLY_CAP', message: 'x', resetsAt: 'bald' }),
+      new ApiError(429, { error: 'ASSISTANT_MONTHLY_CAP', message: 'x', resetsAt: 'soon' }),
     );
     renderContent();
     const user = userEvent.setup();
-    await user.type(await screen.findByPlaceholderText('What is open today?'), 'eins{Enter}');
+    await user.type(await screen.findByPlaceholderText('What is open today?'), 'one{Enter}');
     expect(await screen.findByText('Busy right now. Try again in a moment.')).toBeInTheDocument();
   });
 
@@ -426,7 +423,7 @@ describe('AssistantContent', () => {
     );
     renderContent();
     const user = userEvent.setup();
-    await user.type(await screen.findByPlaceholderText('What is open today?'), 'eins{Enter}');
+    await user.type(await screen.findByPlaceholderText('What is open today?'), 'one{Enter}');
     const line = await screen.findByText(/Monthly limit reached\. Available again from .+\./);
     expect(line.textContent).not.toMatch(/\d{1,2}:\d{2}/);
   });
@@ -442,10 +439,10 @@ describe('AssistantContent', () => {
 
   it('keeps the line breaks of a question', async () => {
     vi.mocked(assistantApi.latest).mockResolvedValue(
-      conversation([entry('user', 'eins\nzwei'), entry('assistant', 'Antwort')]),
+      conversation([entry('user', 'one\ntwo'), entry('assistant', 'Answer')]),
     );
     renderContent();
-    await screen.findByText('Antwort');
-    expect(screen.getByText(/eins\s+zwei/, { selector: 'p' })).toHaveClass('whitespace-pre-line');
+    await screen.findByText('Answer');
+    expect(screen.getByText(/one\s+two/, { selector: 'p' })).toHaveClass('whitespace-pre-line');
   });
 });
