@@ -11,10 +11,16 @@ import type {
   SuggestionFieldKey,
   SuggestionFields,
 } from '@wally/shared';
-import { SUGGESTION_MAX_SUBTASKS, suggestionFieldKeys } from '@wally/shared';
+import {
+  SUGGESTION_MAX_SUBTASKS,
+  customFieldKeySchema,
+  customFieldValueSchema,
+  findFieldKey,
+  suggestionFieldKeys,
+} from '@wally/shared';
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
-import { getNote, listMembers } from '../commands/queries.js';
+import { getNote, listMembers, listNotes } from '../commands/queries.js';
 import {
   assistantSuggestionsCol,
   docsWithId,
@@ -43,7 +49,7 @@ import {
 } from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
-export const SUGGESTION_MAX_OUTPUT_TOKENS = 256;
+export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
 export const SUGGESTION_DEADLINE_MS = 20_000;
 /** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
 export const SUGGESTION_MIN_CONFIDENCE = 0.6;
@@ -92,9 +98,16 @@ function mintOperationIds(): SuggestionOperationIds {
   };
 }
 
-/** Which of the three fields may be proposed for this note (plan R3). */
+/**
+ * Which fields may be proposed for this note: an empty one the person did not decide while
+ * writing (plan R3), a cleaner title beside a title they wrote, and a reference or steps only
+ * on a note that has no property and no step yet (R7).
+ */
 function candidates(
-  note: { dueDate: string | null; priority: NotePriority; assignee: unknown; visibility: string },
+  note: Pick<
+    NoteDetailDto,
+    'dueDate' | 'priority' | 'assignee' | 'visibility' | 'title' | 'customFields' | 'subtaskSummary'
+  >,
   locked: SuggestionFieldKey[],
 ): SuggestionFieldKey[] {
   const open: SuggestionFieldKey[] = [];
@@ -102,8 +115,30 @@ function candidates(
   if (note.priority === 'MITTEL' && !locked.includes('priority')) open.push('priority');
   if (note.assignee === null && note.visibility !== 'PRIVATE' && !locked.includes('assignee'))
     open.push('assignee');
+  if (note.title.trim() && !locked.includes('title')) open.push('title');
+  if (Object.keys(note.customFields ?? {}).length === 0 && !locked.includes('reference'))
+    open.push('reference');
+  if (note.subtaskSummary.total === 0 && !locked.includes('subtasks')) open.push('subtasks');
   return open;
 }
+
+/**
+ * The property keys the board's notes use, for the prompt: one spelling per key compared
+ * case-insensitively (the first one seen), sorted for a German reader. Mirrors the web's
+ * `collectFieldKeys`, so the model sees the keys the panel offers.
+ */
+function collectKeys(notes: { customFields: Record<string, string> }[]): string[] {
+  const byFolded = new Map<string, string>();
+  for (const note of notes)
+    for (const key of Object.keys(note.customFields ?? {})) {
+      const folded = key.toLocaleLowerCase('de');
+      if (!byFolded.has(folded)) byFolded.set(folded, key);
+    }
+  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+/** Each value once, first occurrence first. */
+const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
 /**
  * Keeps a field only when it is a candidate, confident enough, and (for a person) a member. A
@@ -115,6 +150,8 @@ function accept(
   open: SuggestionFieldKey[],
   memberIds: Set<string>,
   today: string,
+  note: { title: string },
+  fieldKeys: string[],
 ): AssistantSuggestionDoc['fields'] {
   const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
   return {
@@ -136,11 +173,51 @@ function accept(
       memberIds.has(fields.assignee.memberId)
         ? { value: fields.assignee.memberId, reason: fields.assignee.reason }
         : null,
-    // Slice 3 proposes these later; until the model is asked for them they are empty.
-    title: null,
-    reference: null,
-    subtasks: null,
+    // A "cleaner" title that is the person's own is nothing to offer.
+    title:
+      open.includes('title') &&
+      fields.title &&
+      sure(fields.title.confidence) &&
+      fields.title.value.trim() !== note.title.trim()
+        ? { value: fields.title.value.trim(), reason: fields.title.reason }
+        : null,
+    reference:
+      open.includes('reference') && fields.reference && sure(fields.reference.confidence)
+        ? acceptReference(fields.reference, fieldKeys)
+        : null,
+    subtasks:
+      open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
+        ? acceptSubtasks(fields.subtasks)
+        : null,
   };
+}
+
+/**
+ * The key folds to the board's own spelling when the board already uses it ("kunde" becomes
+ * "Kunde"), so a keep never starts a near-duplicate property. A key or value the property
+ * schema refuses drops the reference.
+ */
+function acceptReference(
+  reference: NonNullable<ModelSuggestion['reference']>,
+  fieldKeys: string[],
+): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
+  const wanted = reference.key.trim().toLocaleLowerCase('de');
+  const key = fieldKeys.find((k) => k.toLocaleLowerCase('de') === wanted) ?? reference.key.trim();
+  const parsedKey = customFieldKeySchema.safeParse(key);
+  const parsedValue = customFieldValueSchema.safeParse(reference.value);
+  if (!parsedKey.success || !parsedValue.success) return null;
+  return { key: parsedKey.data, value: parsedValue.data, reason: reference.reason };
+}
+
+/** Blank and repeated steps drop out; what remains is capped at what a suggestion carries. */
+function acceptSubtasks(
+  subtasks: NonNullable<ModelSuggestion['subtasks']>,
+): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
+  const items = unique(subtasks.items.map((item) => item.trim()).filter(Boolean)).slice(
+    0,
+    SUGGESTION_MAX_SUBTASKS,
+  );
+  return items.length > 0 ? { items, reason: subtasks.reason } : null;
 }
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
@@ -235,11 +312,14 @@ export async function suggestForCapture(
     timeZone: request.timeZone,
     language: ctx.language,
   });
+  // Every note the caller can see, done ones too: a key in use anywhere on the board is one
+  // a reference should reuse.
+  const fieldKeys = collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }));
   const prompt = buildCapturePrompt({
     title: note.title,
     description: note.description,
     members: memberRows,
-    fieldKeys: [], // Task 4: the board's property keys.
+    fieldKeys,
   });
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
@@ -304,7 +384,14 @@ export async function suggestForCapture(
     ms: Date.now() - startedAt,
   });
   if (!output.fields) return null;
-  const fields = accept(output.fields, open, new Set(memberRows.map((m) => m.id)), request.today);
+  const fields = accept(
+    output.fields,
+    open,
+    new Set(memberRows.map((m) => m.id)),
+    request.today,
+    note,
+    fieldKeys,
+  );
   if (proposedKeys(fields).length === 0) return null;
 
   const now = clock();
@@ -313,6 +400,7 @@ export async function suggestForCapture(
     boardId: board.id,
     noteId: note.id,
     baseRevision: note.revision,
+    ...(fields.title ? { baseTitle: note.title } : {}),
     fields,
     typed: request.locked,
     operationIds: mintOperationIds(),
@@ -358,7 +446,7 @@ async function claim(
   id: string,
   from: AssistantSuggestionDoc['status'],
   to: AssistantSuggestionDoc['status'],
-  decision: { source: string; fields: SuggestionFieldKey[] },
+  decision: { source: string; fields: SuggestionFieldKey[]; subtasks?: number[] },
   now: Date,
 ): Promise<{ doc: WithId<AssistantSuggestionDoc>; claimed: boolean }> {
   // An undo is recorded beside the keep, so the keep's own decision (its source and fields)
@@ -399,20 +487,120 @@ function operationContext(
   };
 }
 
-type FieldValues = { dueDate: string | null; priority: NotePriority; assigneeId: string | null };
+/** One write of a keep or an undo: a field, or one proposed step by its index. */
+type Step = { key: SuggestionFieldKey; index?: number };
 
 /**
- * What a proposed field held at `baseRevision`. A field is proposed only when the note has
- * nothing there (plan R3), so these are exact for every field a keep may write.
+ * The writes for the kept fields, in the one canonical order the chain and its receipts use,
+ * with `subtasks` expanded into one step per kept index, ascending.
  */
-const EMPTY: FieldValues = { dueDate: null, priority: 'MITTEL', assigneeId: null };
+function stepsFor(fields: SuggestionFieldKey[], subtaskIndexes: number[]): Step[] {
+  return suggestionFieldKeys
+    .filter((key) => fields.includes(key))
+    .flatMap((key): Step[] =>
+      key === 'subtasks'
+        ? [...subtaskIndexes].sort((a, b) => a - b).map((index) => ({ key, index }))
+        : [{ key }],
+    );
+}
+
+/** A step is added with its text, and taken back by the id it was created with. */
+type SubtaskWrite = { add: string } | { remove: string };
+
+/**
+ * What one direction of the chain writes. A reference whose value is null removes its key;
+ * the subtask writes are keyed by the proposed step's index.
+ */
+type FieldValues = {
+  dueDate: string | null;
+  priority: NotePriority;
+  assigneeId: string | null;
+  title: string;
+  reference: { key: string; value: string | null } | null;
+  subtasks: Map<number, SubtaskWrite>;
+};
+type Applied = NonNullable<AssistantSuggestionDoc['applied']>;
+
+/**
+ * What a proposed date, priority or person held at `baseRevision`. One is proposed only when
+ * the note has nothing there (plan R3), so these are exact for every such field a keep writes.
+ */
+const EMPTY = { dueDate: null, priority: 'MITTEL', assigneeId: null } as const satisfies Pick<
+  FieldValues,
+  'dueDate' | 'priority' | 'assigneeId'
+>;
 
 /** What a keep writes: the proposed values (a field that is not kept is never read). */
 function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
+  const { fields } = doc;
   return {
-    dueDate: doc.fields.dueDate?.value ?? EMPTY.dueDate,
-    priority: doc.fields.priority?.value ?? EMPTY.priority,
-    assigneeId: doc.fields.assignee?.value ?? EMPTY.assigneeId,
+    dueDate: fields.dueDate?.value ?? EMPTY.dueDate,
+    priority: fields.priority?.value ?? EMPTY.priority,
+    assigneeId: fields.assignee?.value ?? EMPTY.assigneeId,
+    title: fields.title?.value ?? '',
+    reference: fields.reference
+      ? { key: fields.reference.key, value: fields.reference.value }
+      : null,
+    subtasks: new Map((fields.subtasks?.items ?? []).map((text, index) => [index, { add: text }])),
+  };
+}
+
+/**
+ * What puts the note back where the keep found it: the values it held before, and each kept
+ * step removed by its id. `subtaskIds` follows `keptIndexes` (ascending), so a keep that
+ * stopped part way restores only the steps it created.
+ */
+function restoredValues(
+  before: Applied['before'],
+  keptIndexes: number[],
+  subtaskIds: string[],
+): FieldValues {
+  const sorted = [...keptIndexes].sort((a, b) => a - b);
+  return {
+    dueDate: before.dueDate,
+    priority: before.priority,
+    assigneeId: before.assigneeId,
+    title: before.title ?? '',
+    reference: before.reference
+      ? { key: before.reference.key, value: before.reference.previous }
+      : null,
+    subtasks: new Map(
+      subtaskIds.map((id, position): [number, SubtaskWrite] => [sorted[position]!, { remove: id }]),
+    ),
+  };
+}
+
+/** A property's value on the note, compared case-insensitively by key; null when absent. */
+function propertyValue(fields: Record<string, string>, key: string): string | null {
+  const found = findFieldKey(fields, key);
+  return found === undefined ? null : (fields[found] ?? null);
+}
+
+/**
+ * What the note held where a keep writes, read on the note the keep found. A date, a
+ * priority and a person held nothing at the base (R3). The title is the one stored with the
+ * proposal, and a reference's key is read only on a note still at the base: a keep that
+ * resumes finds a note that already holds some of its own writes. A note with a property
+ * gets no reference proposed (R7), so the key held nothing at the base otherwise.
+ */
+function beforeKeep(
+  doc: AssistantSuggestionDoc,
+  kept: SuggestionFieldKey[],
+  note: NoteDetailDto,
+): Applied['before'] {
+  const atBase = note.revision === doc.baseRevision;
+  const reference = doc.fields.reference ?? null;
+  return {
+    dueDate: kept.includes('dueDate') ? EMPTY.dueDate : note.dueDate,
+    priority: kept.includes('priority') ? EMPTY.priority : note.priority,
+    assigneeId: kept.includes('assignee') ? EMPTY.assigneeId : (note.assignee?.id ?? null),
+    title: doc.baseTitle ?? note.title,
+    reference: reference
+      ? {
+          key: reference.key,
+          previous: atBase ? propertyValue(note.customFields, reference.key) : null,
+        }
+      : null,
   };
 }
 
@@ -425,72 +613,107 @@ const noteValue = (key: SuggestionFieldKey, note: NoteDetailDto) =>
       ? note.priority
       : (note.assignee?.id ?? null);
 
-/** The one operation that sets one field, with exactly the keys the strict schemas accept. */
-function fieldCall(
-  key: SuggestionFieldKey,
+/** The one operation that makes one step's write, with exactly the keys the strict schemas accept. */
+function stepCall(
+  step: Step,
   doc: Pick<AssistantSuggestionDoc, 'boardId' | 'noteId'>,
   expectedRevision: number,
   values: FieldValues,
 ): { name: string; input: unknown } {
-  const { boardId, noteId } = doc;
-  if (key === 'dueDate')
-    return {
-      name: 'update_note',
-      input: { boardId, noteId, expectedRevision, input: { dueDate: values.dueDate } },
-    };
-  if (key === 'priority')
-    return {
-      name: 'move_note',
-      input: {
-        boardId,
-        noteId,
-        expectedRevision,
-        input: { mode: 'PRIORITY', priority: values.priority },
-      },
-    };
-  // The title, reference and subtasks are written by calls of their own, added with their keep.
-  if (key !== 'assignee') throw new Error(`No single write for the field ${key}`);
-  return {
-    name: 'assign_note',
-    input: { boardId, noteId, expectedRevision, input: { assigneeId: values.assigneeId } },
-  };
+  const at = { boardId: doc.boardId, noteId: doc.noteId, expectedRevision };
+  switch (step.key) {
+    case 'dueDate':
+      return { name: 'update_note', input: { ...at, input: { dueDate: values.dueDate } } };
+    case 'priority':
+      return {
+        name: 'move_note',
+        input: { ...at, input: { mode: 'PRIORITY', priority: values.priority } },
+      };
+    case 'assignee':
+      return { name: 'assign_note', input: { ...at, input: { assigneeId: values.assigneeId } } };
+    case 'title':
+      return { name: 'update_note', input: { ...at, input: { title: values.title } } };
+    case 'reference': {
+      const { reference } = values;
+      if (!reference) throw new Error('No property to write');
+      const fieldChanges =
+        reference.value === null
+          ? { remove: [reference.key] }
+          : { set: { [reference.key]: reference.value } };
+      return { name: 'update_note', input: { ...at, input: { fieldChanges } } };
+    }
+    case 'subtasks': {
+      const write = values.subtasks.get(step.index ?? -1);
+      if (!write) throw new Error(`No write for the step ${step.index}`);
+      return 'add' in write
+        ? { name: 'add_subtask', input: { ...at, input: { text: write.add } } }
+        : { name: 'delete_subtask', input: { ...at, subtaskId: write.remove } };
+    }
+  }
 }
 
 /**
- * Writes the fields in the given order, each on the revision the previous one returned,
+ * Whether the note still shows what a step wrote, so putting it back takes nothing someone
+ * changed since. A step the chain added is still there by its id; one it removed stays gone.
+ */
+function stillWritten(
+  step: Step,
+  note: NoteDetailDto,
+  written: FieldValues,
+  restore: FieldValues,
+): boolean {
+  switch (step.key) {
+    case 'title':
+      return note.title === written.title;
+    case 'reference':
+      return (
+        written.reference !== null &&
+        propertyValue(note.customFields, written.reference.key) === written.reference.value
+      );
+    case 'subtasks': {
+      const undo = restore.subtasks.get(step.index ?? -1);
+      if (!undo) return false;
+      return 'remove' in undo ? note.subtasks.some((task) => task.id === undo.remove) : true;
+    }
+    default:
+      return noteValue(step.key, note) === valueOf(step.key, written);
+  }
+}
+
+/**
+ * Writes the steps in the given order, each on the revision the previous one returned,
  * starting from `startRevision`. The chain is deterministic: run again from the same start
  * under the same ids, every write that already committed replays its receipt (same input,
  * same expected revision) and the chain picks up at the first one that did not. `done`
- * collects the fields whose write committed or replayed, so a caller can see how far it got
- * when a later write throws.
+ * collects the steps whose write committed or replayed, so a caller can see how far it got
+ * when a later write throws, and `created` the ids of the steps it added, in order.
  */
 async function runChain(
   opCtx: OperationContext,
   doc: WithId<AssistantSuggestionDoc>,
-  keys: SuggestionFieldKey[],
+  steps: Step[],
   values: FieldValues,
-  ids: (key: SuggestionFieldKey) => string,
+  ids: (step: Step) => string,
   startRevision: number,
-  done: SuggestionFieldKey[],
+  done: Step[],
+  created: string[],
 ): Promise<number> {
   let revision = startRevision;
-  for (const key of keys) {
-    const { name, input } = fieldCall(key, doc, revision, values);
-    const result = await runOperation(opCtx, { name, input, operationId: ids(key) });
+  for (const step of steps) {
+    const { name, input } = stepCall(step, doc, revision, values);
+    const result = await runOperation(opCtx, { name, input, operationId: ids(step) });
     revision = result.revision ?? revision;
-    done.push(key);
+    // A replayed receipt answers with the id the step was created with the first time.
+    if (name === 'add_subtask') created.push((result.data as { id: string }).id);
+    done.push(step);
   }
   return revision;
 }
 
-/** The one operation id of a single-write field; subtasks write one id per item and come later. */
-function operationId(
-  ids: SuggestionOperationIds,
-  key: SuggestionFieldKey,
-  direction: 'apply' | 'undo',
-): string {
-  const entry = key === 'subtasks' ? undefined : ids[key];
-  if (!entry) throw new Error(`No single operation id for the field ${key}`);
+/** The operation id of one step; a record written before that step existed has none. */
+function operationId(ids: SuggestionOperationIds, step: Step, direction: 'apply' | 'undo'): string {
+  const entry = step.key === 'subtasks' ? ids.subtasks?.[step.index ?? -1] : ids[step.key];
+  if (!entry) throw settled();
   return entry[direction];
 }
 
@@ -499,31 +722,31 @@ const isFinal = (error: unknown): error is AppError =>
   error instanceof AppError && error.statusCode < 500;
 
 /**
- * Best effort, after a chain failed for good: puts back each field the chain wrote, newest
- * first, while the note still holds what the chain wrote there. A field someone changed
+ * Best effort, after a chain failed for good: puts back each step the chain wrote, newest
+ * first, while the note still holds what the chain wrote there. A value someone changed
  * since is theirs and stays. These are new writes on the note's current revision, so they
- * take fresh operation ids; a failure here is logged and the next field is still tried.
+ * take fresh operation ids; a failure here is logged and the next step is still tried.
  */
 async function revertWrites(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
   doc: WithId<AssistantSuggestionDoc>,
-  done: SuggestionFieldKey[],
+  done: Step[],
   written: FieldValues,
   restore: FieldValues,
 ): Promise<void> {
   const opCtx = operationContext(deps, ctx, doc.id);
-  for (const key of [...done].reverse()) {
+  for (const step of [...done].reverse()) {
     try {
       const note = await getNote(deps.db, ctx.actor, doc.noteId, ctx.board.id);
-      if (noteValue(key, note) !== valueOf(key, written)) continue;
-      const { name, input } = fieldCall(key, doc, note.revision, restore);
+      if (!stillWritten(step, note, written, restore)) continue;
+      const { name, input } = stepCall(step, doc, note.revision, restore);
       await runOperation(opCtx, { name, input, operationId: randomUUID() });
     } catch (error) {
       deps.logger?.warn({
         type: 'assistant.suggestion_revert_failed',
         suggestionId: doc.id,
-        field: key,
+        field: step.key,
         outcome: error instanceof AppError ? error.code : 'failed',
       });
     }
@@ -561,10 +784,10 @@ async function settleKeep(
  * nothing applied comes here: the tab that claimed it, a second tab that lost the claim, and
  * a repeat after a keep that was cut short (a crash, a timeout, a contended transaction).
  * They all run the same chain from `baseRevision` under the record's own apply ids, so the
- * note changes once and each field leaves one audit record.
+ * note changes once and each step leaves one audit record.
  *
  * A refusal that cannot change on a retry (the note changed underneath, the note is gone,
- * the assignee left, the caller lost access) ends the keep: the fields this keep did write
+ * the assignee left, the caller lost access) ends the keep: the steps this keep did write
  * are put back where nobody changed them since, the record becomes DISCARDED, and the
  * refusal is the answer. Anything else leaves the record KEPT with nothing applied, so the
  * next keep or undo resumes it.
@@ -577,49 +800,61 @@ async function completeKeep(
   if (doc.applied) return doc;
   const { db } = deps;
   const kept = doc.decision?.fields ?? [];
+  const keptIndexes = kept.includes('subtasks')
+    ? [...(doc.decision?.subtasks ?? [])].sort((a, b) => a - b)
+    : [];
   const written = proposedValues(doc);
-  const done: SuggestionFieldKey[] = [];
-  let note: NoteDetailDto;
+  const done: Step[] = [];
+  const created: string[] = [];
+  let before: Applied['before'] | undefined;
   let revision: number;
   try {
-    note = await getNote(db, ctx.actor, doc.noteId, ctx.board.id);
+    const note = await getNote(db, ctx.actor, doc.noteId, ctx.board.id);
+    before = beforeKeep(doc, kept, note);
     // The first write carries `baseRevision`, so a note changed since the proposal refuses
     // it with 409 STALE_REVISION before anything is written.
     revision = await runChain(
       operationContext(deps, ctx, doc.id),
       doc,
-      kept,
+      stepsFor(kept, keptIndexes),
       written,
-      (key) => operationId(doc.operationIds, key, 'apply'),
+      (step) => operationId(doc.operationIds, step, 'apply'),
       doc.baseRevision,
       done,
+      created,
     );
   } catch (error) {
     if (!isFinal(error)) throw error;
-    await revertWrites(deps, ctx, doc, done, written, EMPTY);
+    if (before)
+      await revertWrites(
+        deps,
+        ctx,
+        doc,
+        done,
+        written,
+        restoredValues(before, keptIndexes, created),
+      );
     await settleKeep(db, ctx.actor, doc.id, { status: 'DISCARDED' }, deps.now?.() ?? new Date());
     throw error;
   }
-  // Kept fields held nothing at the base (R3); the others are as the keep found them.
-  const before: FieldValues = {
-    dueDate: kept.includes('dueDate') ? EMPTY.dueDate : note.dueDate,
-    priority: kept.includes('priority') ? EMPTY.priority : note.priority,
-    assigneeId: kept.includes('assignee') ? EMPTY.assigneeId : (note.assignee?.id ?? null),
-  };
   return settleKeep(
     db,
     ctx.actor,
     doc.id,
-    { status: 'KEPT', applied: { before, fields: kept, revision } },
+    {
+      status: 'KEPT',
+      applied: { before, fields: kept, subtasks: keptIndexes, subtaskIds: created, revision },
+    },
     deps.now?.() ?? new Date(),
   );
 }
 
 /**
- * Keep, discard or undo (WALLYBOT_INLINE.md §4). A keep applies the kept fields through the
- * command layer under the record's own operation ids, so a repeat replays receipts and the
- * note changes once; it is refused with 409 STALE_REVISION, and the record discarded, when
- * the note changed since the proposal. An undo is the inverse on the kept revision.
+ * Keep, discard or undo (WALLYBOT_INLINE.md §4). A keep applies the kept fields, and each
+ * kept step, through the command layer under the record's own operation ids, so a repeat
+ * replays receipts and the note changes once; it is refused with 409 STALE_REVISION, and
+ * the record discarded, when the note changed since the proposal. An undo is the inverse on
+ * the kept revision: the previous values back, every kept step deleted by its id.
  */
 export async function decideSuggestion(
   deps: SuggestionDeps,
@@ -653,9 +888,17 @@ export async function decideSuggestion(
     // Each field once, in the one order the chain and its receipts use: a field named twice
     // would run its write twice under one operation id and be refused.
     const requested = decision.fields ?? proposed;
-    const fields = suggestionFieldKeys.filter(
+    let fields = suggestionFieldKeys.filter(
       (key) => requested.includes(key) && proposed.includes(key),
     );
+    // Each step once, ascending, and only steps that were proposed; none left keeps no steps.
+    const items = current.fields.subtasks?.items ?? [];
+    const subtasks = fields.includes('subtasks')
+      ? unique(decision.subtasks ?? items.map((_, index) => index))
+          .filter((index) => index < items.length)
+          .sort((a, b) => a - b)
+      : [];
+    if (subtasks.length === 0) fields = fields.filter((key) => key !== 'subtasks');
     if (fields.length === 0) {
       const { doc } = await claim(
         db,
@@ -678,7 +921,7 @@ export async function decideSuggestion(
       suggestionId,
       'PENDING',
       'KEPT',
-      { source: decision.source, fields },
+      { source: decision.source, fields, subtasks },
       now,
     );
     return toDto(db, board, await completeKeep(deps, ctx, doc));
@@ -693,27 +936,31 @@ export async function decideSuggestion(
   if (current.status === 'UNDONE') return toDto(db, board, current);
   const { applied } = current;
   if (current.status !== 'KEPT' || !applied) throw settled();
-  // Inverse order, so each revision check sees exactly the state the keep left behind. Run
-  // again after a cut-short undo, the inverse writes that committed replay their receipts.
-  const inverse = [...applied.fields].reverse();
+  // Inverse order, so each revision check sees exactly the state the keep left behind: the
+  // steps newest first, then the fields. Run again after a cut-short undo, the inverse
+  // writes that committed replay their receipts.
+  const keptIndexes = applied.subtasks ?? [];
+  const inverse = stepsFor(applied.fields, keptIndexes).reverse();
+  const restore = restoredValues(applied.before, keptIndexes, applied.subtaskIds ?? []);
   const undoIds = current.operationIds;
-  const done: SuggestionFieldKey[] = [];
+  const done: Step[] = [];
   try {
     await runChain(
       operationContext(deps, ctx, current.id),
       current,
       inverse,
-      applied.before,
-      (key) => operationId(undoIds, key, 'undo'),
+      restore,
+      (step) => operationId(undoIds, step, 'undo'),
       applied.revision,
       done,
+      [],
     );
   } catch (error) {
-    // Refused for good part way (someone edited the note between two inverse writes): the
-    // fields already put back return to what the keep wrote, so the record stays KEPT and
-    // the note is not left half undone.
+    // Refused for good part way (someone edited the note between two inverse writes): what
+    // was already put back returns to what the keep wrote, so the record stays KEPT and the
+    // note is not left half undone. A step deleted here comes back as a new one.
     if (isFinal(error))
-      await revertWrites(deps, ctx, current, done, applied.before, proposedValues(current));
+      await revertWrites(deps, ctx, current, done, restore, proposedValues(current));
     throw error;
   }
   const { doc } = await claim(
@@ -723,7 +970,7 @@ export async function decideSuggestion(
     suggestionId,
     'KEPT',
     'UNDONE',
-    { source: decision.source, fields: inverse },
+    { source: decision.source, fields: [...applied.fields].reverse() },
     now,
   );
   return toDto(db, board, doc);

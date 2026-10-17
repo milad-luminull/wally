@@ -275,6 +275,11 @@ export type AssistantSuggestionDoc = {
   noteId: string;
   /** The note revision the proposal was computed against. */
   baseRevision: number;
+  /**
+   * The note's title at `baseRevision`, stored with a proposed title: what an undo of a kept
+   * title puts back, even when the keep resumes on a note that already holds the new one.
+   */
+  baseTitle?: string;
   fields: {
     dueDate: { value: string; reason: string } | null;
     priority: { value: 'HOCH' | 'NIEDRIG'; reason: string } | null;
