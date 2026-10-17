@@ -52,7 +52,13 @@ describe('/me', () => {
       email: 'mika.brandt@example.com',
       displayName: 'Mika Brandt',
       language: 'de',
-      preferences: { theme: 'system', canvas: 'dots', lastBoardId: null, boards: {} },
+      preferences: {
+        theme: 'system',
+        canvas: 'dots',
+        lastBoardId: null,
+        boards: {},
+        wallybot: { autoApply: true },
+      },
     });
   });
 
@@ -395,7 +401,12 @@ describe('/me', () => {
       await usersCol(ctx.db)
         .doc('pref-junk')
         .update({
-          preferences: { theme: 'sepia', canvas: 'lines', boards: { b1: { view: 'kanban' } } },
+          preferences: {
+            theme: 'sepia',
+            canvas: 'lines',
+            boards: { b1: { view: 'kanban' } },
+            wallybot: { autoApply: 'yes' },
+          },
         } as never);
 
       const response = await ctx.inject({
@@ -410,6 +421,7 @@ describe('/me', () => {
         canvas: 'dots',
         lastBoardId: null,
         boards: {},
+        wallybot: { autoApply: true },
       });
     });
   });

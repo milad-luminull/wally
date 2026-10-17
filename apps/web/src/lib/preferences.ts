@@ -33,6 +33,7 @@ export function applyPreferencesUpdate(
     canvas: update.canvas ?? current.canvas,
     lastBoardId: update.lastBoardId ?? current.lastBoardId,
     boards,
+    wallybot: update.wallybot ?? current.wallybot,
   };
 }
 

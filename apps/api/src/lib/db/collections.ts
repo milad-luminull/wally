@@ -10,11 +10,13 @@ import {
 } from 'firebase-admin/firestore';
 import {
   DEFAULT_LANGUAGE,
+  DEFAULT_WALLYBOT_PREFERENCES,
   boardPreferencesSchema,
   canvasPatternSchema,
   languageValues,
   preferenceBoardIdSchema,
   themePreferenceSchema,
+  wallybotPreferencesSchema,
   type Language,
   type Preferences,
 } from '@wally/shared';
@@ -23,6 +25,7 @@ import type {
   AssistantAuditDoc,
   AssistantConversationDoc,
   AssistantSpendDoc,
+  AssistantSuggestionDoc,
   AssistantUsageDoc,
   HistoryEventDoc,
   MemberDoc,
@@ -101,6 +104,14 @@ export const assistantConversationsCol = (
     .doc(userId)
     .collection('assistantConversations')
     .withConverter(converter<AssistantConversationDoc>());
+export const assistantSuggestionsCol = (
+  db: Firestore,
+  userId: string,
+): CollectionReference<AssistantSuggestionDoc> =>
+  usersCol(db)
+    .doc(userId)
+    .collection('assistantSuggestions')
+    .withConverter(converter<AssistantSuggestionDoc>());
 /** The deployment key's monthly spend, one document per month, shared by every instance. */
 export const assistantSpendCol = (db: Firestore): CollectionReference<AssistantSpendDoc> =>
   db.collection('assistantSpend').withConverter(converter<AssistantSpendDoc>());
@@ -150,6 +161,7 @@ export function userPreferences(
   const theme = themePreferenceSchema.safeParse(stored?.theme);
   const canvas = canvasPatternSchema.safeParse(stored?.canvas);
   const lastBoardId = preferenceBoardIdSchema.safeParse(stored?.lastBoardId);
+  const wallybot = wallybotPreferencesSchema.safeParse(stored?.wallybot);
   const boards: Preferences['boards'] = {};
   for (const [id, value] of Object.entries(stored?.boards ?? {})) {
     const parsed = boardPreferencesSchema.safeParse(value);
@@ -160,6 +172,7 @@ export function userPreferences(
     canvas: canvas.success ? canvas.data : 'dots',
     lastBoardId: lastBoardId.success ? lastBoardId.data : null,
     boards,
+    wallybot: wallybot.success ? wallybot.data : DEFAULT_WALLYBOT_PREFERENCES,
   };
 }
 
