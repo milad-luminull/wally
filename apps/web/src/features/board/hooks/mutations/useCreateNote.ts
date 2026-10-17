@@ -33,9 +33,20 @@ function optimisticNote(boardId: string, tempId: string, input: Partial<NoteCrea
   };
 }
 
-export function useCreateNote(boardId: string) {
+export function useCreateNote(
+  boardId: string,
+  options: {
+    /**
+     * Hears every id the new note is shown under, each one before the cache shows it: the
+     * temp id before the optimistic card lands, then the real id before it replaces the temp
+     * one. The note being written in place uses it to keep its own copy off the board.
+     */
+    onNoteId?: (id: string) => void;
+  } = {},
+) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
+  const { onNoteId } = options;
 
   return useMutation({
     mutationFn: (input: Partial<NoteCreateInput>) => notesApi.create(boardId, input),
@@ -43,6 +54,7 @@ export function useCreateNote(boardId: string) {
       void queryClient.cancelQueries({ queryKey: keys.notes(boardId) });
       const previous = queryClient.getQueryData<NoteDto[]>(keys.notes(boardId));
       const tempId = `${TEMP_ID_PREFIX}${crypto.randomUUID()}`;
+      onNoteId?.(tempId);
       queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) => [
         ...(prev ?? []),
         optimisticNote(boardId, tempId, input),
@@ -56,6 +68,7 @@ export function useCreateNote(boardId: string) {
         );
     },
     onSuccess: (created, _input, context) => {
+      onNoteId?.(created.id);
       queryClient.setQueryData<NoteDto[]>(keys.notes(boardId), (prev) =>
         prev?.map((n) => (n.id === context?.tempId ? created : n)),
       );

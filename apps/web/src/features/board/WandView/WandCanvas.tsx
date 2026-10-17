@@ -9,20 +9,34 @@ import {
   NOTE_CARD_WIDTH,
   type CanvasPattern,
   type NoteDto,
+  type NoteVisibility,
 } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
+import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
+import type { CapturePlacement } from '../Capture/useCapture';
 import { NoteCard } from './NoteCard';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
 
 interface WandCanvasProps {
+  boardId: string;
   notes: NoteDto[];
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
-  onCreateAt: (x: number, y: number) => void;
+  /** A double-click on empty canvas asks for a new note written at that point. */
+  onCapture: (placement: CapturePlacement) => void;
+  /** The note being written, shown on the canvas when its placement is free. */
+  capture: CapturePlacement | null;
+  /** Changes with every capture, so each one gets a fresh card. */
+  captureKey?: number;
+  onCaptureDone: (noteId: string | null, open: boolean) => void;
+  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
+  onCaptureNoteId?: (noteId: string) => void;
+  /** What a new note's visibility will be; a viewer's is private. */
+  visibility: NoteVisibility;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
   canEditShared: boolean;
   /** True when the board has notes but the active filter hides all of them. */
@@ -55,11 +69,17 @@ function emptyStateKeys(filtered: boolean, canEditShared: boolean) {
 }
 
 export function WandCanvas({
+  boardId,
   notes,
   currentUserId,
   selectedNoteId,
   onOpenNote,
-  onCreateAt,
+  onCapture,
+  capture,
+  captureKey,
+  onCaptureDone,
+  onCaptureNoteId,
+  visibility,
   canEditShared,
   filtered,
   activeDragId,
@@ -71,7 +91,9 @@ export function WandCanvas({
   const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest('[data-note-id]')) return;
+    // A double-click on a card, or on the note being written (selecting a word), is not a
+    // request for another note.
+    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture]')) return;
     const el = scrollRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -79,13 +101,14 @@ export function WandCanvas({
     const rawY = e.clientY - rect.top + el.scrollTop;
     const x = Math.max(0, Math.min(FREE_CANVAS_WIDTH - NOTE_CARD_WIDTH, rawX));
     const y = Math.max(0, Math.min(FREE_CANVAS_HEIGHT - NOTE_CARD_HEIGHT, rawY));
-    onCreateAt(x, y);
+    onCapture({ kind: 'free', x, y });
   }
 
   return (
     <div className="relative h-full min-w-0 flex-1">
       <div
         ref={scrollRef}
+        data-testid="wand-canvas"
         className="wally-scroll h-full w-full overflow-auto"
         onDoubleClick={handleDoubleClick}
       >
@@ -107,13 +130,29 @@ export function WandCanvas({
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
           ))}
+          {capture?.kind === 'free' && (
+            <div
+              key={captureKey}
+              data-capture
+              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 30 }}
+            >
+              <InlineCaptureCard
+                boardId={boardId}
+                placement={capture}
+                visibility={visibility}
+                layout="card"
+                onDone={onCaptureDone}
+                onNoteId={onCaptureNoteId}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Sits outside the scroll container so the prompt stays centred in the visible
           panel instead of drifting off with the 2400px canvas. `pointer-events-none` keeps
           the double-click-to-create gesture working straight through it. */}
-      {notes.length === 0 && (
+      {notes.length === 0 && !capture && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <EmptyState
             icon={<MousePointerClick strokeWidth={1.75} />}

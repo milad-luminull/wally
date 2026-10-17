@@ -8,7 +8,6 @@ import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
-import { useCreateNote } from './hooks/mutations/useCreateNote';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
 import { boardAccess, isOwner as isOwnerRole } from './util/permissions';
@@ -16,6 +15,7 @@ import {
   collectFieldKeys,
   collectFieldValues,
   filterNotes,
+  defaultZoneKey,
   showsVisibilityFilter,
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -25,6 +25,7 @@ import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
+import { useCaptureSession } from './Capture/useCaptureSession';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -46,10 +47,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const isOwner = isOwnerRole(board.currentUserRole);
   const notes = notesQuery.data ?? EMPTY_NOTES;
 
-  const filteredNotes = useMemo(
-    () => filterNotes(notes, viewState, user?.uid),
-    [notes, viewState, user?.uid],
-  );
   // Facets for the property filter, derived from the unfiltered board so choosing a value
   // never empties the list of values you could switch to.
   const fieldKeys = useMemo(() => collectFieldKeys(notes), [notes]);
@@ -63,13 +60,37 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // never mount WandView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
-  const createNote = useCreateNote(boardId);
+  // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
+  // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
+  const { capture, captureKey, startCapture, onCaptureDone, onCaptureNoteId, withoutCapturing } =
+    useCaptureSession({
+      boardId,
+      view: effectiveView,
+      axis: viewState.axis,
+      openNoteId: viewState.noteId,
+      openNote: viewState.openNote,
+    });
+  // The views, the top bar and the palette leave the note being written to its card: it is in
+  // the cache from the first keystroke, and a second copy would be clickable and openable.
+  const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
+  const filteredNotes = useMemo(
+    () => filterNotes(boardNotes, viewState, user?.uid),
+    [boardNotes, viewState, user?.uid],
+  );
+
   const newNote = useCallback(() => {
-    createNote.mutate(
-      { ...nextFreeNotePosition(notes), visibility: access.newNoteVisibility },
-      { onSuccess: (n) => viewState.openNote(n.id) },
-    );
-  }, [access.newNoteVisibility, createNote, notes, viewState]);
+    if (effectiveView === 'list') startCapture({ kind: 'list' });
+    else if (viewState.axis === 'free') {
+      const at = nextFreeNotePosition(notes);
+      startCapture({ kind: 'free', x: at.freeX, y: at.freeY });
+    } else
+      startCapture({
+        kind: 'zone',
+        axis: viewState.axis,
+        key: defaultZoneKey(viewState.axis),
+        at: nextFreeNotePosition(notes),
+      });
+  }, [effectiveView, notes, startCapture, viewState.axis]);
 
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
@@ -100,7 +121,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       <TopBar
         board={board}
         boardId={boardId}
-        notes={notes}
+        notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
         isDesktop={isDesktop}
@@ -131,25 +152,33 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         isBelowTablet={isBelowTablet}
       />
 
-      <div className="relative flex min-h-0 flex-1">
+      {/* Focusable from code only: where the keyboard lands after a commit whose note has no
+          card on the board (useCaptureSession). */}
+      <div data-board-surface tabIndex={-1} className="relative flex min-h-0 flex-1 outline-none">
         {notesQuery.isLoading ? (
           <BoardSkeleton columns={isDesktop ? 3 : 1} />
         ) : effectiveView === 'wand' ? (
           <WandView
             boardId={boardId}
             notes={filteredNotes}
-            totalNoteCount={notes.length}
+            totalNoteCount={boardNotes.length}
             currentUserId={user?.uid}
             axis={viewState.axis}
             selectedNoteId={viewState.noteId}
             onOpenNote={viewState.openNote}
             onDuplicateNote={duplicateNote}
             access={access}
+            capture={capture}
+            captureKey={captureKey}
+            onCapture={startCapture}
+            onCaptureDone={onCaptureDone}
+            onCaptureNoteId={onCaptureNoteId}
+            visibility={access.newNoteVisibility}
           />
         ) : (
           <ListView
             notes={filteredNotes}
-            totalNoteCount={notes.length}
+            totalNoteCount={boardNotes.length}
             axis={viewState.axis}
             currentUserId={user?.uid}
             onOpenNote={viewState.openNote}
@@ -158,6 +187,15 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             }
             access={access}
             isBelowDesktop={isBelowDesktop}
+            capture={
+              capture && {
+                id: captureKey,
+                boardId,
+                visibility: access.newNoteVisibility,
+                onDone: onCaptureDone,
+                onNoteId: onCaptureNoteId,
+              }
+            }
           />
         )}
 
@@ -186,7 +224,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
       <BoardCommands
         boardId={boardId}
-        notes={notes}
+        notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
         done={viewState.done}

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { hasE2eCredentials, signIn } from './support';
+import { captureNote, hasE2eCredentials, signIn } from './support';
 
 test('moving a note to a different Horizon zone persists after reload', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
@@ -12,10 +12,7 @@ test('moving a note to a different Horizon zone persists after reload', async ({
   // POST /notes/:id/move the Wand canvas drag calls, without depending on pixel-perfect
   // drag coordinates in CI.
   const title = `Horizont-Test ${Date.now()}`;
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
-  const titleField = page.getByLabel('Titel');
-  await titleField.fill(title);
-  await titleField.blur();
+  await captureNote(page, title, { open: true });
 
   // The Spalte control is a Radix single-select ToggleGroup, so its items expose
   // role="radio" (inside a radiogroup) — not role="button".

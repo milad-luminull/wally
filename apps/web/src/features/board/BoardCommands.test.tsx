@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -26,45 +27,62 @@ vi.mock('@/i18n/LanguageProvider', async () => {
 vi.mock('@/lib/resources', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/resources')>()),
   boardsApi: { list: vi.fn().mockResolvedValue([]) },
+  // The capture card reads the members for its person chips and creates on the first key.
+  membersApi: { list: vi.fn().mockResolvedValue([]) },
+  notesApi: {
+    create: vi.fn().mockResolvedValue({ id: 'n-new' }),
+    update: vi.fn(),
+    move: vi.fn(),
+    assign: vi.fn(),
+    remove: vi.fn(),
+    list: vi.fn().mockResolvedValue([]),
+  },
 }));
 
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
+import { InlineCaptureCard } from './Capture/InlineCaptureCard';
 
 const PALETTE = isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}';
 const MOD = isMac ? '{Meta>}d{/Meta}' : '{Control>}d{/Control}';
 const ASK = isMac ? '{Meta>}j{/Meta}' : '{Control>}j{/Control}';
 
-function renderCommands(overrides: Partial<Parameters<typeof BoardCommands>[0]> = {}) {
+function renderCommands(
+  overrides: Partial<Parameters<typeof BoardCommands>[0]> = {},
+  alongside: ReactNode = null,
+) {
   const onDuplicateNote = vi.fn();
   const onNewNote = vi.fn();
   const onOpenAssistant = vi.fn();
   renderWithProviders(
-    <BoardCommands
-      boardId="board-1"
-      notes={[]}
-      view="wand"
-      axis="horizon"
-      done={false}
-      mine={false}
-      isDesktop
-      newNoteVisibility="SHARED"
-      canDuplicateOpenNote
-      noteOpen
-      onNewNote={onNewNote}
-      onDuplicateNote={onDuplicateNote}
-      onOpenNote={vi.fn()}
-      onCloseNote={vi.fn()}
-      onSetView={vi.fn()}
-      onSetAxis={vi.fn()}
-      onSetDone={vi.fn()}
-      onSetMine={vi.fn()}
-      onResetView={vi.fn()}
-      assistantEnabled
-      onOpenAssistant={onOpenAssistant}
-      {...overrides}
-    />,
+    <>
+      {alongside}
+      <BoardCommands
+        boardId="board-1"
+        notes={[]}
+        view="wand"
+        axis="horizon"
+        done={false}
+        mine={false}
+        isDesktop
+        newNoteVisibility="SHARED"
+        canDuplicateOpenNote
+        noteOpen
+        onNewNote={onNewNote}
+        onDuplicateNote={onDuplicateNote}
+        onOpenNote={vi.fn()}
+        onCloseNote={vi.fn()}
+        onSetView={vi.fn()}
+        onSetAxis={vi.fn()}
+        onSetDone={vi.fn()}
+        onSetMine={vi.fn()}
+        onResetView={vi.fn()}
+        assistantEnabled
+        onOpenAssistant={onOpenAssistant}
+        {...overrides}
+      />
+    </>,
   );
   return { onDuplicateNote, onNewNote, onOpenAssistant };
 }
@@ -88,6 +106,24 @@ describe('BoardCommands', () => {
     const viewer = renderCommands({ canDuplicateOpenNote: false });
     await userEvent.keyboard(MOD);
     expect(viewer.onDuplicateNote).not.toHaveBeenCalled();
+  });
+
+  it('leaves n to the note being written: it is a letter in the capture, not a new note', async () => {
+    const { onNewNote } = renderCommands(
+      { noteOpen: false },
+      <InlineCaptureCard
+        boardId="board-1"
+        placement={{ kind: 'list' }}
+        visibility="SHARED"
+        layout="row"
+        onDone={vi.fn()}
+      />,
+    );
+    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    await waitFor(() => expect(title).toHaveFocus());
+    await userEvent.keyboard('n');
+    expect(title).toHaveValue('n');
+    expect(onNewNote).not.toHaveBeenCalled();
   });
 
   it('lets a viewer press n to add a private note, and names it so in the palette', async () => {

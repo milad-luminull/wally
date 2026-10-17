@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info, StickyNote, X } from 'lucide-react';
-import type { NoteDto, NoteStatus } from '@wally/shared';
+import type { NoteDto, NoteStatus, NoteVisibility } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { groupByAxis } from '../util/noteDerived';
 import type { BoardAccess } from '../util/permissions';
+import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import { NoteRow } from './NoteRow';
 
 const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
+
+/** Stable, so the capture's create callback is not rebuilt on every render. */
+const LIST_PLACEMENT = { kind: 'list' } as const;
 
 /**
  * A hint the reader only needs once, remembered per browser.
@@ -51,6 +55,19 @@ interface ListViewProps {
   onToggleDone: (noteId: string, currentStatus: NoteStatus) => void;
   access: BoardAccess;
   isBelowDesktop: boolean;
+  /**
+   * Set while a new note is written in a row at the top of the list (WALLYBOT_INLINE.md §3.1):
+   * the board it goes on, its visibility (a viewer's is private), and who hears it is done.
+   */
+  capture?: {
+    /** Changes with every capture, so each one gets a fresh row. */
+    id?: number;
+    boardId: string;
+    visibility: NoteVisibility;
+    onDone: (noteId: string | null, open: boolean) => void;
+    /** Hears each id the note is shown under, so the list leaves it to its row. */
+    onNoteId?: (noteId: string) => void;
+  } | null;
 }
 
 /**
@@ -78,6 +95,7 @@ export function ListView({
   onToggleDone,
   access,
   isBelowDesktop,
+  capture,
 }: ListViewProps) {
   const { t } = useTranslation();
   // `t` belongs in these deps: react-i18next returns a new reference after languageChanged, so
@@ -88,8 +106,21 @@ export function ListView({
   );
   const [hintDismissed, dismissHint] = useDismissibleHint(FREE_MOVE_HINT_KEY);
 
-  if (notes.length === 0) {
-    const keys = emptyStateKeys(totalNoteCount === 0, access.canEditShared);
+  const captureRow = capture && (
+    <div key={capture.id} className="rounded-lg border border-border bg-surface shadow-e1">
+      <InlineCaptureCard
+        boardId={capture.boardId}
+        placement={LIST_PLACEMENT}
+        visibility={capture.visibility}
+        layout="row"
+        onDone={capture.onDone}
+        onNoteId={capture.onNoteId}
+      />
+    </div>
+  );
+
+  const keys = emptyStateKeys(totalNoteCount === 0, access.canEditShared);
+  if (notes.length === 0 && !capture) {
     return (
       <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
         <EmptyState
@@ -101,10 +132,21 @@ export function ListView({
     );
   }
 
+  // The capture row is drawn from this one place whether or not the list has notes yet, so a
+  // note arriving under it (or a filter change) never remounts it and loses what is typed.
+  // An empty board makes way for the row; a filter that hides every note still says so above it.
   return (
     <div className="wally-scroll flex-1 overflow-auto bg-background px-4 pb-10 pt-4 lg:px-6 lg:pt-6">
       <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6">
-        {isBelowDesktop && !hintDismissed && (
+        {notes.length === 0 && totalNoteCount > 0 && (
+          <EmptyState
+            icon={<StickyNote strokeWidth={1.75} />}
+            title={t(keys.title)}
+            hint={t(keys.body)}
+          />
+        )}
+        {captureRow}
+        {notes.length > 0 && isBelowDesktop && !hintDismissed && (
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface py-1.5 pl-3 pr-1.5 text-12 text-fg-3 shadow-e1">
             <Info className="h-3.5 w-3.5 shrink-0 text-fg-faint" strokeWidth={1.75} />
             <p className="min-w-0 flex-1">{t('board.hint.freeMove')}</p>

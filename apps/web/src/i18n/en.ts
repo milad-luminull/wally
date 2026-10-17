@@ -410,6 +410,20 @@ export const en = {
     failed: 'No answer. Try again.',
     earlier: 'Earlier',
   },
+  capture: {
+    cardAria: 'Write a new note',
+    titleAria: 'Title of the new note',
+    descriptionAria: 'Text of the new note',
+    hint: '↵ create · ⇧↵ text · Esc discard',
+    hintCoarse: 'Enter creates the note',
+    chips: {
+      due: 'Due {{date}}',
+      assignee: 'Assigned to {{name}}',
+      priorityHigh: 'High priority',
+      priorityLow: 'Low priority',
+      dropNamed: 'Remove suggestion: {{label}}',
+    },
+  },
   home: {
     title: 'Your boards',
     shared: 'Shared with you',

@@ -57,6 +57,8 @@ Users can switch between organization modes without losing notes.
 
 Users can create a new note from the whiteboard.
 
+A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/WALLYBOT_INLINE.md` §3.1).
+
 ---
 
 ## 4. List View

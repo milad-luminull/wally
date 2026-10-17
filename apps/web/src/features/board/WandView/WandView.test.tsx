@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { boardAccess } from '../util/permissions';
+import type { CapturePlacement } from '../Capture/useCapture';
 import { WandView } from './WandView';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
@@ -16,21 +18,46 @@ vi.mock('@/features/auth/AuthProvider', async () => {
 
 vi.mock('@/lib/resources', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/resources')>()),
-  notesApi: { create: vi.fn(), list: vi.fn(), move: vi.fn() },
+  notesApi: { create: vi.fn(), list: vi.fn(), move: vi.fn(), update: vi.fn(), remove: vi.fn() },
   meApi: { get: vi.fn(), update: vi.fn() },
+  membersApi: { list: vi.fn() },
 }));
 
-import { notesApi } from '@/lib/resources';
+// The capture card parses date words in the person's language.
+vi.mock('@/i18n/LanguageProvider', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: 'de',
+      setLanguage: vi.fn(),
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
+import { membersApi, notesApi } from '@/lib/resources';
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(notesApi.create).mockResolvedValue(makeNote({ id: 'created' }));
   vi.mocked(notesApi.list).mockResolvedValue([]);
+  vi.mocked(membersApi.list).mockResolvedValue([]);
 });
 
-function renderWall(axis: 'horizon' | 'priority' | 'free', access: ReturnType<typeof boardAccess>) {
+/** The wall with the shell's capture state: a create path opens a capture, done closes it. */
+function Wall({
+  axis,
+  access,
+}: {
+  axis: 'horizon' | 'priority' | 'free';
+  access: ReturnType<typeof boardAccess>;
+}) {
   const notes = [makeNote({ id: 'n1', title: 'Vorhanden', horizon: 'HEUTE', priority: 'HOCH' })];
-  return renderWithProviders(
+  const [capture, setCapture] = useState<CapturePlacement | null>(null);
+  return (
     <WandView
       boardId="board-1"
       notes={notes}
@@ -41,8 +68,23 @@ function renderWall(axis: 'horizon' | 'priority' | 'free', access: ReturnType<ty
       onOpenNote={vi.fn()}
       onDuplicateNote={vi.fn()}
       access={access}
-    />,
+      capture={capture}
+      onCapture={setCapture}
+      onCaptureDone={() => setCapture(null)}
+      visibility={access.newNoteVisibility}
+    />
   );
+}
+
+function renderWall(axis: 'horizon' | 'priority' | 'free', access: ReturnType<typeof boardAccess>) {
+  return renderWithProviders(<Wall axis={axis} access={access} />);
+}
+
+/** A create path opens the capture and sends nothing; the first keystroke creates the note. */
+async function typeFirstLetter() {
+  const title = await screen.findByRole('textbox', { name: 'Titel der neuen Notiz' });
+  expect(notesApi.create).not.toHaveBeenCalled();
+  await userEvent.type(title, 'M');
 }
 
 /** A double-click on the empty free canvas, which is the scroll area itself. */
@@ -52,13 +94,14 @@ function doubleClickCanvas(container: HTMLElement) {
   fireEvent.doubleClick(canvas!, { clientX: 300, clientY: 200 });
 }
 
-describe('WandView: every create path sends the note’s visibility', () => {
+describe('WandView: every create path writes the note in place, with its visibility', () => {
   describe('a viewer (every new note is private)', () => {
     const viewer = boardAccess('VIEW', 'me', 'all');
 
     it('sends PRIVATE from a zone’s add button', async () => {
       renderWall('horizon', viewer);
       await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
@@ -70,6 +113,7 @@ describe('WandView: every create path sends the note’s visibility', () => {
     it('sends PRIVATE from a double-click on a zone', async () => {
       renderWall('priority', viewer);
       await userEvent.dblClick(screen.getByRole('region', { name: /^Hoch/ }));
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
@@ -81,11 +125,12 @@ describe('WandView: every create path sends the note’s visibility', () => {
     it('sends PRIVATE from a double-click on the free canvas', async () => {
       const { container } = renderWall('free', viewer);
       doubleClickCanvas(container);
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'PRIVATE' }),
+        expect.objectContaining({ visibility: 'PRIVATE', freeX: 300, freeY: 200 }),
       );
     });
   });
@@ -96,6 +141,7 @@ describe('WandView: every create path sends the note’s visibility', () => {
     it('sends SHARED from a zone’s add button', async () => {
       renderWall('horizon', owner);
       await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
@@ -107,6 +153,7 @@ describe('WandView: every create path sends the note’s visibility', () => {
     it('sends SHARED from a double-click on a zone', async () => {
       renderWall('priority', owner);
       await userEvent.dblClick(screen.getByRole('region', { name: /^Hoch/ }));
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
@@ -115,14 +162,17 @@ describe('WandView: every create path sends the note’s visibility', () => {
       );
     });
 
-    it('sends SHARED from a double-click on the free canvas', async () => {
+    it('sends SHARED from a double-click on the free canvas, writing at the click point', async () => {
       const { container } = renderWall('free', owner);
       doubleClickCanvas(container);
+      const card = await screen.findByRole('group', { name: 'Neue Notiz schreiben' });
+      expect(card.parentElement).toHaveStyle({ left: '300px', top: '200px' });
+      await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'SHARED' }),
+        expect.objectContaining({ visibility: 'SHARED', freeX: 300, freeY: 200 }),
       );
     });
   });
