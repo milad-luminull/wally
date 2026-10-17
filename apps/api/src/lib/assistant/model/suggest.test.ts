@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { APICallError } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { createGoogleVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
@@ -95,6 +96,58 @@ describe('createSuggestionRunner', () => {
     await expect(createSuggestionRunner(model)(input(a.onAttempt))).rejects.toMatchObject({
       name: 'AI_APICallError',
     });
+  });
+
+  it('makes one attempt and no retry on a retryable provider error, settling nothing', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new APICallError({
+          message: 'overloaded',
+          url: 'https://example.invalid',
+          requestBodyValues: {},
+          statusCode: 503,
+          isRetryable: true,
+        });
+      },
+    });
+    const a = attempts();
+    await expect(createSuggestionRunner(model)(input(a.onAttempt))).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    // maxRetries 0: the library would otherwise call again on a retryable error.
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(a.onAttempt).toHaveBeenCalledTimes(1);
+    expect(a.settled).toEqual([]);
+  });
+
+  it('settles nothing when the provider reports no usage, so the reservation stays', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        {
+          ...reply(
+            JSON.stringify({
+              dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+              priority: null,
+              assignee: null,
+            }),
+          ),
+          usage: {
+            inputTokens: {
+              total: undefined,
+              noCache: undefined,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+          },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createSuggestionRunner(model)(input(a.onAttempt));
+    expect(out.usage).toBeNull();
+    expect(a.onAttempt).toHaveBeenCalledTimes(1);
+    expect(a.settled).toEqual([]);
   });
 
   it('returns no fields when the wire shape fits but the date or a reason does not', async () => {

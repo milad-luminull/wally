@@ -4,6 +4,7 @@ import type {
   CaptureSuggestRequest,
   EffectiveRole,
   Language,
+  NoteDetailDto,
   NotePriority,
   SuggestionDecision,
   SuggestionDto,
@@ -29,6 +30,7 @@ import type {
   WithId,
 } from '../db/types.js';
 import { AppError } from '../errors.js';
+import { isValidAssignee } from '../notes.js';
 import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
@@ -112,18 +114,37 @@ function accept(
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
   suggestionFieldKeys.filter((key) => fields[key] !== null);
 
-async function toDto(db: Firestore, doc: WithId<AssistantSuggestionDoc>): Promise<SuggestionDto> {
-  const users = await loadUsers(db, [doc.fields.assignee?.value]);
-  const assignee = doc.fields.assignee ? users.get(doc.fields.assignee.value) : undefined;
+/**
+ * The proposal as it can still be kept today: an assignee who is no longer the owner or an
+ * active member of the board drops out (the same rule as `assertValidAssignee`), both from
+ * what the card shows and from what a keep writes.
+ */
+function liveFields(
+  board: WithId<WhiteboardDoc>,
+  fields: AssistantSuggestionDoc['fields'],
+): AssistantSuggestionDoc['fields'] {
+  return fields.assignee && !isValidAssignee(board, fields.assignee.value)
+    ? { ...fields, assignee: null }
+    : fields;
+}
+
+async function toDto(
+  db: Firestore,
+  board: WithId<WhiteboardDoc>,
+  doc: WithId<AssistantSuggestionDoc>,
+): Promise<SuggestionDto> {
+  const live = liveFields(board, doc.fields);
+  const users = await loadUsers(db, [live.assignee?.value]);
+  const assignee = live.assignee ? users.get(live.assignee.value) : undefined;
   const fields: SuggestionFields = {
-    dueDate: doc.fields.dueDate,
-    priority: doc.fields.priority,
+    dueDate: live.dueDate,
+    priority: live.priority,
     // A member who left since cannot be proposed any more; the field reads as empty.
     assignee:
-      doc.fields.assignee && assignee
+      live.assignee && assignee
         ? {
             value: { id: assignee.id, email: assignee.email, displayName: assignee.displayName },
-            reason: doc.fields.assignee.reason,
+            reason: live.assignee.reason,
           }
         : null,
   };
@@ -258,7 +279,7 @@ export async function suggestForCapture(
   };
   const ref = assistantSuggestionsCol(db, actor.id).doc();
   await ref.create(doc);
-  return toDto(db, { ...doc, id: ref.id });
+  return toDto(db, board, { ...doc, id: ref.id });
 }
 
 /** The caller's own record on this board, or 404 (the access recheck of WALLY_AGENT.md §3.4). */
@@ -321,47 +342,207 @@ function operationContext(
   };
 }
 
-/** The three writes, in a fixed order, each on the revision the previous one returned. */
-async function applyFields(
+type FieldValues = { dueDate: string | null; priority: NotePriority; assigneeId: string | null };
+
+/**
+ * What a proposed field held at `baseRevision`. A field is proposed only when the note has
+ * nothing there (plan R3), so these are exact for every field a keep may write.
+ */
+const EMPTY: FieldValues = { dueDate: null, priority: 'MITTEL', assigneeId: null };
+
+/** What a keep writes: the proposed values (a field that is not kept is never read). */
+function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
+  return {
+    dueDate: doc.fields.dueDate?.value ?? EMPTY.dueDate,
+    priority: doc.fields.priority?.value ?? EMPTY.priority,
+    assigneeId: doc.fields.assignee?.value ?? EMPTY.assigneeId,
+  };
+}
+
+const valueOf = (key: SuggestionFieldKey, values: FieldValues) =>
+  key === 'dueDate' ? values.dueDate : key === 'priority' ? values.priority : values.assigneeId;
+const noteValue = (key: SuggestionFieldKey, note: NoteDetailDto) =>
+  key === 'dueDate'
+    ? note.dueDate
+    : key === 'priority'
+      ? note.priority
+      : (note.assignee?.id ?? null);
+
+/** The one operation that sets one field, with exactly the keys the strict schemas accept. */
+function fieldCall(
+  key: SuggestionFieldKey,
+  doc: Pick<AssistantSuggestionDoc, 'boardId' | 'noteId'>,
+  expectedRevision: number,
+  values: FieldValues,
+): { name: string; input: unknown } {
+  const { boardId, noteId } = doc;
+  if (key === 'dueDate')
+    return {
+      name: 'update_note',
+      input: { boardId, noteId, expectedRevision, input: { dueDate: values.dueDate } },
+    };
+  if (key === 'priority')
+    return {
+      name: 'move_note',
+      input: {
+        boardId,
+        noteId,
+        expectedRevision,
+        input: { mode: 'PRIORITY', priority: values.priority },
+      },
+    };
+  return {
+    name: 'assign_note',
+    input: { boardId, noteId, expectedRevision, input: { assigneeId: values.assigneeId } },
+  };
+}
+
+/**
+ * Writes the fields in the given order, each on the revision the previous one returned,
+ * starting from `startRevision`. The chain is deterministic: run again from the same start
+ * under the same ids, every write that already committed replays its receipt (same input,
+ * same expected revision) and the chain picks up at the first one that did not. `done`
+ * collects the fields whose write committed or replayed, so a caller can see how far it got
+ * when a later write throws.
+ */
+async function runChain(
+  opCtx: OperationContext,
+  doc: WithId<AssistantSuggestionDoc>,
+  keys: SuggestionFieldKey[],
+  values: FieldValues,
+  ids: (key: SuggestionFieldKey) => string,
+  startRevision: number,
+  done: SuggestionFieldKey[],
+): Promise<number> {
+  let revision = startRevision;
+  for (const key of keys) {
+    const { name, input } = fieldCall(key, doc, revision, values);
+    const result = await runOperation(opCtx, { name, input, operationId: ids(key) });
+    revision = result.revision ?? revision;
+    done.push(key);
+  }
+  return revision;
+}
+
+/** A refusal that a retry under the same ids cannot change (stale, gone, forbidden, invalid). */
+const isFinal = (error: unknown): error is AppError =>
+  error instanceof AppError && error.statusCode < 500;
+
+/**
+ * Best effort, after a chain failed for good: puts back each field the chain wrote, newest
+ * first, while the note still holds what the chain wrote there. A field someone changed
+ * since is theirs and stays. These are new writes on the note's current revision, so they
+ * take fresh operation ids; a failure here is logged and the next field is still tried.
+ */
+async function revertWrites(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
   doc: WithId<AssistantSuggestionDoc>,
-  fields: SuggestionFieldKey[],
-  values: { dueDate: string | null; priority: NotePriority; assigneeId: string | null },
-  ids: (key: SuggestionFieldKey) => string,
-  startRevision: number,
-): Promise<number> {
+  done: SuggestionFieldKey[],
+  written: FieldValues,
+  restore: FieldValues,
+): Promise<void> {
   const opCtx = operationContext(deps, ctx, doc.id);
-  const { boardId, noteId } = doc;
-  let revision = startRevision;
-  const run = async (name: string, input: unknown, operationId: string) => {
-    const result = await runOperation(opCtx, { name, input, operationId });
-    revision = result.revision ?? revision;
+  for (const key of [...done].reverse()) {
+    try {
+      const note = await getNote(deps.db, ctx.actor, doc.noteId, ctx.board.id);
+      if (noteValue(key, note) !== valueOf(key, written)) continue;
+      const { name, input } = fieldCall(key, doc, note.revision, restore);
+      await runOperation(opCtx, { name, input, operationId: randomUUID() });
+    } catch (error) {
+      deps.logger?.warn({
+        type: 'assistant.suggestion_revert_failed',
+        suggestionId: doc.id,
+        field: key,
+        outcome: error instanceof AppError ? error.code : 'failed',
+      });
+    }
+  }
+}
+
+/**
+ * Moves a record that is still KEPT with nothing applied, inside a transaction, so a tab
+ * that finished first is never overwritten. Returns the record as it stands afterwards.
+ */
+async function settleKeep(
+  db: Firestore,
+  actor: Actor,
+  id: string,
+  change: Pick<AssistantSuggestionDoc, 'status'> & Partial<Pick<AssistantSuggestionDoc, 'applied'>>,
+  now: Date,
+): Promise<WithId<AssistantSuggestionDoc>> {
+  const ref = assistantSuggestionsCol(db, actor.id).doc(id);
+  return db.runTransaction(async (tx) => {
+    const current = withId(await tx.get(ref));
+    if (!current) throw notFound();
+    if (current.status !== 'KEPT' || current.applied) return current;
+    const next: WithId<AssistantSuggestionDoc> = {
+      ...current,
+      ...change,
+      updatedAt: Timestamp.fromDate(now),
+    };
+    tx.set(ref, stripId(next));
+    return next;
+  });
+}
+
+/**
+ * Runs, resumes or replays the writes of a claimed keep. Every keep of a KEPT record with
+ * nothing applied comes here: the tab that claimed it, a second tab that lost the claim, and
+ * a repeat after a keep that was cut short (a crash, a timeout, a contended transaction).
+ * They all run the same chain from `baseRevision` under the record's own apply ids, so the
+ * note changes once and each field leaves one audit record.
+ *
+ * A refusal that cannot change on a retry (the note changed underneath, the note is gone,
+ * the assignee left, the caller lost access) ends the keep: the fields this keep did write
+ * are put back where nobody changed them since, the record becomes DISCARDED, and the
+ * refusal is the answer. Anything else leaves the record KEPT with nothing applied, so the
+ * next keep or undo resumes it.
+ */
+async function completeKeep(
+  deps: SuggestionDeps,
+  ctx: SuggestionContext,
+  doc: WithId<AssistantSuggestionDoc>,
+): Promise<WithId<AssistantSuggestionDoc>> {
+  if (doc.applied) return doc;
+  const { db } = deps;
+  const kept = doc.decision?.fields ?? [];
+  const written = proposedValues(doc);
+  const done: SuggestionFieldKey[] = [];
+  let note: NoteDetailDto;
+  let revision: number;
+  try {
+    note = await getNote(db, ctx.actor, doc.noteId, ctx.board.id);
+    // The first write carries `baseRevision`, so a note changed since the proposal refuses
+    // it with 409 STALE_REVISION before anything is written.
+    revision = await runChain(
+      operationContext(deps, ctx, doc.id),
+      doc,
+      kept,
+      written,
+      (key) => doc.operationIds[key].apply,
+      doc.baseRevision,
+      done,
+    );
+  } catch (error) {
+    if (!isFinal(error)) throw error;
+    await revertWrites(deps, ctx, doc, done, written, EMPTY);
+    await settleKeep(db, ctx.actor, doc.id, { status: 'DISCARDED' }, deps.now?.() ?? new Date());
+    throw error;
+  }
+  // Kept fields held nothing at the base (R3); the others are as the keep found them.
+  const before: FieldValues = {
+    dueDate: kept.includes('dueDate') ? EMPTY.dueDate : note.dueDate,
+    priority: kept.includes('priority') ? EMPTY.priority : note.priority,
+    assigneeId: kept.includes('assignee') ? EMPTY.assigneeId : (note.assignee?.id ?? null),
   };
-  if (fields.includes('dueDate'))
-    await run(
-      'update_note',
-      { boardId, noteId, expectedRevision: revision, input: { dueDate: values.dueDate } },
-      ids('dueDate'),
-    );
-  if (fields.includes('priority'))
-    await run(
-      'move_note',
-      {
-        boardId,
-        noteId,
-        expectedRevision: revision,
-        input: { mode: 'PRIORITY', priority: values.priority },
-      },
-      ids('priority'),
-    );
-  if (fields.includes('assignee'))
-    await run(
-      'assign_note',
-      { boardId, noteId, expectedRevision: revision, input: { assigneeId: values.assigneeId } },
-      ids('assignee'),
-    );
-  return revision;
+  return settleKeep(
+    db,
+    ctx.actor,
+    doc.id,
+    { status: 'KEPT', applied: { before, fields: kept, revision } },
+    deps.now?.() ?? new Date(),
+  );
 }
 
 /**
@@ -379,8 +560,6 @@ export async function decideSuggestion(
   const { db } = deps;
   const { actor, board } = ctx;
   const now = deps.now?.() ?? new Date();
-  const ref = assistantSuggestionsCol(db, actor.id).doc(suggestionId);
-  const stamp = () => Timestamp.fromDate(deps.now?.() ?? new Date());
 
   if (decision.decision === 'discard') {
     const { doc } = await claim(
@@ -390,18 +569,17 @@ export async function decideSuggestion(
       suggestionId,
       'PENDING',
       'DISCARDED',
-      {
-        source: decision.source,
-        fields: [],
-      },
+      { source: decision.source, fields: [] },
       now,
     );
-    return toDto(db, doc);
+    return toDto(db, board, doc);
   }
 
   if (decision.decision === 'keep') {
     const current = await loadSuggestion(db, actor, board.id, suggestionId);
-    const proposed = proposedKeys(current.fields);
+    if (current.status === 'KEPT') return toDto(db, board, await completeKeep(deps, ctx, current));
+    // What can still be kept: an assignee who left the board since drops out here.
+    const proposed = proposedKeys(liveFields(board, current.fields));
     const fields = (decision.fields ?? proposed).filter((key) => proposed.includes(key));
     if (fields.length === 0) {
       const { doc } = await claim(
@@ -411,110 +589,57 @@ export async function decideSuggestion(
         suggestionId,
         'PENDING',
         'DISCARDED',
-        {
-          source: decision.source,
-          fields: [],
-        },
+        { source: decision.source, fields: [] },
         now,
       );
-      return toDto(db, doc);
+      return toDto(db, board, doc);
     }
-    const { doc, claimed } = await claim(
+    // Whoever wins the claim, every keep then runs the same chain: the loser's writes replay
+    // the winner's receipts, and both answer with the record's one outcome.
+    const { doc } = await claim(
       db,
       actor,
       board.id,
       suggestionId,
       'PENDING',
       'KEPT',
-      {
-        source: decision.source,
-        fields,
-      },
+      { source: decision.source, fields },
       now,
     );
-    // The other tab's keep is running or done; its outcome is the record's. Replaying the
-    // writes here would be safe (same operation ids) but would race its `applied` write.
-    if (!claimed) return toDto(db, doc);
-    const kept = doc.decision?.fields ?? fields;
-    const note = await getNote(db, actor, doc.noteId, board.id);
-    if (note.revision !== doc.baseRevision) {
-      await ref.update({ status: 'DISCARDED', updatedAt: stamp() });
-      throw new AppError(
-        409,
-        'STALE_REVISION',
-        'The resource changed; review the latest version before saving',
-      );
-    }
-    const before = {
-      dueDate: note.dueDate,
-      priority: note.priority,
-      assigneeId: note.assignee?.id ?? null,
-    };
-    const values = {
-      dueDate: doc.fields.dueDate?.value ?? null,
-      priority: doc.fields.priority?.value ?? note.priority,
-      assigneeId: doc.fields.assignee?.value ?? null,
-    };
-    const revision = await applyFields(
-      deps,
-      ctx,
-      doc,
-      kept,
-      values,
-      (key) => doc.operationIds[key].apply,
-      note.revision,
-    );
-    const applied = { before, fields: kept, revision };
-    await ref.update({ applied, updatedAt: stamp() });
-    return toDto(db, { ...doc, applied });
+    return toDto(db, board, await completeKeep(deps, ctx, doc));
   }
 
   // undo
-  const current = await loadSuggestion(db, actor, board.id, suggestionId);
-  if (current.status === 'UNDONE') return toDto(db, current);
-  if (current.status !== 'KEPT' || !current.applied) throw settled();
-  const inverse = [...current.applied.fields].reverse();
-  // Inverse order, so each revision check sees exactly the state the keep left behind.
-  let revision = current.applied.revision;
-  const opCtx = operationContext(deps, ctx, current.id);
-  const { boardId, noteId } = current;
-  const { before } = current.applied;
-  for (const key of inverse) {
-    const operationId = current.operationIds[key].undo;
-    const result =
-      key === 'assignee'
-        ? await runOperation(opCtx, {
-            name: 'assign_note',
-            input: {
-              boardId,
-              noteId,
-              expectedRevision: revision,
-              input: { assigneeId: before.assigneeId },
-            },
-            operationId,
-          })
-        : key === 'priority'
-          ? await runOperation(opCtx, {
-              name: 'move_note',
-              input: {
-                boardId,
-                noteId,
-                expectedRevision: revision,
-                input: { mode: 'PRIORITY', priority: before.priority },
-              },
-              operationId,
-            })
-          : await runOperation(opCtx, {
-              name: 'update_note',
-              input: {
-                boardId,
-                noteId,
-                expectedRevision: revision,
-                input: { dueDate: before.dueDate },
-              },
-              operationId,
-            });
-    revision = result.revision ?? revision;
+  let current = await loadSuggestion(db, actor, board.id, suggestionId);
+  if (current.status === 'UNDONE') return toDto(db, board, current);
+  if (current.status !== 'KEPT') throw settled();
+  // A keep still running or cut short finishes first, so the undo has its receipts to invert.
+  current = await completeKeep(deps, ctx, current);
+  if (current.status === 'UNDONE') return toDto(db, board, current);
+  const { applied } = current;
+  if (current.status !== 'KEPT' || !applied) throw settled();
+  // Inverse order, so each revision check sees exactly the state the keep left behind. Run
+  // again after a cut-short undo, the inverse writes that committed replay their receipts.
+  const inverse = [...applied.fields].reverse();
+  const undoIds = current.operationIds;
+  const done: SuggestionFieldKey[] = [];
+  try {
+    await runChain(
+      operationContext(deps, ctx, current.id),
+      current,
+      inverse,
+      applied.before,
+      (key) => undoIds[key].undo,
+      applied.revision,
+      done,
+    );
+  } catch (error) {
+    // Refused for good part way (someone edited the note between two inverse writes): the
+    // fields already put back return to what the keep wrote, so the record stays KEPT and
+    // the note is not left half undone.
+    if (isFinal(error))
+      await revertWrites(deps, ctx, current, done, applied.before, proposedValues(current));
+    throw error;
   }
   const { doc } = await claim(
     db,
@@ -523,28 +648,25 @@ export async function decideSuggestion(
     suggestionId,
     'KEPT',
     'UNDONE',
-    {
-      source: decision.source,
-      fields: inverse,
-    },
+    { source: decision.source, fields: inverse },
     now,
   );
-  return toDto(db, doc);
+  return toDto(db, board, doc);
 }
 
 /** The caller's pending records on a board, oldest first, for a board that was just opened (plan R5). */
 export async function pendingSuggestions(
   db: Firestore,
   actor: Actor,
-  boardId: string,
+  board: WithId<WhiteboardDoc>,
 ): Promise<SuggestionDto[]> {
   // Two equality filters need no composite index; the sort is done here.
   const docs = docsWithId(
     await assistantSuggestionsCol(db, actor.id)
-      .where('boardId', '==', boardId)
+      .where('boardId', '==', board.id)
       .where('status', '==', 'PENDING')
       .get(),
   );
   docs.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
-  return Promise.all(docs.map((doc) => toDto(db, doc)));
+  return Promise.all(docs.map((doc) => toDto(db, board, doc)));
 }

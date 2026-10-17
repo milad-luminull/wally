@@ -11,6 +11,7 @@ import {
   notesCol,
 } from '../src/lib/db/collections.js';
 import { dayKey } from '../src/lib/assistant/budget/ledger.js';
+import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-assistant-suggestions';
@@ -43,6 +44,17 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       assignee: { memberId, confidence: 0.95, reason: 'Anna' },
     });
   }
+  // The provider reported no usage: nothing is settled, so the reservation stays (R7).
+  if (title.startsWith('unknown'))
+    return {
+      fields: {
+        dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+        priority: null,
+        assignee: null,
+      },
+      usage: null,
+      finishReason: 'stop',
+    };
   if (title.startsWith('unsure'))
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'vielleicht' },
@@ -98,6 +110,31 @@ describe('capture suggestions', () => {
       headers: ctx.authHeader(token),
     });
   const note = async (id: string) => (await notesCol(ctx.db).doc(id).get()).data()!;
+  const stored = async (userId: string, id: string) =>
+    (await assistantSuggestionsCol(ctx.db, userId).doc(id).get()).data()!;
+  const inFlight = async (userId: string) =>
+    Object.keys(
+      (await assistantUsageCol(ctx.db, userId).doc(dayKey(new Date())).get()).data()?.inFlight ??
+        {},
+    ).length;
+  const patchTitle = (token: string, noteId: string, title: string) =>
+    ctx.inject({
+      method: 'PATCH',
+      url: `/notes/${noteId}`,
+      headers: ctx.authHeader(token),
+      payload: { title },
+    });
+  /**
+   * The command layer exactly as a keep or an undo calls it, so a test can commit one write
+   * of a suggestion's chain on its own: the state a keep or undo cut short leaves behind.
+   */
+  const asSuggestion = (userId: string, boardId: string, id: string): OperationContext => ({
+    db: ctx.db,
+    actor: { id: userId, email: `${userId}@fixture.de`, emailVerified: true },
+    boardId,
+    assistantEnabled: true,
+    provenance: { via: 'assistant', conversationId: id, approvalId: id },
+  });
 
   it('proposes the fields the note leaves empty and reserves then settles the call', async () => {
     const fx = await createBoardFixture(ctx);
@@ -196,6 +233,21 @@ describe('capture suggestions', () => {
     expect(res.json()).toEqual({ error: 'ASSISTANT_PROVIDER_ERROR', message: expect.any(String) });
     expect(JSON.stringify(res.json())).not.toContain('secret-project');
     expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    // Usage is unknown after a failed call, so its reservation stays charged (R7).
+    expect(await inFlight(fx.ownerId)).toBe(1);
+  });
+
+  it('keeps the reservation when the provider reports no usage', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'unknown Freitag' })).json();
+    const res = await suggest(fx.ownerToken, fx.boardId, n.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.fields.dueDate).toMatchObject({ value: '2026-10-23' });
+    expect(await inFlight(fx.ownerId)).toBe(1);
+    expect((await stored(fx.ownerId, res.json().suggestion.id)).usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+    });
   });
 
   it('keeps every field through the command layer, attributed, and remembers what was there', async () => {
@@ -261,6 +313,13 @@ describe('capture suggestions', () => {
       decide(fx.ownerToken, fx.boardId, suggestion.id, body),
     ]);
     expect([a.statusCode, b.statusCode]).toEqual([200, 200]);
+    // The tab that lost the claim runs the same chain on the winner's receipts, so both
+    // answer with the one kept outcome rather than a record still being written.
+    expect(a.json().suggestion.kept).toEqual({
+      fields: ['dueDate', 'priority', 'assignee'],
+      revision: n.revision + 3,
+    });
+    expect(b.json().suggestion.kept).toEqual(a.json().suggestion.kept);
     const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, body);
     expect(again.json().suggestion.status).toBe('KEPT');
     expect((await note(n.id)).revision).toBe(n.revision + 3);
@@ -405,8 +464,15 @@ describe('capture suggestions', () => {
     const fx = await createBoardFixture(ctx);
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag' })).json();
     expect((await suggest(fx.outsiderToken, fx.boardId, n.id)).statusCode).toBe(404);
-    // The editor's own board does not hold this note.
-    expect((await suggest(fx.editToken, fx.editorId, n.id)).statusCode).toBe(404);
+    // The editor's own board does not hold this note. That board is reachable with the
+    // switch on (its pending list answers 200), so the 404 is the note-to-board binding in
+    // getNote, and it comes before any model call or record.
+    expect((await pending(fx.editToken, fx.editorId)).statusCode).toBe(200);
+    const elsewhere = await suggest(fx.editToken, fx.editorId, n.id);
+    expect(elsewhere.statusCode).toBe(404);
+    expect(elsewhere.json().error).toBe('NOT_FOUND');
+    expect(lastInput).toBeNull();
+    expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(0);
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     expect(
       (await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' }))
@@ -420,5 +486,199 @@ describe('capture suggestions', () => {
     });
     expect((await suggest(fx.ownerToken, fx.boardId, n.id)).statusCode).toBe(404);
     expect((await pending(fx.ownerToken, fx.boardId)).statusCode).toBe(404);
+  });
+  it('drops an assignee who left the board since the proposal, from the card and the keep', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    expect(suggestion.fields.assignee).toMatchObject({ value: { id: 'fx-editor' } });
+    const left = await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/leave`,
+      headers: ctx.authHeader(fx.editToken),
+    });
+    expect(left.statusCode).toBe(204);
+    // The user still exists; only the membership is gone, and that is what decides.
+    const [shown] = (await pending(fx.ownerToken, fx.boardId)).json().suggestions;
+    expect(shown.fields).toMatchObject({
+      dueDate: { value: '2026-10-23' },
+      priority: { value: 'HOCH' },
+      assignee: null,
+    });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'countdown',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.kept).toEqual({
+      fields: ['dueDate', 'priority'],
+      revision: n.revision + 2,
+    });
+    expect(await note(n.id)).toMatchObject({
+      dueDate: '2026-10-23',
+      priority: 'HOCH',
+      assigneeId: null,
+    });
+  });
+
+  it('a keep refused part way puts back what it wrote and discards the record', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const record = await stored(fx.ownerId, suggestion.id);
+    // The keep's first write commits, then a panel edit lands before its second write.
+    await runOperation(asSuggestion(fx.ownerId, fx.boardId, suggestion.id), {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: n.revision,
+        input: { dueDate: '2026-10-23' },
+      },
+      operationId: record.operationIds.dueDate.apply,
+    });
+    expect((await patchTitle(fx.ownerToken, n.id, 'Geändert')).statusCode).toBe(200);
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    // The due date the keep wrote is gone again; the person's edit stays.
+    const after = await note(n.id);
+    expect(after).toMatchObject({
+      title: 'Geändert',
+      dueDate: null,
+      priority: 'MITTEL',
+      assigneeId: null,
+    });
+    expect(after.revision).toBe(n.revision + 3);
+    expect((await stored(fx.ownerId, suggestion.id)).status).toBe('DISCARDED');
+    for (const decision of ['keep', 'undo']) {
+      const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+        decision,
+        source: 'enter',
+      });
+      expect(again.statusCode).toBe(409);
+      expect(again.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
+    }
+    expect((await note(n.id)).revision).toBe(n.revision + 3);
+  });
+
+  it('a repeat keep finishes a keep that was cut short, under the same receipts', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const record = await stored(fx.ownerId, suggestion.id);
+    // A keep claimed the record and committed its first write, then stopped (a crash, a
+    // timeout): KEPT with nothing applied.
+    await runOperation(asSuggestion(fx.ownerId, fx.boardId, suggestion.id), {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: n.revision,
+        input: { dueDate: '2026-10-23' },
+      },
+      operationId: record.operationIds.dueDate.apply,
+    });
+    await assistantSuggestionsCol(ctx.db, fx.ownerId)
+      .doc(suggestion.id)
+      .update({
+        status: 'KEPT',
+        decision: {
+          source: 'enter',
+          fields: ['dueDate', 'priority', 'assignee'],
+          at: record.createdAt,
+        },
+      });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion).toMatchObject({
+      status: 'KEPT',
+      kept: { fields: ['dueDate', 'priority', 'assignee'], revision: n.revision + 3 },
+    });
+    expect(await note(n.id)).toMatchObject({
+      dueDate: '2026-10-23',
+      priority: 'HOCH',
+      assigneeId: 'fx-editor',
+    });
+    expect((await note(n.id)).revision).toBe(n.revision + 3);
+    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
+    expect(audits.size).toBe(3);
+    expect((await stored(fx.ownerId, suggestion.id)).applied?.before).toEqual({
+      dueDate: null,
+      priority: 'MITTEL',
+      assigneeId: null,
+    });
+  });
+
+  it('an undo of a keep that was cut short finishes the keep, then undoes it', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const record = await stored(fx.ownerId, suggestion.id);
+    await assistantSuggestionsCol(ctx.db, fx.ownerId)
+      .doc(suggestion.id)
+      .update({
+        status: 'KEPT',
+        decision: { source: 'enter', fields: ['dueDate'], at: record.createdAt },
+      });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.status).toBe('UNDONE');
+    const after = await note(n.id);
+    expect(after).toMatchObject({ dueDate: null, priority: 'MITTEL', assigneeId: null });
+    expect(after.revision).toBe(n.revision + 2);
+  });
+
+  it('an undo refused part way puts back what it undid, and the record stays kept', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const kept = (
+      await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' })
+    ).json().suggestion.kept;
+    const record = await stored(fx.ownerId, suggestion.id);
+    // The undo's first inverse write commits, then a panel edit lands before its second.
+    await runOperation(asSuggestion(fx.ownerId, fx.boardId, suggestion.id), {
+      name: 'assign_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: kept.revision,
+        input: { assigneeId: null },
+      },
+      operationId: record.operationIds.assignee.undo,
+    });
+    expect((await patchTitle(fx.ownerToken, n.id, 'Danach')).statusCode).toBe(200);
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'shortcut',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    // Not half undone: the assignee the undo removed is back, beside the person's edit.
+    expect(await note(n.id)).toMatchObject({
+      title: 'Danach',
+      dueDate: '2026-10-23',
+      priority: 'HOCH',
+      assigneeId: 'fx-editor',
+    });
+    expect((await stored(fx.ownerId, suggestion.id)).status).toBe('KEPT');
+    // A second undo replays the first inverse write without writing, and is refused again.
+    const revision = (await note(n.id)).revision;
+    const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(again.json().error).toBe('STALE_REVISION');
+    expect((await note(n.id)).revision).toBe(revision);
   });
 });

@@ -215,7 +215,7 @@ export default async function assistantRoutes(
     { schema: { params, response: { 200: suggestionListSchema } } },
     async (request) => {
       const { board } = await boardFor(request);
-      return { suggestions: await pendingSuggestions(request.server.db, request.user, board.id) };
+      return { suggestions: await pendingSuggestions(request.server.db, request.user, board) };
     },
   );
 }
