@@ -59,13 +59,13 @@ const baseNote = (over: Partial<NoteDto> = {}) =>
   });
 
 let controller: SuggestionsController;
-let takeTypedOff: (key: string) => void;
+let editInPanel: (key: string) => void;
 
 /**
  * The shell's wiring in small: one controller, the card on the board and, while the panel is
  * open, the review, both built by `usePendingFor`. The notes cache is the note's state here;
- * as in AppShell, `syncNotes` sees every version of it before paint. A typed row unticked does
- * what the panel's ordinary update does to the note: the value goes and the revision moves on.
+ * as in AppShell, `syncNotes` sees every version of it before paint. `editInPanel` does what
+ * the panel's own field does to the note: the value goes and the revision moves on.
  */
 function Board({ openNoteId, initial }: { openNoteId: string | null; initial: NoteDto }) {
   const [note, setNote] = useState(initial);
@@ -75,7 +75,7 @@ function Board({ openNoteId, initial }: { openNoteId: string | null; initial: No
   useLayoutEffect(() => syncNotes([note]), [note, syncNotes]);
   const pendingFor = usePendingFor(suggestions, openNoteId);
   const pending = pendingFor(note.id);
-  takeTypedOff = (key) =>
+  editInPanel = (key) =>
     setNote((n) => ({
       ...n,
       ...(key === 'dueDate' ? { dueDate: null } : {}),
@@ -93,7 +93,7 @@ function Board({ openNoteId, initial }: { openNoteId: string | null; initial: No
         />
       </DndContext>
       {openNoteId === note.id && pending && pending.mark.phase !== 'asking' && (
-        <PendingReview note={note} pending={pending} onTypedChange={(key) => takeTypedOff(key)} />
+        <PendingReview note={note} pending={pending} />
       )}
     </>
   );
@@ -290,13 +290,12 @@ describe('the card and the review read one mark (§3.4)', () => {
   });
 
   /*
-   * Plan R4 as written: a typed row unticked takes the value off the note through the ordinary
-   * update. That update moves the note past the revision the change was proposed for, a keep
+   * Plan R4 as ruled: the typed rows are read-only, and a typed value changes in the panel's own
+   * fields. That edit moves the note past the revision the change was proposed for, a keep
    * would be refused (409 STALE_REVISION), so the controller forgets the change: the review and
-   * the card's dashed edge go together, and nothing is said. Recorded here so a ruling that
-   * changes it changes this test.
+   * the card's dashed edge go together, and nothing is said (BRAND rule 5).
    */
-  it('ends the whole change when a typed row is unticked (R4 against the stale rule)', async () => {
+  it("ends the whole change when a typed value changes in the panel's own fields", async () => {
     vi.mocked(assistantApi.suggest).mockResolvedValue({
       suggestion: dto({
         typed: ['dueDate'],
@@ -308,11 +307,17 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
     expect(card().querySelector('.border-dashed')).not.toBeNull();
 
-    fireEvent.click(
-      within(screen.getByRole('group', { name: 'Aus deinem Text' })).getByRole('checkbox', {
-        name: /^Fällig /,
-      }),
+    const typedDue = within(screen.getByRole('group', { name: 'Aus deinem Text' })).getByRole(
+      'checkbox',
+      { name: /^Fällig / },
     );
+    // The typed row itself does nothing.
+    fireEvent.click(typedDue);
+    await advance(0);
+    expect(mark()).toBeDefined();
+    expect(review()).not.toBeNull();
+
+    act(() => editInPanel('dueDate'));
     await advance(0);
     expect(mark()).toBeUndefined();
     expect(review()).toBeNull();

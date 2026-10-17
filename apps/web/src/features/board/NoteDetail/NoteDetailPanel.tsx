@@ -7,7 +7,6 @@ import {
   type NoteColour,
   type NoteHorizon,
   type NotePriority,
-  type SuggestionFieldKey,
   type UserSummary,
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -321,20 +320,6 @@ function NoteDetailContent({
     });
   }
 
-  /**
-   * A row of the person's own unticked in the review takes that value off the note at once,
-   * through the same mutations as the fields below (plan R4); the suggestion is not involved.
-   * The row goes with the value, so there is no ticking back in.
-   */
-  function handleTypedChange(key: SuggestionFieldKey, on: boolean) {
-    if (on || !note) return;
-    if (key === 'dueDate') updateNote.mutate({ noteId: note.id, input: { dueDate: null } });
-    else if (key === 'priority')
-      moveNote.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: 'MITTEL' } });
-    else if (key === 'assignee')
-      assignNote.mutate({ noteId: note.id, assigneeId: null, optimisticAssignee: null });
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Completion leads the panel, as a toggle that says what it does. It is a checkbox
@@ -435,9 +420,7 @@ function NoteDetailContent({
           />
         </div>
 
-        {pending && showReview && (
-          <PendingReview note={note} pending={pending} onTypedChange={handleTypedChange} />
-        )}
+        {pending && showReview && <PendingReview note={note} pending={pending} />}
 
         <PanelSection>
           <SubtaskChecklist

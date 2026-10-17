@@ -16,18 +16,16 @@ import { FieldLabel, PanelSection } from './Field';
 interface PendingReviewProps {
   note: NoteDto;
   pending: PendingProps;
-  /**
-   * A row of the person's own unticked: the panel takes that value off the note through its
-   * ordinary mutation (plan R4). The row goes with the value, so `on` is only ever false.
-   */
-  onTypedChange: (key: SuggestionFieldKey, on: boolean) => void;
 }
 
 interface Row {
   key: string;
   label: string;
   checked: boolean;
-  /** No handler: the row only says what the note holds (its title, its text). */
+  /**
+   * No handler: the row only says what the note holds (its title, its text, a field the
+   * person set while writing). It is checked and read-only (plan R4).
+   */
   onCheckedChange?: (on: boolean) => void;
 }
 
@@ -44,10 +42,11 @@ function offeredValues(note: NoteDto, pending: PendingProps) {
 /**
  * The note panel's review of a pending change, grouped by source (WALLYBOT_INLINE.md §3.4,
  * plan R3): what the person wrote and set while writing, and what the proposal adds. Ticking
- * an added row changes the change, as the card's × does; unticking a typed one changes the
- * note itself (R4). Once kept, only Undo is left.
+ * an added row changes the change, as the card's × does. A typed row is checked and read-only:
+ * a typed value changes in the panel's own fields, which ends the pending change as any edit
+ * does (R4, slice 2's stale-revision rule). Once kept, only Undo is left.
  */
-export function PendingReview({ note, pending, onTypedChange }: PendingReviewProps) {
+export function PendingReview({ note, pending }: PendingReviewProps) {
   const { t, i18n } = useTranslation();
   const { priority: priorityLabels } = useEnumLabels();
   const id = useId();
@@ -76,29 +75,17 @@ export function PendingReview({ note, pending, onTypedChange }: PendingReviewPro
     typed.push({ key: 'text', label: t('suggest.review.rowText'), checked: true });
   }
   for (const key of mark.suggestion?.typed ?? []) {
-    const untick = (on: boolean) => onTypedChange(key, on);
     // Only a value the note still holds has a row; MITTEL is the note holding no priority.
     if (key === 'dueDate' && note.dueDate) {
       const date = proposedDateLabel(note.dueDate, i18n.language);
-      typed.push({
-        key,
-        label: t('suggest.review.rowDue', { date }),
-        checked: true,
-        onCheckedChange: untick,
-      });
+      typed.push({ key, label: t('suggest.review.rowDue', { date }), checked: true });
     } else if (key === 'priority' && note.priority !== 'MITTEL') {
-      typed.push({
-        key,
-        label: priorityLabel(note.priority),
-        checked: true,
-        onCheckedChange: untick,
-      });
+      typed.push({ key, label: priorityLabel(note.priority), checked: true });
     } else if (key === 'assignee' && note.assignee && note.visibility !== 'PRIVATE') {
       typed.push({
         key,
         label: t('suggest.review.rowAssignee', { name: displayName(note.assignee) }),
         checked: true,
-        onCheckedChange: untick,
       });
     }
   }
@@ -212,18 +199,17 @@ function ReviewGroup({ id, label, rows }: { id: string; label: string; rows: Row
       <ul className="flex flex-col gap-1">
         {rows.map((row) => {
           const rowId = `${id}-${row.key}`;
+          const readOnly = !row.onCheckedChange;
           return (
             <li key={row.key} className="flex min-h-7 items-center gap-2.5">
               <Checkbox
                 id={rowId}
                 checked={row.checked}
-                disabled={!row.onCheckedChange}
-                onCheckedChange={(on) => row.onCheckedChange?.(on === true)}
+                disabled={readOnly}
+                aria-disabled={readOnly || undefined}
+                onCheckedChange={readOnly ? undefined : (on) => row.onCheckedChange?.(on === true)}
               />
-              <label
-                htmlFor={rowId}
-                className="min-w-0 break-words text-13 leading-snug text-fg-1 peer-disabled:text-fg-3"
-              >
+              <label htmlFor={rowId} className="min-w-0 break-words text-13 leading-snug text-fg-1">
                 {row.label}
               </label>
             </li>

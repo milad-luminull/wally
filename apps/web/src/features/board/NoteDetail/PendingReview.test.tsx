@@ -50,9 +50,8 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
     onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   };
-  const onTypedChange = vi.fn();
-  render(<PendingReview note={note} pending={pending} onTypedChange={onTypedChange} />);
-  return { pending, onTypedChange };
+  render(<PendingReview note={note} pending={pending} />);
+  return { pending };
 }
 
 describe('PendingReview', () => {
@@ -68,7 +67,7 @@ describe('PendingReview', () => {
       name: `Fällig ${proposedDateLabel('2026-10-23', 'de')}`,
     });
     expect(due).toBeChecked();
-    expect(due).toBeEnabled();
+    expect(due).toBeDisabled();
     expect(within(typed).getAllByRole('checkbox')).toHaveLength(2);
 
     const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
@@ -99,7 +98,7 @@ describe('PendingReview', () => {
 
   it('ticking rows reports to the controller', async () => {
     const user = userEvent.setup();
-    const { pending, onTypedChange } = renderReview();
+    const { pending } = renderReview();
 
     await user.click(screen.getByRole('checkbox', { name: 'Schritt: Angebot öffnen' }));
     expect(pending.onSetSubtask).toHaveBeenCalledWith(1, false);
@@ -109,11 +108,33 @@ describe('PendingReview', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Kunde: Müller GmbH' }));
     expect(pending.onSetField).toHaveBeenCalledWith('reference', false);
+  });
 
-    await user.click(
-      screen.getByRole('checkbox', { name: `Fällig ${proposedDateLabel('2026-10-23', 'de')}` }),
-    );
-    expect(onTypedChange).toHaveBeenCalledWith('dueDate', false);
+  /*
+   * R4 as ruled: the typed rows document what the person wrote. A typed value changes in the
+   * panel's own fields, which ends the pending change as any edit does.
+   */
+  it('typed rows are checked and cannot be unticked', async () => {
+    const user = userEvent.setup();
+    const { pending } = renderReview();
+
+    const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
+    const rows = within(typed).getAllByRole('checkbox');
+    for (const row of rows) {
+      expect(row).toBeChecked();
+      expect(row).toBeDisabled();
+      expect(row).toHaveAttribute('aria-disabled', 'true');
+    }
+
+    const due = within(typed).getByRole('checkbox', {
+      name: `Fällig ${proposedDateLabel('2026-10-23', 'de')}`,
+    });
+    await user.click(due);
+    await user.click(within(typed).getByText(`Fällig ${proposedDateLabel('2026-10-23', 'de')}`));
+    expect(due).toBeChecked();
+    expect(pending.onSetField).not.toHaveBeenCalled();
+    expect(pending.onSetSubtask).not.toHaveBeenCalled();
+    expect(pending.onRemove).not.toHaveBeenCalled();
   });
 
   it('Keep, Discard and Undo', async () => {

@@ -638,7 +638,11 @@ describe('NoteDetailPanel', () => {
       expect(document.querySelector('[data-pending-review]')).toBeNull();
     });
 
-    it('takes a typed date off the note through the ordinary update (R4)', async () => {
+    /*
+     * R4 as ruled: a typed row is read-only. The typed date changes in the panel's own date
+     * field, which ends the pending change as any edit does (slice 2's stale-revision rule).
+     */
+    it('sends no update when a typed row is clicked (R4)', async () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
       vi.mocked(notesApi.get).mockResolvedValue(
@@ -649,16 +653,18 @@ describe('NoteDetailPanel', () => {
       await screen.findByLabelText('Titel');
 
       const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
-      await user.click(within(typed).getByRole('checkbox', { name: /^Fällig / }));
+      const row = within(typed).getByRole('checkbox', { name: /^Fällig / });
+      // Calls from earlier cases stay on these mocks; only what the click sends counts here.
+      vi.mocked(notesApi.update).mockClear();
+      vi.mocked(notesApi.move).mockClear();
+      vi.mocked(notesApi.assign).mockClear();
+      await user.click(row);
 
-      await waitFor(() =>
-        expect(notesApi.update).toHaveBeenCalledWith(
-          'note-1',
-          { dueDate: null },
-          expect.objectContaining({ operationId: expect.any(String) }),
-        ),
-      );
-      // Not part of the suggestion: the controller hears nothing of it.
+      expect(row).toBeChecked();
+      expect(row).toBeDisabled();
+      expect(notesApi.update).not.toHaveBeenCalled();
+      expect(notesApi.move).not.toHaveBeenCalled();
+      expect(notesApi.assign).not.toHaveBeenCalled();
       expect(pending.onSetField).not.toHaveBeenCalled();
     });
 
@@ -688,8 +694,8 @@ describe('NoteDetailPanel', () => {
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
       await screen.findByLabelText('Titel');
-      const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
-      const row = within(typed).getByRole('checkbox', { name: /^Fällig / });
+      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      const row = within(added).getAllByRole('checkbox')[0]!;
       await user.click(row);
       expect(row).toHaveFocus();
 
