@@ -463,7 +463,13 @@ function ShortcutsDialog({
     { keys: [MOD_KEY, 'K'], label: t('shortcuts.palette') },
     { keys: ['N'], label: t('shortcuts.newNote') },
     { keys: [MOD_KEY, 'D'], label: t('shortcuts.duplicateNote') },
-    ...(assistantEnabled ? [{ keys: [MOD_KEY, 'J'], label: t('shortcuts.ask') }] : []),
+    ...(assistantEnabled
+      ? [
+          { keys: [MOD_KEY, 'J'], label: t('shortcuts.ask') },
+          // Only where Wallybot can fill in is there a kept change to undo.
+          { keys: [MOD_KEY, 'Z'], label: t('shortcuts.undoSuggestion') },
+        ]
+      : []),
     { keys: [ALT_KEY], label: t('shortcuts.copyDrag') },
     { keys: ['/'], label: t('shortcuts.search') },
     { keys: ['V'], label: t('shortcuts.toggleView') },

@@ -271,6 +271,20 @@ describe('useCaptureSession: the note being written has one card', () => {
     await waitFor(() => expect(card).toHaveFocus());
   });
 
+  it('after Enter in the list, the keyboard carries on from the committed row', async () => {
+    const { container } = renderBoard('list', 'horizon');
+    await screen.findByText('Vorhanden');
+    await userEvent.click(screen.getByRole('button', { name: 'new' }));
+    await userEvent.type(await titleField(), 'Zeile{Enter}');
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+    );
+    // The row itself, not its checkbox: Enter on the row is what keeps a pending change.
+    const row = container.querySelector('[data-note-id="created-1"][role="button"]');
+    expect(row).not.toBeNull();
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
   it('after Enter the shell hears which fields were typed', async () => {
     const { onCommitted } = renderBoard('wand', 'horizon');
     await screen.findByText('Vorhanden');

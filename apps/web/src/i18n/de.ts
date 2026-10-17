@@ -227,6 +227,7 @@ export const de = {
     closePanel: 'Notiz schließen',
     duplicateNote: 'Notiz duplizieren',
     ask: 'Wand fragen',
+    undoSuggestion: 'Übernommene Änderung rückgängig',
     /** Shown next to the Alt/Option key: held while dragging a card. */
     copyDrag: 'Beim Ziehen gedrückt: Kopie ablegen',
     help: 'Diese Übersicht',
@@ -457,12 +458,10 @@ export const de = {
     dotAria: 'Vorgeschlagene Änderungen, werden gleich übernommen',
     dotAriaWaiting: 'Vorgeschlagene Änderungen, warten auf Enter',
     dotAriaAsking: 'Wird ausgefüllt',
-    dotAriaKept: 'Änderungen übernommen',
     undo: 'Rückgängig',
     undoAria: 'Übernommene Änderungen rückgängig machen',
     remove: 'Vorschlag entfernen: {{label}}',
     reason: 'Wegen: {{reason}}',
-    hint: '↵ behalten · Esc verwerfen',
     fields: {
       dueDate: 'Fällig {{date}}',
       priorityHigh: 'Priorität hoch',

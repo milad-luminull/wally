@@ -35,15 +35,20 @@ const NO_NOTES: readonly string[] = [];
 const BOARD_SURFACE = '[data-board-surface]';
 
 /**
- * After a commit by keyboard, the committed note's card takes the focus (else the board), so
- * the person carries on from where they wrote. A commit by a click elsewhere already put the
- * focus where they clicked, and that is left alone.
+ * After a commit by keyboard, the committed note's card or row takes the focus (else the
+ * board), so the person carries on from where they wrote, and Enter keeps a pending change
+ * there. A commit by a click elsewhere already put the focus where they clicked, and that is
+ * left alone. On the wall the card is the button inside the `data-note-id` wrapper; in the
+ * list the row itself is the button, and it comes before its checkbox in document order.
  */
 function focusCommitted(noteId: string) {
   const active = document.activeElement;
   if (active && active !== document.body) return;
-  const card = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"] button`);
-  (card ?? document.querySelector<HTMLElement>(BOARD_SURFACE))?.focus();
+  const id = CSS.escape(noteId);
+  const target = document.querySelector<HTMLElement>(
+    `[data-note-id="${id}"] button, [data-note-id="${id}"][role="button"]`,
+  );
+  (target ?? document.querySelector<HTMLElement>(BOARD_SURFACE))?.focus();
 }
 
 /**

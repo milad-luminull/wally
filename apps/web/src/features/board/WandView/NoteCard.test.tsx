@@ -246,6 +246,27 @@ describe('NoteCard with a pending change', () => {
     expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, warten auf Enter/);
   });
 
+  it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
+    const base = makeSuggestionMark({ phase: 'kept', countdownEndsAt: null });
+    const p = pending({
+      phase: 'kept',
+      countdownEndsAt: null,
+      fields: ['dueDate', 'priority'],
+      suggestion: {
+        ...base.suggestion!,
+        status: 'KEPT',
+        kept: { fields: ['dueDate', 'priority'], revision: 3 },
+      },
+    });
+    renderCard(p);
+    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Priorität: Hoch' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
+    // The person's own card is not dashed any more: this is the note, not a proposal.
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).not.toContain('border-dashed');
+  });
+
   it('looks like any other note once kept, with only the faint Undo left', () => {
     const p = renderCard(pending({ phase: 'kept', countdownEndsAt: null }));
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;

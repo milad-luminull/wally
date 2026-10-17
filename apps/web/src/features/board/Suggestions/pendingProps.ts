@@ -44,14 +44,22 @@ type ProposedValues = {
 const NONE: ProposedValues = { dueDate: null, priority: null, assignee: null };
 
 /**
- * The proposed values a note shows in their places: only while the change is pending, only for
- * the fields still in it, and only where the note has nothing of its own (plan R3), so a value
- * the person set is never covered. A done note shows no due date or priority, so none is
- * proposed there; a private note shows a lock, never an assignee.
+ * The proposed values a note shows in their places: only for the fields still in the change,
+ * and only where the note has nothing of its own (plan R3), so a value the person set is never
+ * covered. A done note shows no due date or priority, so none is proposed there; a private
+ * note shows a lock, never an assignee.
+ *
+ * Once kept, the kept values stay in their places until the refetched note carries them (its
+ * revision reaches the one the keep produced), so a date, a priority or a person never blinks
+ * out for the round trip; from then on the note's own values show.
  */
 export function proposedValues(note: NoteDto, pending: PendingProps | undefined): ProposedValues {
   const mark = pending?.mark;
-  if (mark?.phase !== 'pending' || !mark.suggestion) return NONE;
+  if (!mark?.suggestion || mark.phase === 'asking') return NONE;
+  if (mark.phase === 'kept') {
+    const kept = mark.suggestion.kept;
+    if (!kept || note.revision >= kept.revision) return NONE;
+  }
   const { fields } = mark.suggestion;
   const open = note.status !== 'DONE';
   const has = (key: SuggestionFieldKey) => mark.fields.includes(key);

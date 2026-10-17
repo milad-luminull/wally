@@ -44,6 +44,8 @@ export function NoteRow({
   const proposed = proposedValues(note, pending);
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   const dashed = pending !== undefined && pending.mark.phase !== 'kept';
+  // Only a pending change has fields to take out; a kept one shows its values plainly.
+  const removable = pending?.mark.phase === 'pending';
   const pause = usePendingPause(pending);
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
@@ -73,6 +75,9 @@ export function NoteRow({
     <div
       role="button"
       tabIndex={0}
+      // The same address the wall's cards carry, so the board can focus the row after a
+      // commit (useCaptureSession) and Enter keeps from there.
+      data-note-id={note.id}
       data-pending={pending?.mark.phase}
       onClick={onOpen}
       onKeyDown={(e) => {
@@ -93,8 +98,10 @@ export function NoteRow({
         'focus-visible:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
         '[@media(pointer:coarse)]:min-h-12',
         // A pending change: a dashed left edge in the note's border colour, never marigold
-        // (BRAND job 4). The padding gives back the edge's 2px, so the row does not shift.
-        dashed && 'border-l-2 border-dashed border-l-[color:var(--note-border)] pl-2.5',
+        // (BRAND job 4). Only the left edge's style changes, so the divider below stays
+        // solid. The padding gives back the edge's 2px, so the row does not shift.
+        dashed &&
+          'border-l-2 border-l-[color:var(--note-border)] pl-2.5 [border-left-style:dashed]',
       )}
     >
       <Checkbox
@@ -149,7 +156,7 @@ export function NoteRow({
                 : (proposed.assignee.value.displayName ?? proposed.assignee.value.email)
             }
             reason={proposed.assignee.reason}
-            onRemove={() => pending?.onRemove('assignee')}
+            onRemove={removable ? () => pending?.onRemove('assignee') : undefined}
           />
         )}
         {note.tags.map((tag) => (
@@ -183,7 +190,7 @@ export function NoteRow({
                 </span>
               }
               reason={proposed.dueDate.reason}
-              onRemove={() => pending?.onRemove('dueDate')}
+              onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
             />
           ) : (
             due.label
@@ -205,7 +212,7 @@ export function NoteRow({
               />
             }
             reason={proposed.priority.reason}
-            onRemove={() => pending?.onRemove('priority')}
+            onRemove={removable ? () => pending?.onRemove('priority') : undefined}
           />
         ) : (
           !isDone && (

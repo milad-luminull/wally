@@ -72,6 +72,8 @@ export function NoteCard({
   // The overlay is a picture of the card in flight: it shows the note as it stands.
   const proposed = proposedValues(note, overlay ? undefined : pending);
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
+  // Only a pending change has fields to take out; a kept one shows its values plainly.
+  const removable = pending?.mark.phase === 'pending';
   const corner = overlay || !pending ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
 
   const body = (
@@ -119,7 +121,7 @@ export function NoteCard({
                 </span>
               }
               reason={proposed.dueDate.reason}
-              onRemove={() => pending?.onRemove('dueDate')}
+              onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
             />
           ) : (
             due.label
@@ -151,7 +153,7 @@ export function NoteCard({
               />
             }
             reason={proposed.priority.reason}
-            onRemove={() => pending?.onRemove('priority')}
+            onRemove={removable ? () => pending?.onRemove('priority') : undefined}
           />
         ) : (
           !isDone && (
@@ -176,7 +178,7 @@ export function NoteCard({
               />
             }
             reason={proposed.assignee.reason}
-            onRemove={() => pending?.onRemove('assignee')}
+            onRemove={removable ? () => pending?.onRemove('assignee') : undefined}
           />
         ) : (
           note.assignee && (

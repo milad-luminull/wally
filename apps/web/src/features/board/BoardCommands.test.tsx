@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -185,6 +185,20 @@ describe('BoardCommands', () => {
     await user.keyboard('{Escape}');
     await user.keyboard(ASK);
     expect(onOpenAssistant).not.toHaveBeenCalled();
+  });
+
+  it('lists ⌘Z in the shortcuts sheet when Wallybot can fill in, and not otherwise', async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderCommands({ assistantEnabled: true });
+    await user.keyboard('?');
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByText('Übernommene Änderung rückgängig')).toBeInTheDocument();
+    unmount();
+    renderCommands({ assistantEnabled: false });
+    await user.keyboard('?');
+    expect(
+      within(await screen.findByRole('dialog')).queryByText('Übernommene Änderung rückgängig'),
+    ).toBeNull();
   });
 
   it('⌘Z undoes the last kept change when there is one, and leaves the key alone otherwise', () => {

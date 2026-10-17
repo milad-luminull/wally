@@ -99,6 +99,10 @@ describe('AccountMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Konto' }));
     const alwaysAsk = screen.getByRole('switch', { name: 'Immer fragen' });
     expect(alwaysAsk).toHaveAttribute('aria-checked', 'false');
+    // The hint under the label is what the switch does; a screen reader hears it with it.
+    expect(alwaysAsk).toHaveAccessibleDescription(
+      'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
+    );
     await user.click(alwaysAsk);
     expect(setWallybot).toHaveBeenCalledWith({ autoApply: false });
   });

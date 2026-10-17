@@ -8,6 +8,7 @@ const stop = (e: SyntheticEvent) => e.stopPropagation();
 /**
  * One proposed field in the place it has on a normal card, in the note's own type and colour
  * (BRAND rule 3), with its reason for a screen reader and an × that removes it alone (§3.3).
+ * Without `onRemove` (a kept value waiting for the refetch) it is the plain value, no ×.
  *
  * The × looks like `RemoveButton` but is a `role="button"` span, not a `<button>`: on the wall
  * it sits inside the card, which is itself a `<button>`, and HTML allows no button inside a
@@ -24,15 +25,16 @@ export function ProposedField({
   label: ReactNode;
   name: string;
   reason: string;
-  onRemove: () => void;
+  onRemove?: () => void;
   className?: string;
 }) {
   const { t } = useTranslation();
+  if (!onRemove) return <span className={cn('inline-flex items-center', className)}>{label}</span>;
   function onKeyDown(e: KeyboardEvent) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     e.stopPropagation();
-    onRemove();
+    onRemove?.();
   }
   return (
     <span

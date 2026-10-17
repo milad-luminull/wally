@@ -158,11 +158,14 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
             <Label htmlFor="account-wallybot" className="text-12 font-medium text-fg-3">
               {t('account.wallybot.label')}
             </Label>
-            <p className="text-12 text-fg-faint">{t('account.wallybot.hint')}</p>
+            <p id="account-wallybot-hint" className="text-12 text-fg-faint">
+              {t('account.wallybot.hint')}
+            </p>
           </div>
           <Switch
             id="account-wallybot"
             aria-label={t('account.wallybot.alwaysAsk')}
+            aria-describedby="account-wallybot-hint"
             checked={!wallybot.autoApply}
             onCheckedChange={(on) => setWallybot({ autoApply: !on })}
           />

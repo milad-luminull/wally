@@ -31,7 +31,10 @@ describe('NoteRow with a pending change', () => {
   it('draws a dashed left edge, the dot at the end, and each proposed field with an ×', () => {
     const p = renderRow();
     const row = rowOf();
-    expect(row.className).toContain('border-dashed');
+    // The left edge alone: `border-dashed` would dash the row's bottom divider too.
+    expect(row.className).toContain('[border-left-style:dashed]');
+    expect(row.className).not.toContain('border-dashed');
+    expect(row).toHaveAttribute('data-note-id', 'note-1');
     const dot = screen.getByRole('img', { name: /Vorgeschlagene/ });
     // The dot is the last thing on the row.
     expect(dot.parentElement?.lastElementChild).toBe(dot);
@@ -98,7 +101,7 @@ describe('NoteRow with a pending change', () => {
   it('looks like any other row once kept, with only the faint Undo left', () => {
     const onOpen = vi.fn();
     const p = renderRow(pending({ phase: 'kept', countdownEndsAt: null }), onOpen);
-    expect(rowOf().className).not.toContain('border-dashed');
+    expect(rowOf().className).not.toContain('[border-left-style:dashed]');
     expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
     fireEvent.click(
@@ -106,6 +109,53 @@ describe('NoteRow with a pending change', () => {
     );
     expect(p.onUndo).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe('NoteRow just after a keep', () => {
+  const kept = makeSuggestionMark({ phase: 'kept', countdownEndsAt: null });
+  const keptMark = {
+    ...kept,
+    fields: ['dueDate' as const],
+    suggestion: {
+      ...kept.suggestion!,
+      status: 'KEPT' as const,
+      kept: { fields: ['dueDate' as const], revision: 2 },
+    },
+  };
+  const props = {
+    mark: keptMark,
+    onKeep: vi.fn(),
+    onDiscard: vi.fn(),
+    onUndo: vi.fn(),
+    onRemove: vi.fn(),
+    onPause: vi.fn(),
+  };
+  it('shows the kept date, without an ×, until the refetched note carries it', () => {
+    const { rerender } = render(
+      <NoteRow
+        note={makeNote({ revision: 1, dueDate: null, priority: 'MITTEL', assignee: null })}
+        currentUserId="user-1"
+        onOpen={vi.fn()}
+        onToggleDone={vi.fn()}
+        canEdit
+        pending={props}
+      />,
+    );
+    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
+    // The refetch lands: the note's own date takes the place, in its own label.
+    rerender(
+      <NoteRow
+        note={makeNote({ revision: 2, dueDate: '2026-10-23', priority: 'MITTEL', assignee: null })}
+        currentUserId="user-1"
+        onOpen={vi.fn()}
+        onToggleDone={vi.fn()}
+        canEdit
+        pending={props}
+      />,
+    );
+    expect(screen.queryByText(/Fr\.?,? 23\.10\./)).toBeNull();
   });
 });
 
