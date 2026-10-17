@@ -7,6 +7,7 @@ import {
   type NoteColour,
   type NoteHorizon,
   type NotePriority,
+  type SuggestionFieldKey,
   type UserSummary,
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -51,6 +52,7 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
@@ -59,6 +61,7 @@ import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 import { VisibilityRow } from './VisibilityRow';
 import { useLiveNoteText } from './useLiveNoteText';
+import { PendingReview } from './PendingReview';
 
 const NO_ASSIGNEE = '__none__';
 
@@ -79,6 +82,8 @@ interface NoteDetailPanelProps {
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
   currentUserId: string | undefined;
+  /** The open note's pending change, reviewed at the top of the panel (plan R3). */
+  pending?: PendingProps;
 }
 
 export function NoteDetailPanel({
@@ -90,6 +95,7 @@ export function NoteDetailPanel({
   onClose,
   onDuplicate,
   currentUserId,
+  pending,
 }: NoteDetailPanelProps) {
   const { t } = useTranslation();
   useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
@@ -107,6 +113,7 @@ export function NoteDetailPanel({
               onClose={onClose}
               onDuplicate={onDuplicate}
               currentUserId={currentUserId}
+              pending={pending}
               autoFocusTitle={false}
             />
           )}
@@ -136,6 +143,7 @@ export function NoteDetailPanel({
         onClose={onClose}
         onDuplicate={onDuplicate}
         currentUserId={currentUserId}
+        pending={pending}
         autoFocusTitle
       />
     </aside>
@@ -150,6 +158,7 @@ interface ContentProps {
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
   currentUserId: string | undefined;
+  pending: PendingProps | undefined;
   autoFocusTitle: boolean;
 }
 
@@ -161,6 +170,7 @@ function NoteDetailContent({
   onClose,
   onDuplicate,
   currentUserId,
+  pending,
   autoFocusTitle,
 }: ContentProps) {
   const { t } = useTranslation();
@@ -295,6 +305,20 @@ function NoteDetailContent({
     });
   }
 
+  /**
+   * A row of the person's own unticked in the review takes that value off the note at once,
+   * through the same mutations as the fields below (plan R4); the suggestion is not involved.
+   * The row goes with the value, so there is no ticking back in.
+   */
+  function handleTypedChange(key: SuggestionFieldKey, on: boolean) {
+    if (on || !note) return;
+    if (key === 'dueDate') updateNote.mutate({ noteId: note.id, input: { dueDate: null } });
+    else if (key === 'priority')
+      moveNote.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: 'MITTEL' } });
+    else if (key === 'assignee')
+      assignNote.mutate({ noteId: note.id, assigneeId: null, optimisticAssignee: null });
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Completion leads the panel, as a toggle that says what it does. It is a checkbox
@@ -386,6 +410,10 @@ function NoteDetailContent({
             )}
           />
         </div>
+
+        {pending && pending.mark.phase !== 'asking' && (
+          <PendingReview note={note} pending={pending} onTypedChange={handleTypedChange} />
+        )}
 
         <PanelSection>
           <SubtaskChecklist

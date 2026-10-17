@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { enumLabels } from '@/i18n/enumLabels';
 import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { makeMember, makeNote, makeNoteDetail } from '@/test/fixtures';
+import { makeMember, makeNote, makeNoteDetail, makeSuggestionMark } from '@/test/fixtures';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { Toaster } from '@/components/ui/toaster';
 import { resetToasts } from '@/lib/toast';
 import { boardAccess } from '../util/permissions';
@@ -587,6 +588,78 @@ describe('NoteDetailPanel', () => {
           }),
         ),
       );
+    });
+  });
+
+  /** The review of a pending change lives in the panel (plan R3), above everything else. */
+  describe('reviewing a pending change', () => {
+    function pendingFor(): PendingProps {
+      const base = makeSuggestionMark();
+      return {
+        mark: makeSuggestionMark({
+          suggestion: { ...base.suggestion!, typed: ['dueDate'] },
+          fields: ['priority', 'assignee'],
+        }),
+        onKeep: vi.fn(),
+        onDiscard: vi.fn(),
+        onUndo: vi.fn(),
+        onRemove: vi.fn(),
+        onSetField: vi.fn(),
+        onSetSubtask: vi.fn(),
+        onPause: vi.fn(),
+      };
+    }
+
+    it('shows the review section only for a note with a pending change', async () => {
+      const { unmount } = renderPanel();
+      await screen.findByLabelText('Titel');
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      expect(screen.queryByText('Von Wallybot ergänzt')).not.toBeInTheDocument();
+      unmount();
+
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      renderPanel({ pending: pendingFor() });
+      await screen.findByLabelText('Titel');
+      const review = document.querySelector('[data-pending-review]');
+      expect(review).not.toBeNull();
+      expect(within(review as HTMLElement).getByText('Von Wallybot ergänzt')).toBeInTheDocument();
+      // Above the subtasks: the first thing under the title and the description.
+      const subtasks = screen.getByText('Unteraufgaben');
+      expect(review!.compareDocumentPosition(subtasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it('shows no review while the change is still being asked for', async () => {
+      renderPanel({ pending: { ...pendingFor(), mark: makeSuggestionMark({ phase: 'asking' }) } });
+      await screen.findByLabelText('Titel');
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+    });
+
+    it('takes a typed date off the note through the ordinary update (R4)', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const pending = pendingFor();
+      renderPanel({ pending });
+      await screen.findByLabelText('Titel');
+
+      const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
+      await user.click(within(typed).getByRole('checkbox', { name: /^Fällig / }));
+
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenCalledWith(
+          'note-1',
+          { dueDate: null },
+          expect.objectContaining({ operationId: expect.any(String) }),
+        ),
+      );
+      // Not part of the suggestion: the controller hears nothing of it.
+      expect(pending.onSetField).not.toHaveBeenCalled();
     });
   });
 });

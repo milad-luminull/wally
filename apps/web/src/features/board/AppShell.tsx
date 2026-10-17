@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -75,6 +75,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
     [requestSuggestion],
   );
+  // Read through a ref: Undo can fire long after the render that set up the toast, and a card's
+  // pause handler long after the render that built it.
+  const openNoteId = useRef(viewState.noteId);
+  openNoteId.current = viewState.noteId;
   const pendingFor = useCallback(
     (noteId: string): PendingProps | undefined => {
       const mark = suggestions.marks.get(noteId);
@@ -87,11 +91,26 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onRemove: (field) => suggestions.remove(noteId, field),
         onSetField: (field, on) => suggestions.setField(noteId, field, on),
         onSetSubtask: (index, on) => suggestions.setSubtask(noteId, index, on),
-        onPause: (paused) => suggestions.setPaused(noteId, paused),
+        // The pointer leaving the card for the panel would otherwise resume the countdown the
+        // open panel holds (below); the panel's own close resumes it.
+        onPause: (paused) => {
+          if (!paused && openNoteId.current === noteId) return;
+          suggestions.setPaused(noteId, paused);
+        },
       };
     },
     [suggestions],
   );
+  // The panel open on a pending note pauses its countdown (R3): reading the review takes time.
+  const { setPaused } = suggestions;
+  const openPending =
+    viewState.noteId !== null && suggestions.marks.get(viewState.noteId)?.phase === 'pending';
+  useEffect(() => {
+    if (!openPending || !viewState.noteId) return;
+    const noteId = viewState.noteId;
+    setPaused(noteId, true);
+    return () => setPaused(noteId, false);
+  }, [openPending, viewState.noteId, setPaused]);
 
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
@@ -126,9 +145,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       });
   }, [effectiveView, notes, startCapture, viewState.axis]);
 
-  // Read through a ref: Undo can fire long after the render that set up the toast.
-  const openNoteId = useRef(viewState.noteId);
-  openNoteId.current = viewState.noteId;
   const { openNote } = viewState;
   const { duplicate } = useDuplicateNote(boardId, {
     onUndo: (copyId) => {
@@ -244,6 +260,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           onClose={() => viewState.openNote(null)}
           onDuplicate={duplicateNote}
           currentUserId={user?.uid}
+          pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
         />
 
         {/* Off means nothing: no panel even when the link carries ?ask=1. */}
