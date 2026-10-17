@@ -1,6 +1,6 @@
 # Wally
 
-A personal digital whiteboard for managing to-dos as movable notes. Notes live on a free canvas and can be organized by **Horizont** (Heute / Diese Woche / Später), **Priorität** (Hoch / Mittel / Niedrig), or positioned **Frei**, with a synced list view, sharing, and full note detail (subtasks, tags, reference, history). See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec.
+A personal digital whiteboard for managing to-dos as movable notes. Notes live on a free canvas and can be organized by **horizon** (Today / This week / Later), **priority** (High / Medium / Low), or positioned **freely**, with a synced list view, sharing, and full note detail (subtasks, tags, reference, history). See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec.
 
 ## Stack
 
