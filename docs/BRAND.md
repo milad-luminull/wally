@@ -156,7 +156,10 @@ in hex and must be kept in step.
 Wally's AI is two things on the board: the question panel beside it
 (`features/board/Assistant`), which answers questions about the wall from the notes it reads,
 and the fill-in on a note written in place (`features/board/Suggestions`), which proposes a due
-date, a priority or a person as a pending change. These rules are the contract both follow,
+date, a priority, a person, subtasks or a reference as a pending change, reviewed in the note
+panel in two groups (what the person typed, what is suggested) and offering a cleaner title on
+the card's title line as a second version beside the original, which is rule 7's instance.
+These rules are the contract both follow,
 and `brandGuards.test.ts` enforces the first one.
 
 > The AI is the wall's good manners. It fills in what you'd have typed anyway, puts things

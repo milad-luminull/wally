@@ -18,4 +18,10 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
   await expect(
     page.locator('[data-note-id]', { hasText: title }).locator('[data-pending]'),
   ).toHaveCount(0);
+
+  // Opened with a click, a plain note has no review section: nothing was proposed, so the panel
+  // shows no "From what you typed" or "Added by Wallybot" groups.
+  await page.locator('[data-note-id]', { hasText: title }).click();
+  await expect(page.getByRole('complementary', { name: 'Notizdetails' })).toBeVisible();
+  await expect(page.locator('[data-pending-review]')).toHaveCount(0);
 });
