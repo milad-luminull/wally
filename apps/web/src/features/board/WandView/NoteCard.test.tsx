@@ -204,6 +204,48 @@ describe('NoteCard with a pending change', () => {
     expect(p.onPause).toHaveBeenLastCalledWith(true);
   });
 
+  it('stays paused while either hover or focus still holds', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    // A keyboard user tabs in, then the pointer crosses the card: still paused.
+    fireEvent.focus(card);
+    fireEvent.mouseEnter(card);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    // Hovered, then focus leaves: still paused. Only when neither holds does it resume.
+    fireEvent.mouseEnter(card);
+    fireEvent.blur(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+    expect(p.onPause).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays paused while focus moves from the card to one of its ×', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    const remove = screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' });
+    fireEvent.focus(card);
+    fireEvent.blur(card, { relatedTarget: remove });
+    fireEvent.focus(remove);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+  });
+
+  it('tells a screen reader on the focused card that a change is pending', () => {
+    renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, werden gleich übernommen/);
+    expect(card).toContainElement(screen.getByRole('img', { name: /Vorgeschlagene/ }));
+  });
+
+  it('names the card as waiting for Enter when nothing counts down', () => {
+    renderCard(pending({ countdownEndsAt: null }));
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, warten auf Enter/);
+  });
+
   it('looks like any other note once kept, with only the faint Undo left', () => {
     const p = renderCard(pending({ phase: 'kept', countdownEndsAt: null }));
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;

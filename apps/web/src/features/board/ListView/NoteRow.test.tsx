@@ -67,6 +67,34 @@ describe('NoteRow with a pending change', () => {
     expect(p.onPause).toHaveBeenLastCalledWith(false);
   });
 
+  it('stays paused while either hover or focus still holds', () => {
+    const p = renderRow();
+    const row = rowOf();
+    fireEvent.focus(row);
+    fireEvent.mouseEnter(row);
+    fireEvent.mouseLeave(row);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseEnter(row);
+    fireEvent.blur(row);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(row);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+    expect(p.onPause).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays paused while focus moves from the row to a control inside it', () => {
+    const p = renderRow();
+    const row = rowOf();
+    const checkbox = screen.getByRole('checkbox');
+    fireEvent.focus(row);
+    fireEvent.blur(row, { relatedTarget: checkbox });
+    fireEvent.focus(checkbox);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    fireEvent.blur(checkbox);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+  });
+
   it('looks like any other row once kept, with only the faint Undo left', () => {
     const onOpen = vi.fn();
     const p = renderRow(pending({ phase: 'kept', countdownEndsAt: null }), onOpen);

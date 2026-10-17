@@ -17,6 +17,7 @@ import {
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
+import { usePendingPause } from '../Suggestions/usePendingPause';
 import { CopyDragContext } from './copyDrag';
 
 interface NoteCardProps {
@@ -262,6 +263,7 @@ function RestingNoteCard({
   // A copy-drag leaves the original in place: only the copy is travelling.
   const hidden = dragging || (isDragging && !copying);
   const dashed = pending !== undefined && pending.mark.phase !== 'kept';
+  const pause = usePendingPause(pending);
 
   const wrapperStyle: CSSProperties = {
     ...style,
@@ -289,10 +291,7 @@ function RestingNoteCard({
           if (!isDragging && pendingKeys(e, pending)) return;
           listeners?.onKeyDown?.(e);
         }}
-        onMouseEnter={() => pending?.onPause(true)}
-        onMouseLeave={() => pending?.onPause(false)}
-        onFocus={() => pending?.onPause(true)}
-        onBlur={() => pending?.onPause(false)}
+        {...pause}
         className={cn(
           surface,
           'peer/note group/note cursor-grab',
@@ -321,18 +320,26 @@ function RestingNoteCard({
         )}
       >
         {body}
+        {/* The dot sits inside the card, so its label is part of the name of the control
+            that has focus: a screen reader hears that a change is counting down, or waiting
+            for Enter. It is an image, not a control, so it may sit inside the button. */}
+        {dashed && (
+          <PendingDot
+            mark={pending.mark}
+            onUndo={pending.onUndo}
+            className="pointer-events-none absolute right-2 top-2"
+          />
+        )}
       </button>
-      {/* Beside the card, not inside it: once kept this is the Undo button, and a button
-          cannot sit inside the card's own. The dot lets the pointer through to the card, so
-          hovering it still pauses the ring. It lifts with the card on hover. */}
-      {pending && !hidden && (
+      {/* Once kept, the Undo sits where the dot was, but beside the card rather than inside
+          it: a button cannot sit inside the card's own. It lifts with the card on hover. */}
+      {pending?.mark.phase === 'kept' && !hidden && (
         <PendingDot
           mark={pending.mark}
           onUndo={pending.onUndo}
           className={cn(
             'absolute right-2 top-2 transition-transform duration-150 ease-ds',
             'peer-hover/note:-translate-y-0.5 motion-reduce:peer-hover/note:translate-y-0',
-            pending.mark.phase !== 'kept' && 'pointer-events-none',
           )}
         />
       )}

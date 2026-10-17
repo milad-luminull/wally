@@ -15,6 +15,7 @@ import {
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
+import { usePendingPause } from '../Suggestions/usePendingPause';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -43,6 +44,7 @@ export function NoteRow({
   const proposed = proposedValues(note, pending);
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   const dashed = pending !== undefined && pending.mark.phase !== 'kept';
+  const pause = usePendingPause(pending);
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
   // exactly like "assigned to nobody".
@@ -83,10 +85,7 @@ export function NoteRow({
           onOpen();
         }
       }}
-      onMouseEnter={() => pending?.onPause(true)}
-      onMouseLeave={() => pending?.onPause(false)}
-      onFocus={() => pending?.onPause(true)}
-      onBlur={() => pending?.onPause(false)}
+      {...pause}
       className={cn(
         'group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
         'border-b border-border-subtle last:border-b-0',
