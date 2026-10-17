@@ -95,6 +95,16 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
       name: 'AI_APICallError',
       statusCode: 400,
     });
+  if (message === 'provider-no-read')
+    // What the runner throws when a question's first step answers without reading the board
+    // (runTurn.ts forces a tool call there): the model's own reply is in the error.
+    throw Object.assign(
+      new Error('Model response did not contain a tool call even though tool choice was required.'),
+      {
+        name: 'AI_ToolChoiceViolationError',
+        content: [{ type: 'text', text: 'This panel answers questions about the board.' }],
+      },
+    );
   if (message.startsWith('get:')) {
     try {
       const note = (await tool('get_note').execute({ noteId: message.slice('get:'.length) })) as {
@@ -297,14 +307,21 @@ describe('assistant turns', () => {
 
   it('answers a provider failure with its own error and none of the provider text', async () => {
     const fx = await createBoardFixture(ctx);
-    for (const script of ['provider-error', 'provider-400']) {
-      const res = await turn(fx.ownerToken, fx.boardId, script);
+    // The owner's turns in this file come near the route's rate limit; the editor asks the last.
+    for (const [token, script] of [
+      [fx.ownerToken, 'provider-error'],
+      [fx.ownerToken, 'provider-400'],
+      [fx.editToken, 'provider-no-read'],
+    ] as const) {
+      const res = await turn(token, fx.boardId, script);
       expect(res.statusCode, script).toBe(502);
       expect(res.json()).toEqual({
         error: 'ASSISTANT_PROVIDER_ERROR',
         message: 'The model provider failed',
       });
       expect(res.body).not.toContain('secret-project-42');
+      // A reply given without reading the board is never shown as the answer.
+      expect(res.body).not.toContain('This panel answers questions about the board.');
     }
   });
 
@@ -345,6 +362,22 @@ describe('assistant turns', () => {
     expect(text).toContain('2026-10-15');
     expect(text).toContain('Europe/Berlin');
     expect(text).toContain('VIEW');
+    // The fixture users carry DEFAULT_LANGUAGE, which is 'de'; the reply keeps it whatever
+    // language the question is in.
+    expect(text).toMatch(
+      /Answer in German even when the question or the notes are in another language\.$/,
+    );
+    const patch = await ctx.inject({
+      method: 'PATCH',
+      url: '/me',
+      headers: ctx.authHeader(fx.viewToken),
+      payload: { language: 'en' },
+    });
+    expect(patch.statusCode).toBe(200);
+    const en = await turn(fx.viewToken, fx.boardId, 'echo-instructions');
+    expect(en.json().conversation.entries[1].text).toMatch(
+      /Answer in English even when the question or the notes are in another language\.$/,
+    );
   });
 
   it('drops chips for notes the caller cannot see', async () => {

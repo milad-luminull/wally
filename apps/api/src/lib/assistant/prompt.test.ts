@@ -42,4 +42,27 @@ describe('buildInstructions', () => {
     expect(INSTRUCTIONS_PREFIX).toMatch(/first person/i);
     expect(INSTRUCTIONS_PREFIX).not.toMatch(/\bI\b am/);
   });
+  it('reads the board first and narrows the redirect to questions that are not about it', () => {
+    const readFirst = INSTRUCTIONS_PREFIX.indexOf(
+      'Read the board with the tools before answering; never guess board content.',
+    );
+    const redirect = INSTRUCTIONS_PREFIX.indexOf(
+      'After reading the board, if the question has nothing to do with it or with the tasks on it, say in one sentence that this panel answers questions about the board. A question about what is due, open, late, overdue, assigned, missing or planned is always about the board.',
+    );
+    expect(readFirst).toBeGreaterThanOrEqual(0);
+    expect(redirect).toBeGreaterThan(readFirst);
+    // The old, unconditional redirect is gone, and the new one is the only one.
+    expect(INSTRUCTIONS_PREFIX).not.toMatch(/If the question is not about the board/);
+    expect(INSTRUCTIONS_PREFIX.match(/this panel answers questions about the board/g)).toHaveLength(
+      1,
+    );
+  });
+  it('keeps the profile language whatever language the question or the notes are in', () => {
+    expect(buildInstructions({ ...base, language: 'en' })).toMatch(
+      /Answer in English even when the question or the notes are in another language\.$/,
+    );
+    expect(buildInstructions({ ...base, language: 'de' })).toMatch(
+      /Answer in German even when the question or the notes are in another language\.$/,
+    );
+  });
 });

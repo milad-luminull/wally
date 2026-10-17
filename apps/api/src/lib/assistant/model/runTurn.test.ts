@@ -65,26 +65,45 @@ function input(partial: Partial<TurnInput>, t = tools()): TurnInput {
 }
 
 describe('createTurnRunner', () => {
-  it('returns the text of a plain reply and settles one attempt', async () => {
-    const model = new MockLanguageModelV3({ doGenerate: [text('Nichts offen.')] });
+  it('returns the text of the reply and settles one attempt per step', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Nichts offen.')],
+    });
     const a = attempts();
     const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }));
     expect(out.text).toBe('Nichts offen.');
     expect(out.finishReason).toBe('stop');
-    expect(out.steps).toBe(1);
+    expect(out.steps).toBe(2);
     expect(out.pendingApprovals).toEqual([]);
-    expect(a.seen).toEqual([{ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 }]);
+    expect(a.seen).toEqual([
+      { stepNumber: 0, messageCount: 1, maxOutputTokens: 256 },
+      { stepNumber: 1, messageCount: 3, maxOutputTokens: 256 },
+    ]);
     expect(a.settled).toEqual([
+      { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
       { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
     ]);
     expect(out.unsettledSteps).toBe(0);
     expect(out.usage).toEqual({
-      inputTokens: 10,
-      cachedInputTokens: 2,
-      outputTokens: 5,
-      reasoningTokens: 1,
+      inputTokens: 20,
+      cachedInputTokens: 4,
+      outputTokens: 10,
+      reasoningTokens: 2,
     });
     expect(out.messages.length).toBeGreaterThan(1);
+  });
+
+  it('rejects a question answered without reading, after announcing its one attempt', async () => {
+    const model = new MockLanguageModelV3({ doGenerate: [text('Nichts offen.')] });
+    const a = attempts();
+    await expect(createTurnRunner(model)(input({ onAttempt: a.onAttempt }))).rejects.toMatchObject({
+      name: 'AI_ToolChoiceViolationError',
+    });
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(a.seen).toEqual([{ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 }]);
+    // The library throws before the step ends: the reservation stays held, as for any
+    // provider error.
+    expect(a.settled).toEqual([]);
   });
 
   it('executes a read tool and continues to the answer, one attempt per step', async () => {
@@ -108,6 +127,47 @@ describe('createTurnRunner', () => {
     expect(a.seen.map((s) => s.stepNumber)).toEqual([0, 1]);
     expect(a.settled).toHaveLength(2);
     expect(out.usage.inputTokens).toBe(20);
+  });
+
+  it('requires a tool call on the first step of a question, and leaves later steps automatic', async () => {
+    const t = tools();
+    const model = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('Three notes.')],
+    });
+    const a = attempts();
+    await createTurnRunner(model)(
+      input({ userMessage: 'What is overdue?', onAttempt: a.onAttempt }, t),
+    );
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(model.doGenerateCalls[0]!.toolChoice).toEqual({ type: 'required' });
+    expect(model.doGenerateCalls[1]!.toolChoice).not.toEqual({ type: 'required' });
+    // The ledger sees the forced step like any other.
+    expect(a.seen.map((s) => s.stepNumber)).toEqual([0, 1]);
+    expect(a.settled).toHaveLength(2);
+  });
+
+  it('does not force a tool call on a continuation that answers approvals', async () => {
+    const t = tools();
+    const first = new MockLanguageModelV3({
+      doGenerate: [toolCall('c2', 'create_note', { boardId: 'b1', input: { title: 'x' } })],
+    });
+    const paused = await createTurnRunner(first)(input({}, t));
+    for (const approved of [true, false]) {
+      const second = new MockLanguageModelV3({ doGenerate: [text('Fertig.')] });
+      const out = await createTurnRunner(second)(
+        input(
+          {
+            history: paused.messages,
+            userMessage: undefined,
+            approvals: [{ approvalId: paused.pendingApprovals[0]!.approvalId, approved }],
+          },
+          t,
+        ),
+      );
+      expect(out.text).toBe('Fertig.');
+      expect(second.doGenerateCalls).toHaveLength(1);
+      expect(second.doGenerateCalls[0]!.toolChoice).not.toEqual({ type: 'required' });
+    }
   });
 
   it('pauses a write tool as a pending approval and never executes it', async () => {
@@ -453,36 +513,38 @@ describe('createTurnRunner', () => {
     expect(a.settled).toHaveLength(1);
   });
 
-  it('passes the abort signal to the model call', async () => {
-    const model = new MockLanguageModelV3({ doGenerate: [text('ok')] });
+  it('passes the abort signal to every model call', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('ok')],
+    });
     const controller = new AbortController();
     await createTurnRunner(model)(input({ abortSignal: controller.signal }));
-    expect(model.doGenerateCalls[0]!.abortSignal).toBe(controller.signal);
+    expect(model.doGenerateCalls).toHaveLength(2);
+    for (const call of model.doGenerateCalls) expect(call.abortSignal).toBe(controller.signal);
   });
 
   it('leaves the reservation unsettled when the provider reports no usage', async () => {
+    const unreported = {
+      inputTokens: {
+        total: undefined,
+        noCache: undefined,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+    };
     const model = new MockLanguageModelV3({
       doGenerate: [
-        {
-          ...text('Ohne Zählung.'),
-          usage: {
-            inputTokens: {
-              total: undefined,
-              noCache: undefined,
-              cacheRead: undefined,
-              cacheWrite: undefined,
-            },
-            outputTokens: { total: undefined, text: undefined, reasoning: undefined },
-          },
-        },
+        { ...toolCall('c1', 'list_notes', { boardId: 'b1' }), usage: unreported },
+        { ...text('Ohne Zählung.'), usage: unreported },
       ],
     });
     const a = attempts();
     const out = await createTurnRunner(model)(input({ onAttempt: a.onAttempt }));
     expect(out.text).toBe('Ohne Zählung.');
-    expect(a.seen).toHaveLength(1);
+    expect(a.seen).toHaveLength(2);
     expect(a.settled).toEqual([]);
-    expect(out.unsettledSteps).toBe(1);
+    expect(out.unsettledSteps).toBe(2);
     expect(out.usage).toEqual({
       inputTokens: 0,
       cachedInputTokens: 0,
@@ -499,9 +561,12 @@ describe('createTurnRunner', () => {
     await createTurnRunner(model, { providerOptions })(input({}));
     expect(model.doGenerateCalls).toHaveLength(2);
     for (const call of model.doGenerateCalls) expect(call.providerOptions).toEqual(providerOptions);
-    const plain = new MockLanguageModelV3({ doGenerate: [text('ok')] });
+    const plain = new MockLanguageModelV3({
+      doGenerate: [toolCall('c1', 'list_notes', { boardId: 'b1' }), text('ok')],
+    });
     await createTurnRunner(plain)(input({}));
-    expect(plain.doGenerateCalls[0]!.providerOptions).toBeUndefined();
+    expect(plain.doGenerateCalls).toHaveLength(2);
+    for (const call of plain.doGenerateCalls) expect(call.providerOptions).toBeUndefined();
   });
 
   it('sends earlier tool results elided, keeping the calls, and stores them in full', async () => {
@@ -517,7 +582,9 @@ describe('createTurnRunner', () => {
     const earlier = await createTurnRunner(first)(input({}, t));
     expect(JSON.stringify(earlier.messages)).toContain(marker);
 
-    const second = new MockLanguageModelV3({ doGenerate: [text('Weiter.')] });
+    const second = new MockLanguageModelV3({
+      doGenerate: [toolCall('c3', 'list_notes', { boardId: 'b1' }), text('Weiter.')],
+    });
     const out = await createTurnRunner(second)(
       input({ history: earlier.messages, userMessage: 'Und jetzt?' }, t),
     );
