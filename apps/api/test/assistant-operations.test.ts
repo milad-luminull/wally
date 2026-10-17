@@ -171,6 +171,66 @@ describe('runOperation', () => {
     expect((await assistantAuditCol(ctx.db).get()).size).toBe(9);
   });
 
+  it('deletes a subtask once, replays on retry, and refuses stale or unknown ones', async () => {
+    await fixture();
+    const noteId = idOf(await create(owner, { title: 'x' }));
+    const sub = await runOperation(
+      as(owner),
+      call('add_subtask', { boardId, noteId, expectedRevision: 1, input: { text: 'Teil 1' } }),
+    );
+    const subtaskId = idOf(sub);
+    const del = call('delete_subtask', {
+      boardId,
+      noteId,
+      subtaskId,
+      expectedRevision: sub.revision,
+    });
+
+    const deleted = await runOperation(as(owner), del);
+    expect(deleted.revision).toBe(sub.revision! + 1);
+    const detail = await runOperation(as(owner), call('get_note', { boardId, noteId }));
+    expect(detail.data).toMatchObject({
+      subtaskSummary: { total: 0, done: 0 },
+      revision: deleted.revision,
+    });
+    const deleteAudits = () =>
+      assistantAuditCol(ctx.db).where('commandType', '==', 'subtask.delete').get();
+    expect((await deleteAudits()).size).toBe(1);
+
+    const replayed = await runOperation(as(owner), del);
+    expect(replayed.revision).toBe(deleted.revision);
+    expect(replayed.data).toEqual(deleted.data);
+    expect((await deleteAudits()).size).toBe(1);
+
+    // A refusal writes nothing: the note keeps its revision and no audit row is added.
+    const audits = (await assistantAuditCol(ctx.db).get()).size;
+    const revisionNow = async () =>
+      (
+        (await runOperation(as(owner), call('get_note', { boardId, noteId }))).data as {
+          revision: number;
+        }
+      ).revision;
+    await expect(
+      runOperation(
+        as(owner),
+        call('delete_subtask', { boardId, noteId, subtaskId, expectedRevision: 1 }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, code: 'STALE_REVISION' });
+    await expect(
+      runOperation(
+        as(owner),
+        call('delete_subtask', {
+          boardId,
+          noteId,
+          subtaskId: 'missing',
+          expectedRevision: deleted.revision,
+        }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(await revisionNow()).toBe(deleted.revision);
+    expect((await assistantAuditCol(ctx.db).get()).size).toBe(audits);
+  });
+
   it('refuses a stale revision without applying anything', async () => {
     await fixture();
     const noteId = idOf(await create(owner, { title: 'x' }));

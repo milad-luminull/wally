@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
+import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteCard } from './NoteCard';
 
@@ -140,6 +141,8 @@ describe('NoteCard with a pending change', () => {
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   });
   const renderCard = (p = pending()) => {
@@ -187,6 +190,7 @@ describe('NoteCard with a pending change', () => {
     );
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     fireEvent.keyDown(card, { key: 'Enter' });
+    expect(p.onKeep).toHaveBeenCalledWith('enter');
     expect(p.onKeep).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(card, { key: 'Escape' });
     expect(p.onDiscard).toHaveBeenCalledTimes(1);
@@ -246,6 +250,98 @@ describe('NoteCard with a pending change', () => {
     expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, warten auf Enter/);
   });
 
+  /** A pending mark whose suggestion also proposes a title, a reference or steps. */
+  const withProposals = (
+    fields: SuggestionMark['fields'],
+    extra: Partial<SuggestionFields>,
+    over: Partial<SuggestionMark> = {},
+  ) => {
+    const base = makeSuggestionMark();
+    return pending({
+      fields,
+      suggestion: { ...base.suggestion!, fields: { ...base.suggestion!.fields, ...extra } },
+      ...over,
+    });
+  };
+  const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+
+  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
+    const onOpen = vi.fn();
+    const p = withProposals(['dueDate'], { title: TITLE });
+    const card = (q: typeof p) => (
+      <DndContext>
+        <NoteCard
+          note={makeNote({ dueDate: null })}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={onOpen}
+          pending={q}
+        />
+      </DndContext>
+    );
+    const { rerender } = render(card(p));
+    // The person's own title stays; the offer is a line of its own beside it (BRAND rule 7).
+    expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
+    const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(line).toHaveAttribute('aria-pressed', 'false');
+    // What a press does, said only while the press would take the title.
+    expect(line).toHaveAttribute('aria-description', 'Vorschlag für den Titel übernehmen');
+    fireEvent.click(line);
+    expect(p.onSetField).toHaveBeenCalledWith('title', true);
+    // Enter on the line takes the title; it neither keeps the change nor opens the note.
+    fireEvent.keyDown(line, { key: 'Enter' });
+    expect(p.onSetField).toHaveBeenCalledTimes(2);
+    expect(p.onKeep).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+
+    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
+    rerender(card(taken));
+    const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
+    expect(takenLine).not.toHaveAttribute('aria-description');
+    fireEvent.click(takenLine);
+    expect(taken.onSetField).toHaveBeenCalledWith('title', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
+    expect(taken.onRemove).toHaveBeenCalledWith('title');
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('shows the reference and the step count with an × each', () => {
+    const p = renderCard(
+      withProposals(
+        ['dueDate', 'reference', 'subtasks'],
+        {
+          reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
+          subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+        },
+        { subtasks: [0, 2] },
+      ),
+    );
+    expect(screen.getByText('Kunde: Müller GmbH')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Kunde: Müller GmbH' }),
+    );
+    expect(p.onRemove).toHaveBeenCalledWith('reference');
+    // The count is of the steps still ticked, in the checklist's place.
+    expect(screen.getByText('2 Schritte')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: 2 Schritte' }));
+    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+  });
+
+  it('counts one step in the singular', () => {
+    renderCard(
+      withProposals(
+        ['subtasks'],
+        { subtasks: { items: ['Preise holen', 'Vergleichen'], reason: 'Ablauf' } },
+        { subtasks: [1] },
+      ),
+    );
+    expect(screen.getByText('1 Schritt')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: 1 Schritt' }),
+    ).toBeInTheDocument();
+  });
+
   it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
     const base = makeSuggestionMark({ phase: 'kept', countdownEndsAt: null });
     const p = pending({
@@ -255,7 +351,7 @@ describe('NoteCard with a pending change', () => {
       suggestion: {
         ...base.suggestion!,
         status: 'KEPT',
-        kept: { fields: ['dueDate', 'priority'], revision: 3 },
+        kept: { fields: ['dueDate', 'priority'], subtasks: [], revision: 3 },
       },
     });
     renderCard(p);
@@ -275,6 +371,7 @@ describe('NoteCard with a pending change', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
     );
+    expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
   });
 });

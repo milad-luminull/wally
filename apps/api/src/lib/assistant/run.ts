@@ -207,6 +207,14 @@ function toCommand(
         expectedRevision,
       };
     }
+    case 'delete_subtask': {
+      const { boardId, noteId, subtaskId, expectedRevision } =
+        input as OperationInput<'delete_subtask'>;
+      return {
+        command: { type: 'subtask.delete', noteId, boardId, subtaskId, input: {} },
+        expectedRevision,
+      };
+    }
     case 'assign_note': {
       const {
         boardId,

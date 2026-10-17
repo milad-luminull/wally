@@ -11,6 +11,7 @@ import type {
   NotePriority,
   NoteStatus,
   NoteVisibility,
+  SuggestionFieldKey,
   ThemePreference,
   WhiteboardRole,
 } from '@wally/shared';
@@ -250,11 +251,19 @@ export type AssistantConversationDoc = {
   expiresAt: Timestamp;
 };
 
-/** One operation id per write and per direction, minted when the suggestion is created. */
-export type SuggestionOperationIds = Record<
-  'dueDate' | 'priority' | 'assignee',
-  { apply: string; undo: string }
->;
+/**
+ * One operation id per write and per direction, minted when the suggestion is created. The
+ * subtask ids are indexed like the proposed items; records from slice 2 carry only the first
+ * three keys and read as proposing nothing else.
+ */
+export type SuggestionOperationIds = {
+  dueDate: { apply: string; undo: string };
+  priority: { apply: string; undo: string };
+  assignee: { apply: string; undo: string };
+  title?: { apply: string; undo: string };
+  reference?: { apply: string; undo: string };
+  subtasks?: { apply: string; undo: string }[];
+};
 
 /**
  * users/{uid}/assistantSuggestions/{id}: the approval record for one capture
@@ -266,17 +275,29 @@ export type AssistantSuggestionDoc = {
   noteId: string;
   /** The note revision the proposal was computed against. */
   baseRevision: number;
+  /**
+   * The note's title at `baseRevision`, stored with a proposed title: what an undo of a kept
+   * title puts back, even when the keep resumes on a note that already holds the new one.
+   */
+  baseTitle?: string;
   fields: {
     dueDate: { value: string; reason: string } | null;
     priority: { value: 'HOCH' | 'NIEDRIG'; reason: string } | null;
     /** A user id; the DTO resolves it to a summary at read time. */
     assignee: { value: string; reason: string } | null;
+    title?: { value: string; reason: string } | null;
+    reference?: { key: string; value: string; reason: string } | null;
+    subtasks?: { items: string[]; reason: string } | null;
   };
+  /** The fields the person decided while writing (`locked` at capture); absent on slice 2 records. */
+  typed?: SuggestionFieldKey[];
   operationIds: SuggestionOperationIds;
   status: 'PENDING' | 'KEPT' | 'UNDONE' | 'DISCARDED';
   decision: {
     source: string;
-    fields: ('dueDate' | 'priority' | 'assignee')[];
+    fields: SuggestionFieldKey[];
+    /** For a keep with subtasks: the indexes of the items the person kept. */
+    subtasks?: number[];
     at: Timestamp;
   } | null;
   /**
@@ -286,8 +307,19 @@ export type AssistantSuggestionDoc = {
   undone?: { source: string; at: Timestamp } | null;
   /** Written by a keep: what the note held before, and the revision the keep produced. */
   applied: {
-    before: { dueDate: string | null; priority: NotePriority; assigneeId: string | null };
-    fields: ('dueDate' | 'priority' | 'assignee')[];
+    before: {
+      dueDate: string | null;
+      priority: NotePriority;
+      assigneeId: string | null;
+      title?: string;
+      /** The key's previous value, or null when the key was not on the note. */
+      reference?: { key: string; previous: string | null } | null;
+    };
+    fields: SuggestionFieldKey[];
+    /** The kept indexes of the proposed subtasks. */
+    subtasks?: number[];
+    /** The ids the kept subtasks were created with, in index order of the kept items. */
+    subtaskIds?: string[];
     revision: number;
   } | null;
   model: string;

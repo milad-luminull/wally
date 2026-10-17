@@ -25,6 +25,8 @@ function pendingAt(phase: SuggestionPhase, onPause: (paused: boolean) => void): 
     onDiscard: vi.fn(),
     onUndo: vi.fn(),
     onRemove: vi.fn(),
+    onSetField: vi.fn(),
+    onSetSubtask: vi.fn(),
     onPause,
   };
 }
@@ -78,5 +80,19 @@ describe('usePendingPause', () => {
     onPause.mockClear();
     rerender(<Card pending={pendingAt('pending', onPause)} />);
     expect(onPause).toHaveBeenLastCalledWith(true);
+  });
+
+  it('lets go of its hold when it unmounts under the pointer, and only then', () => {
+    const onPause = vi.fn();
+    const hovered = render(<Card pending={pendingAt('pending', onPause)} />);
+    fireEvent.mouseEnter(screen.getByTestId('card'));
+    expect(onPause).toHaveBeenLastCalledWith(true);
+    hovered.unmount();
+    expect(onPause).toHaveBeenLastCalledWith(false);
+    expect(onPause).toHaveBeenCalledTimes(2);
+
+    const idle = vi.fn();
+    render(<Card pending={pendingAt('pending', idle)} />).unmount();
+    expect(idle).not.toHaveBeenCalled();
   });
 });

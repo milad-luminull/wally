@@ -12,6 +12,7 @@ import { ProposedField } from '../Suggestions/ProposedField';
 import {
   pendingKeys,
   proposedDateLabel,
+  proposedTitle,
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
@@ -46,6 +47,19 @@ export function NoteRow({
   const dashed = pending !== undefined && pending.mark.phase !== 'kept';
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
+  // The offered title shows ticked or not, and only while the change is pending (R2).
+  const offeredTitle = removable ? proposedTitle(pending.mark) : null;
+  const titleTaken = pending?.mark.fields.includes('title') ?? false;
+  const offeredTitleLabel =
+    offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
+  const referenceLabel =
+    proposed.reference &&
+    t('suggest.fields.reference', {
+      key: proposed.reference.key,
+      value: proposed.reference.value,
+    });
+  const stepsLabel =
+    proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
   const pause = usePendingPause(pending);
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
@@ -139,8 +153,46 @@ export function NoteRow({
           {note.title || t('common.untitled')}
         </span>
 
+        {/* A cleaner title is a full-width second line under the person's own, never a
+            replacement (BRAND rule 7): a tap takes it into the change, its × keeps theirs. */}
+        {offeredTitle && offeredTitleLabel && pending && (
+          <ProposedField
+            className="basis-full items-start"
+            name={offeredTitleLabel}
+            label={
+              <span
+                className={cn(
+                  'line-clamp-2 text-12 leading-snug',
+                  titleTaken ? 'text-fg-1' : 'text-fg-3',
+                )}
+              >
+                {offeredTitleLabel}
+              </span>
+            }
+            reason={offeredTitle.reason}
+            toggle={{
+              pressed: titleTaken,
+              onToggle: () => pending.onSetField('title', !titleTaken),
+              description: t('suggest.title.take'),
+            }}
+            removeLabel={t('suggest.title.mine')}
+            onRemove={() => pending.onRemove('title')}
+          />
+        )}
+
         {isPrivate && <PrivateBadge className="text-fg-3" />}
 
+        {/* The proposed reference and steps sit where the note's own property and checklist
+            count would: the note has neither while they are proposed (R7). */}
+        {proposed.reference && referenceLabel && (
+          <ProposedField
+            className="text-12 text-fg-3"
+            name={referenceLabel}
+            label={referenceLabel}
+            reason={proposed.reference.reason}
+            onRemove={removable ? () => pending?.onRemove('reference') : undefined}
+          />
+        )}
         {metaParts.length > 0 && (
           <span className="truncate text-12 text-fg-3">{metaParts.join(' · ')}</span>
         )}
@@ -157,6 +209,15 @@ export function NoteRow({
             }
             reason={proposed.assignee.reason}
             onRemove={removable ? () => pending?.onRemove('assignee') : undefined}
+          />
+        )}
+        {proposed.subtasks && stepsLabel && (
+          <ProposedField
+            className="text-12 tabular-nums text-fg-3"
+            name={stepsLabel}
+            label={stepsLabel}
+            reason={proposed.subtasks.reason}
+            onRemove={removable ? () => pending?.onRemove('subtasks') : undefined}
           />
         )}
         {note.tags.map((tag) => (
@@ -222,7 +283,7 @@ export function NoteRow({
             />
           )
         )}
-        {pending && <PendingDot mark={pending.mark} onUndo={pending.onUndo} />}
+        {pending && <PendingDot mark={pending.mark} onUndo={() => pending.onUndo('click')} />}
       </div>
     </div>
   );

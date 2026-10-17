@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
@@ -51,6 +51,7 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
@@ -59,6 +60,7 @@ import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 import { VisibilityRow } from './VisibilityRow';
 import { useLiveNoteText } from './useLiveNoteText';
+import { PendingReview } from './PendingReview';
 
 const NO_ASSIGNEE = '__none__';
 
@@ -79,6 +81,8 @@ interface NoteDetailPanelProps {
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
   currentUserId: string | undefined;
+  /** The open note's pending change, reviewed at the top of the panel (plan R3). */
+  pending?: PendingProps;
 }
 
 export function NoteDetailPanel({
@@ -90,6 +94,7 @@ export function NoteDetailPanel({
   onClose,
   onDuplicate,
   currentUserId,
+  pending,
 }: NoteDetailPanelProps) {
   const { t } = useTranslation();
   useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
@@ -107,6 +112,7 @@ export function NoteDetailPanel({
               onClose={onClose}
               onDuplicate={onDuplicate}
               currentUserId={currentUserId}
+              pending={pending}
               autoFocusTitle={false}
             />
           )}
@@ -136,6 +142,7 @@ export function NoteDetailPanel({
         onClose={onClose}
         onDuplicate={onDuplicate}
         currentUserId={currentUserId}
+        pending={pending}
         autoFocusTitle
       />
     </aside>
@@ -150,6 +157,7 @@ interface ContentProps {
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
   currentUserId: string | undefined;
+  pending: PendingProps | undefined;
   autoFocusTitle: boolean;
 }
 
@@ -161,6 +169,7 @@ function NoteDetailContent({
   onClose,
   onDuplicate,
   currentUserId,
+  pending,
   autoFocusTitle,
 }: ContentProps) {
   const { t } = useTranslation();
@@ -228,6 +237,23 @@ function NoteDetailContent({
     // every subsequent title keystroke — that's why this depends on the boolean
     // `noteReady`, not `note` itself. `titleRef` is a ref object and never changes.
   }, [noteId, autoFocusTitle, noteReady, titleRef]);
+
+  /*
+   * The review can go from under the keyboard: a keep's undo, a typed row unticked (its
+   * ordinary update moves the note past the change's revision, so the change goes, R4), or a
+   * change gone stale. Focus that was in it then lands on the panel's close button, where Tab
+   * carries on through the panel, never on the page behind it. Focus the person moved out of
+   * the review first (a click on the page, a field in the panel) is theirs and stays there.
+   */
+  const showReview = Boolean(pending && pending.mark.phase !== 'asking');
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const reviewHadFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (showReview) return;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (reviewHadFocus.current && lost) closeRef.current?.focus({ preventScroll: true });
+    reviewHadFocus.current = false;
+  }, [showReview]);
 
   if (isLoading || !note) {
     return (
@@ -324,13 +350,32 @@ function NoteDetailContent({
         </button>
         <span className="flex-1" />
         <IconTooltip label={t('common.close')} shortcut={['Esc']}>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t('common.close')}>
+          <Button
+            ref={closeRef}
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
             <X strokeWidth={1.75} />
           </Button>
         </IconTooltip>
       </header>
 
-      <div className="wally-scroll min-h-0 flex-1 overflow-y-auto">
+      <div
+        onFocusCapture={(e) => {
+          reviewHadFocus.current =
+            e.target instanceof Element && e.target.closest('[data-pending-review]') !== null;
+        }}
+        onBlurCapture={(e) => {
+          // A control removed with the review is not a move; the restore above answers that.
+          if (e.target instanceof Node && !e.target.isConnected) return;
+          const next = e.relatedTarget;
+          if (!(next instanceof Node) || !e.currentTarget.contains(next))
+            reviewHadFocus.current = false;
+        }}
+        className="wally-scroll min-h-0 flex-1 overflow-y-auto"
+      >
         <div className="px-5 pb-4 pt-5">
           <textarea
             ref={titleRef}
@@ -386,6 +431,8 @@ function NoteDetailContent({
             )}
           />
         </div>
+
+        {pending && showReview && <PendingReview note={note} pending={pending} />}
 
         <PanelSection>
           <SubtaskChecklist

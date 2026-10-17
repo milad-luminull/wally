@@ -17,6 +17,8 @@ const reply = (text: string) => ({
   usage,
   warnings: [],
 });
+/** The fields this reply proposes nothing for. */
+const none = { title: null, reference: null, subtasks: null };
 function attempts() {
   const seen: AttemptInfo[] = [];
   const settled: TurnUsage[] = [];
@@ -35,24 +37,22 @@ const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
 
 describe('createSuggestionRunner', () => {
   it('returns the validated fields and settles one attempt', async () => {
-    const model = new MockLanguageModelV3({
-      doGenerate: [
-        reply(
-          JSON.stringify({
-            dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
-            priority: null,
-            assignee: null,
-          }),
-        ),
-      ],
-    });
-    const a = attempts();
-    const out = await createSuggestionRunner(model)(input(a.onAttempt));
-    expect(out.fields).toEqual({
+    const fields = {
       dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
       priority: null,
       assignee: null,
-    });
+      title: { value: 'Müller anrufen', confidence: 0.8, reason: 'kürzer' },
+      reference: { key: 'Kunde', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde genannt' },
+      subtasks: {
+        items: ['Unterlagen prüfen', 'Müller anrufen'],
+        confidence: 0.7,
+        reason: 'zwei Schritte',
+      },
+    };
+    const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
+    const a = attempts();
+    const out = await createSuggestionRunner(model)(input(a.onAttempt));
+    expect(out.fields).toEqual(fields);
     expect(out.finishReason).toBe('stop');
     expect(a.seen).toEqual([{ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 }]);
     expect(a.settled).toEqual([
@@ -129,6 +129,7 @@ describe('createSuggestionRunner', () => {
               dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
               priority: null,
               assignee: null,
+              ...none,
             }),
           ),
           usage: {
@@ -156,17 +157,20 @@ describe('createSuggestionRunner', () => {
         dueDate: { value: 'Freitag', confidence: 0.9, reason: 'Freitag' },
         priority: null,
         assignee: null,
+        ...none,
       },
       // The right shape, but no such day: the stored record would fail the response schema.
       {
         dueDate: { value: '2026-04-31', confidence: 0.9, reason: 'Ende April' },
         priority: null,
         assignee: null,
+        ...none,
       },
       {
         dueDate: null,
         priority: null,
         assignee: { memberId: '', confidence: 0.9, reason: 'Anna' },
+        ...none,
       },
     ]) {
       const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
@@ -177,6 +181,79 @@ describe('createSuggestionRunner', () => {
     }
   });
 
+  it('drops only the optional field that breaks a length the wire leaves out, keeping the rest', async () => {
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
+    const base = { dueDate: date, priority: null, assignee: null, ...none };
+    const steps = (items: string[]) => ({ items, confidence: 0.7, reason: 'Schritte' });
+    const cases = {
+      'a title over 200 characters': {
+        ...base,
+        title: { value: 'x'.repeat(300), confidence: 0.9, reason: 'kürzer' },
+      },
+      'an empty reference key': {
+        ...base,
+        reference: { key: '', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde' },
+      },
+      'an over-long reference value': {
+        ...base,
+        reference: { key: 'Kunde', value: 'x'.repeat(2_000), confidence: 0.9, reason: 'Kunde' },
+      },
+      'only blank steps': { ...base, subtasks: steps([' ', '']) },
+      'an over-long step': { ...base, subtasks: steps(['Anrufen', 'x'.repeat(1_000)]) },
+    };
+    for (const [name, fields] of Object.entries(cases)) {
+      const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
+      const a = attempts();
+      const out = await createSuggestionRunner(model)(input(a.onAttempt));
+      expect(out.fields, name).toEqual({ ...base });
+      expect(a.settled, name).toHaveLength(1);
+    }
+  });
+
+  it('keeps the first five of six steps, beside the date', async () => {
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
+    const steps = { items: ['a', 'b', 'c', 'd', 'e', 'f'], confidence: 0.7, reason: 'Schritte' };
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        reply(
+          JSON.stringify({
+            dueDate: date,
+            priority: null,
+            assignee: null,
+            ...none,
+            subtasks: steps,
+          }),
+        ),
+      ],
+    });
+    const out = await createSuggestionRunner(model)(input(attempts().onAttempt));
+    expect(out.fields?.dueDate).toEqual(date);
+    expect(out.fields?.subtasks).toEqual({ ...steps, items: ['a', 'b', 'c', 'd', 'e'] });
+  });
+
+  it('trims the steps and drops the blank and the doubled ones before counting five', async () => {
+    const steps = {
+      items: [' a', 'a', ' ', 'b ', 'c', 'd', 'e', 'f'],
+      confidence: 0.7,
+      reason: 'Schritte',
+    };
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        reply(
+          JSON.stringify({
+            dueDate: null,
+            priority: null,
+            assignee: null,
+            ...none,
+            subtasks: steps,
+          }),
+        ),
+      ],
+    });
+    const out = await createSuggestionRunner(model)(input(attempts().onAttempt));
+    expect(out.fields?.subtasks?.items).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
   it('cuts a reason that runs long to 120 characters instead of dropping the proposal', async () => {
     const model = new MockLanguageModelV3({
       doGenerate: [
@@ -185,6 +262,7 @@ describe('createSuggestionRunner', () => {
             dueDate: null,
             priority: { value: 'HOCH', confidence: 0.9, reason: 'x'.repeat(200) },
             assignee: null,
+            ...none,
           }),
         ),
       ],
@@ -203,6 +281,11 @@ describe('createSuggestionRunner', () => {
     expect(JSON.parse(json)).toMatchObject({ type: 'object' });
     expect(json).toContain('dueDate');
     expect(json).toContain('memberId');
+    expect(json).toContain('"subtasks"');
+    expect(json).toContain('"reference"');
+    // "or null" is said of the title as a whole; its value is only ever a title.
+    expect(json).toContain('"description":"A cleaner title, or null."');
+    expect(json).toContain('"description":"A shorter title with the same meaning."');
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {
@@ -240,7 +323,7 @@ interface ClaudeBody {
  * key, so no sign-in and no network): what the request body carries is what Vertex would get.
  */
 describe('a suggestion call as it reaches Vertex', () => {
-  const answer = JSON.stringify({ dueDate: null, priority: null, assignee: null });
+  const answer = JSON.stringify({ dueDate: null, priority: null, assignee: null, ...none });
   async function send(ref: ModelRef) {
     const bodies: GeminiBody[] = [];
     const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
@@ -261,7 +344,7 @@ describe('a suggestion call as it reaches Vertex', () => {
       model,
       suggestionCallSettings(ref),
     )(input(a.onAttempt));
-    expect(out.fields).toEqual({ dueDate: null, priority: null, assignee: null });
+    expect(out.fields).toEqual({ dueDate: null, priority: null, assignee: null, ...none });
     expect(bodies).toHaveLength(1);
     return { body: bodies[0]!, announced: a.seen[0]!.maxOutputTokens };
   }
@@ -294,6 +377,7 @@ describe('a suggestion call as it reaches Vertex', () => {
         keywords.add(key);
         if (key === 'properties') Object.values(value as object).forEach(walk);
         else if (key === 'anyOf') (value as unknown[]).forEach(walk);
+        else if (key === 'items') walk(value);
       }
     };
     walk(schema);
@@ -308,11 +392,18 @@ describe('a suggestion call as it reaches Vertex', () => {
       'minimum',
       'maximum',
       'anyOf',
+      'items',
+      'maxItems',
       'description',
     ];
     expect([...keywords].filter((k) => !documented.includes(k))).toEqual([]);
     expect(keywords).not.toContain('pattern');
     expect(keywords).not.toContain('maxLength');
+    // The step count is one the page documents for arrays, so the provider is told it too.
+    type Node = { properties?: Record<string, Node>; anyOf?: Node[]; type?: unknown };
+    const subtasks = (schema as Node).properties!.subtasks!;
+    const branch = subtasks.anyOf?.find((n) => n.type === 'object') ?? subtasks;
+    expect(branch.properties!.items).toMatchObject({ type: 'array', maxItems: 5 });
   });
 });
 
@@ -327,6 +418,7 @@ describe('a suggestion call as it reaches Claude on Vertex', () => {
       dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
       priority: null,
       assignee: null,
+      ...none,
     };
     const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)) as never);

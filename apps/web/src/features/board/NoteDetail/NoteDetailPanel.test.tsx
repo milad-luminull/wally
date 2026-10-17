@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { enumLabels } from '@/i18n/enumLabels';
 import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { makeMember, makeNote, makeNoteDetail } from '@/test/fixtures';
+import { makeMember, makeNote, makeNoteDetail, makeSuggestionMark } from '@/test/fixtures';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { Toaster } from '@/components/ui/toaster';
 import { resetToasts } from '@/lib/toast';
 import { boardAccess } from '../util/permissions';
@@ -587,6 +588,159 @@ describe('NoteDetailPanel', () => {
           }),
         ),
       );
+    });
+  });
+
+  /** The review of a pending change lives in the panel (plan R3), above everything else. */
+  describe('reviewing a pending change', () => {
+    function pendingFor(): PendingProps {
+      const base = makeSuggestionMark();
+      return {
+        mark: makeSuggestionMark({
+          suggestion: { ...base.suggestion!, typed: ['dueDate'] },
+          fields: ['priority', 'assignee'],
+        }),
+        onKeep: vi.fn(),
+        onDiscard: vi.fn(),
+        onUndo: vi.fn(),
+        onRemove: vi.fn(),
+        onSetField: vi.fn(),
+        onSetSubtask: vi.fn(),
+        onPause: vi.fn(),
+      };
+    }
+
+    it('shows the review section only for a note with a pending change', async () => {
+      const { unmount } = renderPanel();
+      await screen.findByLabelText('Titel');
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      expect(screen.queryByText('Von Wallybot ergänzt')).not.toBeInTheDocument();
+      unmount();
+
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      renderPanel({ pending: pendingFor() });
+      await screen.findByLabelText('Titel');
+      const review = document.querySelector('[data-pending-review]');
+      expect(review).not.toBeNull();
+      expect(within(review as HTMLElement).getByText('Von Wallybot ergänzt')).toBeInTheDocument();
+      // Above the subtasks: the first thing under the title and the description.
+      const subtasks = screen.getByText('Unteraufgaben');
+      expect(review!.compareDocumentPosition(subtasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it('shows no review while the change is still being asked for', async () => {
+      renderPanel({ pending: { ...pendingFor(), mark: makeSuggestionMark({ phase: 'asking' }) } });
+      await screen.findByLabelText('Titel');
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+    });
+
+    /*
+     * R4 as ruled: a typed row is read-only. The typed date changes in the panel's own date
+     * field, which ends the pending change as any edit does (slice 2's stale-revision rule).
+     */
+    it('sends no update when a typed row is clicked (R4)', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const pending = pendingFor();
+      renderPanel({ pending });
+      await screen.findByLabelText('Titel');
+
+      const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
+      const row = within(typed).getByRole('checkbox', { name: /^Fällig / });
+      // Calls from earlier cases stay on these mocks; only what the click sends counts here.
+      vi.mocked(notesApi.update).mockClear();
+      vi.mocked(notesApi.move).mockClear();
+      vi.mocked(notesApi.assign).mockClear();
+      await user.click(row);
+
+      expect(row).toBeChecked();
+      expect(row).toBeDisabled();
+      expect(notesApi.update).not.toHaveBeenCalled();
+      expect(notesApi.move).not.toHaveBeenCalled();
+      expect(notesApi.assign).not.toHaveBeenCalled();
+      expect(pending.onSetField).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The ordinary update moves the note past the revision the change was proposed for, so the
+     * shell's controller forgets the change (useSuggestions.syncNotes) and the review goes with
+     * it; usePendingFor.test.tsx follows that through with the real controller. Here: the
+     * keyboard is not dropped on the page when that happens.
+     */
+    it('keeps focus in the panel when the review goes from under it', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const props = {
+        noteId: 'note-1',
+        boardId: 'board-1',
+        access: boardAccess('OWNER', 'user-1', 'all'),
+        axis: 'horizon' as const,
+        isBelowDesktop: false,
+        onClose: vi.fn(),
+        onDuplicate: vi.fn(),
+        currentUserId: 'user-1',
+      };
+      const { rerender } = renderWithProviders(
+        <NoteDetailPanel {...props} pending={pendingFor()} />,
+      );
+      await screen.findByLabelText('Titel');
+      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      const row = within(added).getAllByRole('checkbox')[0]!;
+      await user.click(row);
+      expect(row).toHaveFocus();
+
+      rerender(<NoteDetailPanel {...props} />);
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      const panel = screen.getByRole('complementary');
+      expect(document.activeElement).not.toBe(document.body);
+      expect(panel).toContainElement(document.activeElement as HTMLElement);
+      // The panel's close button: from there Tab carries on through the panel.
+      expect(screen.getByRole('button', { name: 'Schließen' })).toHaveFocus();
+      // The title, not the review, held focus otherwise: the panel leaves it alone then.
+      screen.getByLabelText('Titel').focus();
+      rerender(<NoteDetailPanel {...props} pending={pendingFor()} />);
+      rerender(<NoteDetailPanel {...props} />);
+      expect(screen.getByLabelText('Titel')).toHaveFocus();
+    });
+
+    it('leaves focus alone when the person clicked away from the review before it went', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const props = {
+        noteId: 'note-1',
+        boardId: 'board-1',
+        access: boardAccess('OWNER', 'user-1', 'all'),
+        axis: 'horizon' as const,
+        isBelowDesktop: false,
+        onClose: vi.fn(),
+        onDuplicate: vi.fn(),
+        currentUserId: 'user-1',
+      };
+      const { rerender } = renderWithProviders(
+        <NoteDetailPanel {...props} pending={pendingFor()} />,
+      );
+      await screen.findByLabelText('Titel');
+      const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
+      await user.click(within(added).getAllByRole('checkbox')[0]!);
+      // A click on the page behind the panel: focus goes to the page.
+      await user.click(document.body);
+      expect(document.body).toHaveFocus();
+
+      rerender(<NoteDetailPanel {...props} />);
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      expect(document.body).toHaveFocus();
     });
   });
 });

@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  FIELD_KEY_MAX_LENGTH,
+  FIELD_VALUE_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+  SUBTASK_TEXT_MAX_LENGTH,
+} from '../constants.js';
 import { userSummarySchema } from './user.js';
 
 /** An IANA zone the runtime knows; anything else would fail later, when the prompt is built. */
@@ -53,10 +59,22 @@ export const assistantTurnResponseSchema = z.object({
 });
 export type AssistantTurnResponse = z.infer<typeof assistantTurnResponseSchema>;
 
-/** The fields Wallybot may fill in on a note written in place (WALLYBOT_INLINE.md §3.3, R1). */
-export const suggestionFieldKeys = ['dueDate', 'priority', 'assignee'] as const;
+/**
+ * The fields Wallybot may fill in on a note written in place: slice 2's three, and slice 3's
+ * title line, reference property and subtasks (WALLYBOT_INLINE.md §3.3, §3.4).
+ */
+export const suggestionFieldKeys = [
+  'dueDate',
+  'priority',
+  'assignee',
+  'title',
+  'reference',
+  'subtasks',
+] as const;
 export const suggestionFieldKeySchema = z.enum(suggestionFieldKeys);
 export type SuggestionFieldKey = z.infer<typeof suggestionFieldKeySchema>;
+/** Steps a proposal may carry; more would be a plan, not a note. */
+export const SUGGESTION_MAX_SUBTASKS = 5;
 
 const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 
@@ -81,6 +99,31 @@ export const suggestionFieldsSchema = z.object({
   dueDate: z.object({ value: z.string().date(), reason: reasonSchema }).nullable(),
   priority: z.object({ value: z.enum(['HOCH', 'NIEDRIG']), reason: reasonSchema }).nullable(),
   assignee: z.object({ value: userSummarySchema, reason: reasonSchema }).nullable(),
+  /** A cleaner title, offered beside the person's own and never applied by a countdown (R2). */
+  title: z
+    .object({ value: z.string().min(1).max(NOTE_TITLE_MAX_LENGTH), reason: reasonSchema })
+    .nullable(),
+  /** One property, "Kunde: Müller GmbH"; the key is one the board already uses when it fits (R7). */
+  reference: z
+    .object({
+      key: z.string().min(1).max(FIELD_KEY_MAX_LENGTH),
+      value: z.string().min(1).max(FIELD_VALUE_MAX_LENGTH),
+      reason: reasonSchema,
+    })
+    .nullable(),
+  /**
+   * One step or more, at most `SUGGESTION_MAX_SUBTASKS`: the server proposes two to five (a
+   * single step is no breakdown), and the person keeps them one by one in the review.
+   */
+  subtasks: z
+    .object({
+      items: z
+        .array(z.string().min(1).max(SUBTASK_TEXT_MAX_LENGTH))
+        .min(1)
+        .max(SUGGESTION_MAX_SUBTASKS),
+      reason: reasonSchema,
+    })
+    .nullable(),
 });
 export type SuggestionFields = z.infer<typeof suggestionFieldsSchema>;
 
@@ -95,9 +138,16 @@ export const suggestionDtoSchema = z.object({
   /** The note revision the proposal was computed against; a keep is refused past it. */
   baseRevision: z.number().int().nonnegative(),
   fields: suggestionFieldsSchema,
+  /** The fields the person decided while writing (the chips, the placement): the review's first group. */
+  typed: z.array(suggestionFieldKeySchema),
   /** After a keep: which fields were applied and the revision they produced. */
   kept: z
-    .object({ fields: z.array(suggestionFieldKeySchema), revision: z.number().int().nonnegative() })
+    .object({
+      fields: z.array(suggestionFieldKeySchema),
+      /** Which of the proposed subtasks were written, by index. */
+      subtasks: z.array(z.number().int().nonnegative()),
+      revision: z.number().int().nonnegative(),
+    })
     .nullable(),
   createdAt: z.string().datetime(),
 });
@@ -125,6 +175,17 @@ export const suggestionDecisionSchema = z
     decision: z.enum(['keep', 'discard', 'undo']),
     /** For `keep`: the fields still on the card; omitted means every proposed field. */
     fields: z.array(suggestionFieldKeySchema).max(suggestionFieldKeys.length).optional(),
+    /** For `keep` with `subtasks` among the fields: the items to write, by index; omitted means all. */
+    subtasks: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(SUGGESTION_MAX_SUBTASKS - 1),
+      )
+      .max(SUGGESTION_MAX_SUBTASKS)
+      .optional(),
     source: suggestionDecisionSourceSchema,
   })
   .strict();

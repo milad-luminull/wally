@@ -11,7 +11,8 @@ import type { PendingProps } from './pendingProps';
  * Hover always pauses. Focus pauses only when it arrives once the change is pending: the
  * board focuses the committed card itself while the mark is still asking (useCaptureSession),
  * and that focus is not the person's. So when the mark turns pending, focus starts over as
- * "not focused", and a pointer already on the card pauses at once.
+ * "not focused", and a pointer already on the card pauses at once. A card that unmounts while
+ * it holds the pause lets go of it.
  */
 export function usePendingPause(pending: PendingProps | undefined) {
   const hovered = useRef(false);
@@ -25,6 +26,15 @@ export function usePendingPause(pending: PendingProps | undefined) {
     focused.current = false;
     if (hovered.current) latest.current?.onPause(true);
   }, [phase]);
+
+  // A card or row that leaves the board under the pointer or with focus (another view, a
+  // filter, the note gone) gets no leave or blur: it lets go of its hold as it goes.
+  useEffect(
+    () => () => {
+      if (hovered.current || focused.current) latest.current?.onPause(false);
+    },
+    [],
+  );
 
   function set(source: 'hover' | 'focus', value: boolean) {
     const before = hovered.current || focused.current;

@@ -27,7 +27,7 @@ import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
 import { useSuggestions } from './Suggestions/useSuggestions';
-import type { PendingProps } from './Suggestions/pendingProps';
+import { usePendingFor } from './Suggestions/usePendingFor';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -75,21 +75,12 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
     [requestSuggestion],
   );
-  const pendingFor = useCallback(
-    (noteId: string): PendingProps | undefined => {
-      const mark = suggestions.marks.get(noteId);
-      if (!mark) return undefined;
-      return {
-        mark,
-        onKeep: () => suggestions.keep(noteId, 'enter'),
-        onDiscard: () => suggestions.discard(noteId, 'esc'),
-        onUndo: () => suggestions.undo(noteId, 'esc'),
-        onRemove: (field) => suggestions.remove(noteId, field),
-        onPause: (paused) => suggestions.setPaused(noteId, paused),
-      };
-    },
-    [suggestions],
-  );
+  // Read through a ref: Undo can fire long after the render that set up the toast.
+  const openNoteId = useRef(viewState.noteId);
+  openNoteId.current = viewState.noteId;
+  // Every surface reads one mark per note; the panel open on a pending note holds its
+  // countdown (R3).
+  const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
@@ -124,9 +115,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       });
   }, [effectiveView, notes, startCapture, viewState.axis]);
 
-  // Read through a ref: Undo can fire long after the render that set up the toast.
-  const openNoteId = useRef(viewState.noteId);
-  openNoteId.current = viewState.noteId;
   const { openNote } = viewState;
   const { duplicate } = useDuplicateNote(boardId, {
     onUndo: (copyId) => {
@@ -242,6 +230,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           onClose={() => viewState.openNote(null)}
           onDuplicate={duplicateNote}
           currentUserId={user?.uid}
+          pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
         />
 
         {/* Off means nothing: no panel even when the link carries ?ask=1. */}
