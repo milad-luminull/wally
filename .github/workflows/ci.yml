@@ -221,7 +221,8 @@ jobs:
           for i in $(seq 1 90); do
             api=$(curl -fsS http://localhost:4000/health 2>/dev/null || true)
             web=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:5174/ 2>/dev/null || true)
-            if [ "$api" = '{"status":"ok"}' ] && [ "$web" = "200" ]; then
+            # Match the status field, not the whole body: /health also reports the assistant.
+            if jq -e '.status == "ok"' <<<"$api" >/dev/null 2>&1 && [ "$web" = "200" ]; then
               echo "stack ready after ${i}s"; exit 0
             fi
             sleep 1

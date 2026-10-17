@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { parseModelRef, resolveLanguageModel } from './config.js';
+
+const env = {
+  ASSISTANT_VERTEX_LOCATION: 'europe-west1',
+  ASSISTANT_VERTEX_PROJECT: 'wally-test',
+  FIREBASE_PROJECT_ID: 'wally-test',
+};
+
+describe('parseModelRef', () => {
+  it('splits provider and model on the first colon', () => {
+    expect(parseModelRef('vertex:gemini-3.8-flash')).toEqual({
+      provider: 'vertex',
+      model: 'gemini-3.8-flash',
+    });
+    expect(parseModelRef('vertex-anthropic:claude-sonnet-5-5')).toEqual({
+      provider: 'vertex-anthropic',
+      model: 'claude-sonnet-5-5',
+    });
+  });
+  it('rejects unknown providers and malformed values', () => {
+    for (const bad of ['openai:gpt', 'vertex', ':gemini', 'vertex:', 'vertex:a:b']) {
+      expect(() => parseModelRef(bad), bad).toThrow();
+    }
+  });
+});
+
+describe('resolveLanguageModel', () => {
+  it('builds a Vertex model with the configured id without calling anything', () => {
+    const model = resolveLanguageModel({ provider: 'vertex', model: 'gemini-3.8-flash' }, env);
+    expect(model.modelId).toBe('gemini-3.8-flash');
+    expect(model.provider).toContain('vertex');
+  });
+  it('builds a Claude-on-Vertex model', () => {
+    const model = resolveLanguageModel(
+      { provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' },
+      env,
+    );
+    expect(model.modelId).toBe('claude-sonnet-5-5');
+    // The installed provider names itself `googleVertex.anthropic.messages`.
+    expect(model.provider).toMatch(/vertex/i);
+  });
+  it('falls back to the Firebase project id', () => {
+    const model = resolveLanguageModel(
+      { provider: 'vertex', model: 'gemini-3.8-flash' },
+      { ...env, ASSISTANT_VERTEX_PROJECT: undefined },
+    );
+    expect(model.modelId).toBe('gemini-3.8-flash');
+  });
+});

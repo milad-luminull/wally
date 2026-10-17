@@ -278,7 +278,15 @@ jobs:
           set -euo pipefail
           URL="${{ steps.run_deploy.outputs.candidate_url }}"
           [ -n "$URL" ] || { echo "::error::no candidate URL"; exit 1; }
-          test "$(curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$URL/health")" = '{"status":"ok"}'
+          # /health reports the assistant's switch and model next to the status; check the
+          # fields, not the exact body, and log the configuration the candidate booted with.
+          health=$(curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$URL/health")
+          jq -e '.status == "ok"
+                 and (.assistant.enabled | type == "boolean")
+                 and (.assistant.model | type == "string" and test("^[a-z-]+:[^:]+$"))' \
+            <<<"$health" > /dev/null \
+            || { echo "::error::GET /health returned an unexpected body: $health"; exit 1; }
+          echo "candidate assistant config: $(jq -c '.assistant' <<<"$health")"
           code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/whiteboards")
           [ "$code" = "401" ] || { echo "::error::GET /whiteboards returned $code, expected 401"; exit 1; }
           echo "candidate healthy"
@@ -339,7 +347,9 @@ jobs:
           API="${{ vars.API_BASE_URL }}"
           WEB="${{ vars.WEB_ORIGIN }}"
 
-          test "$(curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$API/health")" = '{"status":"ok"}'
+          health=$(curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$API/health")
+          jq -e '.status == "ok"' <<<"$health" > /dev/null \
+            || { echo "::error::GET /health returned an unexpected body: $health"; exit 1; }
 
           code=$(curl -s -o /dev/null -w '%{http_code}' "$API/whiteboards")
           [ "$code" = "401" ] || { echo "::error::GET /whiteboards returned $code, expected 401"; exit 1; }

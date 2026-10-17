@@ -367,6 +367,12 @@ Three things worth understanding:
 `--set-env-vars` **replaces** the whole set, so every redeploy must list all four. Use
 `--update-env-vars` to change one without touching the others.
 
+The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
+(`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
+(default `europe-west1`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
+and the Cloud Run service account needs `roles/aiplatform.user`. `GET /health` reports
+the configured model without calling it.
+
 ### 9c. Make the service publicly reachable
 
 Note what is _missing_ from the deploy command above: `--allow-unauthenticated`. Most
@@ -431,7 +437,7 @@ one above consistently.)
 Sanity check it is alive:
 
 ```bash
-curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok"}
+curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
 curl -i https://wally-api-d5xbuta4ya-ew.a.run.app/whiteboards | head -1   # expect HTTP/2 401
 ```
 

@@ -11,6 +11,12 @@ export type WhiteboardRenameInput = z.infer<typeof whiteboardRenameSchema>;
 export const whiteboardCreateSchema = whiteboardRenameSchema;
 export type WhiteboardCreateInput = z.infer<typeof whiteboardCreateSchema>;
 
+/** PATCH /whiteboards/:id/assistant — the board owner's switch for the assistant. */
+export const whiteboardAssistantSchema = z.object({
+  enabled: z.boolean(),
+});
+export type WhiteboardAssistantInput = z.infer<typeof whiteboardAssistantSchema>;
+
 export const whiteboardDtoSchema = z.object({
   revision: z.number().int().nonnegative(),
   id: z.string(),
@@ -18,10 +24,11 @@ export const whiteboardDtoSchema = z.object({
   ownerId: z.string(),
   currentUserRole: effectiveRoleSchema,
   /**
-   * Deployment switch and, later, the per-board switch combined: what the web shows.
-   * Defaults to false because board.create and board.rename store this DTO in their
-   * idempotency receipt, and a replay returns it unchanged: a receipt written before this
-   * field existed must still parse within its seven-day window rather than fail as a 500.
+   * The deployment switch and the board owner's switch combined (assistantEnabledFor):
+   * what the web shows. Defaults to false because board.create, board.rename and
+   * board.assistant store this DTO in their idempotency receipt, and a replay returns it
+   * unchanged: a receipt written before this field existed must still parse within its
+   * seven-day window rather than fail as a 500.
    */
   assistantEnabled: z.boolean().default(false),
   createdAt: z.string().datetime(),

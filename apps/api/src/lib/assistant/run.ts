@@ -16,7 +16,10 @@ export interface OperationContext {
   actor: Actor;
   /** The board the conversation is bound to; every call must name it. */
   boardId: string;
-  /** The effective switch, deployment and (later) board combined. */
+  /**
+   * The effective switch: the deployment switch and the board owner's switch combined
+   * (assistantEnabledFor).
+   */
   assistantEnabled: boolean;
   provenance: Provenance;
   logger?: CommandLogger;
