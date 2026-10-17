@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
@@ -239,6 +239,22 @@ function NoteDetailContent({
     // `noteReady`, not `note` itself. `titleRef` is a ref object and never changes.
   }, [noteId, autoFocusTitle, noteReady, titleRef]);
 
+  /*
+   * The review can go from under the keyboard: a keep's undo, a typed row unticked (its
+   * ordinary update moves the note past the change's revision, so the change goes, R4), or a
+   * change gone stale. Focus that was in it then lands on the panel's body, where Tab carries
+   * on through the panel, never on the page behind it.
+   */
+  const showReview = Boolean(pending && pending.mark.phase !== 'asking');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const reviewHadFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (showReview) return;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (reviewHadFocus.current && lost) scrollRef.current?.focus({ preventScroll: true });
+    reviewHadFocus.current = false;
+  }, [showReview]);
+
   if (isLoading || !note) {
     return (
       <div className="flex flex-col gap-6 p-5" role="status" aria-label={t('common.loading')}>
@@ -354,7 +370,15 @@ function NoteDetailContent({
         </IconTooltip>
       </header>
 
-      <div className="wally-scroll min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        tabIndex={-1}
+        onFocusCapture={(e) => {
+          reviewHadFocus.current =
+            e.target instanceof Element && e.target.closest('[data-pending-review]') !== null;
+        }}
+        className="wally-scroll min-h-0 flex-1 overflow-y-auto outline-none"
+      >
         <div className="px-5 pb-4 pt-5">
           <textarea
             ref={titleRef}
@@ -411,7 +435,7 @@ function NoteDetailContent({
           />
         </div>
 
-        {pending && pending.mark.phase !== 'asking' && (
+        {pending && showReview && (
           <PendingReview note={note} pending={pending} onTypedChange={handleTypedChange} />
         )}
 

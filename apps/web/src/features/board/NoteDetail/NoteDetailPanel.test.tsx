@@ -661,5 +661,48 @@ describe('NoteDetailPanel', () => {
       // Not part of the suggestion: the controller hears nothing of it.
       expect(pending.onSetField).not.toHaveBeenCalled();
     });
+
+    /*
+     * The ordinary update moves the note past the revision the change was proposed for, so the
+     * shell's controller forgets the change (useSuggestions.syncNotes) and the review goes with
+     * it; usePendingFor.test.tsx follows that through with the real controller. Here: the
+     * keyboard is not dropped on the page when that happens.
+     */
+    it('keeps focus in the panel when the review goes from under it', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+      );
+      const props = {
+        noteId: 'note-1',
+        boardId: 'board-1',
+        access: boardAccess('OWNER', 'user-1', 'all'),
+        axis: 'horizon' as const,
+        isBelowDesktop: false,
+        onClose: vi.fn(),
+        onDuplicate: vi.fn(),
+        currentUserId: 'user-1',
+      };
+      const { rerender } = renderWithProviders(
+        <NoteDetailPanel {...props} pending={pendingFor()} />,
+      );
+      await screen.findByLabelText('Titel');
+      const typed = screen.getByRole('group', { name: 'Aus deinem Text' });
+      const row = within(typed).getByRole('checkbox', { name: /^Fällig / });
+      await user.click(row);
+      expect(row).toHaveFocus();
+
+      rerender(<NoteDetailPanel {...props} />);
+      expect(document.querySelector('[data-pending-review]')).toBeNull();
+      const panel = screen.getByRole('complementary');
+      expect(document.activeElement).not.toBe(document.body);
+      expect(panel).toContainElement(document.activeElement as HTMLElement);
+      // The title, not the review, held focus otherwise: the panel leaves it alone then.
+      screen.getByLabelText('Titel').focus();
+      rerender(<NoteDetailPanel {...props} pending={pendingFor()} />);
+      rerender(<NoteDetailPanel {...props} />);
+      expect(screen.getByLabelText('Titel')).toHaveFocus();
+    });
   });
 });

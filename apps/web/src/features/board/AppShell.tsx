@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -27,7 +27,7 @@ import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
 import { useSuggestions } from './Suggestions/useSuggestions';
-import type { PendingProps } from './Suggestions/pendingProps';
+import { usePendingFor } from './Suggestions/usePendingFor';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -75,42 +75,12 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
     [requestSuggestion],
   );
-  // Read through a ref: Undo can fire long after the render that set up the toast, and a card's
-  // pause handler long after the render that built it.
+  // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
   openNoteId.current = viewState.noteId;
-  const pendingFor = useCallback(
-    (noteId: string): PendingProps | undefined => {
-      const mark = suggestions.marks.get(noteId);
-      if (!mark) return undefined;
-      return {
-        mark,
-        onKeep: () => suggestions.keep(noteId, 'enter'),
-        onDiscard: () => suggestions.discard(noteId, 'esc'),
-        onUndo: () => suggestions.undo(noteId, 'esc'),
-        onRemove: (field) => suggestions.remove(noteId, field),
-        onSetField: (field, on) => suggestions.setField(noteId, field, on),
-        onSetSubtask: (index, on) => suggestions.setSubtask(noteId, index, on),
-        // The pointer leaving the card for the panel would otherwise resume the countdown the
-        // open panel holds (below); the panel's own close resumes it.
-        onPause: (paused) => {
-          if (!paused && openNoteId.current === noteId) return;
-          suggestions.setPaused(noteId, paused);
-        },
-      };
-    },
-    [suggestions],
-  );
-  // The panel open on a pending note pauses its countdown (R3): reading the review takes time.
-  const { setPaused } = suggestions;
-  const openPending =
-    viewState.noteId !== null && suggestions.marks.get(viewState.noteId)?.phase === 'pending';
-  useEffect(() => {
-    if (!openPending || !viewState.noteId) return;
-    const noteId = viewState.noteId;
-    setPaused(noteId, true);
-    return () => setPaused(noteId, false);
-  }, [openPending, viewState.noteId, setPaused]);
+  // Every surface reads one mark per note; the panel open on a pending note holds its
+  // countdown (R3).
+  const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
