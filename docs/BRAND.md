@@ -63,8 +63,9 @@ One colour is also what lets the icon survive on all fourteen note fills. See
 
 ### Note colour belongs to the user
 
-Fourteen fills. The persisted keys (`WEISS`, `SAND`, `BUTTER`, …) never change — only their
-values do, so nothing migrates in Firestore. In light mode they are clean pastels; in dark mode
+Fourteen fills. The persisted keys are the English labels (`CHALK`, `ICE`, `STONE`, …) and
+never change again; the German keys they replace are migrated in place
+([ADR-0014](adr/0014-english-identifiers-and-persisted-values.md)). In light mode they are clean pastels; in dark mode
 each is the same hue at ~16% over the surface. Cards carry a `--note-border` hairline so pale
 fills never dissolve into the wall. On the wall a note is filled edge to edge; in the list it
 is a small swatch beside the title.
@@ -176,9 +177,9 @@ and `brandGuards.test.ts` enforces the first one.
 8. Questions about the wall are answered in the panel in plain text, with the notes it read
    listed underneath.
 
-### `Wand` is not a wand
+### "Wand" is the German word for the wall
 
-`WandView`, `WandCanvas`, `board.topBar.view.wand`, `'Wally — Meine Wand'` — **Wand is German
-for wall**, and it is this product's own domain word for the whiteboard. It is not the banned
-AI metaphor. Do not grep for "wand" and "fix" it. The guard test matches lucide import
-specifiers only, never filenames or identifiers.
+It appears only in the German catalogue (`Wand`, `'Wally — Meine Wand'`) and in the German
+default board name. Code names are English (`WallView`, `WallCanvas`, `board.topBar.view.wall`;
+[ADR-0014](adr/0014-english-identifiers-and-persisted-values.md) renames what still carries
+it). The guard test matches lucide import specifiers only, never catalogue values.

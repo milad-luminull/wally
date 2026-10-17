@@ -88,7 +88,7 @@ Notes are top-level rather than nested under their board because routes address 
 - Identity comes from Firebase; permissions are Wally's own, enforced in the API. [ADR-0004](../adr/0004-firebase-auth-with-lazy-provisioning.md)
 - The contract between the apps is the Zod schemas in `@wally/shared`; neither app imports the other's source. [ADR-0002](../adr/0002-pnpm-turborepo-monorepo-with-shared-contract.md), [ADR-0005](../adr/0005-rest-api-validated-with-shared-zod-schemas.md)
 - There is no real-time channel. Members of a shared board see each other's changes on the next refetch. [ADR-0006](../adr/0006-server-state-in-tanstack-query-no-realtime.md)
-- UI text lives in the web catalogues; enum values and API messages stay English. [ADR-0007](../adr/0007-ui-text-in-bundled-i18next-catalogues.md)
+- UI text lives in the web catalogues; identifiers, enum values and API messages are English, the German ones being migrated in place. [ADR-0007](../adr/0007-ui-text-in-bundled-i18next-catalogues.md), [ADR-0014](../adr/0014-english-identifiers-and-persisted-values.md)
 - A release is a `v*` tag on `main`, deployed keyless with a smoke test and automatic rollback. [ADR-0008](../adr/0008-tag-triggered-release-to-hosting-and-cloud-run.md)
 
 ## Related documents
