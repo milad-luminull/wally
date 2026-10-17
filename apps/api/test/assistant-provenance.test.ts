@@ -35,7 +35,7 @@ describe('assistant provenance on the command layer', () => {
   }
   const receiptOf = (operationId: string) =>
     ctx.db.collection('users').doc(owner.id).collection('boardOperations').doc(operationId).get();
-  const create = (operationId: string, p: Provenance | undefined, title = 'Müller anrufen') =>
+  const create = (operationId: string, p: Provenance | undefined, title = 'Call Müller') =>
     executeBoardCommand(
       ctx.db,
       owner,
@@ -141,7 +141,7 @@ describe('assistant provenance on the command layer', () => {
     await executeBoardCommand(
       ctx.db,
       owner,
-      { type: 'board.rename', boardId, input: { name: 'Umbenannt' } },
+      { type: 'board.rename', boardId, input: { name: 'Renamed' } },
       { operationId, expectedRevision: board?.revision ?? 0 },
       { provenance },
     );

@@ -1,9 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteRow } from './NoteRow';
+
+// The rows sort in the reader's language, which useLanguage supplies outside a provider here.
+const reader = vi.hoisted(() => ({ language: 'en' as 'de' | 'en' }));
+vi.mock('@/i18n/LanguageProvider', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+  return {
+    ...actual,
+    useLanguage: () => ({
+      language: reader.language,
+      setLanguage: () => {},
+      isSaving: false,
+      saveFailed: false,
+    }),
+  };
+});
+
+afterEach(() => {
+  reader.language = 'en';
+  vi.restoreAllMocks();
+});
 
 describe('NoteRow with a pending change', () => {
   const pending = (over: Partial<SuggestionMark> = {}) => ({
@@ -16,7 +37,7 @@ describe('NoteRow with a pending change', () => {
     onSetSubtask: vi.fn(),
     onPause: vi.fn(),
   });
-  const rowOf = () => screen.getByText('Angebotsvergleich freigeben').closest('[role="button"]')!;
+  const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
   const renderRow = (p = pending(), onOpen = vi.fn()) => {
     render(
       <NoteRow
@@ -38,15 +59,15 @@ describe('NoteRow with a pending change', () => {
     expect(row.className).toContain('[border-left-style:dashed]');
     expect(row.className).not.toContain('border-dashed');
     expect(row).toHaveAttribute('data-note-id', 'note-1');
-    const dot = screen.getByRole('img', { name: /Vorgeschlagene/ });
+    const dot = screen.getByRole('img', { name: /Proposed changes/ });
     // The dot is the last thing on the row.
     expect(dot.parentElement?.lastElementChild).toBe(dot);
     expect(row.lastElementChild?.contains(dot)).toBe(true);
-    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
     expect(p.onRemove).toHaveBeenCalledWith('assignee');
   });
 
@@ -115,7 +136,7 @@ describe('NoteRow with a pending change', () => {
       ...over,
     });
   };
-  const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+  const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
   it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
     const onOpen = vi.fn();
@@ -131,11 +152,11 @@ describe('NoteRow with a pending change', () => {
       />
     );
     const { rerender } = render(row(p));
-    expect(screen.getByText('Angebotsvergleich freigeben')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
+    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(line).toHaveAttribute('aria-pressed', 'false');
     // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Vorschlag für den Titel übernehmen');
+    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
     // A full-width line of its own, under the title.
     expect(line.closest('[data-proposed]')?.className).toContain('basis-full');
     fireEvent.click(line);
@@ -147,10 +168,10 @@ describe('NoteRow with a pending change', () => {
 
     const taken = withProposals(['dueDate', 'title'], { title: TITLE });
     rerender(row(taken));
-    const takenLine = screen.getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(takenLine).toHaveAttribute('aria-pressed', 'true');
     expect(takenLine).not.toHaveAttribute('aria-description');
-    fireEvent.click(screen.getByRole('button', { name: 'Meinen Titel behalten' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
     expect(taken.onRemove).toHaveBeenCalledWith('title');
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -160,19 +181,19 @@ describe('NoteRow with a pending change', () => {
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
         {
-          reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
-          subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+          reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
+          subtasks: { items: ['Get prices', 'Compare', 'Approve'], reason: 'process' },
         },
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Kunde: Müller GmbH')).toBeInTheDocument();
+    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Vorschlag entfernen: Kunde: Müller GmbH' }),
+      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
     );
     expect(p.onRemove).toHaveBeenCalledWith('reference');
-    expect(screen.getByText('2 Schritte')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: 2 Schritte' }));
+    expect(screen.getByText('2 steps')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
     expect(p.onRemove).toHaveBeenCalledWith('subtasks');
   });
 
@@ -180,11 +201,9 @@ describe('NoteRow with a pending change', () => {
     const onOpen = vi.fn();
     const p = renderRow(pending({ phase: 'kept', countdownEndsAt: null }), onOpen);
     expect(rowOf().className).not.toContain('[border-left-style:dashed]');
-    expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
-    );
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Remove suggestion/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
@@ -223,8 +242,8 @@ describe('NoteRow just after a keep', () => {
         pending={props}
       />,
     );
-    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
+    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove suggestion/ })).toBeNull();
     // The refetch lands: the note's own date takes the place, in its own label.
     rerender(
       <NoteRow
@@ -236,7 +255,7 @@ describe('NoteRow just after a keep', () => {
         pending={props}
       />,
     );
-    expect(screen.queryByText(/Fr\.?,? 23\.10\./)).toBeNull();
+    expect(screen.queryByText(/Fri,? 10\/23/)).toBeNull();
   });
 });
 
@@ -252,9 +271,33 @@ describe('NoteRow without a pending change', () => {
         canEdit
       />,
     );
-    fireEvent.keyDown(screen.getByText('Angebotsvergleich freigeben').closest('[role="button"]')!, {
-      key: 'Enter',
-    });
+    fireEvent.keyDown(
+      screen.getByText('Approve the quote comparison').closest('[role="button"]')!,
+      {
+        key: 'Enter',
+      },
+    );
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['de', 'en'] as const)(
+    'shows the first property in the order of a reader of %s',
+    (language) => {
+      reader.language = language;
+      const compare = vi.spyOn(String.prototype, 'localeCompare');
+      render(
+        <NoteRow
+          note={makeNote({ customFields: { Zebra: 'stripes', Ärger: 'trouble' } })}
+          currentUserId="user-1"
+          onOpen={vi.fn()}
+          onToggleDone={vi.fn()}
+          canEdit
+        />,
+      );
+      // A code-point sort would pick Zebra (Z is U+005A, Ä is U+00C4).
+      expect(screen.getByText(/Ärger: trouble/)).toBeInTheDocument();
+      expect(screen.queryByText(/Zebra: stripes/)).toBeNull();
+      expect(compare.mock.calls.map(([, locale]) => locale)).toContain(language);
+    },
+  );
 });

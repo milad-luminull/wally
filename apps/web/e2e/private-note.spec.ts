@@ -26,7 +26,7 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
     await expect(leftOn).toHaveAttribute('aria-checked', 'false');
   }
 
-  const title = `E2E-Privat ${Date.now()}`;
+  const title = `E2E private ${Date.now()}`;
   const panel = await captureNote(page, title, { open: true });
 
   await page.getByRole('switch', { name: 'Privat' }).click();

@@ -1,5 +1,5 @@
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
-import { DEFAULT_LANGUAGE, normalizeFieldKey, noteListQuerySchema } from '@wally/shared';
+import { foldFieldKey, noteListQuerySchema, type Language } from '@wally/shared';
 import {
   docsWithId,
   historyCol,
@@ -24,6 +24,25 @@ import {
 } from '../dto.js';
 import { canSeeNote } from '../notes.js';
 import { requireAccess, notFound, revisionOf, type Actor } from './context.js';
+
+/**
+ * The `?field=` filter: "Customer" (the note has the property) or "Customer:Müller GmbH" (and it
+ * equals that value). Split on the first colon only, so a value may itself contain one. Key and
+ * value compare case-insensitively through the shared, locale-neutral fold (`foldFieldKey`), so
+ * "customer" finds "Customer" for every caller and "STRASSE" never finds "Straße".
+ */
+export function matchesFieldFilter(customFields: Record<string, string>, field: string): boolean {
+  const separator = field.indexOf(':');
+  const rawKey = separator === -1 ? field : field.slice(0, separator);
+  const rawValue = separator === -1 ? undefined : field.slice(separator + 1);
+  const wantedKey = foldFieldKey(rawKey);
+  const wantedValue = rawValue?.trim().toLowerCase();
+  return Object.entries(customFields).some(
+    ([key, value]) =>
+      foldFieldKey(key) === wantedKey &&
+      (wantedValue === undefined || value.toLowerCase() === wantedValue),
+  );
+}
 
 function byDueDateThenCreated(a: WithId<NoteDoc>, b: WithId<NoteDoc>): number {
   if (a.dueDate !== b.dueDate) {
@@ -114,22 +133,9 @@ export async function listNotes(db: Firestore, actor: Actor, boardId: string, ra
         );
       }
 
-      // `field` is "Kunde" (has the property) or "Kunde:Müller GmbH" (equals that value).
-      // Split on the first colon only, so a value may itself contain one.
       if (query.field) {
-        const separator = query.field.indexOf(':');
-        const rawKey = separator === -1 ? query.field : query.field.slice(0, separator);
-        const rawValue = separator === -1 ? undefined : query.field.slice(separator + 1);
-        const wantedKey = normalizeFieldKey(rawKey).toLocaleLowerCase('de');
-        const wantedValue = rawValue?.trim().toLocaleLowerCase('de');
-
-        notes = notes.filter((n) =>
-          Object.entries(n.customFields ?? {}).some(
-            ([key, value]) =>
-              normalizeFieldKey(key).toLocaleLowerCase('de') === wantedKey &&
-              (wantedValue === undefined || value.toLocaleLowerCase('de') === wantedValue),
-          ),
-        );
+        const field = query.field;
+        notes = notes.filter((n) => matchesFieldFilter(n.customFields ?? {}, field));
       }
 
       notes.sort(byDueDateThenCreated);
@@ -201,9 +207,8 @@ export async function getShareLink(db: Firestore, actor: Actor, boardId: string,
     { readOnly: true },
   );
 }
-export async function listTags(db: Firestore, actor: Actor, boardId: string) {
+/** The board's tags in use, each once, sorted for the caller's language (their profile's). */
+export async function listTags(db: Firestore, actor: Actor, boardId: string, language: Language) {
   const notes = await listNotes(db, actor, boardId, {});
-  return [...new Set(notes.flatMap((n) => n.tags))].sort((a, b) =>
-    a.localeCompare(b, DEFAULT_LANGUAGE),
-  );
+  return [...new Set(notes.flatMap((n) => n.tags))].sort((a, b) => a.localeCompare(b, language));
 }

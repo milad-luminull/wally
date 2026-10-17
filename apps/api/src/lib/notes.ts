@@ -105,7 +105,7 @@ export function computeMoveUpdate(
 /**
  * Applies PATCH `fieldChanges` to the note's CURRENT properties — the map read inside the
  * route's transaction, not whatever the client last saw. Keys resolve case-insensitively, so
- * setting "kunde" overwrites an existing "Kunde" and removing "KUNDE" removes it.
+ * setting "customer" overwrites an existing "Customer" and removing "CUSTOMER" removes it.
  * Throws a 400 when the result would carry more properties than a note may hold.
  */
 export function applyFieldChanges(

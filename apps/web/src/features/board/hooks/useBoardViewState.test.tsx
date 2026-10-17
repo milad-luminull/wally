@@ -25,7 +25,7 @@ const PROFILE: MeDto = {
   id: 'u1',
   email: 'max@example.com',
   displayName: 'Max',
-  language: 'de',
+  language: 'en',
   preferences: {
     ...DEFAULT_PREFERENCES,
     boards: {
@@ -143,7 +143,7 @@ describe('useBoardViewState', () => {
   });
 
   it('reset forgets the board and clears every filter', async () => {
-    const { result } = setup('/boards/b1?q=report&field=Kunde');
+    const { result } = setup('/boards/b1?q=report&field=Customer');
 
     act(() => result.current.view.resetView());
 
@@ -159,14 +159,14 @@ describe('useBoardViewState', () => {
     // Every filter non-default: done, mine and priority from the saved profile, visibility
     // and the property filter from the URL.
     const { result, queryClient } = setup(
-      '/boards/b1?visibility=private&field=Kunde&fieldValue=ACME&q=report',
+      '/boards/b1?visibility=private&field=Customer&fieldValue=ACME&q=report',
     );
     expect(result.current.view).toMatchObject({
       done: false,
       mine: true,
       priority: ['HOCH'],
       visibility: 'private',
-      fieldKey: 'Kunde',
+      fieldKey: 'Customer',
     });
 
     act(() => result.current.view.resetFilters());
@@ -201,7 +201,7 @@ describe('useBoardViewState', () => {
   });
 
   it('clears the property value together with its key', () => {
-    const { result } = setup('/boards/b1?field=Kunde&fieldValue=ACME');
+    const { result } = setup('/boards/b1?field=Customer&fieldValue=ACME');
 
     act(() => result.current.view.setFieldKey('Phase'));
 

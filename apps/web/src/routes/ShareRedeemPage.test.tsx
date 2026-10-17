@@ -27,7 +27,7 @@ const queryKeys = scopedQueryKeys(null);
 
 /** Stands in for the board the token unlocks, so a redirect is observable. */
 function BoardStub() {
-  return <p>Wand geöffnet</p>;
+  return <p>Board opened</p>;
 }
 
 /** Echoes the location ProtectedRoute stashed, so the return path is observable. */
@@ -60,7 +60,7 @@ describe('ShareRedeemPage', () => {
 
     renderWithProviders(routes(), { route: '/share/tok-1' });
 
-    expect(await screen.findByText('Wand geöffnet')).toBeInTheDocument();
+    expect(await screen.findByText('Board opened')).toBeInTheDocument();
     expect(shareLinkApi.redeem).toHaveBeenCalledWith('tok-1');
   });
 
@@ -74,7 +74,7 @@ describe('ShareRedeemPage', () => {
 
     renderWithProviders(<StrictMode>{routes()}</StrictMode>, { route: '/share/tok-1' });
 
-    expect(await screen.findByText('Wand geöffnet')).toBeInTheDocument();
+    expect(await screen.findByText('Board opened')).toBeInTheDocument();
     expect(shareLinkApi.redeem).toHaveBeenCalledTimes(1);
   });
 
@@ -83,8 +83,8 @@ describe('ShareRedeemPage', () => {
 
     renderWithProviders(routes(), { route: '/share/tok-gone' });
 
-    expect(await screen.findByText('Dieser Link funktioniert nicht mehr')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Zu deinen Wänden' })).toBeInTheDocument();
+    expect(await screen.findByText('This link no longer works')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to your boards' })).toBeInTheDocument();
   });
 
   it('offers a retry when redemption fails for an unexpected reason', async () => {
@@ -93,7 +93,7 @@ describe('ShareRedeemPage', () => {
 
     renderWithProviders(routes(), { route: '/share/tok-1' });
 
-    await user.click(await screen.findByRole('button', { name: 'Erneut versuchen' }));
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(shareLinkApi.redeem).toHaveBeenCalledTimes(2));
   });
 
@@ -104,7 +104,7 @@ describe('ShareRedeemPage', () => {
 
     renderWithProviders(routes(), { route: '/share/tok-1', queryClient });
 
-    await screen.findByText('Wand geöffnet');
+    await screen.findByText('Board opened');
     // The membership is new, so the caller's board list no longer reflects what they can see.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.meBoards() });
   });

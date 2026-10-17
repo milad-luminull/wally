@@ -30,7 +30,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -47,7 +47,7 @@ import { boardAccess } from '../util/permissions';
 import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import { ListView } from '../ListView/ListView';
-import { WandView } from '../WandView/WandView';
+import { WallView } from '../WallView/WallView';
 import { useCaptureSession } from './useCaptureSession';
 
 const BOARD = 'board-1';
@@ -60,7 +60,7 @@ let nextId = 1;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  server = [makeNote({ id: 'n1', title: 'Vorhanden', horizon: 'HEUTE', priority: 'HOCH' })];
+  server = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   nextId = 1;
   vi.mocked(notesApi.list).mockImplementation(async () => server.map((n) => ({ ...n })));
   vi.mocked(notesApi.create).mockImplementation(async (_board, input) => {
@@ -143,7 +143,7 @@ function Board({
           }
         />
       ) : (
-        <WandView
+        <WallView
           boardId={BOARD}
           notes={boardNotes}
           totalNoteCount={boardNotes.length}
@@ -178,8 +178,8 @@ function renderBoard(view: BoardView, axis: BoardAxis) {
   return { ...result, openNote, onCommitted, rerender };
 }
 
-const captureCard = () => screen.findByRole('group', { name: 'Neue Notiz schreiben' });
-const titleField = () => screen.findByRole('textbox', { name: 'Titel der neuen Notiz' });
+const captureCard = () => screen.findByRole('group', { name: 'Write a new note' });
+const titleField = () => screen.findByRole('textbox', { name: 'Title of the new note' });
 
 /** Holds the next update (the blur commit's) until the returned function is called. */
 function holdNextUpdate() {
@@ -209,7 +209,7 @@ async function settle(release: () => void) {
 
 /** Every place the board draws this title, outside the card it is being written in. */
 function copiesOutsideCapture(title: string) {
-  const card = screen.queryByRole('group', { name: 'Neue Notiz schreiben' });
+  const card = screen.queryByRole('group', { name: 'Write a new note' });
   return screen.queryAllByText(title).filter((el) => !card?.contains(el));
 }
 
@@ -222,7 +222,7 @@ describe('useCaptureSession: the note being written has one card', () => {
     'shows only the capture %s while typing, then the real card on commit',
     async (_where, view, axis) => {
       const { container } = renderBoard(view, axis);
-      await screen.findByText('Vorhanden');
+      await screen.findByText('Existing');
       await userEvent.click(screen.getByRole('button', { name: 'new' }));
       await userEvent.type(await titleField(), 'M');
 
@@ -232,40 +232,40 @@ describe('useCaptureSession: the note being written has one card', () => {
       expect(copiesOutsideCapture('M')).toEqual([]);
       if (view === 'wand') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(1);
 
-      await userEvent.type(await titleField(), 'ünchen{Enter}');
+      await userEvent.type(await titleField(), 'unich{Enter}');
       await waitFor(() =>
-        expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+        expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
       );
-      expect(await screen.findAllByText('München')).toHaveLength(1);
+      expect(await screen.findAllByText('Munich')).toHaveLength(1);
       if (view === 'wand') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
     },
   );
 
   it('a plain Enter never opens the panel; ⌘↵ / Ctrl+↵ does', async () => {
     const { openNote } = renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Erste{Enter}');
+    await screen.findByText('Existing');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'First{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     await waitFor(() => expect(notesApi.update).toHaveBeenCalled());
     expect(openNote).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Zweite{Control>}{Enter}{/Control}');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'Second{Control>}{Enter}{/Control}');
     await waitFor(() => expect(openNote).toHaveBeenCalledWith('created-2'));
     expect(openNote).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull();
   });
 
   it('after Enter, the keyboard carries on from the committed card', async () => {
     const { container } = renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Weiter{Enter}');
+    await screen.findByText('Existing');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'Onward{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     const card = container.querySelector('[data-note-id="created-1"] button');
     await waitFor(() => expect(card).toHaveFocus());
@@ -273,11 +273,11 @@ describe('useCaptureSession: the note being written has one card', () => {
 
   it('after Enter in the list, the keyboard carries on from the committed row', async () => {
     const { container } = renderBoard('list', 'horizon');
-    await screen.findByText('Vorhanden');
+    await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'new' }));
-    await userEvent.type(await titleField(), 'Zeile{Enter}');
+    await userEvent.type(await titleField(), 'Row{Enter}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     // The row itself, not its checkbox: Enter on the row is what keeps a pending change.
     const row = container.querySelector('[data-note-id="created-1"][role="button"]');
@@ -287,17 +287,17 @@ describe('useCaptureSession: the note being written has one card', () => {
 
   it('after Enter the shell hears which fields were typed', async () => {
     const { onCommitted } = renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Weg{Escape}');
+    await screen.findByText('Existing');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'Gone{Escape}');
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalled());
     expect(onCommitted).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Bericht Freitag{Enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'Report Friday{Enter}');
     await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-2', ['dueDate']));
     expect(onCommitted).toHaveBeenCalledTimes(1);
   });
@@ -307,7 +307,7 @@ describe('useCaptureSession: the note being written has one card', () => {
     ['horizon', { horizon: 'HEUTE' }],
   ] as const)('N on the %s wall writes the note in the default zone', async (axis, expected) => {
     renderBoard('wand', axis);
-    await screen.findByText('Vorhanden');
+    await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'new' }));
     await userEvent.type(await titleField(), 'X');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -318,108 +318,108 @@ describe('useCaptureSession: the note being written has one card', () => {
 describe('useCaptureSession: a capture never blocks the next one', () => {
   it('closes a capture the board can no longer show, and the next gesture opens one', async () => {
     const { rerender } = renderBoard('list', 'horizon');
-    await screen.findByText('Vorhanden');
+    await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'new' }));
-    await userEvent.type(await titleField(), 'Liste');
+    await userEvent.type(await titleField(), 'Listed');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     // Back/Forward or a resize to desktop: the list is gone, nothing blurred the card.
     rerender({ view: 'wand', axis: 'horizon' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
     // The words typed so far were kept on the note, and it is back on the board.
-    expect(await screen.findByText('Liste')).toBeInTheDocument();
+    expect(await screen.findByText('Listed')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     expect(await captureCard()).toBeInTheDocument();
     expect(await titleField()).toHaveValue('');
 
     // Back to the list: the old capture does not come back.
     rerender({ view: 'list', axis: 'horizon' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
   });
 
   it('closes a zone capture when the axis changes under it', async () => {
     const { rerender } = renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await screen.findByText('Existing');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await captureCard();
 
     rerender({ view: 'wand', axis: 'priority' });
     await waitFor(() =>
-      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Hoch“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “High”' }));
     expect(await captureCard()).toBeInTheDocument();
   });
 
   it('a zone plus while a commit is still settling opens a fresh card there', async () => {
     renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
-    await userEvent.type(await titleField(), 'Erste');
+    await screen.findByText('Existing');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
+    await userEvent.type(await titleField(), 'First');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     // The blur commit's update hangs until released.
     const release = holdNextUpdate();
     // A real click: mousedown moves focus (the card blurs and starts its commit), then click.
-    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Diese Woche“ anlegen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a note to “This week”' }));
 
-    const week = screen.getByRole('region', { name: /^Diese Woche/ });
-    const fresh = await within(week).findByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const week = screen.getByRole('region', { name: /^This week/ });
+    const fresh = await within(week).findByRole('textbox', { name: 'Title of the new note' });
     expect(fresh).toHaveValue('');
     expect(fresh).toHaveFocus();
     // The first note is no longer being written: the board shows it as a real card.
-    const today = screen.getByRole('region', { name: /^Heute/ });
-    expect(within(today).getByText('Erste')).toBeInTheDocument();
-    expect(within(today).queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull();
+    const today = screen.getByRole('region', { name: /^Today/ });
+    expect(within(today).getByText('First')).toBeInTheDocument();
+    expect(within(today).queryByRole('group', { name: 'Write a new note' })).toBeNull();
 
     // The first commit settles late; it must not close the card that replaced it.
     await settle(release);
     expect(notesApi.update).toHaveBeenCalledTimes(1);
-    expect(within(week).getByRole('group', { name: 'Neue Notiz schreiben' })).toBeInTheDocument();
+    expect(within(week).getByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
   });
 
   it('the same zone’s plus again while a commit is settling gives a fresh card, not the old one', async () => {
     renderBoard('wand', 'horizon');
-    await screen.findByText('Vorhanden');
-    const plus = screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' });
+    await screen.findByText('Existing');
+    const plus = screen.getByRole('button', { name: 'Add a note to “Today”' });
     await userEvent.click(plus);
-    await userEvent.type(await titleField(), 'Alt');
+    await userEvent.type(await titleField(), 'Old');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     const release = holdNextUpdate();
     await userEvent.click(plus);
     expect(await titleField()).toHaveValue('');
     expect(await titleField()).not.toHaveAttribute('readonly');
-    await userEvent.type(await titleField(), 'Neu');
+    await userEvent.type(await titleField(), 'New');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(2));
 
     await settle(release);
-    expect(await titleField()).toHaveValue('Neu');
-    expect(screen.getByText('Alt')).toBeInTheDocument();
+    expect(await titleField()).toHaveValue('New');
+    expect(screen.getByText('Old')).toBeInTheDocument();
   });
 
   it('a second double-click on the canvas while the first capture has text moves the capture', async () => {
     const { container } = renderBoard('wand', 'free');
-    await screen.findByText('Vorhanden');
-    const canvas = screen.getByTestId('wand-canvas');
+    await screen.findByText('Existing');
+    const canvas = screen.getByTestId('wall-canvas');
     fireEvent.doubleClick(canvas, { clientX: 300, clientY: 200 });
-    await userEvent.type(await titleField(), 'Links');
+    await userEvent.type(await titleField(), 'Left');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     const release = holdNextUpdate();
     // The first mousedown blurs the card (its commit starts and hangs), the dblclick follows.
     await userEvent.dblClick(canvas);
     const card = await captureCard();
-    expect(within(card).getByRole('textbox', { name: 'Titel der neuen Notiz' })).toHaveValue('');
-    expect(screen.getByText('Links')).toBeInTheDocument();
+    expect(within(card).getByRole('textbox', { name: 'Title of the new note' })).toHaveValue('');
+    expect(screen.getByText('Left')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
 
     await settle(release);
-    expect(screen.getByRole('group', { name: 'Neue Notiz schreiben' })).toBe(card);
+    expect(screen.getByRole('group', { name: 'Write a new note' })).toBe(card);
   });
 });

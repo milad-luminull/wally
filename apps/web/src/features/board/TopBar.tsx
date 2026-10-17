@@ -49,7 +49,7 @@ function buildViewOptions(t: T): SegmentedOption<BoardView>[] {
   return [
     {
       value: 'wand',
-      label: t('board.topBar.view.wand'),
+      label: t('board.topBar.view.wall'),
       icon: <Columns3 strokeWidth={1.75} aria-hidden />,
     },
     {

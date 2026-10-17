@@ -6,10 +6,10 @@ test('full note lifecycle: create, add a subtask, complete, reopen, delete', asy
 
   await signIn(page);
 
-  const title = `Lifecycle-Test ${Date.now()}`;
+  const title = `Lifecycle test ${Date.now()}`;
   await captureNote(page, title, { open: true });
 
-  await page.getByLabel('Unteraufgabe hinzufügen').fill('Erster Schritt');
+  await page.getByLabel('Unteraufgabe hinzufügen').fill('First step');
   await page.getByLabel('Unteraufgabe hinzufügen').press('Enter');
   await expect(page.getByText('0 von 1')).toBeVisible();
 
@@ -33,7 +33,7 @@ test('full note lifecycle: create, add a subtask, complete, reopen, delete', asy
   await expect(deletedToast).toBeVisible();
   await deletedToast.getByRole('button', { name: 'Schließen' }).click();
 
-  // The desktop project runs at 1280px, i.e. in the Wand view on the Horizont axis, where
+  // The desktop project runs at 1280px, i.e. in the Wall view on the Horizon axis, where
   // an exhausted filter renders per-zone empty states rather than one global message.
   // Asserting the note itself is gone tests the deletion regardless of the active view.
   await page.getByLabel('Notizen durchsuchen').fill(title);

@@ -213,7 +213,7 @@ it('reviews a stale board deletion with the board name and the change spelled ou
     .fn()
     .mockResolvedValueOnce(failure(409, 'STALE_REVISION'))
     .mockResolvedValueOnce(
-      response({ id: 'b', name: 'Projekt Nord', ownerId: 'u', revision: 4 }, 4),
+      response({ id: 'b', name: 'Project North', ownerId: 'u', revision: 4 }, 4),
     );
   vi.stubGlobal('fetch', fetcher);
   await boardsApi.remove('b', captureMutation('board:b', { revision: 3 })).catch(() => {});
@@ -221,5 +221,5 @@ it('reviews a stale board deletion with the board name and the change spelled ou
   const reviewed = await getRecoveries()[0]!.description!.loadLatest();
 
   expect(reviewed.revision).toBe(4);
-  expect(reviewed.proposed).toEqual({ name: 'Projekt Nord', change: 'Wand löschen' });
+  expect(reviewed.proposed).toEqual({ name: 'Project North', change: 'Delete board' });
 });

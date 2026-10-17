@@ -13,7 +13,7 @@ import { makeBoard } from '@/test/fixtures';
 import { NewBoardDialog } from './NewBoardDialog';
 
 function Opened() {
-  return <p>Geöffnet: {useParams().boardId}</p>;
+  return <p>Opened: {useParams().boardId}</p>;
 }
 
 function renderDialog() {
@@ -34,15 +34,15 @@ describe('NewBoardDialog', () => {
 
   it('is prefilled with the initial board name and creates on Enter', async () => {
     const user = userEvent.setup();
-    vi.mocked(boardsApi.create).mockResolvedValue(makeBoard({ id: 'new-id', name: 'Meine Wand' }));
+    vi.mocked(boardsApi.create).mockResolvedValue(makeBoard({ id: 'new-id', name: 'My Board' }));
     renderDialog();
 
     const name = await screen.findByLabelText('Name');
-    expect(name).toHaveValue('Meine Wand');
+    expect(name).toHaveValue('My Board');
     await user.type(name, '{Enter}');
 
-    expect(await screen.findByText('Geöffnet: new-id')).toBeInTheDocument();
-    expect(vi.mocked(boardsApi.create).mock.calls[0]![0]).toBe('Meine Wand');
+    expect(await screen.findByText('Opened: new-id')).toBeInTheDocument();
+    expect(vi.mocked(boardsApi.create).mock.calls[0]![0]).toBe('My Board');
   });
 
   it('cannot be submitted with a blank name', async () => {
@@ -51,7 +51,7 @@ describe('NewBoardDialog', () => {
     const name = await screen.findByLabelText('Name');
     await user.clear(name);
     await user.type(name, '   ');
-    expect(screen.getByRole('button', { name: 'Anlegen' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
     await user.type(name, '{Enter}');
     expect(boardsApi.create).not.toHaveBeenCalled();
   });
@@ -62,9 +62,9 @@ describe('NewBoardDialog', () => {
       new ApiError(422, { error: 'BOARD_LIMIT_REACHED', message: 'limit' }),
     );
     renderDialog();
-    await user.click(await screen.findByRole('button', { name: 'Anlegen' }));
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Du hast die Grenze von 20 Wänden erreicht.',
+      'You have reached the limit of 20 boards.',
     );
   });
 
@@ -77,15 +77,13 @@ describe('NewBoardDialog', () => {
       .mockResolvedValueOnce(makeBoard({ id: 'new-id' }));
     renderDialog();
 
-    await user.click(await screen.findByRole('button', { name: 'Anlegen' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Die Wand konnte nicht angelegt werden.',
-    );
-    await user.click(screen.getByRole('button', { name: 'Anlegen' }));
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The board could not be created.');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(boardsApi.create).toHaveBeenCalledTimes(2));
     const [first, second] = vi.mocked(boardsApi.create).mock.calls;
     expect(second![1]!.operationId).toBe(first![1]!.operationId);
-    expect(await screen.findByText('Geöffnet: new-id')).toBeInTheDocument();
+    expect(await screen.findByText('Opened: new-id')).toBeInTheDocument();
   });
 });

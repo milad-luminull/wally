@@ -16,7 +16,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -39,6 +39,7 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   },
 }));
 
+import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
@@ -120,7 +121,7 @@ describe('BoardCommands', () => {
         onDone={vi.fn()}
       />,
     );
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
     await waitFor(() => expect(title).toHaveFocus());
     await userEvent.keyboard('n');
     expect(title).toHaveValue('n');
@@ -137,9 +138,9 @@ describe('BoardCommands', () => {
     expect(onNewNote).toHaveBeenCalledTimes(1);
 
     await userEvent.keyboard(PALETTE);
-    expect(await screen.findByText('Neue private Notiz')).toBeInTheDocument();
-    expect(screen.queryByText('Neue Notiz')).not.toBeInTheDocument();
-    expect(screen.queryByText('Notiz duplizieren')).not.toBeInTheDocument();
+    expect(await screen.findByText('New private note')).toBeInTheDocument();
+    expect(screen.queryByText('New note')).not.toBeInTheDocument();
+    expect(screen.queryByText('Duplicate note')).not.toBeInTheDocument();
   });
 
   it('lists the question entry and opens it with mod+j when the assistant is on', async () => {
@@ -147,12 +148,40 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    await user.click(await screen.findByText('Wand fragen…'));
+    await user.click(await screen.findByText('Ask the wall…'));
     // The palette runs its actions on the next frame, once the dialog has let go of focus.
     await waitFor(() => expect(onOpenAssistant).toHaveBeenCalledTimes(1));
 
     await user.keyboard(ASK);
     expect(onOpenAssistant).toHaveBeenCalledTimes(2);
+  });
+
+  it('finds the question entry by its English keyword: typing wall', async () => {
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'wall');
+    // cmdk filters on the value and the keywords, not on the label.
+    expect(await screen.findByText('Ask the wall…')).toBeInTheDocument();
+  });
+
+  it('does not find the question entry by the German keywords when the palette is English', async () => {
+    const user = userEvent.setup();
+    renderCommands({ assistantEnabled: true });
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'fragen');
+    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
+  });
+
+  it('finds the question entry by fragen when the palette is German', async () => {
+    await i18n.changeLanguage('de');
+    renderCommands({ assistantEnabled: true });
+    const user = userEvent.setup();
+
+    await user.keyboard(PALETTE);
+    await user.type(await screen.findByRole('combobox'), 'fragen');
+    expect(await screen.findByText('Wand fragen…')).toBeInTheDocument();
   });
 
   it('does not open the question panel with mod+j behind an open dialog', async () => {
@@ -171,7 +200,7 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    const entry = (await screen.findByText('Wand fragen…')).closest('[cmdk-item]');
+    const entry = (await screen.findByText('Ask the wall…')).closest('[cmdk-item]');
     expect(entry).toHaveTextContent(/J$/);
   });
 
@@ -180,8 +209,8 @@ describe('BoardCommands', () => {
     const user = userEvent.setup();
 
     await user.keyboard(PALETTE);
-    expect(await screen.findByText('Neue Notiz')).toBeInTheDocument();
-    expect(screen.queryByText('Wand fragen…')).not.toBeInTheDocument();
+    expect(await screen.findByText('New note')).toBeInTheDocument();
+    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
     await user.keyboard(ASK);
     expect(onOpenAssistant).not.toHaveBeenCalled();
@@ -192,12 +221,12 @@ describe('BoardCommands', () => {
     const { unmount } = renderCommands({ assistantEnabled: true });
     await user.keyboard('?');
     const sheet = await screen.findByRole('dialog');
-    expect(within(sheet).getByText('Übernommene Änderung rückgängig')).toBeInTheDocument();
+    expect(within(sheet).getByText('Undo the kept change')).toBeInTheDocument();
     unmount();
     renderCommands({ assistantEnabled: false });
     await user.keyboard('?');
     expect(
-      within(await screen.findByRole('dialog')).queryByText('Übernommene Änderung rückgängig'),
+      within(await screen.findByRole('dialog')).queryByText('Undo the kept change'),
     ).toBeNull();
   });
 
@@ -214,12 +243,12 @@ describe('BoardCommands', () => {
     unmount();
 
     const nothing = vi.fn(() => false);
-    renderCommands({ onUndoSuggestion: nothing }, <input aria-label="Feld" />);
+    renderCommands({ onUndoSuggestion: nothing }, <input aria-label="Field" />);
     expect(fireEvent.keyDown(document.body, undoKey)).toBe(true);
     expect(nothing).toHaveBeenCalledTimes(1);
 
     // In a field, ⌘Z is the field's own undo.
-    const field = screen.getByRole('textbox', { name: 'Feld' });
+    const field = screen.getByRole('textbox', { name: 'Field' });
     field.focus();
     expect(fireEvent.keyDown(field, undoKey)).toBe(true);
     expect(nothing).toHaveBeenCalledTimes(1);

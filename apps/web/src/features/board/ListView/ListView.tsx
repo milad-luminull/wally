@@ -75,7 +75,7 @@ interface ListViewProps {
 
 /**
  * Reads from the SAME notes the caller already fetched (BoardPage's single useNotes
- * call) — grouping/sorting is pure derived computation, so edits made here or in WandView
+ * call) — grouping/sorting is pure derived computation, so edits made here or in WallView
  * show up in both instantly without a second fetch.
  */
 /** Keeps the empty-state branching out of JSX, and the keys literal so tsc checks them. */

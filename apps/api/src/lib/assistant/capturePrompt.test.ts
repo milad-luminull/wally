@@ -49,7 +49,7 @@ describe('the capture prompt', () => {
 
   it('puts the note words and the members in the prompt as data, by id', () => {
     const prompt = buildCapturePrompt({
-      title: 'Müller anrufen Freitag',
+      title: 'Call Müller Friday',
       description: '',
       members: [
         { id: 'u-anna', name: 'Anna Berg' },
@@ -57,7 +57,7 @@ describe('the capture prompt', () => {
       ],
       fieldKeys: [],
     });
-    expect(prompt).toContain('Title: Müller anrufen Freitag');
+    expect(prompt).toContain('Title: Call Müller Friday');
     expect(prompt).toContain('u-anna: Anna Berg');
     expect(prompt).toContain('u-ben: ben@example.com');
     expect(prompt).not.toContain('Text:');
@@ -66,11 +66,11 @@ describe('the capture prompt', () => {
   it('includes the text line only when there is one', () => {
     const prompt = buildCapturePrompt({
       title: 'A',
-      description: 'bis Ende der Woche',
+      description: 'by the end of the week',
       members: [],
       fieldKeys: [],
     });
-    expect(prompt).toContain('Text: bis Ende der Woche');
+    expect(prompt).toContain('Text: by the end of the week');
     expect(prompt).toContain('Members: none');
   });
 
@@ -90,18 +90,33 @@ describe('the capture prompt', () => {
 
   it("lists the board's property keys as data after the members", () => {
     const prompt = buildCapturePrompt({
-      title: 'Vertrag 4711 prüfen',
+      title: 'Check contract 4711',
       description: '',
       members: [{ id: 'u-anna', name: 'Anna Berg' }],
-      fieldKeys: ['Kunde', 'Vertragsnr'],
+      fieldKeys: ['Customer', 'Contract number'],
     });
     // One key per line, as the members are: a key may itself hold a comma.
-    expect(prompt).toContain('Properties on this board:\nKunde\nVertragsnr');
-    expect(prompt.endsWith('Properties on this board:\nKunde\nVertragsnr')).toBe(true);
+    expect(prompt).toContain('Properties on this board:\nCustomer\nContract number');
+    expect(prompt.endsWith('Properties on this board:\nCustomer\nContract number')).toBe(true);
     expect(prompt.indexOf('u-anna: Anna Berg')).toBeLessThan(
       prompt.indexOf('Properties on this board:'),
     );
-    expect(prompt).toContain('Title: Vertrag 4711 prüfen');
+    expect(prompt).toContain('Title: Check contract 4711');
+  });
+
+  it('gives English property examples and keeps the German trigger words people type', () => {
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(
+      /^reference: .*like Customer: Müller GmbH, Project: Relaunch, Contract number: 4711\./m,
+    );
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).not.toMatch(/Kunde|Projekt|Vertragsnr/);
+    // English examples must not pull a German note toward an English key: a new key follows
+    // the note's words, as the title and the subtasks do.
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(
+      /^reference: .*a new key is in the language of the words\./m,
+    );
+    // Capture is bilingual: German words people type still mark a priority.
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^priority: .*dringend, wichtig, sofort/m);
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^priority: .*irgendwann, nebenbei/m);
   });
 
   it('says so when the board has no properties yet', () => {

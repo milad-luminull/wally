@@ -17,7 +17,7 @@ vi.mock('@/lib/preferences', async (importOriginal) => ({
 import { assistantApi } from '@/lib/resources';
 import { makeNote } from '@/test/fixtures';
 import { createTestQueryClient } from '@/test/renderWithProviders';
-import { NoteCard } from '../WandView/NoteCard';
+import { NoteCard } from '../WallView/NoteCard';
 import { PendingReview } from '../NoteDetail/PendingReview';
 import { COUNTDOWN_MS, useSuggestions, type SuggestionsController } from './useSuggestions';
 import { usePendingFor } from './usePendingFor';
@@ -33,8 +33,8 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   status: 'PENDING',
   baseRevision: 1,
   fields: {
-    dueDate: { value: '2026-10-23', reason: 'Freitag' },
-    priority: { value: 'HOCH', reason: 'dringend' },
+    dueDate: { value: '2026-10-23', reason: 'Friday' },
+    priority: { value: 'HOCH', reason: 'urgent' },
     assignee: null,
     title: null,
     reference: null,
@@ -145,7 +145,8 @@ const propose = async () => {
 };
 const mark = () => controller.marks.get(NOTE_ID);
 const card = () => document.querySelector<HTMLElement>('[data-note-id]')!;
-const cardButton = () => within(card()).getByText('Angebotsvergleich freigeben').closest('button')!;
+const cardButton = () =>
+  within(card()).getByText('Approve the quote comparison').closest('button')!;
 const review = () => document.querySelector<HTMLElement>('[data-pending-review]');
 const keeps = () =>
   vi.mocked(assistantApi.decide).mock.calls.filter(([, , body]) => body.decision === 'keep');
@@ -178,7 +179,7 @@ describe('the panel holds the countdown of the note it shows (R3)', () => {
     open();
     expect(mark()?.paused).toBe(true);
     expect(mark()?.countdownEndsAt).toBeNull();
-    expect(within(review()!).getByRole('status')).toHaveTextContent('Wird gleich übernommen');
+    expect(within(review()!).getByRole('status')).toHaveTextContent('Applied in a moment');
     // Far past the countdown: nothing is kept while the review is open.
     await advance(COUNTDOWN_MS * 5);
     expect(keeps()).toHaveLength(0);
@@ -273,16 +274,16 @@ describe('the card and the review read one mark (§3.4)', () => {
   const full = () =>
     dto({
       fields: {
-        dueDate: { value: '2026-10-23', reason: 'Freitag' },
-        priority: { value: 'HOCH', reason: 'dringend' },
+        dueDate: { value: '2026-10-23', reason: 'Friday' },
+        priority: { value: 'HOCH', reason: 'urgent' },
         assignee: null,
-        title: { value: 'Angebot an Müller', reason: 'kürzer' },
-        reference: { key: 'Kunde', value: 'Müller GmbH', reason: 'Müller' },
-        subtasks: { items: ['Preise holen', 'Vergleichen', 'Freigeben'], reason: 'Ablauf' },
+        title: { value: 'Quote for Müller', reason: 'shorter' },
+        reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
+        subtasks: { items: ['Get prices', 'Compare', 'Approve'], reason: 'process' },
       },
     });
   const row = (name: string | RegExp) =>
-    within(screen.getByRole('group', { name: 'Von Wallybot ergänzt' })).getByRole('checkbox', {
+    within(screen.getByRole('group', { name: 'Added by Wallybot' })).getByRole('checkbox', {
       name,
     });
 
@@ -293,37 +294,37 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
 
     expect(card().querySelector('.border-dashed')).not.toBeNull();
-    expect(within(card()).getByText('Kunde: Müller GmbH')).toBeInTheDocument();
-    expect(within(card()).getByText('3 Schritte')).toBeInTheDocument();
-    expect(within(card()).getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
-    const titleLine = within(card()).getByRole('button', { name: 'Vorschlag: Angebot an Müller' });
+    expect(within(card()).getByText('Customer: Müller GmbH')).toBeInTheDocument();
+    expect(within(card()).getByText('3 steps')).toBeInTheDocument();
+    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    const titleLine = within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' });
     expect(titleLine).toHaveAttribute('aria-pressed', 'false');
 
-    fireEvent.click(row('Kunde: Müller GmbH'));
-    expect(within(card()).queryByText('Kunde: Müller GmbH')).toBeNull();
-    expect(row('Kunde: Müller GmbH')).not.toBeChecked();
+    fireEvent.click(row('Customer: Müller GmbH'));
+    expect(within(card()).queryByText('Customer: Müller GmbH')).toBeNull();
+    expect(row('Customer: Müller GmbH')).not.toBeChecked();
 
-    fireEvent.click(row('Schritt: Vergleichen'));
-    expect(within(card()).getByText('2 Schritte')).toBeInTheDocument();
+    fireEvent.click(row('Step: Compare'));
+    expect(within(card()).getByText('2 steps')).toBeInTheDocument();
 
-    fireEvent.click(row(/^Vorschlag: Angebot an Müller/));
+    fireEvent.click(row(/^Suggested: Quote for Müller/));
     expect(
-      within(card()).getByRole('button', { name: 'Vorschlag: Angebot an Müller' }),
+      within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' }),
     ).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(row('Priorität hoch'));
+    fireEvent.click(row('High priority'));
     expect(
-      within(card()).queryByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+      within(card()).queryByRole('button', { name: 'Remove suggestion: High priority' }),
     ).toBeNull();
 
     // The other way round: the card's × unticks the review's row.
-    fireEvent.click(within(card()).getByRole('button', { name: /^Vorschlag entfernen: Fällig / }));
-    expect(row(/^Fällig /)).not.toBeChecked();
-    fireEvent.click(row(/^Fällig /));
-    expect(within(card()).getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    fireEvent.click(within(card()).getByRole('button', { name: /^Remove suggestion: Due / }));
+    expect(row(/^Due /)).not.toBeChecked();
+    fireEvent.click(row(/^Due /));
+    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
 
     // Keep sends exactly what is ticked in both places.
-    fireEvent.click(within(review()!).getByRole('button', { name: 'Behalten' }));
+    fireEvent.click(within(review()!).getByRole('button', { name: 'Keep' }));
     await advance(0);
     expect(keeps()).toEqual([
       [
@@ -338,10 +339,10 @@ describe('the card and the review read one mark (§3.4)', () => {
         },
       ],
     ]);
-    expect(within(review()!).getByRole('status')).toHaveTextContent('Übernommen.');
+    expect(within(review()!).getByRole('status')).toHaveTextContent('Kept.');
     expect(card().querySelector('.border-dashed')).toBeNull();
 
-    fireEvent.click(within(review()!).getByRole('button', { name: 'Rückgängig' }));
+    fireEvent.click(within(review()!).getByRole('button', { name: 'Undo' }));
     await advance(0);
     expect(vi.mocked(assistantApi.decide).mock.calls.at(-1)).toEqual([
       BOARD,
@@ -368,9 +369,9 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
     expect(card().querySelector('.border-dashed')).not.toBeNull();
 
-    const typedDue = within(screen.getByRole('group', { name: 'Aus deinem Text' })).getByRole(
+    const typedDue = within(screen.getByRole('group', { name: 'From what you typed' })).getByRole(
       'checkbox',
-      { name: /^Fällig / },
+      { name: /^Due / },
     );
     // The typed row itself does nothing.
     fireEvent.click(typedDue);

@@ -47,7 +47,7 @@ describe('BoardPage', () => {
       </Routes>,
       { route: '/boards/gone' },
     );
-    const back = await screen.findByRole('link', { name: 'Zurück zu deinen Wänden' });
+    const back = await screen.findByRole('link', { name: 'Back to your boards' });
     expect(back).toHaveAttribute('href', '/');
   });
 

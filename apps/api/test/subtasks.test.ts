@@ -26,7 +26,7 @@ describe('subtask routes', () => {
       method: 'POST',
       url: `/whiteboards/${fx.boardId}/notes`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { title: 'Mit Subtasks' },
+      payload: { title: 'With subtasks' },
     });
     return { fx, noteId: created.json().id as string };
   }
@@ -47,7 +47,7 @@ describe('subtask routes', () => {
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.editToken),
-      payload: { text: 'Erste Aufgabe' },
+      payload: { text: 'First task' },
     });
     expect(ok.statusCode).toBe(201);
     expect(ok.json().done).toBe(false);
@@ -75,7 +75,7 @@ describe('subtask routes', () => {
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { text: 'Checken' },
+      payload: { text: 'Check' },
     });
     const subtaskId = created.json().id;
 
@@ -108,7 +108,7 @@ describe('subtask routes', () => {
       method: 'POST',
       url: `/notes/${noteId}/subtasks`,
       headers: ctx.authHeader(fx.ownerToken),
-      payload: { text: 'Einmal abhaken' },
+      payload: { text: 'Tick once' },
     });
     const subtaskId = created.json().id;
     expect(await summaryOf(fx, noteId)).toEqual({ total: 1, done: 0 });

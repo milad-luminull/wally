@@ -203,6 +203,8 @@ export const de = {
     duplicateNote: 'Notiz duplizieren',
     share: 'Wand teilen',
     ask: 'Wand fragen…',
+    /** Extra words the palette matches the ask entry on, space-separated; never shown. */
+    askKeywords: 'wand fragen',
     viewWall: 'Zur Wand wechseln',
     viewList: 'Zur Liste wechseln',
     showDone: 'Erledigte einblenden',
@@ -264,7 +266,7 @@ export const de = {
       },
       view: {
         ariaLabel: 'Ansicht',
-        wand: 'Wand',
+        wall: 'Wand',
         list: 'Liste',
       },
       boardNameAria: 'Name der Wand',

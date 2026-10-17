@@ -39,11 +39,11 @@ describe('useCreateNote', () => {
    * the create response crashed the panel the first time a freshly created note was opened.
    */
   it('never leaves a detail-cache entry that is missing subtasks[]/history[]', async () => {
-    const created = makeNote({ id: 'note-real', title: 'Neue Notiz' });
+    const created = makeNote({ id: 'note-real', title: 'New note' });
     vi.mocked(notesApi.create).mockResolvedValue(created);
 
     const { queryClient, result } = setup();
-    result.current.mutate({ title: 'Neue Notiz' });
+    result.current.mutate({ title: 'New note' });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -70,7 +70,7 @@ describe('useCreateNote', () => {
       () => useCreateNote(boardId, { onNoteId: (id) => named.push([id, shown(id)]) }),
       { wrapper },
     );
-    result.current.mutate({ title: 'Neue Notiz' });
+    result.current.mutate({ title: 'New note' });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(named).toEqual([

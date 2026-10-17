@@ -29,3 +29,6 @@ board makes sign-in land on the board home instead of the board.
 Do not rename the test account's first board. It must stay "Meine Wand": when sign-in lands on
 the board home, `signIn()` in `support.ts` opens the board by that name, and every spec
 works on it.
+
+The test account's UI is German, so the specs find controls by their German labels; the test
+data they create (note titles, subtasks) is English.

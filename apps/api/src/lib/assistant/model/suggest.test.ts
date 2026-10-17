@@ -30,7 +30,7 @@ function attempts() {
 }
 const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
   instructions: 'Fill in the fields.',
-  prompt: 'Title: Müller anrufen Freitag',
+  prompt: 'Title: Call Müller Friday',
   maxOutputTokens: 256,
   onAttempt,
 });
@@ -38,15 +38,20 @@ const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
 describe('createSuggestionRunner', () => {
   it('returns the validated fields and settles one attempt', async () => {
     const fields = {
-      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
       priority: null,
       assignee: null,
-      title: { value: 'Müller anrufen', confidence: 0.8, reason: 'kürzer' },
-      reference: { key: 'Kunde', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde genannt' },
+      title: { value: 'Call Müller', confidence: 0.8, reason: 'shorter' },
+      reference: {
+        key: 'Customer',
+        value: 'Müller GmbH',
+        confidence: 0.9,
+        reason: 'customer named',
+      },
       subtasks: {
-        items: ['Unterlagen prüfen', 'Müller anrufen'],
+        items: ['Check the documents', 'Call Müller'],
         confidence: 0.7,
-        reason: 'zwei Schritte',
+        reason: 'two steps',
       },
     };
     const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
@@ -62,7 +67,7 @@ describe('createSuggestionRunner', () => {
 
   it('returns no fields, and still settles, when the output does not validate', async () => {
     const model = new MockLanguageModelV3({
-      doGenerate: [reply(JSON.stringify({ dueDate: { value: 'Freitag' } }))],
+      doGenerate: [reply(JSON.stringify({ dueDate: { value: 'Friday' } }))],
     });
     const a = attempts();
     const out = await createSuggestionRunner(model)(input(a.onAttempt));
@@ -71,7 +76,7 @@ describe('createSuggestionRunner', () => {
   });
 
   it('returns no fields when the reply is not JSON at all', async () => {
-    const model = new MockLanguageModelV3({ doGenerate: [reply('Am Freitag.')] });
+    const model = new MockLanguageModelV3({ doGenerate: [reply('On Friday.')] });
     const a = attempts();
     const out = await createSuggestionRunner(model)(input(a.onAttempt));
     expect(out.fields).toBeNull();
@@ -126,7 +131,7 @@ describe('createSuggestionRunner', () => {
         {
           ...reply(
             JSON.stringify({
-              dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+              dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
               priority: null,
               assignee: null,
               ...none,
@@ -154,14 +159,14 @@ describe('createSuggestionRunner', () => {
   it('returns no fields when the wire shape fits but the date or a member id does not', async () => {
     for (const fields of [
       {
-        dueDate: { value: 'Freitag', confidence: 0.9, reason: 'Freitag' },
+        dueDate: { value: 'Friday', confidence: 0.9, reason: 'Friday' },
         priority: null,
         assignee: null,
         ...none,
       },
       // The right shape, but no such day: the stored record would fail the response schema.
       {
-        dueDate: { value: '2026-04-31', confidence: 0.9, reason: 'Ende April' },
+        dueDate: { value: '2026-04-31', confidence: 0.9, reason: 'end of April' },
         priority: null,
         assignee: null,
         ...none,
@@ -182,24 +187,29 @@ describe('createSuggestionRunner', () => {
   });
 
   it('drops only the optional field that breaks a length the wire leaves out, keeping the rest', async () => {
-    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Friday' };
     const base = { dueDate: date, priority: null, assignee: null, ...none };
-    const steps = (items: string[]) => ({ items, confidence: 0.7, reason: 'Schritte' });
+    const steps = (items: string[]) => ({ items, confidence: 0.7, reason: 'steps' });
     const cases = {
       'a title over 200 characters': {
         ...base,
-        title: { value: 'x'.repeat(300), confidence: 0.9, reason: 'kürzer' },
+        title: { value: 'x'.repeat(300), confidence: 0.9, reason: 'shorter' },
       },
       'an empty reference key': {
         ...base,
-        reference: { key: '', value: 'Müller GmbH', confidence: 0.9, reason: 'Kunde' },
+        reference: { key: '', value: 'Müller GmbH', confidence: 0.9, reason: 'customer' },
       },
       'an over-long reference value': {
         ...base,
-        reference: { key: 'Kunde', value: 'x'.repeat(2_000), confidence: 0.9, reason: 'Kunde' },
+        reference: {
+          key: 'Customer',
+          value: 'x'.repeat(2_000),
+          confidence: 0.9,
+          reason: 'customer',
+        },
       },
       'only blank steps': { ...base, subtasks: steps([' ', '']) },
-      'an over-long step': { ...base, subtasks: steps(['Anrufen', 'x'.repeat(1_000)]) },
+      'an over-long step': { ...base, subtasks: steps(['Call', 'x'.repeat(1_000)]) },
     };
     for (const [name, fields] of Object.entries(cases)) {
       const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
@@ -211,8 +221,8 @@ describe('createSuggestionRunner', () => {
   });
 
   it('keeps the first five of six steps, beside the date', async () => {
-    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' };
-    const steps = { items: ['a', 'b', 'c', 'd', 'e', 'f'], confidence: 0.7, reason: 'Schritte' };
+    const date = { value: '2026-10-23', confidence: 0.9, reason: 'Friday' };
+    const steps = { items: ['a', 'b', 'c', 'd', 'e', 'f'], confidence: 0.7, reason: 'steps' };
     const model = new MockLanguageModelV3({
       doGenerate: [
         reply(
@@ -235,7 +245,7 @@ describe('createSuggestionRunner', () => {
     const steps = {
       items: [' a', 'a', ' ', 'b ', 'c', 'd', 'e', 'f'],
       confidence: 0.7,
-      reason: 'Schritte',
+      reason: 'steps',
     };
     const model = new MockLanguageModelV3({
       doGenerate: [
@@ -415,7 +425,7 @@ describe('a suggestion call as it reaches Claude on Vertex', () => {
   it('asks for the schema through a JSON tool within the allowance, and reads its input back', async () => {
     const bodies: ClaudeBody[] = [];
     const fields = {
-      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Freitag' },
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
       priority: null,
       assignee: null,
       ...none,

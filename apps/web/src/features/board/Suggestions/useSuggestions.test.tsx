@@ -29,8 +29,8 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   status: 'PENDING',
   baseRevision: 3,
   fields: {
-    dueDate: { value: '2026-10-23', reason: 'Freitag' },
-    priority: { value: 'HOCH', reason: 'dringend' },
+    dueDate: { value: '2026-10-23', reason: 'Friday' },
+    priority: { value: 'HOCH', reason: 'urgent' },
     assignee: null,
     title: null,
     reference: null,
@@ -313,7 +313,7 @@ describe('useSuggestions', () => {
         fields: {
           dueDate: null,
           priority: null,
-          assignee: { value: person('u-anna'), reason: 'für Anna' },
+          assignee: { value: person('u-anna'), reason: 'for Anna' },
           title: null,
           reference: null,
           subtasks: null,
@@ -337,7 +337,7 @@ describe('useSuggestions', () => {
         fields: {
           dueDate: null,
           priority: null,
-          assignee: { value: person(ME), reason: 'ich' },
+          assignee: { value: person(ME), reason: 'me' },
           title: null,
           reference: null,
           subtasks: null,
@@ -615,8 +615,8 @@ describe('useSuggestions', () => {
       subtasks: null,
       ...over,
     });
-    const DATE = { value: '2026-10-23', reason: 'Freitag' };
-    const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
+    const DATE = { value: '2026-10-23', reason: 'Friday' };
+    const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
     it('a proposed title waits for the person: the countdown keeps the date and leaves the title', async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
@@ -725,7 +725,7 @@ describe('useSuggestions', () => {
         suggestion: dto({
           fields: fields({
             dueDate: DATE,
-            subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' },
+            subtasks: { items: ['a', 'b', 'c'], reason: 'steps' },
           }),
         }),
       });
@@ -765,7 +765,7 @@ describe('useSuggestions', () => {
         suggestion: dto({
           fields: fields({
             dueDate: DATE,
-            subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' },
+            subtasks: { items: ['a', 'b', 'c'], reason: 'steps' },
           }),
         }),
       });
@@ -854,7 +854,7 @@ describe('useSuggestions', () => {
       expect(mark.paused).toBe(false);
       const { container } = render(<PendingDot mark={mark} onUndo={vi.fn()} />);
       expect(
-        screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, warten auf Enter' }),
+        screen.getByRole('img', { name: 'Proposed changes, waiting for Enter' }),
       ).toBeInTheDocument();
       expect(container.querySelector('circle.fill-accent')).not.toBeNull();
       expect(container.querySelector('circle.animate-countdown')).toBeNull();
@@ -931,7 +931,7 @@ describe('useSuggestions', () => {
         suggestion: dto({
           fields: fields({
             dueDate: DATE,
-            subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' },
+            subtasks: { items: ['a', 'b', 'c'], reason: 'steps' },
           }),
         }),
       });
@@ -963,7 +963,7 @@ describe('useSuggestions', () => {
         id: 's9',
         noteId: 'n9',
         typed: ['assignee'],
-        fields: fields({ dueDate: DATE, subtasks: { items: ['a', 'b', 'c'], reason: 'Schritte' } }),
+        fields: fields({ dueDate: DATE, subtasks: { items: ['a', 'b', 'c'], reason: 'steps' } }),
       });
       vi.mocked(assistantApi.pendingSuggestions).mockResolvedValue({ suggestions: [restored] });
       vi.mocked(assistantApi.decide).mockImplementationOnce(async (_b, _id, body) => ({

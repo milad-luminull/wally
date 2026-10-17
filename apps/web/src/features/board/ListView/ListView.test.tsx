@@ -18,7 +18,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -31,21 +31,21 @@ const owner = boardAccess('OWNER', 'user-1', 'all');
 const notes = [
   makeNote({
     id: 'n1',
-    title: 'Heute-Notiz',
+    title: 'Today note',
     horizon: 'HEUTE',
     priority: 'HOCH',
     dueDate: '2026-09-18',
   }),
   makeNote({
     id: 'n2',
-    title: 'Woche-Notiz',
+    title: 'Week note',
     horizon: 'DIESE_WOCHE',
     priority: 'MITTEL',
     dueDate: '2026-09-22',
   }),
   makeNote({
     id: 'n3',
-    title: 'Weitere Heute-Notiz',
+    title: 'Another today note',
     horizon: 'HEUTE',
     priority: 'NIEDRIG',
     dueDate: '2026-09-17',
@@ -53,7 +53,7 @@ const notes = [
 ];
 
 describe('ListView', () => {
-  it('groups notes by the active axis and hides empty groups (no "Später" group)', () => {
+  it('groups notes by the active axis and hides empty groups (no "Later" group)', () => {
     render(
       <ListView
         notes={notes}
@@ -67,15 +67,15 @@ describe('ListView', () => {
       />,
     );
 
-    // "Heute" can also appear as a note's own due-date label when a fixture's dueDate is
-    // today's real date, so this asserts the group header specifically: the "Heute" text
+    // "Today" can also appear as a note's own due-date label when a fixture's dueDate is
+    // today's real date, so this asserts the group header specifically: the "Today" text
     // immediately followed by its group's note count ("2": n1 + n3).
     const heuteHeader = screen
-      .getAllByText('Heute')
+      .getAllByText('Today')
       .find((el) => el.nextElementSibling?.textContent === '2');
     expect(heuteHeader).toBeInTheDocument();
-    expect(screen.getByText('Diese Woche')).toBeInTheDocument();
-    expect(screen.queryByText('Später')).not.toBeInTheDocument();
+    expect(screen.getByText('This week')).toBeInTheDocument();
+    expect(screen.queryByText('Later')).not.toBeInTheDocument();
   });
 
   it('sorts notes within a group by due date', () => {
@@ -92,12 +92,12 @@ describe('ListView', () => {
       />,
     );
 
-    const titles = screen.getAllByText(/Notiz$/).map((el) => el.textContent);
-    // "Weitere Heute-Notiz" is due 2026-09-17, before "Heute-Notiz" (2026-09-18).
-    expect(titles.indexOf('Weitere Heute-Notiz')).toBeLessThan(titles.indexOf('Heute-Notiz'));
+    const titles = screen.getAllByText(/ note$/).map((el) => el.textContent);
+    // "Another today note" is due 2026-09-17, before "Today note" (2026-09-18).
+    expect(titles.indexOf('Another today note')).toBeLessThan(titles.indexOf('Today note'));
   });
 
-  it('collapses to a single "Alle Notizen" group in Frei mode', () => {
+  it('collapses to a single "All notes" group in free mode', () => {
     render(
       <ListView
         notes={notes}
@@ -111,7 +111,7 @@ describe('ListView', () => {
       />,
     );
 
-    expect(screen.getByText('Alle Notizen')).toBeInTheDocument();
+    expect(screen.getByText('All notes')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
@@ -129,9 +129,9 @@ describe('ListView', () => {
       />,
     );
 
-    expect(screen.getByText('Hoch')).toBeInTheDocument();
-    expect(screen.getByText('Mittel')).toBeInTheDocument();
-    expect(screen.getByText('Niedrig')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
+    expect(screen.getByText('Medium')).toBeInTheDocument();
+    expect(screen.getByText('Low')).toBeInTheDocument();
   });
 
   it('shows the empty-board message when there are no notes at all', () => {
@@ -147,7 +147,7 @@ describe('ListView', () => {
         isBelowDesktop={false}
       />,
     );
-    expect(screen.getByText('Deine Wand ist noch leer')).toBeInTheDocument();
+    expect(screen.getByText('Your board is still empty')).toBeInTheDocument();
   });
 
   it('shows the filter-mismatch message when notes exist but the filter hides all of them', () => {
@@ -163,7 +163,7 @@ describe('ListView', () => {
         isBelowDesktop={false}
       />,
     );
-    expect(screen.getByText('Keine Notiz passt zum Filter')).toBeInTheDocument();
+    expect(screen.getByText('No note matches the filter')).toBeInTheDocument();
   });
 
   it('writes a new note in a row above the first group, and in place of the empty state', async () => {
@@ -179,14 +179,14 @@ describe('ListView', () => {
     const { unmount } = renderWithProviders(
       <ListView notes={notes} totalNoteCount={notes.length} {...listProps} />,
     );
-    const row = await screen.findByRole('group', { name: 'Neue Notiz schreiben' });
-    const firstGroup = screen.getByRole('heading', { name: 'Heute' });
+    const row = await screen.findByRole('group', { name: 'Write a new note' });
+    const firstGroup = screen.getByRole('heading', { name: 'Today' });
     expect(row.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     unmount();
 
     renderWithProviders(<ListView notes={[]} totalNoteCount={0} {...listProps} />);
-    expect(await screen.findByRole('group', { name: 'Neue Notiz schreiben' })).toBeInTheDocument();
-    expect(screen.queryByText('Deine Wand ist noch leer')).not.toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
+    expect(screen.queryByText('Your board is still empty')).not.toBeInTheDocument();
   });
 
   it('keeps the filter message above the capture row when a filter hides every note', async () => {
@@ -203,8 +203,8 @@ describe('ListView', () => {
         capture={{ boardId: 'b1', visibility: 'SHARED', onDone: vi.fn() }}
       />,
     );
-    const row = await screen.findByRole('group', { name: 'Neue Notiz schreiben' });
-    const message = screen.getByText('Keine Notiz passt zum Filter');
+    const row = await screen.findByRole('group', { name: 'Write a new note' });
+    const message = screen.getByText('No note matches the filter');
     expect(message.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -221,14 +221,14 @@ describe('ListView', () => {
     const { rerender } = renderWithProviders(
       <ListView notes={[]} totalNoteCount={0} {...listProps} />,
     );
-    const title = await screen.findByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const title = await screen.findByRole('textbox', { name: 'Title of the new note' });
     // Opens the text line without typing, so no note is created.
     await userEvent.setup().type(title, '{Shift>}{Enter}{/Shift}');
-    expect(screen.getByRole('textbox', { name: 'Text der neuen Notiz' })).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Text of the new note' })).toHaveFocus();
 
     rerender(<ListView notes={notes} totalNoteCount={notes.length} {...listProps} />);
-    expect(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' })).toBe(title);
-    expect(screen.getByRole('textbox', { name: 'Text der neuen Notiz' })).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Title of the new note' })).toBe(title);
+    expect(screen.getByRole('textbox', { name: 'Text of the new note' })).toHaveFocus();
   });
 
   it('shows the mobile drag hint below desktop width', () => {
@@ -244,7 +244,7 @@ describe('ListView', () => {
         isBelowDesktop
       />,
     );
-    expect(screen.getByText(/Notizen frei verschieben geht am Rechner/)).toBeInTheDocument();
+    expect(screen.getByText(/Moving notes freely works on a computer/)).toBeInTheDocument();
   });
 
   describe('as a viewer', () => {
@@ -267,12 +267,12 @@ describe('ListView', () => {
 
     it('can only tick off their own private notes', () => {
       renderViewerList([
-        makeNote({ id: 'shared', title: 'Geteilte Notiz', visibility: 'SHARED', horizon: 'HEUTE' }),
+        makeNote({ id: 'shared', title: 'Shared note', visibility: 'SHARED', horizon: 'HEUTE' }),
         makeNote({
           id: 'mine',
-          title: 'Meine private Notiz',
+          title: 'My private note',
           visibility: 'PRIVATE',
-          createdBy: { id: 'me', displayName: 'Ich', email: 'ich@example.com' },
+          createdBy: { id: 'me', displayName: 'Me', email: 'me@example.com' },
           horizon: 'HEUTE',
         }),
       ]);
@@ -281,16 +281,14 @@ describe('ListView', () => {
         within(screen.getByText(title).closest('[role="button"]') as HTMLElement).getByRole(
           'checkbox',
         );
-      expect(checkboxOf('Geteilte Notiz')).toBeDisabled();
-      expect(checkboxOf('Meine private Notiz')).toBeEnabled();
+      expect(checkboxOf('Shared note')).toBeDisabled();
+      expect(checkboxOf('My private note')).toBeEnabled();
     });
 
     it('explains an empty board with the private-note copy', () => {
       renderViewerList([], 0);
       expect(
-        screen.getByText(
-          'Du kannst diese Wand ansehen. Notizen, die du hier anlegst, sind privat.',
-        ),
+        screen.getByText('You can view this board. Notes you add here are private.'),
       ).toBeInTheDocument();
     });
   });
@@ -300,8 +298,8 @@ describe('ListView', () => {
     render(
       <ListView
         notes={[
-          makeNote({ id: 'p1', title: 'Privat-Notiz', visibility: 'PRIVATE', assignee: me }),
-          makeNote({ id: 's1', title: 'Geteilt-Notiz', assignee: me }),
+          makeNote({ id: 'p1', title: 'Private draft', visibility: 'PRIVATE', assignee: me }),
+          makeNote({ id: 's1', title: 'Shared draft', assignee: me }),
         ]}
         totalNoteCount={2}
         axis="horizon"
@@ -313,12 +311,12 @@ describe('ListView', () => {
       />,
     );
 
-    const privateRow = screen.getByText('Privat-Notiz').closest('[role="button"]') as HTMLElement;
-    expect(within(privateRow).getByRole('img', { name: 'Private Notiz' })).toBeInTheDocument();
-    expect(privateRow).not.toHaveTextContent('Du');
+    const privateRow = screen.getByText('Private draft').closest('[role="button"]') as HTMLElement;
+    expect(within(privateRow).getByRole('img', { name: 'Private note' })).toBeInTheDocument();
+    expect(privateRow).not.toHaveTextContent('You');
 
-    const sharedRow = screen.getByText('Geteilt-Notiz').closest('[role="button"]') as HTMLElement;
-    expect(within(sharedRow).queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
-    expect(sharedRow).toHaveTextContent('Du');
+    const sharedRow = screen.getByText('Shared draft').closest('[role="button"]') as HTMLElement;
+    expect(within(sharedRow).queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
+    expect(sharedRow).toHaveTextContent('You');
   });
 });

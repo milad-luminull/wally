@@ -20,7 +20,7 @@ describe('PendingDot', () => {
   it('is a marigold dot with a sweeping ring while a countdown runs', () => {
     const { container } = render(<PendingDot mark={mark()} onUndo={vi.fn()} />);
     const dot = screen.getByRole('img', {
-      name: 'Vorgeschlagene Änderungen, werden gleich übernommen',
+      name: 'Proposed changes, applied in a moment',
     });
     expect(dot).toBeInTheDocument();
     expect(container.querySelector('circle.fill-accent')).not.toBeNull();
@@ -40,7 +40,7 @@ describe('PendingDot', () => {
     paused.unmount();
     const waiting = render(<PendingDot mark={mark({ countdownEndsAt: null })} onUndo={vi.fn()} />);
     expect(
-      screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, warten auf Enter' }),
+      screen.getByRole('img', { name: 'Proposed changes, waiting for Enter' }),
     ).toBeInTheDocument();
     expect(waiting.container.querySelector('circle.animate-countdown')).toBeNull();
   });
@@ -48,9 +48,7 @@ describe('PendingDot', () => {
   it('shows a faint Undo where the dot was once the changes are kept', async () => {
     const onUndo = vi.fn();
     render(<PendingDot mark={mark({ phase: 'kept', countdownEndsAt: null })} onUndo={onUndo} />);
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
-    );
+    await userEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(onUndo).toHaveBeenCalledTimes(1);
   });
 
@@ -61,7 +59,7 @@ describe('PendingDot', () => {
         onUndo={vi.fn()}
       />,
     );
-    expect(screen.getByRole('img', { name: 'Wird ausgefüllt' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Filling in' })).toBeInTheDocument();
     expect(container.querySelector('circle.animate-countdown')).toBeNull();
   });
 });

@@ -5,9 +5,9 @@ import type { PendingProps } from './pendingProps';
 import { pendingKeys, proposedTitle, proposedValues } from './pendingProps';
 import type { SuggestionMark } from './useSuggestions';
 
-const TITLE = { value: 'Angebot an Müller', reason: 'kürzer' };
-const REFERENCE = { key: 'Kunde', value: 'Müller GmbH', reason: 'Kunde genannt' };
-const STEPS = { items: ['a', 'b', 'c'], reason: 'Schritte' };
+const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
+const REFERENCE = { key: 'Customer', value: 'Müller GmbH', reason: 'customer named' };
+const STEPS = { items: ['a', 'b', 'c'], reason: 'steps' };
 
 /** A pending mark whose proposal holds a date, a title, a reference and three steps. */
 const mark = (over: Partial<SuggestionMark> = {}): SuggestionMark => {
@@ -102,7 +102,7 @@ describe('proposedValues, place by place', () => {
 
   it('keeps the kept values in place until the refetched note reaches the kept revision', () => {
     const before = proposedValues(empty({ revision: 2 }), pending(kept(5)));
-    expect(before.dueDate).toEqual({ value: '2026-10-23', reason: 'Freitag' });
+    expect(before.dueDate).toEqual({ value: '2026-10-23', reason: 'Friday' });
     expect(before.reference).toEqual(REFERENCE);
     expect(before.subtasks).toEqual({ ...STEPS, kept: [0, 1, 2] });
     const after = proposedValues(empty({ revision: 5 }), pending(kept(5)));
@@ -129,13 +129,13 @@ describe('proposedValues, place by place', () => {
     expect(own.dueDate).toBeNull();
     expect(own.priority).toBeNull();
     expect(proposedValues(empty({ visibility: 'PRIVATE' }), all).assignee).toBeNull();
-    expect(proposedValues(empty({ customFields: { Projekt: 'X' } }), all).reference).toBeNull();
+    expect(proposedValues(empty({ customFields: { Project: 'X' } }), all).reference).toBeNull();
     expect(
       proposedValues(empty({ subtaskSummary: { done: 0, total: 1 } }), all).subtasks,
     ).toBeNull();
     // The title is a second line beside the person's own: once ticked it shows whatever the
     // note's title is.
-    expect(proposedValues(empty({ title: 'Eigener' }), all).title).toEqual(TITLE);
+    expect(proposedValues(empty({ title: 'My own' }), all).title).toEqual(TITLE);
   });
 });
 

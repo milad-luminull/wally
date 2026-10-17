@@ -22,6 +22,7 @@ import {
   listNotes,
   listTags,
 } from '../lib/commands/queries.js';
+import { userLanguage } from '../lib/db/collections.js';
 import { loadEnv } from '../env.js';
 
 type Params = Record<string, string>;
@@ -224,7 +225,7 @@ export default async function boardRoutes(app: FastifyInstance) {
           case '/whiteboards/:id/notes':
             return listNotes(db, actor, id, request.query);
           case '/whiteboards/:id/tags':
-            return listTags(db, actor, id);
+            return listTags(db, actor, id, userLanguage(request.user));
           case '/whiteboards/:id': {
             const data = await getBoard(db, actor, id);
             reply.header('X-Resource-Revision', data.revision);

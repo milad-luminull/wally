@@ -9,15 +9,15 @@ import { parseIsoDate } from './dates';
  */
 describe('date formatting', () => {
   afterEach(async () => {
-    await i18n.changeLanguage('de');
+    await i18n.changeLanguage('en');
   });
 
-  it('formats a due date day-first in German and month-first in English', async () => {
+  it('formats a due date month-first in English and day-first in German', async () => {
     const date = parseIsoDate('2026-09-18');
 
-    expect(i18n.t('common.shortDate', { date })).toBe('18.09.');
-    await i18n.changeLanguage('en');
     expect(i18n.t('common.shortDate', { date })).toBe('09/18');
+    await i18n.changeLanguage('de');
+    expect(i18n.t('common.shortDate', { date })).toBe('18.09.');
   });
 
   it('parses a calendar date at local midnight, not UTC', () => {

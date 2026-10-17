@@ -15,13 +15,18 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   },
   membersApi: { list: vi.fn() },
 }));
-vi.mock('@/i18n/LanguageProvider', async () => {
-  const actual =
-    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+// No LanguageProvider here (it would fetch /me); useLanguage answers what the provider would,
+// the active i18n language (LanguageProvider keeps the two equal). The card parses in that
+// language, so the suite's English cases read English and the German cases, marked below,
+// switch the whole card to German with `inGerman()`: German words, German copy.
+vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+  const { i18n } = await import('@/i18n');
+  const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: normalizeLocale(i18n.language) ?? FALLBACK_LOCALE,
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -29,8 +34,8 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   };
 });
 
-import { membersApi, notesApi } from '@/lib/resources';
 import { i18n } from '@/i18n';
+import { membersApi, notesApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { useKeyboardShortcuts } from '@/lib/shortcuts';
@@ -38,7 +43,7 @@ import { InlineCaptureCard } from './InlineCaptureCard';
 import { DRAFT_SAVE_MS, type CapturePlacement } from './useCapture';
 
 const created = (overrides: Partial<NoteDto> = {}) =>
-  makeNote({ id: 'n-new', revision: 1, title: 'Müller anrufen', ...overrides });
+  makeNote({ id: 'n-new', revision: 1, title: 'Call Müller', ...overrides });
 
 function renderCard(
   layout: 'card' | 'row' = 'card',
@@ -59,6 +64,12 @@ function renderCard(
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A German person's card: the parser reads German and the copy is German, as in the app.
+ * Awaited before render; src/test/setup.ts switches back to English after each test.
+ */
+const inGerman = () => i18n.changeLanguage('de');
 
 /** The board's own shortcut hook, as the board binds it: N opens a capture, Esc closes. */
 function BoardKeys({ onN, onEsc }: { onN: () => void; onEsc: () => void }) {
@@ -98,7 +109,7 @@ describe('InlineCaptureCard', () => {
 
   it('focuses the title and creates nothing until the first keystroke', async () => {
     const { onDone } = renderCard();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
     expect(title).toHaveFocus();
     expect(notesApi.create).not.toHaveBeenCalled();
     await userEvent.setup().keyboard('{Escape}');
@@ -110,7 +121,7 @@ describe('InlineCaptureCard', () => {
     renderCard();
     await userEvent
       .setup()
-      .type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'M');
+      .type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'M');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
     expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject({
       title: 'M',
@@ -121,6 +132,8 @@ describe('InlineCaptureCard', () => {
   });
 
   it('commits on Enter with the title and the kept chips, then reports the note', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
@@ -149,6 +162,8 @@ describe('InlineCaptureCard', () => {
   });
 
   it('removing a chip keeps that field out of the commit', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     const user = userEvent.setup();
     const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
@@ -168,6 +183,8 @@ describe('InlineCaptureCard', () => {
   });
 
   it('a tapped chip is set aside and its field stays out of the commit', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
@@ -186,26 +203,26 @@ describe('InlineCaptureCard', () => {
   it('Shift+Enter opens the text line, Enter from there commits with the description', async () => {
     renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Angebot');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Quote');
     await user.keyboard('{Shift>}{Enter}{/Shift}');
-    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    const text = await screen.findByRole('textbox', { name: 'Text of the new note' });
     expect(text).toHaveFocus();
-    await user.type(text, 'drei Varianten{Enter}');
+    await user.type(text, 'three options{Enter}');
     await waitFor(() => expect(notesApi.update).toHaveBeenCalled());
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
-      title: 'Angebot',
-      description: 'drei Varianten',
+      title: 'Quote',
+      description: 'three options',
     });
   });
 
   it('does not commit whitespace in both fields on Enter and deletes the note on blur', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
     await user.type(title, 'a{Backspace} ');
     await user.keyboard('{Enter}');
     await user.keyboard('{Shift>}{Enter}{/Shift}');
-    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
+    const text = await screen.findByRole('textbox', { name: 'Text of the new note' });
     await user.type(text, '  {Enter}');
     expect(onDone).not.toHaveBeenCalled();
     expect(notesApi.update).not.toHaveBeenCalled();
@@ -219,10 +236,10 @@ describe('InlineCaptureCard', () => {
   it('blur with a title commits the note', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bleibt');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Stays');
     await user.tab();
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
-    expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({ title: 'Bleibt' });
+    expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({ title: 'Stays' });
     expect(notesApi.remove).not.toHaveBeenCalled();
   });
 
@@ -230,15 +247,15 @@ describe('InlineCaptureCard', () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.keyboard('{Shift>}{Enter}{/Shift}');
-    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
-    await user.type(text, 'nur Text');
+    const text = await screen.findByRole('textbox', { name: 'Text of the new note' });
+    await user.type(text, 'just text');
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
     expect(vi.mocked(notesApi.create).mock.calls[0]![1]).toMatchObject({ title: '' });
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
       title: '',
-      description: 'nur Text',
+      description: 'just text',
     });
     expect(notesApi.remove).not.toHaveBeenCalled();
   });
@@ -255,9 +272,9 @@ describe('InlineCaptureCard', () => {
   it('a click on the card outside its fields keeps the caret and settles nothing', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
-    await user.type(title, 'Halt');
-    await user.click(screen.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen'));
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    await user.type(title, 'Hold');
+    await user.click(screen.getByText('↵ create · ⇧↵ text · Esc discard'));
     await pause(20);
     expect(title).toHaveFocus();
     expect(onDone).not.toHaveBeenCalled();
@@ -273,6 +290,8 @@ describe('InlineCaptureCard', () => {
     };
 
     it('proposes the priority but leaves the note where it was placed', async () => {
+      // German input through a German card: the parser reads the person's language.
+      await inGerman();
       const { onDone } = renderCard('card', 'SHARED', priorityZone);
       const user = userEvent.setup();
       await user.type(
@@ -289,6 +308,8 @@ describe('InlineCaptureCard', () => {
     });
 
     it('moves the note when the person keeps the priority chip', async () => {
+      // German input through a German card: the parser reads the person's language.
+      await inGerman();
       const { onDone } = renderCard('card', 'SHARED', priorityZone);
       const user = userEvent.setup();
       await user.type(
@@ -308,7 +329,7 @@ describe('InlineCaptureCard', () => {
     it('hands over the priority as decided by the placement, with no chip at all', async () => {
       const { onDone } = renderCard('card', 'SHARED', priorityZone);
       const user = userEvent.setup();
-      await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht');
+      await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Report');
       await user.keyboard('{Enter}');
       await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
     });
@@ -322,7 +343,7 @@ describe('InlineCaptureCard', () => {
       at: { freeX: 0, freeY: 0 },
     });
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Report');
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
@@ -330,7 +351,7 @@ describe('InlineCaptureCard', () => {
   it('Esc after typing deletes the note', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Weg');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Gone');
     await user.keyboard('{Escape}');
     await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
     expect(onDone).toHaveBeenCalledWith(null, false, []);
@@ -340,12 +361,14 @@ describe('InlineCaptureCard', () => {
   it('commits with Cmd+Enter and asks to open the note', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Details');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Details');
     await user.keyboard('{Meta>}{Enter}{/Meta}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', true, []));
   });
 
   it('underlines every matched word in the field, in text order', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
@@ -361,14 +384,16 @@ describe('InlineCaptureCard', () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
-      'Müller anrufen @anna',
+      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      'Call Müller @anna',
     );
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['assignee']));
   });
 
   it('commits the date and the priority but not a dropped person', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard();
     const user = userEvent.setup();
     await user.type(
@@ -394,6 +419,8 @@ describe('InlineCaptureCard', () => {
   });
 
   it('names each chip and its × after the suggestion it stands for', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
@@ -413,7 +440,7 @@ describe('InlineCaptureCard', () => {
 
   it('renders as a full-width row in the list layout', () => {
     renderCard('row');
-    expect(screen.getByRole('group', { name: 'Neue Notiz schreiben' })).toHaveAttribute(
+    expect(screen.getByRole('group', { name: 'Write a new note' })).toHaveAttribute(
       'data-layout',
       'row',
     );
@@ -421,11 +448,13 @@ describe('InlineCaptureCard', () => {
 
   it('grows from its top-left corner, where the person clicked', () => {
     renderCard();
-    const card = screen.getByRole('group', { name: 'Neue Notiz schreiben' });
+    const card = screen.getByRole('group', { name: 'Write a new note' });
     expect(card).toHaveClass('animate-capture-in', 'origin-top-left');
   });
 
   it('a private capture proposes no person and commits without an assignment', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const { onDone } = renderCard('card', 'PRIVATE');
     const user = userEvent.setup();
     await user.type(
@@ -447,12 +476,12 @@ describe('InlineCaptureCard', () => {
   it('saves the words typed so far while typing pauses, before any commit', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Müller anr');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Call Mül');
     await waitFor(
       () =>
         expect(notesApi.update).toHaveBeenCalledWith(
           'n-new',
-          { title: 'Müller anr', description: '' },
+          { title: 'Call Mül', description: '' },
           expect.anything(),
         ),
       { timeout: DRAFT_SAVE_MS * 4 },
@@ -466,7 +495,7 @@ describe('InlineCaptureCard', () => {
     renderCard();
     const user = userEvent.setup();
     await user.type(
-      screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }),
+      screen.getByRole('textbox', { name: 'Title of the new note' }),
       'ab{Backspace}{Backspace}',
     );
     await pause(DRAFT_SAVE_MS * 2);
@@ -476,12 +505,12 @@ describe('InlineCaptureCard', () => {
   it('keeps the words when the card is taken away before the pause', async () => {
     const { unmount } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Halb');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Half');
     unmount();
     await waitFor(() =>
       expect(notesApi.update).toHaveBeenCalledWith(
         'n-new',
-        { title: 'Halb', description: '' },
+        { title: 'Half', description: '' },
         expect.anything(),
       ),
     );
@@ -508,7 +537,7 @@ describe('InlineCaptureCard', () => {
         </>,
       );
       const user = userEvent.setup();
-      await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Notiz');
+      await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Note');
       await user.keyboard('{Shift>}{Enter}{/Shift}');
       await user.keyboard('{Escape}');
       await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
@@ -533,26 +562,26 @@ describe('InlineCaptureCard', () => {
     );
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
-    await user.type(title, 'Spät');
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    await user.type(title, 'Late');
     await user.keyboard('{Enter}');
     expect(title).toHaveAttribute('readonly');
-    await act(async () => resolveCreate(created({ title: 'Spät' })));
+    await act(async () => resolveCreate(created({ title: 'Late' })));
     await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
     // The create landed mid-commit; the commit is still waiting on its update.
     expect(title).toHaveAttribute('readonly');
-    await act(async () => resolveUpdate(created({ title: 'Spät' })));
+    await act(async () => resolveUpdate(created({ title: 'Late' })));
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
 
   it('Shift+Enter in the title goes back to a text line that is already open', async () => {
     renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
-    await user.type(title, 'Angebot');
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    await user.type(title, 'Quote');
     await user.keyboard('{Shift>}{Enter}{/Shift}');
-    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
-    await user.type(text, 'drei');
+    const text = await screen.findByRole('textbox', { name: 'Text of the new note' });
+    await user.type(text, 'three');
     await user.click(title);
     expect(title).toHaveFocus();
     await user.keyboard('{Shift>}{Enter}{/Shift}');
@@ -562,18 +591,20 @@ describe('InlineCaptureCard', () => {
   it('saves the text as typed, without trimming it', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    await user.type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Angebot');
+    await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Quote');
     await user.keyboard('{Shift>}{Enter}{/Shift}');
-    const text = await screen.findByRole('textbox', { name: 'Text der neuen Notiz' });
-    await user.type(text, '  drei Varianten  {Enter}');
+    const text = await screen.findByRole('textbox', { name: 'Text of the new note' });
+    await user.type(text, '  three options  {Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
     expect(vi.mocked(notesApi.update).mock.calls.at(-1)![1]).toMatchObject({
-      title: 'Angebot',
-      description: '  drei Varianten  ',
+      title: 'Quote',
+      description: '  three options  ',
     });
   });
 
   it('stops underlining a match once its chip is dropped', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     const user = userEvent.setup();
     await user.type(
@@ -591,27 +622,52 @@ describe('InlineCaptureCard', () => {
   });
 
   it('formats the proposed date in the language the line was read in', async () => {
-    // The parser reads German (useLanguage above); the date it found is labelled the same way,
-    // even while the catalogue is English.
-    await i18n.changeLanguage('en');
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     renderCard();
     await userEvent
       .setup()
-      .type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Bericht Freitag');
+      .type(screen.getByRole('textbox', { name: 'Titel der neuen Notiz' }), 'Bericht Freitag');
     // German order and weekday (`Fr., 16.10.`), not English (`Fri, 10/16`).
+    expect(screen.getByRole('button', { name: /^Fällig / })).toHaveAccessibleName(
+      /^Fällig Fr\., \d{2}\.\d{2}\.$/,
+    );
+  });
+
+  it('reads an English line on an English card: Friday, @anna and urgent become chips', async () => {
+    const { onDone } = renderCard();
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Title of the new note' }),
+      'Call Müller Friday @anna urgent',
+    );
+    expect(screen.getAllByTestId('capture-mark').map((m) => m.textContent)).toEqual([
+      'Friday',
+      '@anna',
+      'urgent',
+    ]);
+    // English order and weekday (`Fri, 10/16`).
     expect(screen.getByRole('button', { name: /^Due / })).toHaveAccessibleName(
-      /^Due Fr\., \d{2}\.\d{2}\.$/,
+      /^Due Fri, \d{2}\/\d{2}$/,
+    );
+    expect(screen.getByRole('button', { name: 'Assigned to Anna Kowalski' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'High priority' })).toBeInTheDocument();
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith('n-new', false, ['dueDate', 'priority', 'assignee']),
     );
   });
 
   it('describes the title field with the keyboard hint, set in the mono face', () => {
     renderCard();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
-    expect(title).toHaveAccessibleDescription('↵ anlegen · ⇧↵ Text · Esc verwerfen');
-    expect(screen.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen')).toHaveClass('font-mono');
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    expect(title).toHaveAccessibleDescription('↵ create · ⇧↵ text · Esc discard');
+    expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toHaveClass('font-mono');
   });
 
   it('owns its keys while a chip has focus: n is no new note, Esc discards', async () => {
+    // German input through a German card: the parser reads the person's language.
+    await inGerman();
     const onN = vi.fn();
     const onEsc = vi.fn();
     const onDone = vi.fn();
@@ -642,14 +698,14 @@ describe('InlineCaptureCard', () => {
   it('a failed commit keeps the card, the words and the caret, and Enter retries', async () => {
     const { onDone } = renderCard();
     const user = userEvent.setup();
-    const title = screen.getByRole('textbox', { name: 'Titel der neuen Notiz' });
-    await user.type(title, 'Nochmal');
+    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
+    await user.type(title, 'Again');
     vi.mocked(notesApi.update).mockRejectedValueOnce(new Error('offline'));
     await user.keyboard('{Enter}');
     await waitFor(() => expect(notesApi.update).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(title).not.toHaveAttribute('aria-busy', 'true'));
     expect(onDone).not.toHaveBeenCalled();
-    expect(title).toHaveValue('Nochmal');
+    expect(title).toHaveValue('Again');
     expect(title).toHaveFocus();
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));

@@ -148,7 +148,7 @@ describe('shareLinkApi.redeem', () => {
 describe('assistantApi.turn', () => {
   const originalFetch = globalThis.fetch;
   const conversation = { id: 'c2', boardId: 'board-1', status: 'OPEN', model: 'm', entries: [] };
-  const body = { message: 'Was ist offen?', timeZone: 'Europe/Berlin', today: '2026-10-16' };
+  const body = { message: 'What is open?', timeZone: 'Europe/Berlin', today: '2026-10-16' };
 
   afterEach(() => {
     globalThis.fetch = originalFetch;

@@ -231,7 +231,7 @@ describe('/me', () => {
   it('does not provision over a deleted board that is still being cleaned up', async () => {
     const deletedAt = Timestamp.now();
     await whiteboardsCol(ctx.db).doc('me-ghost').set({
-      name: 'Alt',
+      name: 'Old',
       ownerId: 'me-ghost',
       revision: 2,
       memberRoles: {},
@@ -242,7 +242,7 @@ describe('/me', () => {
     });
     await notesCol(ctx.db)
       .doc('ghost-note')
-      .set({ whiteboardId: 'me-ghost', title: 'Alt' } as never);
+      .set({ whiteboardId: 'me-ghost', title: 'Old' } as never);
     const token = registerTestUser(ctx, 'me-ghost', 'ghost@example.com');
 
     await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });

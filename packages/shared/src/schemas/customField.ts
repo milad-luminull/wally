@@ -2,11 +2,11 @@ import { z } from 'zod';
 import { FIELD_KEY_MAX_LENGTH, FIELD_VALUE_MAX_LENGTH, MAX_FIELDS_PER_NOTE } from '../constants.js';
 
 /**
- * Free-form key/value properties on a note ("Kunde: Müller GmbH", "Vertragsnr: 4711"),
- * replacing the old fixed Bezug field.
+ * Free-form key/value properties on a note ("Customer: Müller GmbH", "Contract number: 4711"),
+ * replacing the old fixed reference field.
  *
  * Stored as a MAP rather than an array of {key, value} objects. Firestore auto-indexes map
- * subfields, so `where('customFields.Kunde', '==', 'Müller GmbH')` stays available without a
+ * subfields, so `where('customFields.Customer', '==', 'Müller GmbH')` stays available without a
  * composite index; nothing inside an array of objects is queryable at all. The note list
  * route filters in memory today, so nothing depends on that yet — it just keeps the door
  * open. (The flip side: free-form keys mean unbounded auto-indexed field paths. If that ever
@@ -14,7 +14,7 @@ import { FIELD_KEY_MAX_LENGTH, FIELD_VALUE_MAX_LENGTH, MAX_FIELDS_PER_NOTE } fro
  */
 
 /**
- * Keys are stored as typed — German capitalisation carries meaning ("Vertragsnr") — but
+ * Keys are stored as typed — capitalisation carries meaning ("VAT ID") — but
  * trimmed, with runs of inner whitespace collapsed.
  *
  * The rejected characters are Firestore field-path metacharacters. Storing a key containing
@@ -45,11 +45,11 @@ export const customFieldsSchema = z
         message: `A note may carry at most ${MAX_FIELDS_PER_NOTE} properties`,
       });
     }
-    // "Kunde" and "kunde" are the same property to a reader, and letting both exist would
+    // "Customer" and "customer" are the same property to a reader, and letting both exist would
     // show two rows that overwrite each other unpredictably.
     const seen = new Set<string>();
     for (const key of keys) {
-      const folded = normalizeFieldKey(key).toLocaleLowerCase('de');
+      const folded = foldFieldKey(key);
       if (seen.has(folded)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -68,17 +68,32 @@ export function normalizeFieldKey(key: string): string {
 }
 
 /**
- * The existing key matching `key` case-insensitively, or undefined. Used so editing
- * "kunde" overwrites the existing "Kunde" rather than creating a near-duplicate.
- */
-/**
- * The 'de' fold below is case folding for DATA INTEGRITY, not display ordering, and it stays
- * hardcoded on purpose — do not "finish the i18n job" by making it follow the caller's
+ * The case fold that decides when two keys are the same property: `normalizeFieldKey`, then
+ * `toLowerCase()`. Locale-neutral on purpose, and the same for every caller — the schema's
+ * duplicate check, `findFieldKey`, the API's `?field=` filter and the assistant's key reuse,
+ * and the web's filter bar all fold through this rule.
+ *
+ * This is DATA INTEGRITY, not display ordering, so it must never follow the caller's
  * language. Field keys are stored, shared board state: a per-caller fold would mean
- * {Kunde: 'A', kunde: 'B'} is a duplicate for one member and legal for another, and that the
- * same note resolves to a different key depending on who is editing it.
+ * {Customer: 'A', customer: 'B'} is a duplicate for one member and legal for another, and that the
+ * same note resolves to a different key depending on who is editing it. Sorting is the other
+ * way round and does follow the reader's language (`localeCompare(…, language)`).
+ *
+ * It is a case fold, not a full Unicode fold: "Customer", "customer" and "CUSTOMER" are one key, while
+ * "Straße" and "STRASSE" stay two (ß lowercases to itself, never to "ss"). For German and
+ * English letters it gives exactly what the earlier `toLocaleLowerCase('de')` gave, so no
+ * stored key changed meaning when the locale was dropped (ADR-0014, plan ruling R4). Pinned in
+ * `apps/api/src/lib/commands/queries.test.ts`.
+ */
+export function foldFieldKey(key: string): string {
+  return normalizeFieldKey(key).toLowerCase();
+}
+
+/**
+ * The existing key matching `key` case-insensitively (`foldFieldKey`), or undefined. Used so
+ * editing "customer" overwrites the existing "Customer" rather than creating a near-duplicate.
  */
 export function findFieldKey(fields: CustomFields, key: string): string | undefined {
-  const folded = normalizeFieldKey(key).toLocaleLowerCase('de');
-  return Object.keys(fields).find((k) => normalizeFieldKey(k).toLocaleLowerCase('de') === folded);
+  const folded = foldFieldKey(key);
+  return Object.keys(fields).find((k) => foldFieldKey(k) === folded);
 }

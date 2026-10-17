@@ -13,14 +13,14 @@ vi.mock('./AuthProvider', async () => {
 function LoginStub() {
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  return <div>Login-Seite {from ?? 'ohne Rückweg'}</div>;
+  return <div>Login page {from ?? 'no way back'}</div>;
 }
 
 function renderProtected(initialPath = '/boards/1') {
   return renderWithProviders(
     <Routes>
       <Route path="/login" element={<LoginStub />} />
-      <Route path="/boards/:id" element={<ProtectedRoute>Geschützter Inhalt</ProtectedRoute>} />
+      <Route path="/boards/:id" element={<ProtectedRoute>Protected content</ProtectedRoute>} />
     </Routes>,
     { route: initialPath },
   );
@@ -30,14 +30,14 @@ describe('ProtectedRoute', () => {
   it('shows a full-page skeleton while auth is loading, never the children', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' });
     renderProtected();
-    expect(screen.getByRole('status', { name: 'Lädt…' })).toBeInTheDocument();
-    expect(screen.queryByText('Geschützter Inhalt')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument();
+    expect(screen.queryByText('Protected content')).not.toBeInTheDocument();
   });
 
   it('redirects to /login when unauthenticated, remembering where the visitor was going', () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated', signedOut: false });
     renderProtected('/boards/1');
-    expect(screen.getByText('Login-Seite /boards/1')).toBeInTheDocument();
+    expect(screen.getByText('Login page /boards/1')).toBeInTheDocument();
   });
 
   // The board belonged to the account that just signed out. Handing it to whoever signs in
@@ -45,12 +45,12 @@ describe('ProtectedRoute', () => {
   it('forgets the previous account’s board after a sign-out', () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated', signedOut: true });
     renderProtected('/boards/1');
-    expect(screen.getByText('Login-Seite ohne Rückweg')).toBeInTheDocument();
+    expect(screen.getByText('Login page no way back')).toBeInTheDocument();
   });
 
   it('renders children once authenticated', () => {
     mockUseAuth.mockReturnValue({ status: 'authenticated' });
     renderProtected();
-    expect(screen.getByText('Geschützter Inhalt')).toBeInTheDocument();
+    expect(screen.getByText('Protected content')).toBeInTheDocument();
   });
 });

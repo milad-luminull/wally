@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useLanguage } from '@/i18n/LanguageProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { useBreakpoint } from '@/lib/useBreakpoint';
 import { BoardSkeleton } from '@/components/AppSkeleton';
@@ -20,7 +21,7 @@ import {
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
 import { FilterBar } from './FilterBar';
-import { WandView } from './WandView/WandView';
+import { WallView } from './WallView/WallView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
@@ -36,6 +37,7 @@ const EMPTY_NOTES: NoteDto[] = [];
 
 export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: string }) {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const { isDesktop, isBelowDesktop, isBelowTablet } = useBreakpoint();
   const viewState = useBoardViewState(boardId);
   useRememberLastBoard(boardId);
@@ -51,15 +53,15 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
   // Facets for the property filter, derived from the unfiltered board so choosing a value
   // never empties the list of values you could switch to.
-  const fieldKeys = useMemo(() => collectFieldKeys(notes), [notes]);
+  const fieldKeys = useMemo(() => collectFieldKeys(notes, language), [notes, language]);
   const fieldValues = useMemo(
-    () => (viewState.fieldKey ? collectFieldValues(notes, viewState.fieldKey) : []),
-    [notes, viewState.fieldKey],
+    () => (viewState.fieldKey ? collectFieldValues(notes, viewState.fieldKey, language) : []),
+    [notes, viewState.fieldKey, language],
   );
 
   // Below 1080px the canvas/drag surface is desktop-only (SPEC §11 + the plan's
   // reconciled decision) — force list view there instead of just hiding the tab, and
-  // never mount WandView (its DndContext/sensors never initialize on a small screen).
+  // never mount WallView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
   // Wallybot's fill-in after Enter (WALLYBOT_INLINE.md §3.3): the capture hands over the fields
@@ -178,7 +180,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         {notesQuery.isLoading ? (
           <BoardSkeleton columns={isDesktop ? 3 : 1} />
         ) : effectiveView === 'wand' ? (
-          <WandView
+          <WallView
             boardId={boardId}
             notes={filteredNotes}
             totalNoteCount={boardNotes.length}

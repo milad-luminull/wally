@@ -10,10 +10,13 @@ import { z } from 'zod';
  * UI language, stored on the user profile.
  *
  * Lowercase BCP-47 rather than the SCREAMING style of the value sets below, deliberately.
- * Every other enum here is German domain vocabulary whose display string has to come out of
- * a label map anyway, so its wire form is free. A language tag is not domain vocabulary — it
- * is a standardised identifier that four separate consumers take verbatim: i18next's
- * `changeLanguage`, `<html lang>`, `Accept-Language`, and `Intl`. 'DE'|'EN' would buy
+ * Every other enum here is domain vocabulary whose display string has to come out of a label
+ * map anyway, so its wire form is free. Several of those values are still German (`HOCH`,
+ * `HEUTE`, `WEISS`, `wand`); they are migrated to English in place, in the expand-and-contract
+ * sequence of ADR-0014 (steps 4 to 6), so until that release the arrays below do not change.
+ * A language tag is not domain vocabulary — it is a standardised identifier that four
+ * separate consumers take verbatim: i18next's `changeLanguage`, `<html lang>`,
+ * `Accept-Language`, and `Intl`. 'DE'|'EN' would buy
  * file-local consistency at the price of a Language->locale map and its inverse, applied at
  * every one of those boundaries.
  */
@@ -96,7 +99,10 @@ export const noteMoveModeValues = ['HORIZON', 'PRIORITY', 'FREE'] as const;
 export const noteMoveModeSchema = z.enum(noteMoveModeValues);
 export type NoteMoveMode = z.infer<typeof noteMoveModeSchema>;
 
-/** How the board renders: the spatial wall, or the dense list. `wand` is German for wall. */
+/**
+ * How the board renders: the spatial wall, or the dense list. The wall's stored value is
+ * still the German `wand`; ADR-0014 step 4 migrates it to `wall` (the code already says wall).
+ */
 export const boardViewValues = ['wand', 'list'] as const;
 export const boardViewSchema = z.enum(boardViewValues);
 export type BoardView = z.infer<typeof boardViewSchema>;

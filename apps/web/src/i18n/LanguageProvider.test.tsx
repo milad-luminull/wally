@@ -67,7 +67,7 @@ describe('LanguageProvider', () => {
   });
 
   afterEach(async () => {
-    await i18n.changeLanguage('de');
+    await i18n.changeLanguage('en');
     window.localStorage.clear();
   });
 
@@ -85,8 +85,10 @@ describe('LanguageProvider', () => {
   // The whole point of storing this on the profile: it has to beat whatever this device
   // happens to remember.
   it('lets the profile override a different locale stored on this device', async () => {
-    writeStoredLocale('de');
-    storedProfile = { ...PROFILE, language: 'en' };
+    // The suite starts in English, so the device remembers English and the profile says
+    // German: the same disagreement a cold start would see.
+    writeStoredLocale('en');
+    storedProfile = { ...PROFILE, language: 'de' };
 
     renderWithProviders(
       <LanguageProvider>
@@ -94,11 +96,11 @@ describe('LanguageProvider', () => {
       </LanguageProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('en'));
-    expect(document.documentElement.lang).toBe('en');
-    expect(document.title).toBe('Wally — my board');
+    await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('de'));
+    expect(document.documentElement.lang).toBe('de');
+    expect(document.title).toBe('Wally — Meine Wand');
     // Mirrored back, so the next cold start opens in the right language with no flash.
-    expect(window.localStorage.getItem('wally.language')).toBe('en');
+    expect(window.localStorage.getItem('wally.language')).toBe('de');
   });
 
   it('switches optimistically and persists the choice', async () => {
@@ -144,7 +146,8 @@ describe('LanguageProvider', () => {
       </LanguageProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('de'));
+    // Whatever the app was already showing; with no profile there is nothing to switch to.
+    await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('en'));
     expect(meApi.get).not.toHaveBeenCalled();
   });
 });

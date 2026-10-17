@@ -38,7 +38,7 @@ describe('AccountMenu', () => {
       signOut: vi.fn(),
     });
     mockUseLanguage.mockReturnValue({
-      language: 'de',
+      language: 'en',
       setLanguage,
       isSaving: false,
       saveFailed: false,
@@ -50,7 +50,7 @@ describe('AccountMenu', () => {
   async function openMenu() {
     const user = userEvent.setup();
     renderWithProviders(<AccountMenu />);
-    await user.click(screen.getByRole('button', { name: 'Konto' }));
+    await user.click(screen.getByRole('button', { name: 'Account' }));
     return user;
   }
 
@@ -58,7 +58,7 @@ describe('AccountMenu', () => {
     await openMenu();
 
     // getByLabelText, not a test id: the label association is the accessibility contract.
-    expect(screen.getByLabelText('Sprache')).toHaveTextContent('Deutsch');
+    expect(screen.getByLabelText('Language')).toHaveTextContent('English');
   });
 
   /**
@@ -70,17 +70,17 @@ describe('AccountMenu', () => {
   it('switches language from the keyboard', async () => {
     const user = await openMenu();
 
-    await user.click(screen.getByLabelText('Sprache'));
+    await user.click(screen.getByLabelText('Language'));
     // Endonyms are never translated, so a user stranded in the wrong language can still
     // recognise their own.
-    await user.click(await screen.findByRole('option', { name: 'English' }));
+    await user.click(await screen.findByRole('option', { name: 'Deutsch' }));
 
-    expect(setLanguage).toHaveBeenCalledWith('en');
+    expect(setLanguage).toHaveBeenCalledWith('de');
   }, 60_000);
 
   it('announces a failed save rather than silently reverting', async () => {
     mockUseLanguage.mockReturnValue({
-      language: 'de',
+      language: 'en',
       setLanguage,
       isSaving: false,
       saveFailed: true,
@@ -88,20 +88,18 @@ describe('AccountMenu', () => {
 
     await openMenu();
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Sprache konnte nicht gespeichert werden.',
-    );
+    expect(screen.getByRole('status')).toHaveTextContent('Could not save your language.');
   });
 
   it('offers "always ask me" for Wallybot and saves the switch', async () => {
     const user = userEvent.setup();
     renderWithProviders(<AccountMenu />);
-    await user.click(screen.getByRole('button', { name: 'Konto' }));
-    const alwaysAsk = screen.getByRole('switch', { name: 'Immer fragen' });
+    await user.click(screen.getByRole('button', { name: 'Account' }));
+    const alwaysAsk = screen.getByRole('switch', { name: 'Always ask me' });
     expect(alwaysAsk).toHaveAttribute('aria-checked', 'false');
     // The hint under the label is what the switch does; a screen reader hears it with it.
     expect(alwaysAsk).toHaveAccessibleDescription(
-      'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
+      'Always ask me: suggestions wait for Enter instead of applying on their own.',
     );
     await user.click(alwaysAsk);
     expect(setWallybot).toHaveBeenCalledWith({ autoApply: false });

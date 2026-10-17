@@ -13,6 +13,6 @@ describe('untitled', () => {
     expect(displayTitle('  \t', 'en')).toBe('Untitled');
   });
   it('keeps a real title exactly as stored', () => {
-    expect(displayTitle(' Müller anrufen ', 'en')).toBe(' Müller anrufen ');
+    expect(displayTitle(' Call Müller ', 'en')).toBe(' Call Müller ');
   });
 });

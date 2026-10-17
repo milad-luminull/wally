@@ -21,7 +21,7 @@ vi.mock('@/i18n/LanguageProvider', async () => {
   return {
     ...actual,
     useLanguage: () => ({
-      language: 'de',
+      language: 'en',
       setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
@@ -68,18 +68,18 @@ function renderTopBar(overrides: Partial<Parameters<typeof TopBar>[0]> = {}) {
 describe('TopBar new-note button', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('is labelled "Neue Notiz" when the note would be shared', () => {
+  it('is labelled "New note" when the note would be shared', () => {
     renderTopBar({ newNoteVisibility: 'SHARED' });
-    expect(screen.getByRole('button', { name: 'Neue Notiz' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New note' })).toBeInTheDocument();
   });
 
-  it('says "Neue private Notiz" when the note would be private, and still creates it', async () => {
+  it('says "New private note" when the note would be private, and still creates it', async () => {
     const { onNewNote } = renderTopBar({ newNoteVisibility: 'PRIVATE', isOwner: false });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Neue private Notiz' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New private note' }));
 
     expect(onNewNote).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'Neue Notiz' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New note' })).not.toBeInTheDocument();
   });
 });
 
@@ -88,13 +88,13 @@ describe('TopBar question button', () => {
 
   it('is absent when the assistant is off', () => {
     renderTopBar({ assistantEnabled: false });
-    expect(screen.queryByRole('button', { name: 'Fragen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ask' })).not.toBeInTheDocument();
   });
 
   it('shows at every width when the assistant is on and opens the panel on click', async () => {
     const onOpenAssistant = vi.fn();
     renderTopBar({ assistantEnabled: true, onOpenAssistant });
-    const button = screen.getByRole('button', { name: 'Fragen' });
+    const button = screen.getByRole('button', { name: 'Ask' });
     expect(button).not.toHaveClass('hidden');
     await userEvent.click(button);
     expect(onOpenAssistant).toHaveBeenCalledTimes(1);
@@ -128,7 +128,7 @@ describe('TopBar at phone width', () => {
 
   it('lets the board name shrink and truncate instead of running under the controls', () => {
     renderTopBar({ assistantEnabled: true });
-    const name = screen.getByRole('button', { name: 'Meine Wand' });
+    const name = screen.getByRole('button', { name: 'My Board' });
     const heading = screen.getByRole('heading', { level: 1 });
 
     expect(name).toHaveClass('truncate', 'max-w-full');
@@ -147,13 +147,13 @@ describe('TopBar at phone width', () => {
 
   it('keeps all five controls, Ask included, in one cluster that never shrinks', () => {
     renderTopBar({ assistantEnabled: true });
-    const ask = screen.getByRole('button', { name: 'Fragen' });
+    const ask = screen.getByRole('button', { name: 'Ask' });
     const controls = [
       ask,
-      screen.getByRole('button', { name: 'Anzeige' }),
-      screen.getByRole('button', { name: 'Teilen' }),
-      screen.getByRole('button', { name: 'Neue Notiz' }),
-      screen.getByRole('button', { name: 'Konto' }),
+      screen.getByRole('button', { name: 'Display' }),
+      screen.getByRole('button', { name: 'Share' }),
+      screen.getByRole('button', { name: 'New note' }),
+      screen.getByRole('button', { name: 'Account' }),
     ];
 
     const cluster = barSlot(ask);

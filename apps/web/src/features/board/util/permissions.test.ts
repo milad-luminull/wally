@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { makeNote } from '@/test/fixtures';
 import { boardAccess } from './permissions';
 
-const me = { id: 'me', email: 'me@example.com', displayName: 'Ich' };
-const other = { id: 'other', email: 'o@example.com', displayName: 'Andere' };
+const me = { id: 'me', email: 'me@example.com', displayName: 'Me' };
+const other = { id: 'other', email: 'o@example.com', displayName: 'Other' };
 const sharedByMe = makeNote({ createdBy: me });
 const sharedByOther = makeNote({ createdBy: other });
 const privateMine = makeNote({ visibility: 'PRIVATE', createdBy: me, assignee: me });

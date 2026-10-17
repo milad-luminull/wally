@@ -9,9 +9,9 @@ test('moving a note to a different Horizon zone persists after reload', async ({
 
   // Create a note in "Heute" via the top-bar button (lands in the default zone), then
   // move it to "Später" through the detail panel's Spalte control — exercising the same
-  // POST /notes/:id/move the Wand canvas drag calls, without depending on pixel-perfect
+  // POST /notes/:id/move the wall canvas drag calls, without depending on pixel-perfect
   // drag coordinates in CI.
-  const title = `Horizont-Test ${Date.now()}`;
+  const title = `Horizon test ${Date.now()}`;
   await captureNote(page, title, { open: true });
 
   // The Spalte control is a Radix single-select ToggleGroup, so its items expose

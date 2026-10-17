@@ -1,5 +1,7 @@
 import {
+  foldFieldKey,
   notePriorityValues,
+  type Language,
   type NoteColour,
   type BoardVisibilityFilter,
   type NoteDto,
@@ -118,11 +120,11 @@ export function defaultZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | Note
 }
 
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even
- * empty) so callers that need every band rendered (WandView's ZoneBands) don't have to
+ * empty) so callers that need every band rendered (WallView's ZoneBands) don't have to
  * special-case it; ListView filters out empty groups itself per its own empty-state rule. */
 export function groupByAxis(notes: NoteDto[], axis: BoardAxis, t: T): NoteGroup<string>[] {
   if (axis === 'free') {
-    return [{ key: 'ALLE', label: t('board.group.all'), notes: sortNotes(notes) }];
+    return [{ key: 'ALL', label: t('board.group.all'), notes: sortNotes(notes) }];
   }
   const labels = enumLabels(t);
   if (axis === 'priority') {
@@ -140,28 +142,30 @@ export function groupByAxis(notes: NoteDto[], axis: BoardAxis, t: T): NoteGroup<
 }
 
 /** Every custom-property key used anywhere on the board, for the filter bar and the
- * note editor's key autocomplete. Case-insensitively de-duplicated, first spelling wins. */
-export function collectFieldKeys(notes: NoteDto[]): string[] {
+ * note editor's key autocomplete. De-duplicated through the shared, locale-neutral fold
+ * (`foldFieldKey`), first spelling wins; sorted for a reader of `language`. */
+export function collectFieldKeys(notes: NoteDto[], language: Language): string[] {
   const byFolded = new Map<string, string>();
   for (const note of notes) {
     for (const key of Object.keys(note.customFields ?? {})) {
-      const folded = key.toLocaleLowerCase('de');
+      const folded = foldFieldKey(key);
       if (!byFolded.has(folded)) byFolded.set(folded, key);
     }
   }
-  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, 'de'));
+  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, language));
 }
 
-/** The distinct values recorded for one property across the board. */
-export function collectFieldValues(notes: NoteDto[], key: string): string[] {
-  const folded = key.toLocaleLowerCase('de');
+/** The distinct values recorded for one property across the board, sorted for a reader of
+ * `language`. */
+export function collectFieldValues(notes: NoteDto[], key: string, language: Language): string[] {
+  const folded = foldFieldKey(key);
   const values = new Set<string>();
   for (const note of notes) {
     for (const [k, v] of Object.entries(note.customFields ?? {})) {
-      if (k.toLocaleLowerCase('de') === folded) values.add(v);
+      if (foldFieldKey(k) === folded) values.add(v);
     }
   }
-  return [...values].sort((a, b) => a.localeCompare(b, 'de'));
+  return [...values].sort((a, b) => a.localeCompare(b, language));
 }
 
 export function filterNotes(
@@ -170,8 +174,9 @@ export function filterNotes(
   currentUserId: string | undefined,
 ): NoteDto[] {
   const q = view.q.trim().toLowerCase();
-  const fieldKey = view.fieldKey?.toLocaleLowerCase('de');
-  const fieldValue = view.fieldValue?.toLocaleLowerCase('de');
+  // The same locale-neutral fold the API's `?field=` filter uses, so both agree for everyone.
+  const fieldKey = view.fieldKey ? foldFieldKey(view.fieldKey) : undefined;
+  const fieldValue = view.fieldValue?.toLowerCase();
   return notes.filter((n) => {
     if (!view.done && n.status === 'DONE') return false;
     if (view.mine && n.assignee?.id !== currentUserId) return false;
@@ -180,9 +185,7 @@ export function filterNotes(
     if (view.priority.length && !view.priority.includes(n.priority)) return false;
     if (fieldKey) {
       const match = Object.entries(n.customFields ?? {}).some(
-        ([k, v]) =>
-          k.toLocaleLowerCase('de') === fieldKey &&
-          (!fieldValue || v.toLocaleLowerCase('de') === fieldValue),
+        ([k, v]) => foldFieldKey(k) === fieldKey && (!fieldValue || v.toLowerCase() === fieldValue),
       );
       if (!match) return false;
     }

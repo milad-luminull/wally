@@ -11,7 +11,7 @@ describe('TagEditor', () => {
     expect(screen.getByText('Smart Tender')).toBeInTheDocument();
     expect(screen.getByText('Cyber')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Cyber entfernen' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Cyber' }));
     expect(onRemove).toHaveBeenCalledWith('Cyber');
   });
 
@@ -19,7 +19,7 @@ describe('TagEditor', () => {
     const onAdd = vi.fn();
     render(<TagEditor tags={[]} onAdd={onAdd} onRemove={vi.fn()} />);
 
-    const input = screen.getByLabelText('Schlagwort hinzufügen');
+    const input = screen.getByLabelText('Add tag');
     await userEvent.type(input, 'Easy Renewal{Enter}');
 
     expect(onAdd).toHaveBeenCalledWith('Easy Renewal');
@@ -30,7 +30,7 @@ describe('TagEditor', () => {
     const onAdd = vi.fn();
     render(<TagEditor tags={['Cyber']} onAdd={onAdd} onRemove={vi.fn()} />);
 
-    const input = screen.getByLabelText('Schlagwort hinzufügen');
+    const input = screen.getByLabelText('Add tag');
     await userEvent.type(input, '{Enter}');
     await userEvent.type(input, 'Cyber{Enter}');
 
@@ -40,7 +40,7 @@ describe('TagEditor', () => {
   it('hides remove buttons and the add input when disabled', () => {
     render(<TagEditor tags={['Cyber']} onAdd={vi.fn()} onRemove={vi.fn()} disabled />);
 
-    expect(screen.queryByLabelText('Schlagwort hinzufügen')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cyber entfernen' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add tag')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Cyber' })).not.toBeInTheDocument();
   });
 });

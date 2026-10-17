@@ -28,9 +28,8 @@ const FILES = sourceFiles(SRC).map((f) => [relative(SRC, f), readFileSync(f, 'ut
  * "No sparkle, wand, robot or brain icon anywhere in the product." The AI has no iconography
  * because it has no presence — it fills in what you would have typed and gets out of the way.
  *
- * Wand is spelled out deliberately: `Wand` is also German for *wall* and is this product's
- * own domain word (WandView, 'Wally — Meine Wand'), so this matches the lucide import
- * specifier only, never a filename or an identifier.
+ * The names below are lucide import specifiers, matched exactly: a filename, an identifier
+ * or a catalogue value that merely resembles one is not an icon import and never matches.
  */
 const BANNED_ICONS = [
   'Sparkle',
