@@ -728,14 +728,17 @@ export async function pendingSuggestions(
     (usable ? live : stale).push(doc);
   }
   if (stale.length > 0) {
-    const batch = db.batch();
     const stamp = Timestamp.fromDate(now);
     const col = assistantSuggestionsCol(db, actor.id);
-    // Only the status moves: no decision was taken, so none is recorded. A record decided in
-    // another tab between the read and this write is a lost race the next keep refuses anyway.
-    for (const doc of stale)
-      batch.update(col.doc(doc.id), { status: 'DISCARDED', updatedAt: stamp });
-    await batch.commit();
+    const refs = stale.map((doc) => col.doc(doc.id));
+    // Only the status moves: no decision was taken, so none is recorded. Each record is read
+    // again in the transaction, so one kept or discarded in another tab since the query is
+    // left as that tab decided it.
+    await db.runTransaction(async (tx) => {
+      for (const snap of await tx.getAll(...refs))
+        if (snap.data()?.status === 'PENDING')
+          tx.update(snap.ref, { status: 'DISCARDED', updatedAt: stamp });
+    });
   }
   live.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
   return Promise.all(live.map((doc) => toDto(db, board, doc)));

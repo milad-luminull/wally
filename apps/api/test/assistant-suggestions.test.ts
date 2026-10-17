@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type {
   SuggestionInput,
   SuggestionOutput,
@@ -13,7 +13,7 @@ import {
 import { dayKey } from '../src/lib/assistant/budget/ledger.js';
 import { estimateTokens } from '../src/lib/assistant/budget/estimate.js';
 import { suggestionSchemaJson } from '../src/lib/assistant/model/index.js';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
@@ -559,6 +559,52 @@ describe('capture suggestions', () => {
       source: 'enter',
     });
     expect(keep.statusCode).toBe(409);
+  });
+
+  it('never discards a day-old record that another tab kept while the pending list was read', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'Freitag behalten' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const keep = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(keep.statusCode).toBe(200);
+    const kept = await stored(fx.editorId, suggestion.id);
+    expect(kept.applied).toBeDefined();
+    const ref = assistantSuggestionsCol(ctx.db, fx.editorId).doc(suggestion.id);
+    // A day old and still pending when the list queries it...
+    await ref.update({
+      status: 'PENDING',
+      decision: FieldValue.delete(),
+      applied: FieldValue.delete(),
+      createdAt: Timestamp.fromMillis(Date.now() - 25 * 3_600_000),
+    });
+    // ...and kept by another tab between that query and the cleanup: the notes read is the
+    // one step in between.
+    const getAll = ctx.db.getAll.bind(ctx.db);
+    const spy = vi.spyOn(ctx.db, 'getAll').mockImplementation(async (...refs) => {
+      if (refs.some((r) => 'path' in r && r.path === `notes/${n.id}`)) {
+        spy.mockRestore();
+        await ref.update({ status: 'KEPT', decision: kept.decision, applied: kept.applied });
+      }
+      return getAll(...refs);
+    });
+    try {
+      const res = await pending(fx.editToken, fx.boardId);
+      expect(res.statusCode).toBe(200);
+      expect(res.json().suggestions).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
+    const undo = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(undo.statusCode).toBe(200);
+    expect(undo.json().suggestion.status).toBe('UNDONE');
+    expect((await note(n.id)).dueDate).toBeNull();
   });
 
   it('a VIEW member keeps a due date on their own private note', async () => {
