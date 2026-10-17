@@ -44,5 +44,7 @@ export function BoardPage() {
     );
   }
 
-  return <AppShell board={board} boardId={board.id} />;
+  // Keyed by the board, so nothing of one board (its pending changes, their countdowns, the
+  // undo stack, an open capture) carries over to the next.
+  return <AppShell key={board.id} board={board} boardId={board.id} />;
 }

@@ -153,9 +153,11 @@ in hex and must be kept in step.
 
 ## AI
 
-Wally's AI is the question panel beside the board (`features/board/Assistant`): it answers
-questions about the wall from the notes it reads and nothing else yet. These rules are the
-contract it follows, and `brandGuards.test.ts` enforces the first one.
+Wally's AI is two things on the board: the question panel beside it
+(`features/board/Assistant`), which answers questions about the wall from the notes it reads,
+and the fill-in on a note written in place (`features/board/Suggestions`), which proposes a due
+date, a priority or a person as a pending change. These rules are the contract both follow,
+and `brandGuards.test.ts` enforces the first one.
 
 > The AI is the wall's good manners. It fills in what you'd have typed anyway, puts things
 > where you'd have put them, and gets out of the way.

@@ -1,7 +1,7 @@
 # Wallybot inline — review and plan
 
-**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day.
-**Last revised:** 2026-10-16.
+**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; subtasks, the reference and the title line moved to slice 3 (plan R1).
+**Last revised:** 2026-10-17.
 **Sources:** the first customer feedback (write the title and text on the board itself, the
 sidebar only for details); the Claude Design page "Wallybot Inline" and its notes document
 (the brief with the mindset, shared model, variants 3a/3b/3c, AI call, settings and don'ts);

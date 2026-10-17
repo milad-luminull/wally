@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
-import { makeNote } from '@/test/fixtures';
+import { makeNote, makeSuggestionMark } from '@/test/fixtures';
+import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteCard } from './NoteCard';
 
 /**
@@ -129,5 +130,151 @@ describe('NoteCard content', () => {
     renderCard(makeNote({ assignee: nora }));
 
     expect(screen.queryByRole('img', { name: 'Private Notiz' })).not.toBeInTheDocument();
+  });
+});
+
+describe('NoteCard with a pending change', () => {
+  const pending = (over: Partial<SuggestionMark> = {}) => ({
+    mark: makeSuggestionMark(over),
+    onKeep: vi.fn(),
+    onDiscard: vi.fn(),
+    onUndo: vi.fn(),
+    onRemove: vi.fn(),
+    onPause: vi.fn(),
+  });
+  const renderCard = (p = pending()) => {
+    render(
+      <DndContext>
+        <NoteCard
+          note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          pending={p}
+        />
+      </DndContext>,
+    );
+    return p;
+  };
+
+  it('draws a dashed edge, the dot, and each proposed field in its place with an ×', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).toContain('border-dashed');
+    expect(card.className).not.toMatch(/\banimate-/);
+    expect(screen.getByRole('img', { name: /Vorgeschlagene/ })).toBeInTheDocument();
+    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna' }));
+    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+  });
+
+  it('keeps on Enter, discards on Esc, and never opens the note for those keys', () => {
+    const onOpen = vi.fn();
+    const p = pending();
+    render(
+      <DndContext>
+        <NoteCard
+          note={makeNote()}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={onOpen}
+          pending={p}
+        />
+      </DndContext>,
+    );
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(p.onKeep).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(card, { key: 'Escape' });
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('pauses the countdown on hover and focus, and resumes on leave and blur', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    fireEvent.mouseEnter(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+    fireEvent.focus(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+  });
+
+  it('stays paused while either hover or focus still holds', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    // A keyboard user tabs in, then the pointer crosses the card: still paused.
+    fireEvent.focus(card);
+    fireEvent.mouseEnter(card);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    // Hovered, then focus leaves: still paused. Only when neither holds does it resume.
+    fireEvent.mouseEnter(card);
+    fireEvent.blur(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(card);
+    expect(p.onPause).toHaveBeenLastCalledWith(false);
+    expect(p.onPause).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays paused while focus moves from the card to one of its ×', () => {
+    const p = renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    const remove = screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' });
+    fireEvent.focus(card);
+    fireEvent.blur(card, { relatedTarget: remove });
+    fireEvent.focus(remove);
+    expect(p.onPause).toHaveBeenCalledTimes(1);
+    expect(p.onPause).toHaveBeenLastCalledWith(true);
+  });
+
+  it('tells a screen reader on the focused card that a change is pending', () => {
+    renderCard();
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, werden gleich übernommen/);
+    expect(card).toContainElement(screen.getByRole('img', { name: /Vorgeschlagene/ }));
+  });
+
+  it('names the card as waiting for Enter when nothing counts down', () => {
+    renderCard(pending({ countdownEndsAt: null }));
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card).toHaveAccessibleName(/Vorgeschlagene Änderungen, warten auf Enter/);
+  });
+
+  it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
+    const base = makeSuggestionMark({ phase: 'kept', countdownEndsAt: null });
+    const p = pending({
+      phase: 'kept',
+      countdownEndsAt: null,
+      fields: ['dueDate', 'priority'],
+      suggestion: {
+        ...base.suggestion!,
+        status: 'KEPT',
+        kept: { fields: ['dueDate', 'priority'], revision: 3 },
+      },
+    });
+    renderCard(p);
+    expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Priorität: Hoch' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Vorschlag entfernen/ })).toBeNull();
+    // The person's own card is not dashed any more: this is the note, not a proposal.
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).not.toContain('border-dashed');
+  });
+
+  it('looks like any other note once kept, with only the faint Undo left', () => {
+    const p = renderCard(pending({ phase: 'kept', countdownEndsAt: null }));
+    const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
+    expect(card.className).not.toContain('border-dashed');
+    expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
+    );
+    expect(p.onUndo).toHaveBeenCalledTimes(1);
   });
 });

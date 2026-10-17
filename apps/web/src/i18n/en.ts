@@ -100,6 +100,11 @@ export const en = {
       saving: 'Saving…',
       saveFailed: 'Could not save your language.',
     },
+    wallybot: {
+      label: 'Wallybot',
+      alwaysAsk: 'Always ask me',
+      hint: 'Always ask me: suggestions wait for Enter instead of applying on their own.',
+    },
   },
   validation: {
     email: {
@@ -211,6 +216,7 @@ export const en = {
     closePanel: 'Close note',
     duplicateNote: 'Duplicate note',
     ask: 'Ask the wall',
+    undoSuggestion: 'Undo the kept change',
     copyDrag: 'Hold while dragging to drop a copy',
     help: 'This overview',
     then: 'then',
@@ -422,6 +428,21 @@ export const en = {
       priorityHigh: 'High priority',
       priorityLow: 'Low priority',
       dropNamed: 'Remove suggestion: {{label}}',
+    },
+  },
+  suggest: {
+    dotAria: 'Proposed changes, applied in a moment',
+    dotAriaWaiting: 'Proposed changes, waiting for Enter',
+    dotAriaAsking: 'Filling in',
+    undo: 'Undo',
+    undoAria: 'Undo the kept changes',
+    remove: 'Remove suggestion: {{label}}',
+    reason: 'Because: {{reason}}',
+    fields: {
+      dueDate: 'Due {{date}}',
+      priorityHigh: 'High priority',
+      priorityLow: 'Low priority',
+      assignee: 'Assigned to {{name}}',
     },
   },
   home: {

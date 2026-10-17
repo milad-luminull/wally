@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react';
-import type { NoteDto, WhiteboardDto } from '@wally/shared';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { useBreakpoint } from '@/lib/useBreakpoint';
@@ -26,6 +26,8 @@ import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
+import { useSuggestions } from './Suggestions/useSuggestions';
+import type { PendingProps } from './Suggestions/pendingProps';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -60,6 +62,35 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // never mount WandView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
+  // Wallybot's fill-in after Enter (WALLYBOT_INLINE.md §3.3): the capture hands over the fields
+  // the person decided, the shell asks once the commit has settled, and the views draw each
+  // note's pending change.
+  const suggestions = useSuggestions(boardId, board.assistantEnabled, user?.uid);
+  const { request: requestSuggestion, syncNotes } = suggestions;
+  // Before paint, so a card whose note moved on never draws its dashed edge and ring again.
+  useLayoutEffect(() => {
+    if (notesQuery.data) syncNotes(notesQuery.data);
+  }, [notesQuery.data, syncNotes]);
+  const onCommitted = useCallback(
+    (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
+    [requestSuggestion],
+  );
+  const pendingFor = useCallback(
+    (noteId: string): PendingProps | undefined => {
+      const mark = suggestions.marks.get(noteId);
+      if (!mark) return undefined;
+      return {
+        mark,
+        onKeep: () => suggestions.keep(noteId, 'enter'),
+        onDiscard: () => suggestions.discard(noteId, 'esc'),
+        onUndo: () => suggestions.undo(noteId, 'esc'),
+        onRemove: (field) => suggestions.remove(noteId, field),
+        onPause: (paused) => suggestions.setPaused(noteId, paused),
+      };
+    },
+    [suggestions],
+  );
+
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
   const { capture, captureKey, startCapture, onCaptureDone, onCaptureNoteId, withoutCapturing } =
@@ -69,6 +100,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       axis: viewState.axis,
       openNoteId: viewState.noteId,
       openNote: viewState.openNote,
+      onCommitted,
     });
   // The views, the top bar and the palette leave the note being written to its card: it is in
   // the cache from the first keystroke, and a second copy would be clickable and openable.
@@ -174,6 +206,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
             visibility={access.newNoteVisibility}
+            pendingFor={pendingFor}
           />
         ) : (
           <ListView
@@ -196,6 +229,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 onNoteId: onCaptureNoteId,
               }
             }
+            pendingFor={pendingFor}
           />
         )}
 
@@ -244,6 +278,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onResetView={viewState.resetView}
         assistantEnabled={board.assistantEnabled}
         onOpenAssistant={() => viewState.openAsk(true)}
+        onUndoSuggestion={suggestions.undoLast}
       />
     </div>
   );

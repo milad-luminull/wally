@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { NoteDto } from '@wally/shared';
+import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -86,14 +86,23 @@ function Board({
   view,
   axis,
   openNote,
+  onCommitted,
 }: {
   view: BoardView;
   axis: BoardAxis;
   openNote: (id: string | null) => void;
+  onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
 }) {
   const query = useNotes(BOARD);
   const notes = query.data ?? EMPTY;
-  const session = useCaptureSession({ boardId: BOARD, view, axis, openNoteId: null, openNote });
+  const session = useCaptureSession({
+    boardId: BOARD,
+    view,
+    axis,
+    openNoteId: null,
+    openNote,
+    onCommitted,
+  });
   const { withoutCapturing } = session;
   const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
   if (query.isLoading) return null;
@@ -158,10 +167,15 @@ function Board({
 
 function renderBoard(view: BoardView, axis: BoardAxis) {
   const openNote = vi.fn();
-  const result = renderWithProviders(<Board view={view} axis={axis} openNote={openNote} />);
+  const onCommitted = vi.fn();
+  const result = renderWithProviders(
+    <Board view={view} axis={axis} openNote={openNote} onCommitted={onCommitted} />,
+  );
   const rerender = (next: { view: BoardView; axis: BoardAxis }) =>
-    result.rerender(<Board view={next.view} axis={next.axis} openNote={openNote} />);
-  return { ...result, openNote, rerender };
+    result.rerender(
+      <Board view={next.view} axis={next.axis} openNote={openNote} onCommitted={onCommitted} />,
+    );
+  return { ...result, openNote, onCommitted, rerender };
 }
 
 const captureCard = () => screen.findByRole('group', { name: 'Neue Notiz schreiben' });
@@ -255,6 +269,37 @@ describe('useCaptureSession: the note being written has one card', () => {
     );
     const card = container.querySelector('[data-note-id="created-1"] button');
     await waitFor(() => expect(card).toHaveFocus());
+  });
+
+  it('after Enter in the list, the keyboard carries on from the committed row', async () => {
+    const { container } = renderBoard('list', 'horizon');
+    await screen.findByText('Vorhanden');
+    await userEvent.click(screen.getByRole('button', { name: 'new' }));
+    await userEvent.type(await titleField(), 'Zeile{Enter}');
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+    );
+    // The row itself, not its checkbox: Enter on the row is what keeps a pending change.
+    const row = container.querySelector('[data-note-id="created-1"][role="button"]');
+    expect(row).not.toBeNull();
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('after Enter the shell hears which fields were typed', async () => {
+    const { onCommitted } = renderBoard('wand', 'horizon');
+    await screen.findByText('Vorhanden');
+    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.type(await titleField(), 'Weg{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Neue Notiz schreiben' })).toBeNull(),
+    );
+    await waitFor(() => expect(notesApi.remove).toHaveBeenCalled());
+    expect(onCommitted).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Notiz in „Heute“ anlegen' }));
+    await userEvent.type(await titleField(), 'Bericht Freitag{Enter}');
+    await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-2', ['dueDate']));
+    expect(onCommitted).toHaveBeenCalledTimes(1);
   });
 
   it.each([

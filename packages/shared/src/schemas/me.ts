@@ -37,6 +37,11 @@ export const boardPreferencesSchema = z.object({
 });
 export type BoardPreferences = z.infer<typeof boardPreferencesSchema>;
 
+/** Wallybot (WALLYBOT_INLINE.md §3.7, decision 1): off means every proposal waits for Enter. */
+export const wallybotPreferencesSchema = z.object({ autoApply: z.boolean() });
+export type WallybotPreferences = z.infer<typeof wallybotPreferencesSchema>;
+export const DEFAULT_WALLYBOT_PREFERENCES: WallybotPreferences = { autoApply: true };
+
 export const preferencesSchema = z.object({
   theme: themePreferenceSchema,
   canvas: canvasPatternSchema,
@@ -44,6 +49,8 @@ export const preferencesSchema = z.object({
    *  still among the caller's boards. */
   lastBoardId: preferenceBoardIdSchema.nullable(),
   boards: z.record(preferenceBoardIdSchema, boardPreferencesSchema),
+  /** Defaulted: preferences saved before Wallybot existed must still parse. */
+  wallybot: wallybotPreferencesSchema.default(DEFAULT_WALLYBOT_PREFERENCES),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 
@@ -52,6 +59,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   canvas: 'dots',
   lastBoardId: null,
   boards: {},
+  wallybot: DEFAULT_WALLYBOT_PREFERENCES,
 };
 
 /**
@@ -64,6 +72,7 @@ export const preferencesUpdateSchema = z
     theme: themePreferenceSchema.optional(),
     canvas: canvasPatternSchema.optional(),
     lastBoardId: preferenceBoardIdSchema.optional(),
+    wallybot: wallybotPreferencesSchema.optional(),
     boards: z
       .record(preferenceBoardIdSchema, boardPreferencesSchema.nullable())
       .refine((boards) => Object.keys(boards).length <= 20, 'Too many boards in one update')

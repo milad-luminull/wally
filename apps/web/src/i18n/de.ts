@@ -108,6 +108,11 @@ export const de = {
       saving: 'Wird gespeichert…',
       saveFailed: 'Sprache konnte nicht gespeichert werden.',
     },
+    wallybot: {
+      label: 'Wallybot',
+      alwaysAsk: 'Immer fragen',
+      hint: 'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
+    },
   },
   validation: {
     email: {
@@ -222,6 +227,7 @@ export const de = {
     closePanel: 'Notiz schließen',
     duplicateNote: 'Notiz duplizieren',
     ask: 'Wand fragen',
+    undoSuggestion: 'Übernommene Änderung rückgängig',
     /** Shown next to the Alt/Option key: held while dragging a card. */
     copyDrag: 'Beim Ziehen gedrückt: Kopie ablegen',
     help: 'Diese Übersicht',
@@ -445,6 +451,22 @@ export const de = {
       priorityHigh: 'Priorität hoch',
       priorityLow: 'Priorität niedrig',
       dropNamed: 'Vorschlag entfernen: {{label}}',
+    },
+  },
+  /** The dashed card after Enter (WALLYBOT_INLINE.md §3.3). No name, no first person. */
+  suggest: {
+    dotAria: 'Vorgeschlagene Änderungen, werden gleich übernommen',
+    dotAriaWaiting: 'Vorgeschlagene Änderungen, warten auf Enter',
+    dotAriaAsking: 'Wird ausgefüllt',
+    undo: 'Rückgängig',
+    undoAria: 'Übernommene Änderungen rückgängig machen',
+    remove: 'Vorschlag entfernen: {{label}}',
+    reason: 'Wegen: {{reason}}',
+    fields: {
+      dueDate: 'Fällig {{date}}',
+      priorityHigh: 'Priorität hoch',
+      priorityLow: 'Priorität niedrig',
+      assignee: 'Zuständig: {{name}}',
     },
   },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */

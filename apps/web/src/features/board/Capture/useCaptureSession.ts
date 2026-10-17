@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { NoteDto } from '@wally/shared';
+import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
 import type { CapturePlacement } from './useCapture';
 
@@ -35,15 +35,20 @@ const NO_NOTES: readonly string[] = [];
 const BOARD_SURFACE = '[data-board-surface]';
 
 /**
- * After a commit by keyboard, the committed note's card takes the focus (else the board), so
- * the person carries on from where they wrote. A commit by a click elsewhere already put the
- * focus where they clicked, and that is left alone.
+ * After a commit by keyboard, the committed note's card or row takes the focus (else the
+ * board), so the person carries on from where they wrote, and Enter keeps a pending change
+ * there. A commit by a click elsewhere already put the focus where they clicked, and that is
+ * left alone. On the wall the card is the button inside the `data-note-id` wrapper; in the
+ * list the row itself is the button, and it comes before its checkbox in document order.
  */
 function focusCommitted(noteId: string) {
   const active = document.activeElement;
   if (active && active !== document.body) return;
-  const card = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"] button`);
-  (card ?? document.querySelector<HTMLElement>(BOARD_SURFACE))?.focus();
+  const id = CSS.escape(noteId);
+  const target = document.querySelector<HTMLElement>(
+    `[data-note-id="${id}"] button, [data-note-id="${id}"][role="button"]`,
+  );
+  (target ?? document.querySelector<HTMLElement>(BOARD_SURFACE))?.focus();
 }
 
 /**
@@ -66,12 +71,15 @@ export function useCaptureSession({
   axis,
   openNoteId,
   openNote,
+  onCommitted,
 }: {
   boardId: string;
   view: BoardView;
   axis: BoardAxis;
   openNoteId: string | null;
   openNote: (noteId: string | null) => void;
+  /** Hears each committed note with the fields the person decided in it (the shell asks Wallybot). */
+  onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const nextId = useRef(1);
@@ -79,6 +87,8 @@ export function useCaptureSession({
   const currentId = useRef<number | null>(null);
   const latestOpenNote = useRef(openNote);
   latestOpenNote.current = openNote;
+  const latestOnCommitted = useRef(onCommitted);
+  latestOnCommitted.current = onCommitted;
   // The note just committed, focused once the board has drawn its card in the card's place.
   const committed = useRef<string | null>(null);
 
@@ -118,8 +128,9 @@ export function useCaptureSession({
 
   const shownId = shown?.id;
   const onCaptureDone = useCallback(
-    (noteId: string | null, open: boolean) => {
+    (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => {
       if (shownId === undefined || !end(shownId)) return;
+      if (noteId) latestOnCommitted.current?.(noteId, locked);
       // The panel takes the focus itself when it opens.
       if (noteId && open) latestOpenNote.current(noteId);
       else if (noteId) committed.current = noteId;

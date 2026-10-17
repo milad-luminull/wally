@@ -162,6 +162,12 @@ export default {
         },
         /* Skeletons sweep instead of pulsing — reads as loading, not as a broken element. */
         shimmer: { from: { backgroundPosition: '200% 0' }, to: { backgroundPosition: '-200% 0' } },
+        /** The pending dot's ring (WALLYBOT_INLINE.md §3.3). An SVG inside the card, never the
+         * card's wrapper, so the no-mount-animation rule (NoteCard.test.tsx) still holds. */
+        countdown: {
+          from: { strokeDashoffset: '0' },
+          to: { strokeDashoffset: 'var(--ring-length)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1)',
@@ -176,6 +182,7 @@ export default {
         'pop-in': 'pop-in 150ms cubic-bezier(0.2, 0.7, 0.2, 1)',
         'pop-out': 'pop-out 110ms cubic-bezier(0.2, 0.7, 0.2, 1)',
         shimmer: 'shimmer 1.6s linear infinite',
+        countdown: 'countdown var(--ring-ms) linear forwards',
       },
       zIndex: {
         dropdown: '20',

@@ -65,6 +65,7 @@ export type StoredPreferences = {
   lastBoardId?: string | null;
   /** `touchedAt` (epoch ms) orders the pruning past MAX_REMEMBERED_BOARDS; never sent out. */
   boards?: Record<string, BoardPreferences & { touchedAt: number }>;
+  wallybot?: { autoApply?: boolean };
 };
 
 export type WhiteboardDoc = {
@@ -246,5 +247,53 @@ export type AssistantConversationDoc = {
   createdAt: Timestamp;
   lastTurnAt: Timestamp;
   /** lastTurnAt + CONVERSATION_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};
+
+/** One operation id per write and per direction, minted when the suggestion is created. */
+export type SuggestionOperationIds = Record<
+  'dueDate' | 'priority' | 'assignee',
+  { apply: string; undo: string }
+>;
+
+/**
+ * users/{uid}/assistantSuggestions/{id}: the approval record for one capture
+ * (WALLY_AGENT.md §3.2, WALLYBOT_INLINE.md §4). The id doubles as the provenance's
+ * conversation and approval id, since a capture turn has no conversation (plan R2).
+ */
+export type AssistantSuggestionDoc = {
+  boardId: string;
+  noteId: string;
+  /** The note revision the proposal was computed against. */
+  baseRevision: number;
+  fields: {
+    dueDate: { value: string; reason: string } | null;
+    priority: { value: 'HOCH' | 'NIEDRIG'; reason: string } | null;
+    /** A user id; the DTO resolves it to a summary at read time. */
+    assignee: { value: string; reason: string } | null;
+  };
+  operationIds: SuggestionOperationIds;
+  status: 'PENDING' | 'KEPT' | 'UNDONE' | 'DISCARDED';
+  decision: {
+    source: string;
+    fields: ('dueDate' | 'priority' | 'assignee')[];
+    at: Timestamp;
+  } | null;
+  /**
+   * Written by an undo, beside the keep's `decision`, which stays as the keep recorded it.
+   * Optional: records written before this field existed have none.
+   */
+  undone?: { source: string; at: Timestamp } | null;
+  /** Written by a keep: what the note held before, and the revision the keep produced. */
+  applied: {
+    before: { dueDate: string | null; priority: NotePriority; assigneeId: string | null };
+    fields: ('dueDate' | 'priority' | 'assignee')[];
+    revision: number;
+  } | null;
+  model: string;
+  usage: { inputTokens: number; outputTokens: number };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  /** createdAt + SUGGESTION_RETENTION_DAYS; the TTL field. */
   expiresAt: Timestamp;
 };

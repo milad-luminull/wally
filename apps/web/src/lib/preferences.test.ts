@@ -25,4 +25,14 @@ describe('applyPreferencesUpdate', () => {
 
     expect(applyPreferencesUpdate(current, { boards: { a: null } }).boards).toEqual({ b: board });
   });
+
+  it('changes the Wallybot setting alone, and keeps it when an update leaves it out', () => {
+    const current = { ...DEFAULT_PREFERENCES, theme: 'dark' as const };
+
+    const askFirst = applyPreferencesUpdate(current, { wallybot: { autoApply: false } });
+    expect(askFirst).toEqual({ ...current, wallybot: { autoApply: false } });
+    expect(applyPreferencesUpdate(askFirst, { canvas: 'grid' }).wallybot).toEqual({
+      autoApply: false,
+    });
+  });
 });

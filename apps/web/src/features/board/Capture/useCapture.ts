@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { NoteCreateInput, NoteDto, NoteVisibility } from '@wally/shared';
+import type { NoteCreateInput, NoteDto, NoteVisibility, SuggestionFieldKey } from '@wally/shared';
 import type { MutationTicket } from '@/lib/mutationQueue';
 import { notesApi } from '@/lib/resources';
 import { useSessionMutation } from '@/lib/useSessionMutation';
@@ -33,8 +33,14 @@ export interface CaptureController {
   noteId: string | null;
   /** The first keystroke in either field creates the note, with what the fields hold then. */
   onFirstKeystroke: (draft: { title: string; description: string }) => void;
+  /** `locked` names the fields the person decided here; it is handed to `onDone` as it is. */
   commit: (
-    draft: { title: string; description: string; fields: CaptureFields },
+    draft: {
+      title: string;
+      description: string;
+      fields: CaptureFields;
+      locked: SuggestionFieldKey[];
+    },
     thenOpen: boolean,
   ) => Promise<void>;
   /** Deletes the note if one was created. */
@@ -106,7 +112,8 @@ export function useCapture(
   placement: CapturePlacement,
   visibility: NoteVisibility,
   callbacks: {
-    onDone: (noteId: string | null, open: boolean) => void;
+    /** `locked` is the fields the person decided while writing; `[]` on cancel. */
+    onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
     /** Hears each id the note is shown under (temp, then real), before the board shows it. */
     onNoteId?: (id: string) => void;
   },
@@ -200,7 +207,7 @@ export function useCapture(
   useEffect(() => () => void flushOnUnmount.current(), []);
 
   const commit = useCallback<CaptureController['commit']>(
-    async ({ title, description, fields }, thenOpen) => {
+    async ({ title, description, fields, locked }, thenOpen) => {
       clearDraft();
       // A create started here (the first one failed) is part of the commit: committing wins.
       const pending = creation.current ?? startCreation({ title, description });
@@ -219,7 +226,7 @@ export function useCapture(
         if (fields.priority)
           await moveNote({ noteId: id, input: { mode: 'PRIORITY', priority: fields.priority } });
         if (fields.assigneeId) await assignNote({ noteId: id, assigneeId: fields.assigneeId });
-        onDone(id, thenOpen);
+        onDone(id, thenOpen, locked);
       } finally {
         setState('drafting');
       }
@@ -231,7 +238,7 @@ export function useCapture(
     clearDraft();
     const note = creation.current ? await creation.current.catch(() => null) : null;
     if (note) removeNote(note.id);
-    onDone(null, false);
+    onDone(null, false, []);
   }, [clearDraft, onDone, removeNote]);
 
   return { state, noteId, onFirstKeystroke, commit, cancel, saveDraft };

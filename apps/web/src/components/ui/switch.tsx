@@ -24,6 +24,12 @@ export const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
         'disabled:cursor-not-allowed disabled:opacity-55',
         '[@media(pointer:coarse)]:h-6 [@media(pointer:coarse)]:w-11',
+        /* The track stays 24px tall on a touch pointer (a taller one reads as a slab next to
+           12px text), but BRAND.md wants a 40px target there, so an invisible ::after carries
+           it out: 22px padding box + 2 x 10px = 42px tall, the track's own 44px wide. The
+           Checkbox does the same. */
+        'after:absolute after:-inset-px after:rounded-full after:content-[""]',
+        '[@media(pointer:coarse)]:after:-inset-y-[10px]',
         className,
       )}
       {...props}

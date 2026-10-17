@@ -57,7 +57,7 @@ Users can switch between organization modes without losing notes.
 
 Users can create a new note from the whiteboard.
 
-A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/WALLYBOT_INLINE.md` §3.1).
+A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/WALLYBOT_INLINE.md` §3.1). After Enter, Wallybot may propose a due date, a priority or a person as a pending change on the card: a dashed edge and a marigold dot with a six-second countdown, each field removable, Enter keeps, Esc discards, Undo for thirty seconds; the server holds the record and every write is reversible (`rfcs/WALLYBOT_INLINE.md` §3.3, §4). 'Always ask me' in the account menu turns the countdown off.
 
 ---
 
