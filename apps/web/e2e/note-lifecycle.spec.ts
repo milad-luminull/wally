@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { hasE2eCredentials, signIn } from './support';
+import { captureNote, hasE2eCredentials, signIn } from './support';
 
 test('full note lifecycle: create, add a subtask, complete, reopen, delete', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
@@ -7,10 +7,7 @@ test('full note lifecycle: create, add a subtask, complete, reopen, delete', asy
   await signIn(page);
 
   const title = `Lifecycle-Test ${Date.now()}`;
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
-  const titleField = page.getByLabel('Titel');
-  await titleField.fill(title);
-  await titleField.blur();
+  await captureNote(page, title, { open: true });
 
   await page.getByLabel('Unteraufgabe hinzufügen').fill('Erster Schritt');
   await page.getByLabel('Unteraufgabe hinzufügen').press('Enter');

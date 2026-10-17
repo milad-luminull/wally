@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { hasE2eCredentials, signIn } from './support';
+import { captureNote, hasE2eCredentials, signIn } from './support';
 
 test('a note made private shows a lock and stays under "Nur private"', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
@@ -27,20 +27,14 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
   }
 
   const title = `E2E-Privat ${Date.now()}`;
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
-  const titleField = page.getByLabel('Titel');
-  await titleField.fill(title);
-  await titleField.blur();
+  const panel = await captureNote(page, title, { open: true });
 
   await page.getByRole('switch', { name: 'Privat' }).click();
   await expect(page.getByText('Jetzt privat. Nur du siehst diese Notiz.')).toBeVisible();
 
   // Scoped to the note panel: the toast on screen has its own "Schließen" button.
-  await page
-    .getByRole('complementary', { name: 'Notizdetails' })
-    .getByRole('button', { name: 'Schließen' })
-    .click();
-  await expect(titleField).toBeHidden();
+  await panel.getByRole('button', { name: 'Schließen' }).click();
+  await expect(panel).toBeHidden();
 
   const onlyPrivate = page.getByRole('radio', { name: 'Nur private' });
   const saved = preferenceSaved();

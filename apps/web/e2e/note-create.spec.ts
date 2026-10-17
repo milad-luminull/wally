@@ -1,24 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { hasE2eCredentials, signIn } from './support';
+import { captureNote, hasE2eCredentials, signIn } from './support';
 
-test('creating a note from the top bar opens it for editing', async ({ page }) => {
+test('creating a note from the top bar writes it in place', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
 
   await signIn(page);
 
   const title = `E2E-Notiz ${Date.now()}`;
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
+  // Enter writes the note where the card stood; no panel opens.
+  const panel = await captureNote(page, title);
+  await expect(panel).toBeHidden();
 
-  const titleField = page.getByLabel('Titel');
-  await expect(titleField).toBeVisible();
-  await titleField.fill(title);
-  await titleField.blur();
-
-  await page.getByRole('button', { name: 'Schließen' }).click();
-  // Wait out the panel's exit animation: while it runs, its title field still holds the
-  // same text as the new card, and the getByText below would match both.
-  await expect(titleField).toBeHidden();
   await page.getByLabel('Notizen durchsuchen').fill(title);
-
   await expect(page.getByText(title)).toBeVisible();
 });
