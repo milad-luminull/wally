@@ -1,4 +1,4 @@
-import { useRef, type FocusEvent } from 'react';
+import { useEffect, useRef, type FocusEvent } from 'react';
 import type { PendingProps } from './pendingProps';
 
 /**
@@ -7,10 +7,24 @@ import type { PendingProps } from './pendingProps';
  * `hovered || focused`, so the pointer leaving a focused card, or focus leaving a hovered one,
  * does not resume the countdown while the other still holds. Focus moving between the root
  * and a control inside it (an ×, the checkbox) counts as staying focused.
+ *
+ * Hover always pauses. Focus pauses only when it arrives once the change is pending: the
+ * board focuses the committed card itself while the mark is still asking (useCaptureSession),
+ * and that focus is not the person's. So when the mark turns pending, focus starts over as
+ * "not focused", and a pointer already on the card pauses at once.
  */
 export function usePendingPause(pending: PendingProps | undefined) {
   const hovered = useRef(false);
   const focused = useRef(false);
+  const latest = useRef(pending);
+  latest.current = pending;
+  const phase = pending?.mark.phase;
+
+  useEffect(() => {
+    if (phase !== 'pending') return;
+    focused.current = false;
+    if (hovered.current) latest.current?.onPause(true);
+  }, [phase]);
 
   function set(source: 'hover' | 'focus', value: boolean) {
     const before = hovered.current || focused.current;

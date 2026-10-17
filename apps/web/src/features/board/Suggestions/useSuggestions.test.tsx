@@ -17,7 +17,7 @@ vi.mock('@/lib/preferences', async (importOriginal) => ({
 import { assistantApi } from '@/lib/resources';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
-import { COUNTDOWN_MS, UNDO_WINDOW_MS, useSuggestions } from './useSuggestions';
+import { COUNTDOWN_MS, KEEP_RETRY_MS, UNDO_WINDOW_MS, useSuggestions } from './useSuggestions';
 
 const BOARD = 'board-1';
 const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
@@ -36,11 +36,15 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   ...over,
 });
 
+/** The signed-in person in these tests. */
+const ME = 'me';
+const person = (id: string) => ({ id, email: `${id}@example.com`, displayName: id });
+
 function setup(enabled = true, queryClient = createTestQueryClient()) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return { queryClient, ...renderHook(() => useSuggestions(BOARD, enabled), { wrapper }) };
+  return { queryClient, ...renderHook(() => useSuggestions(BOARD, enabled, ME), { wrapper }) };
 }
 
 /** A decision the test answers by hand, to act while it is on its way. */
@@ -203,9 +207,10 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    // Taken apart field by field: the record says the last × did it, not Esc.
     expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
       decision: 'discard',
-      source: 'esc',
+      source: 'remove',
     });
     expect(result.current.marks.has('n2')).toBe(false);
   });
@@ -266,7 +271,7 @@ describe('useSuggestions', () => {
     expect(invalidate).toHaveBeenCalled();
   });
 
-  it('shows the pending records of the board again after a reload', async () => {
+  it('shows the pending records of the board again after a reload, waiting for Enter', async () => {
     vi.mocked(assistantApi.pendingSuggestions).mockResolvedValue({
       suggestions: [dto({ id: 's9', noteId: 'n9' })],
     });
@@ -275,8 +280,206 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(result.current.marks.get('n9')?.phase).toBe('pending');
-    expect(result.current.marks.get('n9')?.countdownEndsAt).not.toBeNull();
+    const mark = result.current.marks.get('n9');
+    expect(mark?.phase).toBe('pending');
+    // Nothing changes on a reload without being seen (the ruling amending plan R5).
+    expect(mark?.countdownEndsAt).toBeNull();
+    expect(mark?.paused).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 3);
+    });
+    expect(assistantApi.decide).not.toHaveBeenCalled();
+    act(() => result.current.keep('n9', 'enter'));
+    await flush();
+    expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's9', {
+      decision: 'keep',
+      fields: ['dueDate', 'priority'],
+      source: 'enter',
+    });
+  });
+
+  it('runs no countdown for a proposal that names someone else; Enter is the named yes', async () => {
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({
+        fields: {
+          dueDate: null,
+          priority: null,
+          assignee: { value: person('u-anna'), reason: 'für Anna' },
+        },
+      }),
+    });
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+    expect(result.current.marks.get('n1')?.countdownEndsAt).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+    });
+    expect(assistantApi.decide).not.toHaveBeenCalled();
+  });
+
+  it('counts down a proposal that assigns the note to the person themselves', async () => {
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({
+        fields: { dueDate: null, priority: null, assignee: { value: person(ME), reason: 'ich' } },
+      }),
+    });
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+    });
+    expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+      decision: 'keep',
+      fields: ['assignee'],
+      source: 'countdown',
+    });
+  });
+
+  it('discards on the server what a call dismissed with Esc proposes when it lands', async () => {
+    let answer: () => void = () => {};
+    vi.mocked(assistantApi.suggest).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ suggestion: dto() });
+        }),
+    );
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    expect(result.current.marks.get('n1')?.phase).toBe('asking');
+    act(() => result.current.discard('n1', 'esc'));
+    expect(result.current.marks.has('n1')).toBe(false);
+    await act(async () => {
+      answer();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.marks.has('n1')).toBe(false);
+    expect(assistantApi.decide).toHaveBeenCalledTimes(1);
+    expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+      decision: 'discard',
+      source: 'esc',
+    });
+    // The note asked about again is a call of its own, and shows its proposal.
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+  });
+
+  it('sends a keep that got no answer once more, then keeps', async () => {
+    vi.mocked(assistantApi.decide).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.keep('n1', 'enter'));
+    await flush();
+    expect(assistantApi.decide).toHaveBeenCalledTimes(1);
+    // The dot is still there while the second try waits.
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS);
+    });
+    expect(assistantApi.decide).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(assistantApi.decide).mock.calls[1]![2]).toEqual({
+      decision: 'keep',
+      fields: ['dueDate', 'priority'],
+      source: 'enter',
+    });
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
+  });
+
+  it('tries a failing keep twice at most, and never retries a refusal', async () => {
+    vi.mocked(assistantApi.decide)
+      .mockRejectedValueOnce(Object.assign(new Error('503'), { status: 503 }))
+      .mockRejectedValueOnce(Object.assign(new Error('503'), { status: 503 }));
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.keep('n1', 'enter'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
+    });
+    expect(assistantApi.decide).toHaveBeenCalledTimes(2);
+    expect(result.current.marks.has('n1')).toBe(false);
+
+    vi.mocked(assistantApi.decide).mockRejectedValueOnce(
+      Object.assign(new Error('409'), { status: 409, code: 'STALE_REVISION' }),
+    );
+    act(() => result.current.request('n2', []));
+    await flush();
+    act(() => result.current.keep('n2', 'enter'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
+    });
+    expect(assistantApi.decide).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops every running countdown when the person switches to always ask me', async () => {
+    const { result, rerender } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({ id: 's2', noteId: 'n2' }),
+    });
+    act(() => result.current.request('n2', []));
+    await flush();
+    act(() => result.current.setPaused('n2', true));
+    expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
+    wallybot.autoApply = false;
+    rerender();
+    for (const id of ['n1', 'n2']) {
+      expect(result.current.marks.get(id)?.countdownEndsAt, id).toBeNull();
+      expect(result.current.marks.get(id)?.paused, id).toBe(false);
+    }
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+    });
+    expect(assistantApi.decide).not.toHaveBeenCalled();
+    // Switched back, the waiting marks keep waiting.
+    wallybot.autoApply = true;
+    rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+    });
+    expect(result.current.marks.get('n1')?.countdownEndsAt).toBeNull();
+    expect(assistantApi.decide).not.toHaveBeenCalled();
+  });
+
+  it('drops a pending change once the note moved past the revision it was proposed for', async () => {
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.syncNotes([{ id: 'n1', revision: 3 }]));
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+    act(() => result.current.syncNotes([{ id: 'n1', revision: 4 }]));
+    expect(result.current.marks.has('n1')).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
+    });
+    expect(assistantApi.decide).not.toHaveBeenCalled();
+    // A proposal that lands for a note already past its base is not shown at all.
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({ id: 's2', noteId: 'n2', baseRevision: 1 }),
+    });
+    act(() => result.current.syncNotes([{ id: 'n2', revision: 2 }]));
+    act(() => result.current.request('n2', []));
+    await flush();
+    expect(result.current.marks.has('n2')).toBe(false);
+  });
+
+  it('leaves a kept change, and a keep on its way, to their own answers', async () => {
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    const answer = holdDecide();
+    act(() => result.current.keep('n1', 'enter'));
+    act(() => result.current.syncNotes([{ id: 'n1', revision: 4 }]));
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+    await answer();
+    act(() => result.current.syncNotes([{ id: 'n1', revision: 5 }]));
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
   });
 
   it('does nothing while the assistant is off for the board', async () => {
@@ -405,7 +608,7 @@ describe('useSuggestions', () => {
       expect(assistantApi.pendingSuggestions).toHaveBeenCalledTimes(1);
       expect(result.current.marks.has('n9')).toBe(false);
       expect(result.current.marks.get('n4')?.phase).toBe('pending');
-      expect(result.current.marks.get('n4')?.countdownEndsAt).not.toBeNull();
+      expect(result.current.marks.get('n4')?.countdownEndsAt).toBeNull();
     });
 
     it('keeps the cached list in step with the visit, and shows the server list on return', async () => {

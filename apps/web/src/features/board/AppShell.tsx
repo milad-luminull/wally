@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -65,8 +65,12 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // Wallybot's fill-in after Enter (WALLYBOT_INLINE.md §3.3): the capture hands over the fields
   // the person decided, the shell asks once the commit has settled, and the views draw each
   // note's pending change.
-  const suggestions = useSuggestions(boardId, board.assistantEnabled);
-  const { request: requestSuggestion } = suggestions;
+  const suggestions = useSuggestions(boardId, board.assistantEnabled, user?.uid);
+  const { request: requestSuggestion, syncNotes } = suggestions;
+  // Before paint, so a card whose note moved on never draws its dashed edge and ring again.
+  useLayoutEffect(() => {
+    if (notesQuery.data) syncNotes(notesQuery.data);
+  }, [notesQuery.data, syncNotes]);
   const onCommitted = useCallback(
     (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
     [requestSuggestion],
