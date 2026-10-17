@@ -18,7 +18,7 @@ Slice 1 (PR #44) writes the note in place and applies the parser's chips on Ente
 - **R2. A capture turn is not a conversation.** It writes no `assistantConversations` document; its provenance is `{ via: 'assistant', conversationId: <suggestion id>, approvalId: <suggestion id> }`, so the audit record links to the suggestion. Cost if wrong: an audit reader has to know the id is a suggestion id; a comment says so.
 - **R3. Never propose what the person decided.** A field is a candidate only when the note has nothing there (no due date; priority `MITTEL`; no assignee), the client did not mark it as typed (a kept chip), and, for the priority, the capture was not placed on the priority wall (spec §7: a placed note never moves). A private note never gets an assignee (always its creator). With no candidate, no model call and no record. Cost if wrong: a wrong proposal is one × away; a missing one is silence.
 - **R4. Countdown 6 s, hover or focus pauses, Undo for 30 s.** Both windows are the client's; the server allows `undo` while the note's revision is the one the keep produced, and refuses `409 STALE_REVISION` otherwise (§4: undo is the inverse with the kept revision as `expectedRevision`). Cost if wrong: a person who edited the note after a keep cannot undo in one step; they edit by hand.
-- **R5. Pending suggestions survive a reload.** The board loads its pending records on open and shows their dots again, countdown restarted (`WALLY_AGENT.md` §3.2: after a reload the pending change is still shown and nothing has changed). The 30 s Undo affordance does not survive a reload; deferred. Cost if wrong: an old pending dot reappears; one Esc.
+- **R5. Pending suggestions survive a reload (amended by the ruling on the final review, 2026-10-17).** The board loads its pending records on open and shows their dots again, waiting for Enter with no countdown (`countdownEndsAt` null, not paused): decision 1 covers enrichment of a fresh note only, and nothing may change on a reload without being seen (`WALLY_AGENT.md` §3.2: after a reload the pending change is still shown and nothing has changed). The server's pending list leaves out, and marks DISCARDED in one batched write, every record whose note is gone, is not at `baseRevision`, or is older than 24 hours. The 30 s Undo affordance does not survive a reload; deferred. Cost if wrong: an old proposal needs one Enter instead of none.
 - **R6. One setting: "always ask me".** `preferences.wallybot.autoApply` (default `true`), a switch in the account menu. Off means no countdown: the dot waits for Enter or Esc. The delay, hover setting and per-field opt-outs of §3.7 are deferred. Cost if wrong: two more preference keys later.
 - **R7. Silence on failure.** A provider error, a budget refusal, a validation failure or nothing worth proposing all end the same way: no record, no dot, nothing said (§3.3). The ledger keeps the reservation when usage is unknown, as for questions.
 - **R8. The prompt carries the note's words, the members and the date.** No nearby notes, tags or fields in this slice; links and references come with slice 3. Cost if wrong: a slightly worse date guess; a cheaper call.
@@ -120,7 +120,9 @@ export const suggestionDtoSchema = z.object({
 });
 export type SuggestionDto = z.infer<typeof suggestionDtoSchema>;
 
-export const captureSuggestResponseSchema = z.object({ suggestion: suggestionDtoSchema.nullable() });
+export const captureSuggestResponseSchema = z.object({
+  suggestion: suggestionDtoSchema.nullable(),
+});
 export type CaptureSuggestResponse = z.infer<typeof captureSuggestResponseSchema>;
 
 export const suggestionListSchema = z.object({ suggestions: z.array(suggestionDtoSchema) });
@@ -205,7 +207,11 @@ export type AssistantSuggestionDoc = {
   };
   operationIds: SuggestionOperationIds;
   status: 'PENDING' | 'KEPT' | 'UNDONE' | 'DISCARDED';
-  decision: { source: string; fields: ('dueDate' | 'priority' | 'assignee')[]; at: Timestamp } | null;
+  decision: {
+    source: string;
+    fields: ('dueDate' | 'priority' | 'assignee')[];
+    at: Timestamp;
+  } | null;
   /** Written by a keep: what the note held before, and the revision the keep produced. */
   applied: {
     before: { dueDate: string | null; priority: NotePriority; assigneeId: string | null };
@@ -239,7 +245,7 @@ export const assistantSuggestionsCol = (
 In `userPreferences`, parse the new key the way the others are parsed:
 
 ```ts
-  const wallybot = wallybotPreferencesSchema.safeParse(stored?.wallybot);
+const wallybot = wallybotPreferencesSchema.safeParse(stored?.wallybot);
 ```
 
 and return `wallybot: wallybot.success ? wallybot.data : DEFAULT_WALLYBOT_PREFERENCES,` (import both from `@wally/shared`).
@@ -249,12 +255,12 @@ and return `wallybot: wallybot.success ? wallybot.data : DEFAULT_WALLYBOT_PREFER
 In `firestore.indexes.json` append to `fieldOverrides`:
 
 ```json
-    {
-      "collectionGroup": "assistantSuggestions",
-      "fieldPath": "expiresAt",
-      "ttl": true,
-      "indexes": []
-    }
+{
+  "collectionGroup": "assistantSuggestions",
+  "fieldPath": "expiresAt",
+  "ttl": true,
+  "indexes": []
+}
 ```
 
 In `docs/DEPLOY.md`, the paragraph "Deploy `firestore.indexes.json`, including all four TTL policies …" becomes five, naming `assistantSuggestions.expiresAt` with seven days as its retention target (a suggestion's receipts expire with it).
@@ -581,8 +587,16 @@ import {
 
 describe('the capture prompt', () => {
   it('keeps the instructions byte-stable ahead of the date, zone and language', () => {
-    const a = buildCaptureInstructions({ today: '2026-10-17', timeZone: 'Europe/Berlin', language: 'de' });
-    const b = buildCaptureInstructions({ today: '2026-10-18', timeZone: 'Europe/Berlin', language: 'en' });
+    const a = buildCaptureInstructions({
+      today: '2026-10-17',
+      timeZone: 'Europe/Berlin',
+      language: 'de',
+    });
+    const b = buildCaptureInstructions({
+      today: '2026-10-18',
+      timeZone: 'Europe/Berlin',
+      language: 'en',
+    });
     expect(a.startsWith(CAPTURE_INSTRUCTIONS_PREFIX)).toBe(true);
     expect(b.startsWith(CAPTURE_INSTRUCTIONS_PREFIX)).toBe(true);
     expect(a).toContain('Today is 2026-10-17 in the time zone Europe/Berlin');
@@ -611,7 +625,11 @@ describe('the capture prompt', () => {
   });
 
   it('includes the text line only when there is one', () => {
-    const prompt = buildCapturePrompt({ title: 'A', description: 'bis Ende der Woche', members: [] });
+    const prompt = buildCapturePrompt({
+      title: 'A',
+      description: 'bis Ende der Woche',
+      members: [],
+    });
     expect(prompt).toContain('Text: bis Ende der Woche');
     expect(prompt).toContain('Members: none');
   });
@@ -702,10 +720,31 @@ export const SUGGESTION_MAX_OUTPUT_TOKENS = 256;
 export const SUGGESTION_DEADLINE_MS = 20_000;
 export const SUGGESTION_MIN_CONFIDENCE = 0.6;
 export const SUGGESTION_RETENTION_DAYS = 7;
-export interface SuggestionDeps { db; env; runner: SuggestionRunner; logger?; now?; deadlineMs? }
-export interface SuggestionContext { actor; language; board; role; }
-export async function suggestForCapture(deps, ctx, request: CaptureSuggestRequest): Promise<SuggestionDto | null>;
-export async function decideSuggestion(deps, ctx, suggestionId: string, decision: SuggestionDecision): Promise<SuggestionDto>;
+export interface SuggestionDeps {
+  db;
+  env;
+  runner: SuggestionRunner;
+  logger?;
+  now?;
+  deadlineMs?;
+}
+export interface SuggestionContext {
+  actor;
+  language;
+  board;
+  role;
+}
+export async function suggestForCapture(
+  deps,
+  ctx,
+  request: CaptureSuggestRequest,
+): Promise<SuggestionDto | null>;
+export async function decideSuggestion(
+  deps,
+  ctx,
+  suggestionId: string,
+  decision: SuggestionDecision,
+): Promise<SuggestionDto>;
 export async function pendingSuggestions(db, actor, boardId): Promise<SuggestionDto[]>;
 ```
 
@@ -727,12 +766,7 @@ import {
   notesCol,
 } from '../src/lib/db/collections.js';
 import { dayKey } from '../src/lib/assistant/budget/ledger.js';
-import {
-  buildTestApp,
-  createBoardFixture,
-  resetDatabase,
-  type TestContext,
-} from './helpers.js';
+import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-assistant-suggestions';
 const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
@@ -749,10 +783,11 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
     await lease.settle(usage);
     return { fields, usage, finishReason: 'stop' };
   };
-  if (title.startsWith('fail')) throw Object.assign(new Error('quota for secret-project'), {
-    name: 'AI_APICallError',
-    statusCode: 429,
-  });
+  if (title.startsWith('fail'))
+    throw Object.assign(new Error('quota for secret-project'), {
+      name: 'AI_APICallError',
+      statusCode: 429,
+    });
   if (title.startsWith('nothing')) return settle({ dueDate: null, priority: null, assignee: null });
   if (title.startsWith('all')) {
     const memberId = title.slice('all '.length) || 'nobody';
@@ -803,12 +838,7 @@ describe('capture suggestions', () => {
       headers: ctx.authHeader(token),
       payload: { noteId, locked, timeZone: 'Europe/Berlin', today: '2026-10-17' },
     });
-  const decide = (
-    token: string,
-    boardId: string,
-    id: string,
-    body: Record<string, unknown>,
-  ) =>
+  const decide = (token: string, boardId: string, id: string, body: Record<string, unknown>) =>
     ctx.inject({
       method: 'POST',
       url: `/whiteboards/${boardId}/assistant/suggestions/${id}/decision`,
@@ -825,7 +855,9 @@ describe('capture suggestions', () => {
 
   it('proposes the fields the note leaves empty and reserves then settles the call', async () => {
     const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor dringend' })).json();
+    const n = (
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor dringend' })
+    ).json();
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(200);
     const { suggestion } = res.json();
@@ -841,7 +873,9 @@ describe('capture suggestions', () => {
       },
       kept: null,
     });
-    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()).data();
+    const usageDoc = (
+      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
+    ).data();
     expect(usageDoc?.tokens).toBe(70);
     expect(usageDoc?.inFlight).toEqual({});
     // The prompt carries the words and the members by id; the note was not changed.
@@ -897,7 +931,9 @@ describe('capture suggestions', () => {
     const fx = await createBoardFixture(ctx);
     const unsure = (await createNote(fx.ownerToken, fx.boardId, { title: 'unsure' })).json();
     expect((await suggest(fx.ownerToken, fx.boardId, unsure.id)).json().suggestion).toBeNull();
-    const stranger = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-outsider' })).json();
+    const stranger = (
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-outsider' })
+    ).json();
     const s = (await suggest(fx.ownerToken, fx.boardId, stranger.id)).json().suggestion;
     expect(s.fields.assignee).toBeNull();
     expect(s.fields.dueDate).not.toBeNull();
@@ -929,15 +965,25 @@ describe('capture suggestions', () => {
     expect(kept.status).toBe('KEPT');
     expect(kept.kept.fields).toEqual(['dueDate', 'priority', 'assignee']);
     const after = await note(n.id);
-    expect(after).toMatchObject({ dueDate: '2026-10-23', priority: 'HOCH', assigneeId: 'fx-editor' });
+    expect(after).toMatchObject({
+      dueDate: '2026-10-23',
+      priority: 'HOCH',
+      assigneeId: 'fx-editor',
+    });
     expect(after.revision).toBe(kept.kept.revision);
     expect(after.revision).toBe(n.revision + 3);
-    const audits = (await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get()).docs.map(
-      (d) => d.data(),
-    );
-    expect(audits.map((a) => a.commandType).sort()).toEqual(['note.assign', 'note.move', 'note.update']);
+    const audits = (
+      await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get()
+    ).docs.map((d) => d.data());
+    expect(audits.map((a) => a.commandType).sort()).toEqual([
+      'note.assign',
+      'note.move',
+      'note.update',
+    ]);
     expect(audits.every((a) => a.actorId === fx.ownerId && a.targetId === n.id)).toBe(true);
-    const stored = (await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()).data()!;
+    const stored = (
+      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
+    ).data()!;
     expect(stored.applied?.before).toEqual({ dueDate: null, priority: 'MITTEL', assigneeId: null });
     expect(stored.decision?.source).toBe('countdown');
   });
@@ -952,7 +998,11 @@ describe('capture suggestions', () => {
       source: 'enter',
     });
     expect(res.json().suggestion.kept.fields).toEqual(['dueDate']);
-    expect(await note(n.id)).toMatchObject({ dueDate: '2026-10-23', priority: 'MITTEL', assigneeId: null });
+    expect(await note(n.id)).toMatchObject({
+      dueDate: '2026-10-23',
+      priority: 'MITTEL',
+      assigneeId: null,
+    });
   });
 
   it('runs a keep once: a second keep from another tab replays the stored outcome', async () => {
@@ -982,13 +1032,25 @@ describe('capture suggestions', () => {
       headers: ctx.authHeader(fx.ownerToken),
       payload: { title: 'Geändert' },
     });
-    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'countdown' });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'countdown',
+    });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
-    expect(await note(n.id)).toMatchObject({ title: 'Geändert', dueDate: null, priority: 'MITTEL' });
-    const stored = (await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()).data()!;
+    expect(await note(n.id)).toMatchObject({
+      title: 'Geändert',
+      dueDate: null,
+      priority: 'MITTEL',
+    });
+    const stored = (
+      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
+    ).data()!;
     expect(stored.status).toBe('DISCARDED');
-    const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
+    const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
     expect(again.statusCode).toBe(409);
     expect(again.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
   });
@@ -1000,15 +1062,26 @@ describe('capture suggestions', () => {
     ).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
-    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'undo', source: 'shortcut' });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'shortcut',
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.status).toBe('UNDONE');
     const after = await note(n.id);
-    expect(after).toMatchObject({ dueDate: null, priority: 'MITTEL', assigneeId: null, title: 'all fx-editor' });
+    expect(after).toMatchObject({
+      dueDate: null,
+      priority: 'MITTEL',
+      assigneeId: null,
+      title: 'all fx-editor',
+    });
     expect(after.revision).toBe(n.revision + 6);
     const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
     expect(audits.size).toBe(6);
-    const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'undo', source: 'esc' });
+    const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
     expect(again.statusCode).toBe(200);
     expect(again.json().suggestion.status).toBe('UNDONE');
     expect((await note(n.id)).revision).toBe(n.revision + 6);
@@ -1025,11 +1098,16 @@ describe('capture suggestions', () => {
       headers: ctx.authHeader(fx.ownerToken),
       payload: { title: 'Danach' },
     });
-    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'undo', source: 'esc' });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
     expect(await note(n.id)).toMatchObject({ title: 'Danach', dueDate: '2026-10-23' });
-    const stored = (await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()).data()!;
+    const stored = (
+      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
+    ).data()!;
     expect(stored.status).toBe('KEPT');
   });
 
@@ -1037,10 +1115,16 @@ describe('capture suggestions', () => {
     const fx = await createBoardFixture(ctx);
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'Freitag' })).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
-    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'discard', source: 'esc' });
+    const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'discard',
+      source: 'esc',
+    });
     expect(res.json().suggestion.status).toBe('DISCARDED');
     expect((await note(n.id)).revision).toBe(n.revision);
-    const keep = await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
+    const keep = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
     expect(keep.statusCode).toBe(409);
   });
 
@@ -1063,7 +1147,10 @@ describe('capture suggestions', () => {
       await createNote(fx.viewToken, fx.boardId, { title: 'Freitag', visibility: 'PRIVATE' })
     ).json();
     const { suggestion } = (await suggest(fx.viewToken, fx.boardId, priv.id)).json();
-    const res = await decide(fx.viewToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
+    const res = await decide(fx.viewToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
     expect(res.statusCode).toBe(200);
     expect(await note(priv.id)).toMatchObject({ dueDate: '2026-10-23', assigneeId: fx.viewerId });
   });
@@ -1076,7 +1163,8 @@ describe('capture suggestions', () => {
     expect((await suggest(fx.editToken, fx.editorId, n.id)).statusCode).toBe(404);
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     expect(
-      (await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' })).statusCode,
+      (await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' }))
+        .statusCode,
     ).toBe(404);
     await ctx.inject({
       method: 'PATCH',
@@ -1124,7 +1212,12 @@ import {
   toIso,
   withId,
 } from '../db/collections.js';
-import type { AssistantSuggestionDoc, SuggestionOperationIds, WhiteboardDoc, WithId } from '../db/types.js';
+import type {
+  AssistantSuggestionDoc,
+  SuggestionOperationIds,
+  WhiteboardDoc,
+  WithId,
+} from '../db/types.js';
 import { AppError } from '../errors.js';
 import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
@@ -1402,7 +1495,11 @@ async function claim(
 }
 
 type OperationContextFor = Parameters<typeof runOperation>[0];
-function operationContext(deps: SuggestionDeps, ctx: SuggestionContext, id: string): OperationContextFor {
+function operationContext(
+  deps: SuggestionDeps,
+  ctx: SuggestionContext,
+  id: string,
+): OperationContextFor {
   return {
     db: deps.db,
     actor: ctx.actor,
@@ -1476,10 +1573,19 @@ export async function decideSuggestion(
   const stamp = () => Timestamp.fromDate(deps.now?.() ?? new Date());
 
   if (decision.decision === 'discard') {
-    const { doc } = await claim(db, actor, board.id, suggestionId, 'PENDING', 'DISCARDED', {
-      source: decision.source,
-      fields: [],
-    }, now);
+    const { doc } = await claim(
+      db,
+      actor,
+      board.id,
+      suggestionId,
+      'PENDING',
+      'DISCARDED',
+      {
+        source: decision.source,
+        fields: [],
+      },
+      now,
+    );
     return toDto(db, doc);
   }
 
@@ -1488,16 +1594,34 @@ export async function decideSuggestion(
     const proposed = proposedKeys(current.fields);
     const fields = (decision.fields ?? proposed).filter((key) => proposed.includes(key));
     if (fields.length === 0) {
-      const { doc } = await claim(db, actor, board.id, suggestionId, 'PENDING', 'DISCARDED', {
-        source: decision.source,
-        fields: [],
-      }, now);
+      const { doc } = await claim(
+        db,
+        actor,
+        board.id,
+        suggestionId,
+        'PENDING',
+        'DISCARDED',
+        {
+          source: decision.source,
+          fields: [],
+        },
+        now,
+      );
       return toDto(db, doc);
     }
-    const { doc, claimed } = await claim(db, actor, board.id, suggestionId, 'PENDING', 'KEPT', {
-      source: decision.source,
-      fields,
-    }, now);
+    const { doc, claimed } = await claim(
+      db,
+      actor,
+      board.id,
+      suggestionId,
+      'PENDING',
+      'KEPT',
+      {
+        source: decision.source,
+        fields,
+      },
+      now,
+    );
     // The other tab's keep is running or done; its outcome is the record's. Replaying the
     // writes here would be safe (same operation ids) but would race its `applied` write.
     if (!claimed) return toDto(db, doc);
@@ -1551,7 +1675,12 @@ export async function decideSuggestion(
       key === 'assignee'
         ? await runOperation(opCtx, {
             name: 'assign_note',
-            input: { boardId, noteId, expectedRevision: revision, input: { assigneeId: before.assigneeId } },
+            input: {
+              boardId,
+              noteId,
+              expectedRevision: revision,
+              input: { assigneeId: before.assigneeId },
+            },
             operationId,
           })
         : key === 'priority'
@@ -1567,15 +1696,29 @@ export async function decideSuggestion(
             })
           : await runOperation(opCtx, {
               name: 'update_note',
-              input: { boardId, noteId, expectedRevision: revision, input: { dueDate: before.dueDate } },
+              input: {
+                boardId,
+                noteId,
+                expectedRevision: revision,
+                input: { dueDate: before.dueDate },
+              },
               operationId,
             });
     revision = result.revision ?? revision;
   }
-  const { doc } = await claim(db, actor, board.id, suggestionId, 'KEPT', 'UNDONE', {
-    source: decision.source,
-    fields: inverse,
-  }, now);
+  const { doc } = await claim(
+    db,
+    actor,
+    board.id,
+    suggestionId,
+    'KEPT',
+    'UNDONE',
+    {
+      source: decision.source,
+      fields: inverse,
+    },
+    now,
+  );
   return toDto(db, doc);
 }
 
@@ -1610,64 +1753,64 @@ In `apps/api/src/routes/assistant.ts`:
 - Register, after the conversation routes:
 
 ```ts
-  app.post(
-    '/whiteboards/:id/assistant/captures',
-    {
-      schema: {
-        params,
-        body: captureSuggestRequestSchema,
-        response: { 200: captureSuggestResponseSchema, 429: refused },
-      },
-      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+app.post(
+  '/whiteboards/:id/assistant/captures',
+  {
+    schema: {
+      params,
+      body: captureSuggestRequestSchema,
+      response: { 200: captureSuggestResponseSchema, 429: refused },
     },
-    async (request, reply) => {
-      const { board, role } = await boardFor(request);
-      try {
-        const suggestion = await suggestForCapture(
-          { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
-          { actor: request.user, language: userLanguage(request.user), board, role },
-          request.body,
-        );
-        return { suggestion };
-      } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
-        throw error;
-      }
-    },
-  );
-
-  app.post(
-    '/whiteboards/:id/assistant/suggestions/:suggestionId/decision',
-    {
-      schema: {
-        params: suggestionParams,
-        body: suggestionDecisionSchema,
-        response: { 200: suggestionDecisionResponseSchema },
-      },
-    },
-    async (request) => {
-      const { board, role } = await boardFor(request);
-      const suggestion = await decideSuggestion(
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+  },
+  async (request, reply) => {
+    const { board, role } = await boardFor(request);
+    try {
+      const suggestion = await suggestForCapture(
         { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
         { actor: request.user, language: userLanguage(request.user), board, role },
-        request.params.suggestionId,
         request.body,
       );
       return { suggestion };
-    },
-  );
+    } catch (error) {
+      if (error instanceof BudgetError)
+        return reply
+          .code(429)
+          .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+      throw error;
+    }
+  },
+);
 
-  app.get(
-    '/whiteboards/:id/assistant/suggestions/pending',
-    { schema: { params, response: { 200: suggestionListSchema } } },
-    async (request) => {
-      const { board } = await boardFor(request);
-      return { suggestions: await pendingSuggestions(request.server.db, request.user, board.id) };
+app.post(
+  '/whiteboards/:id/assistant/suggestions/:suggestionId/decision',
+  {
+    schema: {
+      params: suggestionParams,
+      body: suggestionDecisionSchema,
+      response: { 200: suggestionDecisionResponseSchema },
     },
-  );
+  },
+  async (request) => {
+    const { board, role } = await boardFor(request);
+    const suggestion = await decideSuggestion(
+      { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
+      { actor: request.user, language: userLanguage(request.user), board, role },
+      request.params.suggestionId,
+      request.body,
+    );
+    return { suggestion };
+  },
+);
+
+app.get(
+  '/whiteboards/:id/assistant/suggestions/pending',
+  { schema: { params, response: { 200: suggestionListSchema } } },
+  async (request) => {
+    const { board } = await boardFor(request);
+    return { suggestions: await pendingSuggestions(request.server.db, request.user, board.id) };
+  },
+);
 ```
 
 `boardFor` takes `request.params.id`; make its parameter type accept both params shapes (`{ params: { id: string } }` already does).
@@ -1712,26 +1855,26 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 Add, in the existing describe that exercises `PATCH /me` preferences:
 
 ```ts
-  it('saves the Wallybot preference by its own path and defaults it when absent', async () => {
-    const token = registerTestUser(ctx, 'u-wb', 'wb@example.com', 'WB');
-    const before = await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
-    expect(before.json().preferences.wallybot).toEqual({ autoApply: true });
-    const res = await ctx.inject({
-      method: 'PATCH',
-      url: '/me',
-      headers: ctx.authHeader(token),
-      payload: { preferences: { wallybot: { autoApply: false } } },
-    });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().preferences.wallybot).toEqual({ autoApply: false });
-    const theme = await ctx.inject({
-      method: 'PATCH',
-      url: '/me',
-      headers: ctx.authHeader(token),
-      payload: { preferences: { theme: 'dark' } },
-    });
-    expect(theme.json().preferences).toMatchObject({ theme: 'dark', wallybot: { autoApply: false } });
+it('saves the Wallybot preference by its own path and defaults it when absent', async () => {
+  const token = registerTestUser(ctx, 'u-wb', 'wb@example.com', 'WB');
+  const before = await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+  expect(before.json().preferences.wallybot).toEqual({ autoApply: true });
+  const res = await ctx.inject({
+    method: 'PATCH',
+    url: '/me',
+    headers: ctx.authHeader(token),
+    payload: { preferences: { wallybot: { autoApply: false } } },
   });
+  expect(res.statusCode).toBe(200);
+  expect(res.json().preferences.wallybot).toEqual({ autoApply: false });
+  const theme = await ctx.inject({
+    method: 'PATCH',
+    url: '/me',
+    headers: ctx.authHeader(token),
+    payload: { preferences: { theme: 'dark' } },
+  });
+  expect(theme.json().preferences).toMatchObject({ theme: 'dark', wallybot: { autoApply: false } });
+});
 ```
 
 Run: `cd /Users/mr_user/development/apps/wally-suggest/apps/api && FIRESTORE_EMULATOR_HOST=localhost:8080 pnpm vitest run test/me.test.ts`
@@ -1742,8 +1885,7 @@ Expected: FAIL on the PATCH (strict schema already accepts it after Task 1, but 
 After the `lastBoardId` block:
 
 ```ts
-        if (preferences?.wallybot !== undefined)
-          update['preferences.wallybot'] = preferences.wallybot;
+if (preferences?.wallybot !== undefined) update['preferences.wallybot'] = preferences.wallybot;
 ```
 
 and in the returned `userPreferences({...})` spread add
@@ -1790,20 +1932,20 @@ export function useWallybotPreferences() {
 `AccountMenu.tsx`: import `Switch` from `@/components/ui/switch` and `useWallybotPreferences`; after the language block and before the separator:
 
 ```tsx
-        <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
-          <div className="flex min-w-0 flex-col">
-            <Label htmlFor="account-wallybot" className="text-12 font-medium text-fg-3">
-              {t('account.wallybot.label')}
-            </Label>
-            <p className="text-12 text-fg-faint">{t('account.wallybot.hint')}</p>
-          </div>
-          <Switch
-            id="account-wallybot"
-            aria-label={t('account.wallybot.alwaysAsk')}
-            checked={!wallybot.autoApply}
-            onCheckedChange={(on) => setWallybot({ autoApply: !on })}
-          />
-        </div>
+<div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">
+  <div className="flex min-w-0 flex-col">
+    <Label htmlFor="account-wallybot" className="text-12 font-medium text-fg-3">
+      {t('account.wallybot.label')}
+    </Label>
+    <p className="text-12 text-fg-faint">{t('account.wallybot.hint')}</p>
+  </div>
+  <Switch
+    id="account-wallybot"
+    aria-label={t('account.wallybot.alwaysAsk')}
+    checked={!wallybot.autoApply}
+    onCheckedChange={(on) => setWallybot({ autoApply: !on })}
+  />
+</div>
 ```
 
 with `const [wallybot, setWallybot] = useWallybotPreferences();` next to the canvas pattern line.
@@ -1862,21 +2004,21 @@ export const UNDO_WINDOW_MS = 30_000;
 export type SuggestionPhase = 'asking' | 'pending' | 'kept';
 export interface SuggestionMark {
   phase: SuggestionPhase;
-  suggestion: SuggestionDto | null;            // null while asking
+  suggestion: SuggestionDto | null; // null while asking
   /** The proposed fields still on the card (a × removes one). */
   fields: SuggestionFieldKey[];
   /** When the countdown ends, in ms since epoch, or null when none runs (asking, paused, always-ask, kept). */
   countdownEndsAt: number | null;
-  countdownMs: number;                          // COUNTDOWN_MS, for the ring's duration
+  countdownMs: number; // COUNTDOWN_MS, for the ring's duration
   paused: boolean;
 }
 export interface SuggestionsController {
-  marks: ReadonlyMap<string, SuggestionMark>;   // by note id
+  marks: ReadonlyMap<string, SuggestionMark>; // by note id
   request: (noteId: string, locked: SuggestionFieldKey[]) => void;
   keep: (noteId: string, source: 'enter' | 'countdown' | 'click') => void;
   discard: (noteId: string, source: 'esc') => void;
   undo: (noteId: string, source: 'esc' | 'click' | 'shortcut') => void;
-  undoLast: () => boolean;                      // ⌘Z: the most recent keep still in its window
+  undoLast: () => boolean; // ⌘Z: the most recent keep still in its window
   remove: (noteId: string, field: SuggestionFieldKey) => void;
   setPaused: (noteId: string, paused: boolean) => void;
 }
@@ -1968,7 +2110,10 @@ beforeEach(() => {
     suggestion: dto({
       id,
       status: body.decision === 'keep' ? 'KEPT' : body.decision === 'undo' ? 'UNDONE' : 'DISCARDED',
-      kept: body.decision === 'keep' ? { fields: body.fields ?? ['dueDate', 'priority'], revision: 5 } : null,
+      kept:
+        body.decision === 'keep'
+          ? { fields: body.fields ?? ['dueDate', 'priority'], revision: 5 }
+          : null,
     }),
   }));
 });
@@ -2043,7 +2188,11 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', expect.objectContaining({ source: 'enter' }));
+    expect(assistantApi.decide).toHaveBeenCalledWith(
+      BOARD,
+      's1',
+      expect.objectContaining({ source: 'enter' }),
+    );
   });
 
   it('removes a field before keeping, and discards when the last one goes', async () => {
@@ -2063,7 +2212,9 @@ describe('useSuggestions', () => {
       fields: ['dueDate'],
       source: 'enter',
     });
-    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({ suggestion: dto({ id: 's2', noteId: 'n2' }) });
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({ id: 's2', noteId: 'n2' }),
+    });
     act(() => result.current.request('n2', []));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -2073,7 +2224,10 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', { decision: 'discard', source: 'esc' });
+    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
+      decision: 'discard',
+      source: 'esc',
+    });
     expect(result.current.marks.has('n2')).toBe(false);
   });
 
@@ -2092,7 +2246,10 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's1', { decision: 'undo', source: 'shortcut' });
+    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's1', {
+      decision: 'undo',
+      source: 'shortcut',
+    });
     expect(result.current.marks.has('n1')).toBe(false);
     act(() => {
       undone = result.current.undoLast();
@@ -2257,9 +2414,9 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   );
 
   // Declared before the clock helpers so a countdown's expiry can call it.
-  const decideRef = useRef<(noteId: string, body: Parameters<typeof assistantApi.decide>[2]) => void>(
-    () => {},
-  );
+  const decideRef = useRef<
+    (noteId: string, body: Parameters<typeof assistantApi.decide>[2]) => void
+  >(() => {});
 
   const armClock = useCallback(
     (noteId: string, remainingMs: number) => {
@@ -2402,7 +2559,11 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   const setPaused = useCallback<SuggestionsController['setPaused']>(
     (noteId, paused) => {
       const mark = latestMarks.current.get(noteId);
-      if (mark?.phase !== 'pending' || mark.paused === paused || mark.countdownEndsAt === null && !paused)
+      if (
+        mark?.phase !== 'pending' ||
+        mark.paused === paused ||
+        (mark.countdownEndsAt === null && !paused)
+      )
         return;
       if (!autoApply) return;
       if (paused) {
@@ -2487,14 +2648,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 /** What a card or row needs to draw and report a pending change; built by the views from the controller. */
 export interface PendingProps {
   mark: SuggestionMark;
-  onKeep: () => void;        // Enter on the focused card, or the dot
-  onDiscard: () => void;     // Esc while pending
-  onUndo: () => void;        // Esc while kept, or the Undo text
+  onKeep: () => void; // Enter on the focused card, or the dot
+  onDiscard: () => void; // Esc while pending
+  onUndo: () => void; // Esc while kept, or the Undo text
   onRemove: (field: SuggestionFieldKey) => void;
   onPause: (paused: boolean) => void;
 }
-export function PendingDot(props: { mark: SuggestionMark; onUndo: () => void; className?: string }): JSX.Element;
-export function ProposedField(props: { label: ReactNode; name: string; reason: string; onRemove: () => void; className?: string }): JSX.Element;
+export function PendingDot(props: {
+  mark: SuggestionMark;
+  onUndo: () => void;
+  className?: string;
+}): JSX.Element;
+export function ProposedField(props: {
+  label: ReactNode;
+  name: string;
+  reason: string;
+  onRemove: () => void;
+  className?: string;
+}): JSX.Element;
 export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefined): boolean; // handled?
 ```
 
@@ -2571,7 +2742,9 @@ const mark = (over: Partial<SuggestionMark> = {}): SuggestionMark => ({
 describe('PendingDot', () => {
   it('is a marigold dot with a sweeping ring while a countdown runs', () => {
     const { container } = render(<PendingDot mark={mark()} onUndo={vi.fn()} />);
-    const dot = screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, werden gleich übernommen' });
+    const dot = screen.getByRole('img', {
+      name: 'Vorgeschlagene Änderungen, werden gleich übernommen',
+    });
     expect(dot).toBeInTheDocument();
     expect(container.querySelector('circle.fill-accent')).not.toBeNull();
     const ring = container.querySelector('circle.animate-countdown');
@@ -2580,26 +2753,35 @@ describe('PendingDot', () => {
   });
 
   it('holds the ring still while paused and draws none while waiting for Enter', () => {
-    const paused = render(<PendingDot mark={mark({ paused: true, countdownEndsAt: null })} onUndo={vi.fn()} />);
+    const paused = render(
+      <PendingDot mark={mark({ paused: true, countdownEndsAt: null })} onUndo={vi.fn()} />,
+    );
     expect(paused.container.querySelector('circle.animate-countdown')?.className.baseVal).toContain(
       '[animation-play-state:paused]',
     );
     paused.unmount();
     const waiting = render(<PendingDot mark={mark({ countdownEndsAt: null })} onUndo={vi.fn()} />);
-    expect(screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, warten auf Enter' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Vorgeschlagene Änderungen, warten auf Enter' }),
+    ).toBeInTheDocument();
     expect(waiting.container.querySelector('circle.animate-countdown')).toBeNull();
   });
 
   it('shows a faint Undo where the dot was once the changes are kept', async () => {
     const onUndo = vi.fn();
     render(<PendingDot mark={mark({ phase: 'kept', countdownEndsAt: null })} onUndo={onUndo} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
+    );
     expect(onUndo).toHaveBeenCalledTimes(1);
   });
 
   it('dims the dot while asking, with no ring', () => {
     const { container } = render(
-      <PendingDot mark={mark({ phase: 'asking', countdownEndsAt: null, fields: [] })} onUndo={vi.fn()} />,
+      <PendingDot
+        mark={mark({ phase: 'asking', countdownEndsAt: null, fields: [] })}
+        onUndo={vi.fn()}
+      />,
     );
     expect(screen.getByRole('img', { name: 'Wird ausgefüllt' })).toBeInTheDocument();
     expect(container.querySelector('circle.animate-countdown')).toBeNull();
@@ -2801,7 +2983,10 @@ export function makeSuggestionMark(overrides: Partial<SuggestionMark> = {}): Sug
       fields: {
         dueDate: { value: '2026-10-23', reason: 'Freitag' },
         priority: { value: 'HOCH', reason: 'dringend' },
-        assignee: { value: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' }, reason: 'Anna' },
+        assignee: {
+          value: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' },
+          reason: 'Anna',
+        },
       },
       kept: null,
       createdAt: '2026-10-17T10:00:00.000Z',
@@ -2830,7 +3015,13 @@ describe('NoteCard with a pending change', () => {
   const renderCard = (p = pending()) => {
     render(
       <DndContext>
-        <NoteCard note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })} currentUserId="user-1" selected={false} onOpen={vi.fn()} pending={p} />
+        <NoteCard
+          note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          pending={p}
+        />
       </DndContext>,
     );
     return p;
@@ -2843,7 +3034,9 @@ describe('NoteCard with a pending change', () => {
     expect(card.className).not.toMatch(/\banimate-/);
     expect(screen.getByRole('img', { name: /Vorgeschlagene/ })).toBeInTheDocument();
     expect(screen.getByText(/Fr\.?,? 23\.10\./)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Vorschlag entfernen: Priorität hoch' }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Vorschlag entfernen: Zuständig: Anna' }));
     expect(p.onRemove).toHaveBeenCalledWith('assignee');
   });
@@ -2853,7 +3046,13 @@ describe('NoteCard with a pending change', () => {
     const p = pending();
     render(
       <DndContext>
-        <NoteCard note={makeNote()} currentUserId="user-1" selected={false} onOpen={onOpen} pending={p} />
+        <NoteCard
+          note={makeNote()}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={onOpen}
+          pending={p}
+        />
       </DndContext>,
     );
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
@@ -2880,7 +3079,9 @@ describe('NoteCard with a pending change', () => {
     const card = screen.getByText('Angebotsvergleich freigeben').closest('button')!;
     expect(card.className).not.toContain('border-dashed');
     expect(screen.queryByRole('img', { name: /Vorgeschlagene/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Übernommene Änderungen rückgängig machen' }),
+    );
     expect(p.onUndo).toHaveBeenCalledTimes(1);
   });
 });
@@ -2962,16 +3163,18 @@ Run the three files: FAIL.
 `InlineCaptureCard.tsx`: compute
 
 ```ts
-  /** The fields the person decided here: a kept chip, or a placement on the priority wall (R3). */
-  function locked(): SuggestionFieldKey[] {
-    const f = fields();
-    const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
-    return suggestionFieldKeys.filter((key) =>
-      key === 'dueDate' ? f.dueDate !== null
-      : key === 'priority' ? f.priority !== null || placedByPriority
-      : f.assigneeId !== null,
-    );
-  }
+/** The fields the person decided here: a kept chip, or a placement on the priority wall (R3). */
+function locked(): SuggestionFieldKey[] {
+  const f = fields();
+  const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+  return suggestionFieldKeys.filter((key) =>
+    key === 'dueDate'
+      ? f.dueDate !== null
+      : key === 'priority'
+        ? f.priority !== null || placedByPriority
+        : f.assigneeId !== null,
+  );
+}
 ```
 
 and pass `locked: locked()` in `controller.commit({...})`. The `onDone` prop type changes accordingly.
@@ -2985,27 +3188,27 @@ and pass `locked: locked()` in `controller.commit({...})`. The `onDone` prop typ
 `AppShell.tsx`:
 
 ```ts
-  const suggestions = useSuggestions(boardId, board.assistantEnabled);
-  const { request: requestSuggestion } = suggestions;
-  const onCommitted = useCallback(
-    (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
-    [requestSuggestion],
-  );
-  const pendingFor = useCallback(
-    (noteId: string): PendingProps | undefined => {
-      const mark = suggestions.marks.get(noteId);
-      if (!mark) return undefined;
-      return {
-        mark,
-        onKeep: () => suggestions.keep(noteId, 'enter'),
-        onDiscard: () => suggestions.discard(noteId, 'esc'),
-        onUndo: () => suggestions.undo(noteId, 'esc'),
-        onRemove: (field) => suggestions.remove(noteId, field),
-        onPause: (paused) => suggestions.setPaused(noteId, paused),
-      };
-    },
-    [suggestions],
-  );
+const suggestions = useSuggestions(boardId, board.assistantEnabled);
+const { request: requestSuggestion } = suggestions;
+const onCommitted = useCallback(
+  (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
+  [requestSuggestion],
+);
+const pendingFor = useCallback(
+  (noteId: string): PendingProps | undefined => {
+    const mark = suggestions.marks.get(noteId);
+    if (!mark) return undefined;
+    return {
+      mark,
+      onKeep: () => suggestions.keep(noteId, 'enter'),
+      onDiscard: () => suggestions.discard(noteId, 'esc'),
+      onUndo: () => suggestions.undo(noteId, 'esc'),
+      onRemove: (field) => suggestions.remove(noteId, field),
+      onPause: (paused) => suggestions.setPaused(noteId, paused),
+    };
+  },
+  [suggestions],
+);
 ```
 
 Pass `onCommitted` into `useCaptureSession`, `pendingFor` into `WandView` and `ListView`, and `onUndoSuggestion={suggestions.undoLast}` into `BoardCommands`. The views thread `pendingFor` down to each `NoteCard` (`WandCanvas`, `ZoneBands`) and `NoteRow` (`ListView`).
