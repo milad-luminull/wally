@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SuggestionDto, SuggestionFieldKey } from '@wally/shared';
+import type { SuggestionDto, SuggestionFieldKey, SuggestionList } from '@wally/shared';
 import { suggestionFieldKeys } from '@wally/shared';
 import { useWallybotPreferences } from '@/lib/preferences';
 import { assistantApi } from '@/lib/resources';
@@ -63,6 +63,13 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   const undoTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   /** The keeps still inside their undo window, most recent last (⌘Z takes the last). */
   const undoable = useRef<string[]>([]);
+  /**
+   * The notes whose decision is on its way to the server, each with the token of that call.
+   * While a note is here, every other keep, discard, undo, remove and pause is refused, so one
+   * record never gets two decisions; an answer whose token is gone (the note was asked about
+   * again meanwhile) changes nothing.
+   */
+  const deciding = useRef(new Map<string, symbol>());
   // Read by timers that fire long after the render that armed them.
   const latestMarks = useRef(marks);
   latestMarks.current = marks;
@@ -80,19 +87,50 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
     if (clock?.timer) clearTimeout(clock.timer);
     clocks.current.delete(noteId);
   }, []);
-  const forget = useCallback(
+  const stopUndo = useCallback((noteId: string) => {
+    const t = undoTimers.current.get(noteId);
+    if (t) clearTimeout(t);
+    undoTimers.current.delete(noteId);
+    undoable.current = undoable.current.filter((id) => id !== noteId);
+  }, []);
+  /** Every timer and claim the note holds goes; the mark stays until the caller replaces it. */
+  const reset = useCallback(
     (noteId: string) => {
       stopClock(noteId);
-      const t = undoTimers.current.get(noteId);
-      if (t) clearTimeout(t);
-      undoTimers.current.delete(noteId);
-      undoable.current = undoable.current.filter((id) => id !== noteId);
+      stopUndo(noteId);
+      deciding.current.delete(noteId);
+    },
+    [stopClock, stopUndo],
+  );
+  const forget = useCallback(
+    (noteId: string) => {
+      reset(noteId);
       patch(noteId, null);
     },
-    [patch, stopClock],
+    [patch, reset],
   );
   const refetch = useCallback(
     (noteId: string) => settleNoteCaches(queryClient, keys, boardId, noteId),
+    [boardId, keys, queryClient],
+  );
+  /**
+   * Keeps the cached pending list in step with what this visit did, so nothing that reads it
+   * sees a decided record as pending or misses a new one. The board still reads the list from
+   * the server on every visit (below); this is the cache between those reads.
+   */
+  const syncPending = useCallback(
+    (suggestion: SuggestionDto, pending: boolean) => {
+      queryClient.setQueryData<SuggestionList>(keys.assistantPending(boardId), (old) =>
+        old
+          ? {
+              suggestions: [
+                ...old.suggestions.filter((s) => s.id !== suggestion.id),
+                ...(pending ? [suggestion] : []),
+              ],
+            }
+          : old,
+      );
+    },
     [boardId, keys, queryClient],
   );
 
@@ -133,13 +171,23 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   const decide = useCallback(
     (noteId: string, body: Parameters<typeof assistantApi.decide>[2]) => {
       const mark = latestMarks.current.get(noteId);
-      if (!mark?.suggestion) return;
+      if (!mark?.suggestion || deciding.current.has(noteId)) return;
+      const token = Symbol(noteId);
+      deciding.current.set(noteId, token);
+      // The countdown and the undo window end here: the decision is taken, only its answer is
+      // still to come. ⌘Z moves on to the keep before this one.
       stopClock(noteId);
-      const id = mark.suggestion.id;
+      stopUndo(noteId);
+      if (mark.countdownEndsAt !== null) patch(noteId, { ...mark, countdownEndsAt: null });
+      const record = mark.suggestion;
+      const current = () => deciding.current.get(noteId) === token;
       void assistantApi
-        .decide(boardId, id, body)
+        .decide(boardId, record.id, body)
         .then(({ suggestion }) => {
+          syncPending(suggestion, false);
+          if (!current()) return;
           if (suggestion.status === 'KEPT') {
+            reset(noteId);
             patch(noteId, {
               phase: 'kept',
               suggestion,
@@ -148,25 +196,31 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
               countdownMs: COUNTDOWN_MS,
               paused: false,
             });
-            undoable.current = [...undoable.current.filter((n) => n !== noteId), noteId];
+            undoable.current = [...undoable.current, noteId];
             undoTimers.current.set(
               noteId,
               setTimeout(() => forget(noteId), UNDO_WINDOW_MS),
             );
           } else forget(noteId);
         })
-        // Stale (the person edited meanwhile), settled elsewhere, gone, or failed: the dot just
-        // goes. A direct call, not a mutation, so the global failure toast never hears of it.
-        .catch(() => forget(noteId))
+        // Stale (the person edited meanwhile; the server discards the record), settled
+        // elsewhere, gone, or failed: the dot just goes. A direct call, not a mutation, so the
+        // global failure toast never hears of it.
+        .catch(() => {
+          syncPending(record, false);
+          if (current()) forget(noteId);
+        })
         .finally(() => refetch(noteId));
     },
-    [boardId, forget, patch, refetch, stopClock],
+    [boardId, forget, patch, refetch, reset, stopClock, stopUndo, syncPending],
   );
   decideRef.current = decide;
 
   const request = useCallback<SuggestionsController['request']>(
     (noteId, locked) => {
       if (!enabled) return;
+      // A note asked about again starts over: no old countdown, undo window or answer applies.
+      reset(noteId);
       patch(noteId, {
         phase: 'asking',
         suggestion: null,
@@ -185,18 +239,20 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
         .then(({ suggestion }) => {
           const still = latestMarks.current.get(noteId);
           if (!still || still.phase !== 'asking') return;
-          if (suggestion) showPending(suggestion);
-          else forget(noteId);
+          if (suggestion) {
+            showPending(suggestion);
+            syncPending(suggestion, true);
+          } else forget(noteId);
         })
         .catch(() => forget(noteId));
     },
-    [boardId, enabled, forget, patch, showPending],
+    [boardId, enabled, forget, patch, reset, showPending, syncPending],
   );
 
   const keep = useCallback<SuggestionsController['keep']>(
     (noteId, source) => {
       const mark = latestMarks.current.get(noteId);
-      if (mark?.phase !== 'pending') return;
+      if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
       decide(noteId, { decision: 'keep', fields: mark.fields, source });
     },
     [decide],
@@ -204,6 +260,7 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   const discard = useCallback<SuggestionsController['discard']>(
     (noteId, source) => {
       const mark = latestMarks.current.get(noteId);
+      if (deciding.current.has(noteId)) return;
       if (mark?.phase === 'asking') forget(noteId);
       else if (mark?.phase === 'pending') decide(noteId, { decision: 'discard', source });
     },
@@ -211,7 +268,7 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   );
   const undo = useCallback<SuggestionsController['undo']>(
     (noteId, source) => {
-      if (latestMarks.current.get(noteId)?.phase !== 'kept') return;
+      if (latestMarks.current.get(noteId)?.phase !== 'kept' || deciding.current.has(noteId)) return;
       decide(noteId, { decision: 'undo', source });
     },
     [decide],
@@ -225,7 +282,7 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
   const remove = useCallback<SuggestionsController['remove']>(
     (noteId, field) => {
       const mark = latestMarks.current.get(noteId);
-      if (mark?.phase !== 'pending') return;
+      if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
       const fields = mark.fields.filter((f) => f !== field);
       if (fields.length === 0) {
         decide(noteId, { decision: 'discard', source: 'esc' });
@@ -241,6 +298,7 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
       // Nothing to pause when no countdown runs; a resume needs a pause before it.
       if (
         mark?.phase !== 'pending' ||
+        deciding.current.has(noteId) ||
         mark.paused === paused ||
         (mark.countdownEndsAt === null && paused)
       )
@@ -260,19 +318,30 @@ export function useSuggestions(boardId: string, enabled: boolean): SuggestionsCo
     [armClock, autoApply, patch, stopClock],
   );
 
-  // What was pending before a reload shows again, its countdown restarted (plan R5).
+  // What was pending before a reload or the last visit shows again, its countdown restarted
+  // (plan R5). Read from the server on every visit, never from the cache: a list cached on an
+  // earlier visit would show records decided since as pending and miss the ones added since.
   const pendingQuery = useQuery({
     queryKey: keys.assistantPending(boardId),
     queryFn: () => assistantApi.pendingSuggestions(boardId),
     enabled,
-    staleTime: Infinity,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
   const seeded = useRef<string | null>(null);
+  const fresh = pendingQuery.isFetchedAfterMount ? pendingQuery.data : undefined;
   useEffect(() => {
-    if (!pendingQuery.data || seeded.current === boardId) return;
+    if (!fresh || seeded.current === boardId) return;
     seeded.current = boardId;
-    for (const suggestion of pendingQuery.data.suggestions) showPending(suggestion);
-  }, [boardId, pendingQuery.data, showPending]);
+    for (const suggestion of fresh.suggestions) {
+      // A note this visit already shows (asked, kept, or deciding) keeps what it has.
+      if (latestMarks.current.has(suggestion.noteId) || deciding.current.has(suggestion.noteId))
+        continue;
+      showPending(suggestion);
+    }
+  }, [boardId, fresh, showPending]);
 
   // Leaving the board: every timer goes; pending records stay on the server for next time.
   useEffect(
