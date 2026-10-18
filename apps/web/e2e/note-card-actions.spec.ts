@@ -86,7 +86,7 @@ test('card actions work with a collapsed sidebar and persist note changes', asyn
   await page.getByRole('button', { name: 'Diese Woche', exact: true }).click();
   await preferencesSaved;
   await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Wally öffnen' })).toHaveCount(3);
+  await expect(page.getByRole('link', { name: 'Wally öffnen' })).toHaveCount(2);
   await expect(page.getByRole('link', { name: 'Anmelden', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Registrieren', exact: true })).toHaveCount(0);
 });

@@ -12,6 +12,7 @@ import { App } from './App';
 import './styles/globals.css';
 import './styles/palettes.css';
 import './styles/welcome.css';
+import './styles/landing.css';
 import './styles/board-shell.css';
 
 // Before render, and synchronously: the first authenticated API call is the one that

@@ -3,7 +3,9 @@ import { hasE2eCredentials, signIn } from './support';
 
 test('public home exposes auth and retains every palette in both appearances', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Mehr Platz im Kopf.' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Ab an die Wand. Wally macht den Rest.' }),
+  ).toBeVisible();
   await expect(page.getByRole('link', { name: 'Anmelden', exact: true })).toHaveAttribute(
     'href',
     '/login',
@@ -12,6 +14,9 @@ test('public home exposes auth and retains every palette in both appearances', a
     'href',
     '/signup',
   );
+  await page.setViewportSize({ width: 320, height: 760 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Darstellung und Sprache' }).click();
   const palettes = {
     minimal: 'Minimal',
@@ -25,6 +30,7 @@ test('public home exposes auth and retains every palette in both appearances', a
     neutral: 'Neutral',
   };
   for (const [id, name] of Object.entries(palettes)) {
+    let lightBackground = '';
     await page.getByRole('combobox', { name: 'Farbpalette' }).click();
     await page.getByRole('option', { name, exact: true }).click();
     for (const [mode, label] of [
@@ -34,13 +40,41 @@ test('public home exposes auth and retains every palette in both appearances', a
       await page.getByRole('button', { name: label, exact: true }).click();
       await expect(page.locator('html')).toHaveAttribute('data-palette', id);
       await expect(page.locator('html')).toHaveClass(new RegExp(mode));
+      const background = await page
+        .locator('.landing-page')
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+      if (mode === 'light') lightBackground = background;
+      else expect(background).not.toBe(lightBackground);
     }
   }
   await page.getByRole('combobox', { name: 'Sprache', exact: true }).selectOption('en');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Get it out of your head.' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Drop it on the wall. Wally does the rest.' }),
+  ).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'neutral');
   await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('tab', { name: 'Priority', exact: true }).click();
+  await expect(page.getByRole('tabpanel')).toContainText('High, medium and low.');
+  const question = page.getByRole('button', {
+    name: 'Does the AI change my notes without asking?',
+  });
+  await question.click();
+  await expect(question).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('button', { name: 'Pause animations' }).click();
+  await page.getByRole('textbox', { name: 'Try a note' }).fill('send proposal to maya fri urgent');
+  const count = Number(await page.getByLabel('This week sample notes').textContent());
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect
+    .poll(() =>
+      page
+        .locator('.landing-demo-card li')
+        .first()
+        .evaluate((el) => getComputedStyle(el).opacity),
+    )
+    .toBe('1');
+  await page.getByRole('button', { name: 'Keep', exact: true }).click();
+  await expect(page.getByLabel('This week sample notes')).toHaveText(String(count + 1));
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('link', { name: 'Start your wall' }).first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
