@@ -15,13 +15,13 @@ test('a note is linked to another from the panel and the other lists it back', a
   await panel.getByRole('button', { name: 'Notiz verknüpfen…' }).click();
   await page.getByRole('combobox', { name: 'Notiz suchen' }).fill(first);
   await page.getByRole('option', { name: first }).click();
-  const row = panel.getByRole('button', { name: first });
+  const row = panel.getByTitle(`Verknüpft mit ${first}`, { exact: true });
   await expect(row).toBeVisible();
   await expect(row).toHaveAttribute('title', `Verknüpft mit ${first}`);
 
   // The other note lists the link back, read-only.
   await row.click();
-  await expect(panel.getByRole('button', { name: second })).toHaveAttribute(
+  await expect(panel.getByTitle(`Verknüpft von ${second}`, { exact: true })).toHaveAttribute(
     'title',
     `Verknüpft von ${second}`,
   );
