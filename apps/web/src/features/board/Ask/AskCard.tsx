@@ -149,8 +149,10 @@ export function AskCard({
       ? answer.chips.filter((chip) => notes.some((n) => n.id === chip.id))
       : answer.chips
     : [];
-  if (phase === 'answered' && (!answer || (!answer.text.trim() && rows.length === 0)))
-    outcomeLine = t('ask.failed');
+  // Said as a failure, it is the failure alone: no cut-short or partial line beside it.
+  const emptyAnswer =
+    phase === 'answered' && (!answer || (!answer.text.trim() && rows.length === 0));
+  if (emptyAnswer) outcomeLine = t('ask.failed');
   const pinLabel = t(session.pinned ? 'ask.unpin' : 'ask.pin');
 
   return (
@@ -220,10 +222,12 @@ export function AskCard({
             {answer.text && (
               <p className="whitespace-pre-line text-13 leading-snug text-fg-1">{answer.text}</p>
             )}
-            {answer.stopped && (
+            {!emptyAnswer && answer.stopped && (
               <p className="mt-1 text-12 text-fg-3">{t(`ask.stopped.${answer.stopped}`)}</p>
             )}
-            {answer.partial && <p className="mt-1 text-12 text-fg-3">{t('ask.partial')}</p>}
+            {!emptyAnswer && answer.partial && (
+              <p className="mt-1 text-12 text-fg-3">{t('ask.partial')}</p>
+            )}
             <AnswerNotes
               chips={answer.chips}
               notes={notes}

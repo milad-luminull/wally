@@ -1,6 +1,6 @@
 # Wallybot inline — review and plan
 
-**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; slice 3 started the same day (subtasks, a reference, the title line, and the note panel's review in two groups, "From what you typed" and "Added by Wallybot"); links between notes moved to a follow-up slice (slice 3 plan, R1); slice 4 started 2026-10-17 (questions answered as a card where they were written, the question panel retired).
+**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; slice 3 started the same day (subtasks, a reference, the title line, and the note panel's review in two groups, "From what you typed" and "Added by Wallybot"); links between notes moved to a follow-up slice (slice 3 plan, R1); slice 4 shipped 2026-10-18 (questions answered as a card where they were written, the question panel retired).
 **Last revised:** 2026-10-18.
 **Sources:** the first customer feedback (write the title and text on the board itself, the
 sidebar only for details); the Claude Design page "Wallybot Inline" and its notes document

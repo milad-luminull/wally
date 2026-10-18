@@ -99,6 +99,15 @@ describe('AskCard', () => {
     expect(screen.getByRole('button', { name: /Call Müller/ })).toBeInTheDocument();
   });
 
+  it('an empty answer says only that it failed, not that it was cut short or partial', () => {
+    renderCard(
+      session({ answer: answer({ text: '', chips: [], stopped: 'LENGTH', partial: true }) }),
+    );
+    expect(screen.getByText('No answer. Try again.')).toBeInTheDocument();
+    expect(screen.queryByText('The answer was cut short.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Only part of the matching notes was read.')).not.toBeInTheDocument();
+  });
+
   it('shows the answer, its stopped and partial lines and the notes read as rows', () => {
     renderCard(session({ answer: answer({ stopped: 'LENGTH', partial: true }) }));
     expect(screen.getByText('Two notes are open.')).toBeInTheDocument();
