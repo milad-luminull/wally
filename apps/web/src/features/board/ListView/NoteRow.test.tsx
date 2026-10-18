@@ -36,6 +36,8 @@ describe('NoteRow with a pending change', () => {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   });
   const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
@@ -238,6 +240,8 @@ describe('NoteRow just after a keep', () => {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   };
   it('shows the kept date, without an ×, until the refetched note carries it', () => {

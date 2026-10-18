@@ -28,6 +28,8 @@ function pendingAt(phase: SuggestionPhase, onPause: (paused: boolean) => void): 
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause,
   };
 }

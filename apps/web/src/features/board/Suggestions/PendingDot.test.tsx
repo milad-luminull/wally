@@ -10,6 +10,8 @@ const mark = (over: Partial<SuggestionMark> = {}): SuggestionMark => ({
   fields: ['dueDate'],
   subtasks: [],
   links: [],
+  tags: [],
+  properties: [],
   titleDismissed: false,
   countdownEndsAt: Date.now() + 6000,
   countdownMs: 6000,

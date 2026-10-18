@@ -18,6 +18,9 @@ export interface PendingProps {
   onSetSubtask: (index: number, on: boolean) => void;
   /** Ticks one proposed link in or out, by its stored index. */
   onSetLink: (index: number, on: boolean) => void;
+  /** Ticks one proposed tag or property in or out, by its index in the proposal. */
+  onSetTag: (index: number, on: boolean) => void;
+  onSetProperty: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
 }
 
