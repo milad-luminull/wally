@@ -27,6 +27,10 @@ import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
+import type { CapturePlacement } from './Capture/useCapture';
+import { useAskSession } from './Ask/useAskSession';
+import { AskCard } from './Ask/AskCard';
+import type { AskSlot } from './Ask/askSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
 
@@ -84,17 +88,66 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // countdown (R3).
   const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
+  // A question typed into the capture card (WALLYBOT_INLINE.md §3.6): the shell asks the board
+  // and draws the answer where the question was written. Off means a `?` is a plain title.
+  const askController = useAskSession(boardId);
+  const { ask: askQuestion } = askController;
+  const onAsked = useCallback(
+    (question: string, placement: CapturePlacement) => askQuestion(question, placement),
+    [askQuestion],
+  );
+
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
-  const { capture, captureKey, startCapture, onCaptureDone, onCaptureNoteId, withoutCapturing } =
-    useCaptureSession({
-      boardId,
-      view: effectiveView,
-      axis: viewState.axis,
-      openNoteId: viewState.noteId,
-      openNote: viewState.openNote,
-      onCommitted,
-    });
+  const {
+    capture,
+    captureKey,
+    startCapture,
+    onCaptureDone,
+    onCaptureNoteId,
+    onCaptureAsk,
+    withoutCapturing,
+  } = useCaptureSession({
+    boardId,
+    view: effectiveView,
+    axis: viewState.axis,
+    openNoteId: viewState.noteId,
+    openNote: viewState.openNote,
+    onCommitted,
+    onAsked,
+  });
+  const captureAsk = board.assistantEnabled ? onCaptureAsk : undefined;
+  const askSession = askController.session;
+  const { setPinned: setAskPinned, dismiss: dismissAsk, pause: pauseAsk } = askController;
+  const askSlot = useMemo<AskSlot | null>(
+    () =>
+      askSession
+        ? {
+            key: askSession.id,
+            placement: askSession.placement,
+            card: (
+              <AskCard
+                session={askSession}
+                notes={notesQuery.data}
+                layout={effectiveView === 'list' ? 'row' : 'card'}
+                onOpenNote={viewState.openNote}
+                onSetPinned={setAskPinned}
+                onDismiss={dismissAsk}
+                onPause={pauseAsk}
+              />
+            ),
+          }
+        : null,
+    [
+      askSession,
+      dismissAsk,
+      effectiveView,
+      notesQuery.data,
+      pauseAsk,
+      setAskPinned,
+      viewState.openNote,
+    ],
+  );
   // The views, the top bar and the palette leave the note being written to its card: it is in
   // the cache from the first keystroke, and a second copy would be clickable and openable.
   const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
@@ -195,6 +248,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onCapture={startCapture}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={captureAsk}
+            ask={askSlot}
             visibility={access.newNoteVisibility}
             pendingFor={pendingFor}
           />
@@ -217,8 +272,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 visibility: access.newNoteVisibility,
                 onDone: onCaptureDone,
                 onNoteId: onCaptureNoteId,
+                onAsk: captureAsk,
               }
             }
+            ask={askSlot}
             pendingFor={pendingFor}
           />
         )}

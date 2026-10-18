@@ -7,6 +7,7 @@ import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { NoteGroup } from '../util/noteDerived';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CapturePlacement } from '../Capture/useCapture';
+import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
@@ -31,6 +32,8 @@ interface ZoneBandProps {
   group: NoteGroup<string>;
   /** Set on the one zone a new note is being written into. */
   capture: ZoneCapture | null;
+  /** Set on the one zone a question was written in: its answer, drawn at the top (§3.6). */
+  ask: AskSlot | null;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -46,6 +49,7 @@ function ZoneBand({
   axis,
   group,
   capture,
+  ask,
   currentUserId,
   selectedNoteId,
   onOpenNote,
@@ -56,14 +60,15 @@ function ZoneBand({
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
-  const isEmpty = group.notes.length === 0 && !capture;
+  const isEmpty = group.notes.length === 0 && !capture && !ask;
 
   return (
     <section
       ref={setNodeRef}
       onDoubleClick={(e) => {
-        // Selecting a word in the note being written is not a request for another note.
-        if ((e.target as HTMLElement).closest('[data-capture]')) return;
+        // Selecting a word in the note being written, or in an answer, is not a request for
+        // another note.
+        if ((e.target as HTMLElement).closest('[data-capture], [data-ask]')) return;
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
@@ -110,6 +115,11 @@ function ZoneBand({
         )}
       >
         <div className="flex flex-row flex-wrap content-start gap-2">
+          {ask && (
+            <div key={ask.key} data-ask>
+              {ask.card}
+            </div>
+          )}
           {capture && (
             <div key={capture.key} data-capture>
               <InlineCaptureCard
@@ -169,6 +179,8 @@ interface ZoneBandsProps {
   onCaptureNoteId?: (noteId: string) => void;
   /** Hears a question typed into the card; absent when the board's assistant is off. */
   onCaptureAsk?: (question: string) => void;
+  /** The answer to a question; shown at the top of its zone when its placement is a zone. */
+  ask?: AskSlot | null;
   visibility: NoteVisibility;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
@@ -191,10 +203,12 @@ export function ZoneBands({
   onCaptureDone,
   onCaptureNoteId,
   onCaptureAsk,
+  ask,
   visibility,
   ...rest
 }: ZoneBandsProps) {
   const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
+  const zoneAsk = ask?.placement.kind === 'zone' && ask.placement.axis === axis ? ask : null;
   return (
     <div
       className={cn(
@@ -222,6 +236,11 @@ export function ZoneBands({
                   onNoteId: onCaptureNoteId,
                   onAsk: onCaptureAsk,
                 }
+              : null
+          }
+          ask={
+            zoneAsk && zoneAsk.placement.kind === 'zone' && zoneAsk.placement.key === group.key
+              ? zoneAsk
               : null
           }
           {...rest}

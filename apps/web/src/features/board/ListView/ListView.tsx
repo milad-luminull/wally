@@ -9,6 +9,7 @@ import { groupByAxis } from '../util/noteDerived';
 import type { BoardAccess } from '../util/permissions';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import type { AskSlot } from '../Ask/askSlot';
 import { NoteRow } from './NoteRow';
 
 const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
@@ -71,6 +72,8 @@ interface ListViewProps {
     /** Hears a question typed into the row; absent when the board's assistant is off. */
     onAsk?: (question: string) => void;
   } | null;
+  /** The answer to a question typed into the row, drawn as the top row (§3.6). */
+  ask?: AskSlot | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
 }
@@ -101,6 +104,7 @@ export function ListView({
   access,
   isBelowDesktop,
   capture,
+  ask,
   pendingFor,
 }: ListViewProps) {
   const { t } = useTranslation();
@@ -126,8 +130,14 @@ export function ListView({
     </div>
   );
 
+  const askRow = ask && (
+    <div key={ask.key} data-ask>
+      {ask.card}
+    </div>
+  );
+
   const keys = emptyStateKeys(totalNoteCount === 0, access.canEditShared);
-  if (notes.length === 0 && !capture) {
+  if (notes.length === 0 && !capture && !ask) {
     return (
       <div className="board-surface flex flex-1 items-center justify-center px-6 py-16">
         <EmptyState
@@ -152,6 +162,7 @@ export function ListView({
             hint={t(keys.body)}
           />
         )}
+        {askRow}
         {captureRow}
         {notes.length > 0 && isBelowDesktop && !hintDismissed && (
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface py-1.5 pl-3 pr-1.5 text-12 text-fg-3 shadow-e1">

@@ -17,6 +17,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CapturePlacement } from '../Capture/useCapture';
+import { ASK_CARD_WIDTH } from '../Ask/AskCard';
+import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
@@ -39,6 +41,8 @@ interface WallCanvasProps {
   onCaptureNoteId?: (noteId: string) => void;
   /** Hears a question typed into the card; absent when the board's assistant is off. */
   onCaptureAsk?: (question: string) => void;
+  /** The answer to a question, shown on the canvas when its placement is free (§3.6). */
+  ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
@@ -86,6 +90,7 @@ export function WallCanvas({
   onCaptureDone,
   onCaptureNoteId,
   onCaptureAsk,
+  ask,
   visibility,
   canEditShared,
   filtered,
@@ -99,9 +104,9 @@ export function WallCanvas({
   const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
-    // A double-click on a card, or on the note being written (selecting a word), is not a
-    // request for another note.
-    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture]')) return;
+    // A double-click on a card, on the note being written (selecting a word) or on an answer
+    // is not a request for another note.
+    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
     const el = scrollRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -156,13 +161,28 @@ export function WallCanvas({
               />
             </div>
           )}
+          {ask?.placement.kind === 'free' && (
+            <div
+              key={ask.key}
+              data-ask
+              style={{
+                position: 'absolute',
+                // Clamped like a capture point, for the answer's own width.
+                left: Math.min(ask.placement.x, FREE_CANVAS_WIDTH - ASK_CARD_WIDTH),
+                top: ask.placement.y,
+                zIndex: 30,
+              }}
+            >
+              {ask.card}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Sits outside the scroll container so the prompt stays centred in the visible
           panel instead of drifting off with the 2400px canvas. `pointer-events-none` keeps
           the double-click-to-create gesture working straight through it. */}
-      {notes.length === 0 && !capture && (
+      {notes.length === 0 && !capture && !ask && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <EmptyState
             icon={<MousePointerClick strokeWidth={1.75} />}
