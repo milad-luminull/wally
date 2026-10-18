@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { NoteDto, NoteHorizon, TidyDto, TidyMoveSource } from '@wally/shared';
+import {
+  TIDY_MAX_MOVES,
+  type NoteDto,
+  type NoteHorizon,
+  type TidyDto,
+  type TidyMoveSource,
+} from '@wally/shared';
 import { assistantApi } from '@/lib/resources';
 import {
   cancelNoteCaches,
@@ -15,6 +21,9 @@ import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
 import { localToday, useToday } from './useToday';
+
+/** The most notes a tidy request may name (`tidyRequestSchema.only`). */
+const TIDY_MAX_ONLY = TIDY_MAX_MOVES * 4;
 
 /** How long "All in its place." stays in the bar (plan R4). */
 export const EMPTY_NOTICE_MS = 4000;
@@ -75,8 +84,9 @@ const activeMoves = (b: Batch) =>
 /**
  * The board's Tidy (WALLYBOT_INLINE.md §3.5, plan R1–R9): one batch at a time. The count is
  * the client's own (the same rule as the server's) over the notes the caller passes, which
- * are the notes the wall shows; the proposal is the server's record, less any move of a note
- * not shown, so the yes approves only what the person sees (R1). A keep moves the notes in
+ * are the notes the wall shows; the request names them, so the server proposes nothing a
+ * filter hides, and the proposal is still trimmed to the shown notes, so the yes approves
+ * only what the person sees (R1). A keep moves the notes in
  * the cache at once so the cards travel (R8) and tells the server, which may skip a note
  * changed since (R5); an undo pressed before the keep's answer waits for it. The undo window
  * is the client's 30 s, as a suggestion's. Nothing is said when the server refuses: the cards
@@ -207,16 +217,21 @@ export function useTidy(
     const mine = Symbol('tidy');
     token.current = mine;
     setPhase('asking');
+    // The notes the wall shows, so the server never proposes one a filter hides; past what the
+    // request may carry, every note, and the filter below is the only guard.
+    const shownIds = latestNotes.current.map((n) => n.id);
     void assistantApi
       .tidy(boardId, {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         today: localToday(),
+        ...(shownIds.length <= TIDY_MAX_ONLY ? { only: shownIds } : {}),
       })
       .then(({ tidy: proposed }) => {
         if (token.current !== mine) return;
         token.current = null;
         // Only the notes the wall shows: a move of a note a filter hides is not offered (R1).
-        // The server's record keeps it; a keep names the notes it moves.
+        // The request named them already; this is the second guard. A move left out stays in
+        // the server's record; a keep names the notes it moves.
         const shown = new Set(latestNotes.current.map((n) => n.id));
         const moves = proposed?.moves.filter((m) => shown.has(m.noteId)) ?? [];
         if (!proposed || moves.length === 0) {

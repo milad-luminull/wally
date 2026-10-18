@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import type { NoteDto, TidyDto } from '@wally/shared';
+import { TIDY_MAX_MOVES, type NoteDto, type TidyDto } from '@wally/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/resources', async (importOriginal) => ({
@@ -394,6 +394,23 @@ describe('useTidy', () => {
       source: 'enter',
     });
     await settle();
+  });
+
+  it('names the notes the wall shows in the request, and none past four batches of them', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: null });
+    // `jotted` is filtered out of the wall.
+    const { result } = setup([late, placed]);
+    act(() => result.current.tidy());
+    await settle();
+    expect(vi.mocked(assistantApi.tidy).mock.calls[0]![1].only).toEqual(['late', 'placed']);
+
+    const many = Array.from({ length: TIDY_MAX_MOVES * 4 + 1 }, (_, i) =>
+      makeNote({ id: `n${i}`, horizon: 'HEUTE', dueDate: null }),
+    );
+    const crowded = setup(many);
+    act(() => crowded.result.current.tidy());
+    await settle();
+    expect(vi.mocked(assistantApi.tidy).mock.calls[1]![1]).not.toHaveProperty('only');
   });
 
   it('a proposal whose every move is hidden reads as nothing to tidy', async () => {

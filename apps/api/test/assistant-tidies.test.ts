@@ -85,12 +85,12 @@ describe('tidies', () => {
       headers: ctx.authHeader(token),
       payload: body,
     });
-  const tidy = (token: string, boardId: string) =>
+  const tidy = (token: string, boardId: string, only?: string[]) =>
     ctx.inject({
       method: 'POST',
       url: `/whiteboards/${boardId}/assistant/tidies`,
       headers: ctx.authHeader(token),
-      payload: { timeZone: 'Europe/Berlin', today: TODAY },
+      payload: { timeZone: 'Europe/Berlin', today: TODAY, ...(only ? { only } : {}) },
     });
   const decide = (token: string, boardId: string, id: string, body: Record<string, unknown>) =>
     ctx.inject({
@@ -271,6 +271,43 @@ describe('tidies', () => {
     const { moves } = res.json().tidy;
     expect(moves).toHaveLength(TIDY_MAX_MOVES);
     expect(moves.at(-1)).toMatchObject({ noteId: newer.id, source: 'words' });
+  });
+
+  it('considers only the notes the request names: a hidden note is neither moved by date nor listed', async () => {
+    const fx = await createBoardFixture(ctx);
+    const shownDated = (
+      await createNote(fx.ownerToken, fx.boardId, {
+        title: 'Monday',
+        dueDate: '2026-10-19',
+        horizon: 'DIESE_WOCHE',
+      })
+    ).json();
+    await createNote(fx.ownerToken, fx.boardId, {
+      title: 'hidden Monday',
+      dueDate: '2026-10-19',
+      horizon: 'DIESE_WOCHE',
+    });
+    const shownUndated = (
+      await createNote(fx.ownerToken, fx.boardId, { title: 'later: shown' })
+    ).json();
+    await createNote(fx.ownerToken, fx.boardId, { title: 'later: hidden' });
+    const res = await tidy(fx.ownerToken, fx.boardId, [shownDated.id, shownUndated.id]);
+    expect(res.statusCode).toBe(200);
+    const { moves } = res.json().tidy;
+    expect(moves.map((m: { noteId: string; source: string }) => [m.noteId, m.source])).toEqual([
+      [shownDated.id, 'date'],
+      [shownUndated.id, 'words'],
+    ]);
+    expect(lastInput?.prompt).toBe(
+      `Notes in Today, newest first:\n${shownUndated.id}: later: shown`,
+    );
+  });
+
+  it('refuses a list of notes longer than four batches', async () => {
+    const fx = await createBoardFixture(ctx);
+    const only = Array.from({ length: TIDY_MAX_MOVES * 4 + 1 }, (_, i) => `n${i}`);
+    const res = await tidy(fx.ownerToken, fx.boardId, only);
+    expect(res.statusCode).toBe(400);
   });
 
   it('refuses a time zone the runtime does not know', async () => {

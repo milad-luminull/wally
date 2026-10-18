@@ -11,11 +11,19 @@ export const TIDY_MIN_CONFIDENCE = 0.6;
 
 const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 
-/** POST /whiteboards/:id/assistant/tidies: the browser's date and zone, nothing else. */
+/** POST /whiteboards/:id/assistant/tidies: the browser's date and zone, and what it shows. */
 export const tidyRequestSchema = z
   .object({
     timeZone: z.string().min(1).max(64).refine(isTimeZone, 'Unknown time zone'),
     today: z.string().date(),
+    /**
+     * The notes the person sees; a filtered wall sends its visible notes so hidden ones are
+     * never proposed. Omitted means every note.
+     */
+    only: z
+      .array(firestoreId)
+      .max(TIDY_MAX_MOVES * 4)
+      .optional(),
   })
   .strict();
 export type TidyRequest = z.infer<typeof tidyRequestSchema>;

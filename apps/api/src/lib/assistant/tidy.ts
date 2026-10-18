@@ -138,9 +138,9 @@ async function notesWithPendingSuggestion(
 }
 
 /**
- * One Tidy (WALLYBOT_INLINE.md §3.5, plan R3): read the open notes, move the dated ones by the
- * rule, ask the model about the undated ones in Today (reserve, call, settle), and store the
- * batch only when there is something to move. Throws BudgetError and AppError only; the
+ * One Tidy (WALLYBOT_INLINE.md §3.5, plan R3): read the open notes (those the request names,
+ * when it names any), move the dated ones by the rule, ask the model about the undated ones in
+ * Today (reserve, call, settle), and store the batch only when there is something to move. Throws BudgetError and AppError only; the
  * provider's own error becomes 502 without its wording.
  */
 export async function proposeTidy(
@@ -154,7 +154,11 @@ export async function proposeTidy(
   const now = clock();
   await discardPending(db, actor, board.id, now);
 
-  const notes = await listNotes(db, actor, board.id, { status: 'OPEN' });
+  const open = await listNotes(db, actor, board.id, { status: 'OPEN' });
+  // A filtered wall names the notes it shows: a note it hides is neither moved by the date
+  // rule nor read by the model.
+  const only = request.only ? new Set(request.only) : null;
+  const notes = only ? open.filter((note) => only.has(note.id)) : open;
   const busy = await notesWithPendingSuggestion(db, actor, board.id);
   const candidates = tidyCandidates(
     notes.filter((note) => !busy.has(note.id)),
