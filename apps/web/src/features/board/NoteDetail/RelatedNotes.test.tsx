@@ -32,10 +32,10 @@ describe('RelatedNotes', () => {
     const props = setup();
     await userEvent.click(screen.getByRole('button', { name: 'Link a note…' }));
     expect(screen.getAllByRole('option')).toHaveLength(1);
-    await userEvent.type(screen.getByLabelText('Search notes'), 'wrong');
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search notes' }), 'wrong');
     expect(screen.queryByRole('option')).not.toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText('Search notes'));
-    await userEvent.type(screen.getByLabelText('Search notes'), 'Candidate');
+    await userEvent.clear(screen.getByRole('combobox', { name: 'Search notes' }));
+    await userEvent.type(screen.getByRole('combobox', { name: 'Search notes' }), 'Candidate');
     await userEvent.click(screen.getByRole('option', { name: 'Candidate' }));
     expect(props.onAdd).toHaveBeenCalledWith('d');
   });

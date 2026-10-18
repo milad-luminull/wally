@@ -13,7 +13,7 @@ test('a note is linked to another from the panel and the other lists it back', a
   const panel = await captureNote(page, second, { open: true });
 
   await panel.getByRole('button', { name: 'Notiz verknüpfen…' }).click();
-  await page.getByLabel('Notiz suchen').fill(first);
+  await page.getByRole('combobox', { name: 'Notiz suchen' }).fill(first);
   await page.getByRole('option', { name: first }).click();
   const row = panel.getByRole('button', { name: first });
   await expect(row).toBeVisible();
