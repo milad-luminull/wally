@@ -26,9 +26,23 @@
     <script>
       (function () {
         var theme = 'system';
+        var palette = 'paper';
         try {
+          palette = localStorage.getItem('wally.palette') || 'paper';
           theme = localStorage.getItem('wally.theme') || 'system';
         } catch (e) {}
+        var palettes = [
+          'minimal',
+          'paper',
+          'morning',
+          'highlighter',
+          'aurora',
+          'daybreak',
+          'sprout',
+          'amber',
+          'neutral',
+        ];
+        document.documentElement.dataset.palette = palettes.includes(palette) ? palette : 'paper';
         var dark =
           theme === 'dark' ||
           (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);

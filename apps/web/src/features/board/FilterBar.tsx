@@ -264,7 +264,7 @@ export function FilterBar({
 
   if (isBelowTablet) {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
+      <div className="board-filters flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
         <SearchInput q={view.q} setQuery={setQuery} />
         <Sheet>
           <SheetTrigger asChild>
@@ -332,7 +332,7 @@ export function FilterBar({
   }
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle bg-surface px-3 py-2 lg:px-4">
+    <div className="board-filters flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle bg-surface px-3 py-2 lg:px-4">
       <SearchInput q={view.q} setQuery={setQuery} />
       <div className="flex flex-wrap items-center gap-1.5">
         <PriorityChips priority={view.priority} setPriority={setPriority} />

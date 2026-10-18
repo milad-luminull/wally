@@ -1,3 +1,6 @@
+vi.mock('@/i18n/LanguageProvider', () => ({
+  useLanguage: () => ({ language: 'en', setLanguage: vi.fn() }),
+}));
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Route, Routes, useLocation } from 'react-router';

@@ -137,7 +137,7 @@ export function NoteDetailPanel({
          child it narrowed the board, so the centred columns jumped sideways every time a
          note opened or closed. It slides in once, on open; switching to another note swaps
          the content in place (the key is on the content, not on this element). */
-      className="absolute inset-y-0 right-0 z-drawer flex w-[400px] max-w-full animate-slide-in-right flex-col border-l border-border bg-surface shadow-e3"
+      className="paper-detail absolute inset-y-0 right-0 z-drawer flex w-[400px] max-w-full animate-slide-in-right flex-col border-l border-border bg-surface shadow-e3"
     >
       <NoteDetailContent
         key={noteId}

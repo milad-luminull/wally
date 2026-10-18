@@ -61,6 +61,7 @@ function buildViewOptions(t: T): SegmentedOption<BoardView>[] {
 }
 
 interface TopBarProps {
+  withRail?: boolean;
   board: WhiteboardDto;
   boardId: string;
   notes: NoteDto[];
@@ -173,6 +174,7 @@ export function TopBar({
   onSetAxis,
   onResetView,
   onNewNote,
+  withRail = false,
 }: TopBarProps) {
   const { t } = useTranslation();
   const newNoteLabel = t(
@@ -218,22 +220,29 @@ export function TopBar({
   const overflowCount = otherMembers.length - visibleMembers.length;
 
   return (
-    <header className="z-header flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-3 md:gap-1.5 lg:px-4 [@media(pointer:coarse)]:h-14">
+    <header className="board-toolbar z-header flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-3 md:gap-1.5 lg:px-4 [@media(pointer:coarse)]:h-14">
       {/* The one part of the bar that gives way: it takes the free space and, when there is
           none, shrinks until the board name truncates. The controls on the right never do. */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5 md:gap-2">
-        <Link
-          to="/boards"
-          aria-label={t('board.topBar.home')}
-          title={t('board.topBar.home')}
-          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
-        >
-          <BrandMark size={20} />
-        </Link>
-        {/* Decoration only: on a phone its width goes to the name instead. */}
-        <span aria-hidden className="hidden shrink-0 text-16 font-light text-fg-faint sm:inline">
-          /
-        </span>
+        {!withRail && (
+          <>
+            <Link
+              to="/boards"
+              aria-label={t('board.topBar.home')}
+              title={t('board.topBar.home')}
+              className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+            >
+              <BrandMark size={20} />
+            </Link>
+            {/* Decoration only: on a phone its width goes to the name instead. */}
+            <span
+              aria-hidden
+              className="hidden shrink-0 text-16 font-light text-fg-faint sm:inline"
+            >
+              /
+            </span>
+          </>
+        )}
 
         <div className="flex min-w-0 items-center gap-0.5">
           {isOwner && editingName ? (
@@ -276,7 +285,7 @@ export function TopBar({
               )}
             </h1>
           )}
-          <BoardSwitcher boardId={boardId} />
+          {!withRail && <BoardSwitcher boardId={boardId} />}
         </div>
 
         <p className="ml-1 hidden items-center gap-1.5 whitespace-nowrap text-12 text-fg-3 sm:flex">
@@ -296,7 +305,7 @@ export function TopBar({
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
+      <div className="board-toolbar-tools flex shrink-0 items-center gap-1 md:gap-1.5">
         {/* Commands, not search: the filter row's field is the board's one search box. Hidden
             on small screens, where there is no keyboard to make the palette worth it. */}
         <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
@@ -353,22 +362,26 @@ export function TopBar({
           triggerClassName={PHONE_ICON_BUTTON}
         />
 
-        <IconTooltip label={newNoteLabel} shortcut={['N']}>
-          <Button
-            variant="accent"
-            aria-label={newNoteLabel}
-            onClick={onNewNote}
-            className={PHONE_ICON_BUTTON}
-          >
-            <Plus strokeWidth={2} />
-            <span className="hidden md:inline">{newNoteLabel}</span>
-          </Button>
-        </IconTooltip>
+        {!withRail && (
+          <IconTooltip label={newNoteLabel} shortcut={['N']}>
+            <Button
+              variant="accent"
+              aria-label={newNoteLabel}
+              onClick={onNewNote}
+              className={PHONE_ICON_BUTTON}
+            >
+              <Plus strokeWidth={2} />
+              <span className="hidden md:inline">{newNoteLabel}</span>
+            </Button>
+          </IconTooltip>
+        )}
 
         {/* The divider is a desktop nicety; on a phone its 15px go to the board name. */}
-        <div className="flex items-center md:ml-1 md:border-l md:border-border-subtle md:pl-2.5">
-          <AccountMenu />
-        </div>
+        {!withRail && (
+          <div className="flex items-center md:ml-1 md:border-l md:border-border-subtle md:pl-2.5">
+            <AccountMenu />
+          </div>
+        )}
       </div>
     </header>
   );

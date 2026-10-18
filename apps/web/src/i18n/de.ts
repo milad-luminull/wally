@@ -6,6 +6,82 @@
  * content, so re-wording copy never means renaming a key.
  */
 export const de = {
+  welcome: {
+    brand: 'Wally',
+    byline: 'by Luminull',
+    navigation: 'Hauptnavigation',
+    login: 'Anmelden',
+    signup: 'Registrieren',
+    start: 'Deine Wand starten',
+    context: 'Ein Platz für alles, was dir durch den Kopf geht.',
+    headline: 'Mehr Platz im Kopf.',
+    description:
+      'Lose Ideen, kleine Aufgaben, der nächste große Schritt. Bring sie auf eine Wand, schaffe ein wenig Ordnung und mach weiter mit deinem Tag.',
+    note: 'Deine Notizen. Dein Tempo. Dein Überblick.',
+    preview: 'Eine Beispielwand mit farbigen Notizen für Arbeit und Alltag',
+    sample: 'Ein bisschen Arbeit. Ein bisschen Leben.',
+    previewCaption: 'Beispielnotizen. Deine Wand beginnt mit dir.',
+    how: 'So funktioniert Wally',
+    closing: 'Ein klarer Kopf beginnt mit einer Notiz.',
+    footer: 'Für die Dinge, die du erledigen möchtest.',
+    cards: {
+      call: {
+        title: 'Andrea am Freitag anrufen',
+        body: 'Die nächsten Schritte zur Verlängerung besprechen.',
+        meta: 'Freitag · 2 Schritte',
+      },
+      slides: {
+        title: 'Die Geschichte vereinfachen',
+        body: 'Drei gute Folien statt dreißig voller Details.',
+        meta: 'Diese Woche',
+      },
+      weekend: {
+        title: 'Platz fürs Wochenende lassen',
+        body: 'Ein langer Spaziergang. Ohne festes Ziel.',
+        meta: 'Privat',
+      },
+      idea: {
+        title: 'Eine Idee für später',
+        body: 'Ein kleiner Gedanke, den ich behalten möchte.',
+        meta: 'Hat Zeit',
+      },
+      done: {
+        title: 'Den ersten Entwurf senden',
+        body: 'Ein Gedanke weniger im Kopf.',
+        meta: 'Eine Sache weniger im Kopf',
+      },
+    },
+    moments: {
+      capture: {
+        title: 'Festhalten, solange es da ist.',
+        body: 'Fang mit einer Zeile an. Ergänze die Details später. Eine Notiz kann eine Aufgabe, eine Frage oder einfach ein Gedanke sein.',
+      },
+      organise: {
+        title: 'Deinen Überblick finden.',
+        body: 'Ordne Notizen frei an, gruppiere sie nach Zeit oder Priorität oder nutze eine einfache Liste. Dieselben Notizen, ein anderer Blick.',
+      },
+      review: {
+        title: 'Du behältst das letzte Wort.',
+        body: 'Wallybot kann hilfreiche Details vorschlagen. Prüfe Ergänzungen, behalte, was hilft, und mache eine Änderung bei Bedarf rückgängig.',
+      },
+    },
+  },
+  appearance: {
+    palette: 'Farbpalette',
+    menu: 'Darstellung und Sprache',
+    palettes: {
+      minimal: 'Minimal',
+      paper: 'Paper Wall',
+      morning: 'Clear Morning',
+      highlighter: 'Highlighter',
+      aurora: 'Aurora',
+      daybreak: 'Daybreak',
+      sprout: 'Sprout',
+      amber: 'Amber Poster',
+      neutral: 'Neutral',
+    },
+  },
+
   safety: {
     status: { OPEN: 'Offen', DONE: 'Abgeschlossen', ACTIVE: 'Aktiv', PENDING: 'Eingeladen' },
     missingTarget: 'Dieses Mitglied oder dieser Eintrag ist nicht mehr verfügbar.',
@@ -232,6 +308,7 @@ export const de = {
     then: 'dann',
   },
   board: {
+    rail: { wall: 'Wand', views: 'Wandansichten', whiteboard: 'Whiteboard' },
     rowStatus: { markOpen: 'Als offen markieren', markDone: 'Als erledigt markieren' },
     switcherHeading: 'Wände',
     switcherAria: 'Wand wechseln',

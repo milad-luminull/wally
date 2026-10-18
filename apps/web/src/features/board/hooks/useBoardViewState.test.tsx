@@ -59,6 +59,12 @@ function setup(route: string, profile: MeDto = PROFILE) {
 }
 
 describe('useBoardViewState', () => {
+  it('changes view and axis atomically when navigating from list to a wall', async () => {
+    const { result } = setup('/boards/b1?view=list');
+    act(() => result.current.view.setLayout('wand', 'priority'));
+    expect(result.current.view.view).toBe('wand');
+    expect(result.current.view.axis).toBe('priority');
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(meApi.updatePreferences).mockImplementation((update) =>

@@ -328,7 +328,7 @@ export function NoteCard({
   );
 
   const surface =
-    'relative flex w-[248px] select-none flex-col gap-2 overflow-hidden rounded-lg border p-3 text-left';
+    'paper-note relative flex w-[248px] select-none flex-col gap-2 overflow-hidden rounded-lg border p-3 text-left';
 
   if (overlay) {
     return (

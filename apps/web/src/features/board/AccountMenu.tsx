@@ -1,4 +1,4 @@
-import { Grid3x3, Grip, Keyboard, LogOut, Monitor, Moon, Square, Sun } from 'lucide-react';
+import { Grid3x3, Grip, Keyboard, LogOut, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MenuItem, MenuSeparator } from '@/components/ui/menu';
 import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
-import { useTheme } from '@/lib/theme';
+import { AppearanceControls } from '@/components/AppearanceControls';
 import { useCanvasPattern, useWallybotPreferences } from '@/lib/preferences';
 import { openShortcutsHelp } from '@/lib/shortcuts';
 import { initialsOf } from './util/noteDerived';
@@ -40,7 +40,6 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { language, setLanguage, isSaving, saveFailed } = useLanguage();
-  const { theme, setTheme } = useTheme();
   const [canvasPattern, setCanvasPattern] = useCanvasPattern();
   const [wallybot, setWallybot] = useWallybotPreferences();
   if (!user) return null;
@@ -62,7 +61,7 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
         </Avatar>
       </PopoverTrigger>
 
-      <PopoverContent className="w-64 p-1">
+      <PopoverContent className="max-h-[85dvh] w-72 overflow-y-auto p-1">
         <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1.5">
           {user.displayName && (
             <p className="truncate text-13 font-medium text-fg-1">{user.displayName}</p>
@@ -71,31 +70,8 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
         </div>
         <MenuSeparator />
 
-        <div className="flex flex-col gap-1.5 px-2 py-2">
-          <p className="text-12 font-medium text-fg-3">{t('account.theme.label')}</p>
-          <Segmented
-            aria-label={t('account.theme.label')}
-            value={theme}
-            onChange={setTheme}
-            className="grid w-full grid-cols-3 [&>button]:justify-center"
-            options={[
-              {
-                value: 'system',
-                label: t('account.theme.system'),
-                icon: <Monitor strokeWidth={1.75} aria-hidden />,
-              },
-              {
-                value: 'light',
-                label: t('account.theme.light'),
-                icon: <Sun strokeWidth={1.75} aria-hidden />,
-              },
-              {
-                value: 'dark',
-                label: t('account.theme.dark'),
-                icon: <Moon strokeWidth={1.75} aria-hidden />,
-              },
-            ]}
-          />
+        <div className="px-2 py-2">
+          <AppearanceControls />
         </div>
 
         <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1">

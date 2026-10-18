@@ -1,5 +1,81 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
+  welcome: {
+    brand: 'Wally',
+    byline: 'by Luminull',
+    navigation: 'Main navigation',
+    login: 'Log in',
+    signup: 'Sign up',
+    start: 'Start your wall',
+    context: 'A place for everything on your mind.',
+    headline: 'Get it out of your head.',
+    description:
+      'Rough ideas, small tasks, the next big thing. Put them on one wall, give them a little order, and get on with your day.',
+    note: 'Your notes. Your pace. Your way of seeing things.',
+    preview: 'An example Wally wall with colourful notes for work and everyday life',
+    sample: 'A little of work. A little of life.',
+    previewCaption: 'Sample notes. Your wall starts with you.',
+    how: 'How Wally works',
+    closing: 'A clear head starts with one note.',
+    footer: 'Made for the things you want to get done.',
+    cards: {
+      call: {
+        title: 'Call Andrea on Friday',
+        body: 'Talk through the next steps for the renewal.',
+        meta: 'Friday · 2 steps',
+      },
+      slides: {
+        title: 'Make the story simpler',
+        body: 'Three good slides beat thirty busy ones.',
+        meta: 'This week',
+      },
+      weekend: {
+        title: 'Leave room for the weekend',
+        body: 'A long walk. No particular destination.',
+        meta: 'Personal',
+      },
+      idea: {
+        title: 'An idea for later',
+        body: 'A tiny thought worth keeping around.',
+        meta: 'No rush',
+      },
+      done: {
+        title: 'Send the first draft',
+        body: 'One less thing to keep in mind.',
+        meta: 'One less thing on your mind',
+      },
+    },
+    moments: {
+      capture: {
+        title: 'Write it while it’s there.',
+        body: 'Start with a line. Add the details when you have them. A note can hold a task, a question, or something you don’t want to forget.',
+      },
+      organise: {
+        title: 'See it your way.',
+        body: 'Arrange notes on a free wall, group them by time or priority, or keep things simple with a list. Same notes, a different perspective.',
+      },
+      review: {
+        title: 'Keep the final say.',
+        body: 'Wallybot can suggest useful details. Review what it adds, keep what helps, and undo a change when you need to.',
+      },
+    },
+  },
+  appearance: {
+    palette: 'Colour palette',
+    menu: 'Appearance and language',
+    palettes: {
+      minimal: 'Minimal',
+      paper: 'Paper Wall',
+      morning: 'Clear Morning',
+      highlighter: 'Highlighter',
+      aurora: 'Aurora',
+      daybreak: 'Daybreak',
+      sprout: 'Sprout',
+      amber: 'Amber Poster',
+      neutral: 'Neutral',
+    },
+  },
+
   safety: {
     status: { OPEN: 'Open', DONE: 'Completed', ACTIVE: 'Active', PENDING: 'Invited' },
     missingTarget: 'This member or item is no longer available.',
@@ -220,6 +296,7 @@ export const en = {
     then: 'then',
   },
   board: {
+    rail: { wall: 'Wall', views: 'Board views', whiteboard: 'Whiteboard' },
     rowStatus: { markOpen: 'Mark as open', markDone: 'Mark as done' },
     switcherHeading: 'Boards',
     switcherAria: 'Switch board',

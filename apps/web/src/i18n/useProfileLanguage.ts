@@ -32,6 +32,7 @@ export function useMe() {
  * caller is told, so the UI never disagrees with what was actually saved.
  */
 export function useUpdateLanguage() {
+  const { status } = useAuth();
   const { i18n } = useTranslation();
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -58,6 +59,7 @@ export function useUpdateLanguage() {
       setSaveFailed(false);
       void i18n.changeLanguage(next);
       writeStoredLocale(next);
+      if (status !== 'authenticated') return;
       queryClient.setQueryData<MeDto>(keys.profile(), (old) =>
         old ? { ...old, language: next } : old,
       );
@@ -73,7 +75,7 @@ export function useUpdateLanguage() {
         },
       });
     },
-    [i18n, keys, mutate, queryClient],
+    [i18n, keys, mutate, queryClient, status],
   );
 
   return { setLanguage, isSaving: mutation.isPending, saveFailed };
