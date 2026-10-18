@@ -12,9 +12,11 @@ import {
 import { toNoteDto, toSubtaskDto } from '../dto.js';
 import {
   applyFieldChanges,
+  applyLinkChanges,
   applyTagChanges,
   assertPrivateAssignee,
   assertValidAssignee,
+  canSeeNote,
   computeMoveUpdate,
   isValidAssignee,
 } from '../notes.js';
@@ -190,9 +192,36 @@ export async function executeNoteCommand(
   let moveMetadata: Record<string, unknown> | undefined;
   switch (command.type) {
     case 'note.update': {
-      const { fieldChanges, tagChanges, visibility, ...fields } = command.input;
+      const { fieldChanges, tagChanges, linkChanges, visibility, ...fields } = command.input;
       if (visibility !== undefined && note.createdById !== actor.id)
         throw new AppError(403, 'FORBIDDEN', 'Only the creator can change who sees a note');
+      let links: string[] | undefined;
+      if (linkChanges) {
+        const current = note.links ?? [];
+        const next = applyLinkChanges(current, linkChanges, note.id);
+        // A list that comes out the same is no change, also on a note with no list yet.
+        if (JSON.stringify(next) !== JSON.stringify(current)) links = next;
+        // Every new target is read inside the transaction: a live note of this board the
+        // caller can see (the plan's L2). A target that fails is a 422, nothing is written.
+        const added = next.filter((id) => !current.includes(id));
+        if (added.length) {
+          const targets = await tx.getAll(...added.map((id) => notesCol(db).doc(id)));
+          for (const snap of targets) {
+            const target = snap.data();
+            if (
+              !target ||
+              target.deletedAt ||
+              target.whiteboardId !== board.id ||
+              !canSeeNote(target, actor.id)
+            )
+              throw new AppError(
+                422,
+                'LINK_TARGET_INVALID',
+                'A link must name a note on this board',
+              );
+          }
+        }
+      }
       changes = {
         ...fields,
         ...(visibility !== undefined ? { visibility } : {}),
@@ -202,6 +231,7 @@ export async function executeNoteCommand(
           ? { customFields: applyFieldChanges(note.customFields ?? {}, fieldChanges) }
           : {}),
         ...(tagChanges ? { tags: applyTagChanges(note.tags, tagChanges) } : {}),
+        ...(links ? { links } : {}),
       };
       break;
     }

@@ -18,6 +18,7 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     assignee: null,
     customFields: {},
     tags: [],
+    links: [],
     colour: 'WEISS',
     visibility: 'SHARED',
     subtaskSummary: { done: 0, total: 0 },

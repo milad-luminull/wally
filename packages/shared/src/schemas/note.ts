@@ -14,6 +14,7 @@ import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
   MAX_FIELDS_PER_NOTE,
+  MAX_LINKS_PER_NOTE,
   MAX_TAGS_PER_NOTE,
   NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
@@ -61,6 +62,9 @@ export const noteCreateSchema = z.object({
 });
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 
+/** A note id as the API writes them. */
+const linkIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid note id');
+
 /**
  * PATCH /notes/:id — only the fields that aren't handled by their own dedicated route.
  *
@@ -99,6 +103,17 @@ export const noteUpdateSchema = z
       .object({
         add: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
         remove: z.array(tagSchema).max(MAX_TAGS_PER_NOTE).optional(),
+      })
+      .optional(),
+    /**
+     * Related notes, added to / removed from the note's current list (the plan's L2). Each
+     * added id must be a live note of the same board the caller can see, and not the note
+     * itself; the server refuses the whole update otherwise.
+     */
+    linkChanges: z
+      .object({
+        add: z.array(linkIdSchema).max(MAX_LINKS_PER_NOTE).optional(),
+        remove: z.array(linkIdSchema).max(MAX_LINKS_PER_NOTE).optional(),
       })
       .optional(),
     colour: noteColourSchema.optional(),
@@ -196,6 +211,8 @@ export const noteDtoSchema = z.object({
   dueDate: z.string().date().nullable(),
   assignee: userSummarySchema.nullable(),
   tags: z.array(z.string()),
+  /** Ids of the notes this one links to (L1); a reader drops an id it cannot resolve (L7). */
+  links: z.array(z.string()),
   /** Permissive on the way out — the write schemas are what enforce the rules. */
   customFields: z.record(z.string(), z.string()),
   colour: noteColourSchema,

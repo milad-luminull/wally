@@ -126,6 +126,8 @@ export type NoteDoc = {
   dueDate: string | null;
   assigneeId: string | null;
   tags: string[];
+  /** Related notes, by id; missing on notes written before links existed. */
+  links?: string[];
   /** Free-form key/value properties. See packages/shared's customFieldsSchema. */
   customFields: Record<string, string>;
   colour: NoteColour;

@@ -115,6 +115,7 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
     // 200-response schema requires an object.
     customFields: note.customFields ?? {},
     tags: note.tags,
+    links: note.links ?? [],
     colour: note.colour,
     visibility: note.visibility ?? 'SHARED',
     subtaskSummary: note.subtaskSummary,
