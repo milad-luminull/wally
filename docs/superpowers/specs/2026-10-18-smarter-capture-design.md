@@ -78,12 +78,9 @@ The causes are in the capture call, not in the model and not in the UI:
 - Older stored proposals (7-day retention) must still read and decide correctly after deploy.
 - Budget caps and the ledger stay authoritative; estimates must count the larger prompt and
   allowance.
-- The UI builds on PR #60 (`codex/paper-wall-uplift`, open, Codex's): its palettes, the
-  `paper-note` card surface and its BRAND.md. PR #60 also touches `AppShell.tsx`,
-  `WallView/NoteCard.tsx`, BRAND.md and the `de.ts` / `en.ts` catalogues. No stacked PRs: the
-  server and prompt work comes first and does not touch those files; the UI work starts only
-  once PR #60 is merged into `main` and this branch is rebased on it. If the server work is done
-  before PR #60 merges, the work pauses and the owner is asked.
+- The UI builds on PR #60 (Paper Wall uplift, merged into `main` as `23189982`; this branch
+  is rebased on it): its palettes, the `paper-note` card surface and its BRAND.md, whose
+  "## AI" rules are unchanged by it.
 - Styling uses PR #60's semantic tokens only (`--accent`, `--note-border`, `--fg-meta-on-note`,
   `--primary`, the palette's `--accent-foreground`), never the mockup's hard-coded amber, so the
   card reads right in all nine palettes, light and dark.
