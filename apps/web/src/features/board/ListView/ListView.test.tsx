@@ -78,6 +78,24 @@ describe('ListView', () => {
     expect(screen.queryByText('Later')).not.toBeInTheDocument();
   });
 
+  it('shows the related count the board resolved for each row', () => {
+    render(
+      <ListView
+        notes={notes}
+        totalNoteCount={notes.length}
+        axis="horizon"
+        currentUserId="user-1"
+        onOpenNote={vi.fn()}
+        onToggleDone={vi.fn()}
+        access={owner}
+        isBelowDesktop={false}
+        relatedCounts={new Map([['n2', 2]])}
+      />,
+    );
+    expect(screen.getByText(/2 related/)).toBeInTheDocument();
+    expect(screen.getAllByText(/related/)).toHaveLength(1);
+  });
+
   it('sorts notes within a group by due date', () => {
     render(
       <ListView

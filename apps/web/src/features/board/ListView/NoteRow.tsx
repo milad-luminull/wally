@@ -27,6 +27,8 @@ interface NoteRowProps {
   canEdit: boolean;
   /** A change Wallybot proposed for this note, still pending or just kept (§3.3). */
   pending?: PendingProps;
+  /** How many notes of the board this one is related to, both ways (`relatedCounts`, L1, L7). */
+  relatedCount?: number;
 }
 
 export function NoteRow({
@@ -36,6 +38,7 @@ export function NoteRow({
   onToggleDone,
   canEdit,
   pending,
+  relatedCount = 0,
 }: NoteRowProps) {
   const { t, i18n } = useTranslation();
   const { language } = useLanguage();
@@ -81,7 +84,7 @@ export function NoteRow({
   );
   const fieldLabel = firstField ? `${firstField[0]}: ${firstField[1]}` : undefined;
   const relatedLabel =
-    note.links.length > 0 ? t('note.related.count', { count: note.links.length }) : undefined;
+    relatedCount > 0 ? t('note.related.count', { count: relatedCount }) : undefined;
   const metaParts = [fieldLabel, assigneeName, checklistLabel || undefined, relatedLabel].filter(
     Boolean,
   );

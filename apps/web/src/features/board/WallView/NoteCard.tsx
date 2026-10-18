@@ -42,6 +42,12 @@ interface NoteCardProps {
   dragging?: boolean;
   /** A change Wallybot proposed for this note, still pending or just kept (§3.3). */
   pending?: PendingProps;
+  /**
+   * How many notes of the board this one is related to, both ways (`relatedCounts`): the
+   * board resolves it, since a deleted or private-made target leaves its id on `links` (L7)
+   * and a note that is only linked to has none of its own (L1).
+   */
+  relatedCount?: number;
 }
 
 /**
@@ -62,6 +68,7 @@ export function NoteCard({
   overlay = false,
   dragging = false,
   pending,
+  relatedCount = 0,
 }: NoteCardProps) {
   const { t, i18n } = useTranslation();
   const { priority: priorityLabels } = useEnumLabels();
@@ -231,10 +238,10 @@ export function NoteCard({
           )
         )}
 
-        {note.links.length > 0 && (
+        {relatedCount > 0 && (
           <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
             <Link2 className="h-3 w-3 shrink-0" strokeWidth={1.9} />
-            {t('note.related.count', { count: note.links.length })}
+            {t('note.related.count', { count: relatedCount })}
           </span>
         )}
 

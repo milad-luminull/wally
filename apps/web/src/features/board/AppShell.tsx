@@ -17,6 +17,7 @@ import {
   collectFieldValues,
   filterNotes,
   defaultZoneKey,
+  relatedCounts,
   showsVisibilityFilter,
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -58,6 +59,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     () => (viewState.fieldKey ? collectFieldValues(notes, viewState.fieldKey, language) : []),
     [notes, viewState.fieldKey, language],
   );
+  // Each card's related count, resolved against the whole board as the panel resolves it, so
+  // a filter never changes it and a dangling id never counts (the links plan's L1, L7).
+  const relatedCountByNote = useMemo(() => relatedCounts(notes), [notes]);
 
   // Below 1080px the canvas/drag surface is desktop-only (SPEC §11 + the plan's
   // reconciled decision) — force list view there instead of just hiding the tab, and
@@ -197,6 +201,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onCaptureNoteId={onCaptureNoteId}
             visibility={access.newNoteVisibility}
             pendingFor={pendingFor}
+            relatedCounts={relatedCountByNote}
           />
         ) : (
           <ListView
@@ -220,6 +225,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
               }
             }
             pendingFor={pendingFor}
+            relatedCounts={relatedCountByNote}
           />
         )}
 

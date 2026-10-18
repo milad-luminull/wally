@@ -72,6 +72,8 @@ interface WallViewProps {
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
 }
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
@@ -102,6 +104,7 @@ export function WallView({
   onCaptureNoteId,
   visibility,
   pendingFor,
+  relatedCounts,
 }: WallViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -418,6 +421,7 @@ export function WallView({
             canEditShared={access.canEditShared}
             activeDragId={activeId}
             pendingFor={pendingFor}
+            relatedCounts={relatedCounts}
           />
         ) : (
           <ZoneBands
@@ -436,6 +440,7 @@ export function WallView({
             activeDragId={activeId}
             filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
             pendingFor={pendingFor}
+            relatedCounts={relatedCounts}
           />
         )}
 
@@ -453,6 +458,7 @@ export function WallView({
               selected={false}
               onOpen={() => {}}
               overlay
+              relatedCount={relatedCounts?.get(activeNote.id)}
             />
           ) : null}
         </DragOverlay>

@@ -39,6 +39,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
 }
 
 function ZoneBand({
@@ -52,6 +54,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  relatedCounts,
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
@@ -130,6 +133,7 @@ function ZoneBand({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              relatedCount={relatedCounts?.get(note.id)}
             />
           ))}
         </div>
@@ -174,6 +178,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
 }
 
 /** Horizon → columns side by side; Priority → rows stacked. Never rendered in free mode —

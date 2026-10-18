@@ -6,6 +6,8 @@ import {
   collectFieldValues,
   filterNotes,
   initialsOf,
+  relatedCounts,
+  relatedNotes,
   showsVisibilityFilter,
 } from './noteDerived';
 
@@ -142,5 +144,43 @@ describe('showsVisibilityFilter', () => {
     expect(showsVisibilityFilter([makeNote({ visibility: 'PRIVATE' })], 'all')).toBe(true);
     // Review Focus 5: never strand the user behind a filter they cannot see to turn off.
     expect(showsVisibilityFilter([], 'private')).toBe(true);
+  });
+});
+
+describe('relatedNotes', () => {
+  it('lists own links in order, then backlinks, drops an id it cannot resolve, and names a two-way pair once', () => {
+    const a = makeNote({ id: 'a', links: ['c', 'gone', 'b'] });
+    const b = makeNote({ id: 'b', links: ['a'] });
+    const c = makeNote({ id: 'c', links: [] });
+    const d = makeNote({ id: 'd', links: ['a'] });
+    const notes = [a, b, c, d];
+    expect(relatedNotes(a, notes).map((r) => [r.note.id, r.direction])).toEqual([
+      ['c', 'out'],
+      ['b', 'out'],
+      ['d', 'in'],
+    ]);
+    expect(relatedNotes(c, notes).map((r) => [r.note.id, r.direction])).toEqual([['a', 'in']]);
+  });
+});
+
+describe('relatedCounts', () => {
+  it('counts what the panel lists: no dangling id, backlinks included, a two-way pair once', () => {
+    // A links B and C; C was deleted (or made private), so its id dangles on A.
+    const a = makeNote({ id: 'a', links: ['b', 'c'] });
+    const b = makeNote({ id: 'b', links: [] });
+    // D and E link each other; F links nothing and nobody links F.
+    const d = makeNote({ id: 'd', links: ['e'] });
+    const e = makeNote({ id: 'e', links: ['d'] });
+    const f = makeNote({ id: 'f', links: [] });
+    const notes = [a, b, d, e, f];
+    const counts = relatedCounts(notes);
+    expect(counts.get('a')).toBe(1);
+    expect(counts.get('b')).toBe(1);
+    expect(counts.get('d')).toBe(1);
+    expect(counts.get('e')).toBe(1);
+    expect(counts.has('f')).toBe(false);
+    for (const note of notes) {
+      expect(counts.get(note.id) ?? 0).toBe(relatedNotes(note, notes).length);
+    }
   });
 });

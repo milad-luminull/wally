@@ -51,9 +51,11 @@ beforeEach(() => {
 function Wall({
   axis,
   access,
+  relatedCounts,
 }: {
   axis: 'horizon' | 'priority' | 'free';
   access: ReturnType<typeof boardAccess>;
+  relatedCounts?: ReadonlyMap<string, number>;
 }) {
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
@@ -72,6 +74,7 @@ function Wall({
       onCapture={setCapture}
       onCaptureDone={() => setCapture(null)}
       visibility={access.newNoteVisibility}
+      relatedCounts={relatedCounts}
     />
   );
 }
@@ -93,6 +96,21 @@ function doubleClickCanvas(container: HTMLElement) {
   expect(canvas).not.toBeNull();
   fireEvent.doubleClick(canvas!, { clientX: 300, clientY: 200 });
 }
+
+// The board resolves each card's related count (relatedCounts, L1, L7); every layout shows
+// the count it is given, here for a note with no links of its own that another note links to.
+describe('WallView: the related count comes from the board', () => {
+  it.each(['horizon', 'priority', 'free'] as const)('shows it on the %s wall', (axis) => {
+    renderWithProviders(
+      <Wall
+        axis={axis}
+        access={boardAccess('OWNER', 'me', 'all')}
+        relatedCounts={new Map([['n1', 1]])}
+      />,
+    );
+    expect(screen.getByText('1 related')).toBeInTheDocument();
+  });
+});
 
 describe('WallView: every create path writes the note in place, with its visibility', () => {
   describe('a viewer (every new note is private)', () => {

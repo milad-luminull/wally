@@ -71,6 +71,8 @@ interface ListViewProps {
   } | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -100,6 +102,7 @@ export function ListView({
   isBelowDesktop,
   capture,
   pendingFor,
+  relatedCounts,
 }: ListViewProps) {
   const { t } = useTranslation();
   // `t` belongs in these deps: react-i18next returns a new reference after languageChanged, so
@@ -182,6 +185,7 @@ export function ListView({
                   onToggleDone={() => onToggleDone(note.id, note.status)}
                   canEdit={access.canEditNote(note)}
                   pending={pendingFor?.(note.id)}
+                  relatedCount={relatedCounts?.get(note.id)}
                 />
               ))}
             </div>

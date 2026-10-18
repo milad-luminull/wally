@@ -874,6 +874,44 @@ describe('useSuggestions', () => {
       });
     });
 
+    // A target deleted or made private after the proposal loaded: the server refuses the keep
+    // with 422 LINK_TARGET_INVALID, puts back what it wrote and discards the record (Task 4's
+    // completeKeep). A refusal is not sent again; the dot goes and the note is read afresh.
+    it('drops the dot without a second try when a ticked link target is refused', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [{ index: 0, noteId: 'b', title: 'B', reason: 'same customer' }],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      vi.mocked(assistantApi.decide).mockRejectedValueOnce(
+        Object.assign(new Error('422'), { status: 422, code: 'LINK_TARGET_INVALID' }),
+      );
+      wallybot.autoApply = false;
+      const { result, queryClient } = setup();
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.keep('n1', 'enter'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledTimes(1);
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [0],
+        source: 'enter',
+      });
+      expect(result.current.marks.has('n1')).toBe(false);
+      expect(invalidate).toHaveBeenCalled();
+    });
+
     it("the countdown's keep carries the ticked links", async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
         suggestion: dto({

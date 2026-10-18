@@ -80,10 +80,16 @@ describe('NoteCard content', () => {
   const nora = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
   const jonas = { id: 'user-2', email: 'jonas@example.com', displayName: 'Jonas Weber' };
 
-  function renderCard(note = makeNote(), currentUserId = 'user-1') {
+  function renderCard(note = makeNote(), currentUserId = 'user-1', relatedCount?: number) {
     return render(
       <DndContext>
-        <NoteCard note={note} currentUserId={currentUserId} selected={false} onOpen={vi.fn()} />
+        <NoteCard
+          note={note}
+          currentUserId={currentUserId}
+          selected={false}
+          onOpen={vi.fn()}
+          relatedCount={relatedCount}
+        />
       </DndContext>,
     );
   }
@@ -133,12 +139,28 @@ describe('NoteCard content', () => {
     expect(screen.queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
   });
 
-  it('counts the related notes in the meta row, and shows nothing without links', () => {
-    const { unmount } = renderCard(makeNote({ links: ['b', 'c'] }));
+  it('counts the related notes in the meta row, and shows nothing without any', () => {
+    const { unmount } = renderCard(makeNote({ links: ['b', 'c'] }), 'user-1', 2);
     expect(screen.getByText('2 related')).toBeInTheDocument();
     unmount();
 
     renderCard(makeNote({ links: [] }));
+    expect(screen.queryByText(/related/)).not.toBeInTheDocument();
+  });
+
+  // The count is what the board resolves (relatedCounts), not the raw id list: a deleted or
+  // private-made target is not counted (L7), and a note only linked to counts its backlinks (L1).
+  it('shows the related count the board resolves, not the length of its own id list', () => {
+    const { unmount } = renderCard(makeNote({ links: ['b', 'gone'] }), 'user-1', 1);
+    expect(screen.getByText('1 related')).toBeInTheDocument();
+    expect(screen.queryByText('2 related')).not.toBeInTheDocument();
+    unmount();
+
+    const { unmount: unmountBacklinked } = renderCard(makeNote({ links: [] }), 'user-1', 1);
+    expect(screen.getByText('1 related')).toBeInTheDocument();
+    unmountBacklinked();
+
+    renderCard(makeNote({ links: ['gone'] }), 'user-1', 0);
     expect(screen.queryByText(/related/)).not.toBeInTheDocument();
   });
 });
