@@ -10,9 +10,11 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 export function PublicHeader({
   showAuth = false,
   signedIn = false,
+  landing = false,
 }: {
   showAuth?: boolean;
   signedIn?: boolean;
+  landing?: boolean;
 }) {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
@@ -26,6 +28,15 @@ export function PublicHeader({
         </span>
       </Link>
       <nav className="public-actions" aria-label={t('welcome.navigation')}>
+        {landing && (
+          <div className="landing-nav-links">
+            {(['how', 'voice', 'views', 'faq'] as const).map((section) => (
+              <a key={section} href={`#${section}`}>
+                {t(`landing.nav.${section}`)}
+              </a>
+            ))}
+          </div>
+        )}
         <Popover>
           <PopoverTrigger className="public-appearance" aria-label={t('appearance.menu')}>
             <Palette size={18} />
