@@ -305,4 +305,24 @@ fields right, anti-goal failures: none.**
 | title       |     0 |     0 |      3 |     0 |
 | description |     0 |     0 |      3 |     0 |
 
-Final run: (Task 11 Step 6.)
+Final run (owner's run on the branch tip, 2026-10-19, `vertex:gemini-2.5-flash`): **64 of 68
+scored fields right, anti-goal failures: none.** One fixture (`steps-onboarding`) was not scored:
+its call hit a Vertex 429 (resource exhausted). The private-tag fixture now scores one `leaks`
+field instead of two, so the total is 68 + 1 unscored fixture against the baseline's 70.
+
+| field       | right | wrong | missed | extra |
+| ----------- | ----: | ----: | -----: | ----: |
+| dueDate     |    10 |     0 |      0 |     0 |
+| assignee    |     8 |     0 |      0 |     2 |
+| priority    |     7 |     0 |      1 |     0 |
+| properties  |     8 |     0 |      1 |     0 |
+| horizon     |     4 |     0 |      0 |     0 |
+| tags        |     8 |     0 |      0 |     0 |
+| visibility  |     7 |     0 |      0 |     0 |
+| subtasks    |     5 |     0 |      0 |     0 |
+| title       |     3 |     0 |      0 |     0 |
+| description |     3 |     0 |      0 |     0 |
+| leaks       |     1 |     0 |      0 |     0 |
+
+Remaining misses: a recipient proposed as assignee ("Send Ben the slides", "Reply to Anna"), a
+new property key not proposed (`props-new-key`), "sometime" not read as low priority.
