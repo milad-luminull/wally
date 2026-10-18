@@ -66,4 +66,23 @@ describe('ReviewFooter', () => {
     expect(onUndo).toHaveBeenCalledTimes(1);
     expect(onCard).not.toHaveBeenCalled();
   });
+
+  it('Keep is disabled while nothing is ticked; Undo stays the way out', () => {
+    const onKeep = vi.fn();
+    const onUndo = vi.fn();
+    render(
+      <ReviewFooter
+        mark={makeSuggestionMark({ fields: [], countdownEndsAt: null })}
+        onKeep={onKeep}
+        onUndo={onUndo}
+      />,
+    );
+    const keep = screen.getByRole('button', { name: 'Keep' });
+    expect(keep).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(keep);
+    fireEvent.keyDown(keep, { key: 'Enter' });
+    expect(onKeep).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
 });

@@ -421,12 +421,9 @@ export function useSuggestions(
     (noteId, source) => {
       const mark = latestMarks.current.get(noteId);
       if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
-      // Nothing ticked: the footer's Keep discards the change (a keep of nothing); Enter
-      // leaves it waiting, as it always has for an offered title nobody ticked.
-      if (mark.fields.length === 0) {
-        if (source === 'click') decide(noteId, { decision: 'discard', source });
-        return;
-      }
+      // Nothing ticked is nothing to keep: the change waits. Discarding here would let a Private
+      // left unticked read as kept; Undo (Esc) is the way out.
+      if (mark.fields.length === 0) return;
       decide(noteId, keepBody(mark.fields, mark, source));
     },
     [decide],

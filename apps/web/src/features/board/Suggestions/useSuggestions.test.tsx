@@ -241,14 +241,12 @@ describe('useSuggestions', () => {
     const waiting = result.current.marks.get('n2');
     expect(waiting).toMatchObject({ phase: 'pending', fields: [], countdownEndsAt: null });
     expect(assistantApi.decide).not.toHaveBeenCalledWith(BOARD, 's2', expect.anything());
-    // Keep with nothing left is "nothing to keep": the record is discarded.
+    // Keep with nothing ticked keeps nothing and decides nothing: a Private left unticked
+    // must never read as kept. Undo (Esc) is the way out.
     act(() => result.current.keep('n2', 'click'));
     await flush();
-    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
-      decision: 'discard',
-      source: 'click',
-    });
-    expect(result.current.marks.has('n2')).toBe(false);
+    expect(assistantApi.decide).not.toHaveBeenCalledWith(BOARD, 's2', expect.anything());
+    expect(result.current.marks.get('n2')?.phase).toBe('pending');
   });
 
   it('counts down fifteen seconds', () => {

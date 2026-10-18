@@ -192,11 +192,11 @@ describe('pendingKeys', () => {
     expect(k.onUndo).toHaveBeenCalledWith('esc');
   });
 
-  it('lets Enter through when nothing but an unticked title is offered', () => {
+  it('takes Enter and does nothing while nothing is ticked, so it never drags or opens the note', () => {
     const p = pending(mark({ fields: [], subtasks: [] }));
     const enter = key('Enter');
-    expect(pendingKeys(enter, p)).toBe(false);
-    expect(enter.preventDefault).not.toHaveBeenCalled();
+    expect(pendingKeys(enter, p)).toBe(true);
+    expect(enter.preventDefault).toHaveBeenCalled();
     expect(p.onKeep).not.toHaveBeenCalled();
     // Esc still discards the offer.
     expect(pendingKeys(key('Escape'), p)).toBe(true);

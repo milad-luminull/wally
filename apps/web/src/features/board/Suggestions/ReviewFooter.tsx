@@ -36,7 +36,8 @@ const action = cn(
  * The foot of a pending card or row (the smarter-capture spec §5, after Paper Wall v3): while
  * the call runs, "Filling in…"; once the proposal is there, the countdown ring with the seconds
  * left (or "Paused"), Undo and Keep. Undo discards the proposal and Keep keeps what is ticked,
- * exactly as Esc and Enter do. The buttons are `role="button"` spans, since on the wall the
+ * exactly as Esc and Enter do; with nothing ticked Keep is disabled. The buttons are
+ * `role="button"` spans, since on the wall the
  * card is itself a `<button>`, and every press stops here so it never opens the note.
  */
 export function ReviewFooter({
@@ -58,6 +59,7 @@ export function ReviewFooter({
       </span>
     );
   if (mark.phase !== 'pending') return null;
+  const empty = mark.fields.length === 0;
   const status =
     seconds !== null
       ? t('suggest.footer.saving', { count: seconds })
@@ -88,12 +90,19 @@ export function ReviewFooter({
       >
         {t('suggest.undo')}
       </span>
+      {/* With nothing ticked there is nothing to keep: Keep says so instead of discarding,
+          so a Private left unticked never reads as kept. Undo stays the way out. */}
       <span
         role="button"
         tabIndex={0}
-        onClick={onKeep}
-        onKeyDown={onPress(onKeep)}
-        className={cn(action, 'bg-primary text-primary-foreground hover:opacity-90')}
+        aria-disabled={empty || undefined}
+        onClick={empty ? undefined : onKeep}
+        onKeyDown={onPress(empty ? () => {} : onKeep)}
+        className={cn(
+          action,
+          'bg-primary text-primary-foreground',
+          empty ? 'cursor-not-allowed opacity-40' : 'hover:opacity-90',
+        )}
       >
         {t('suggest.footer.keep')}
       </span>

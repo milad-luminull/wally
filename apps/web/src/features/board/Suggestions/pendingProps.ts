@@ -26,16 +26,17 @@ export interface PendingProps {
 
 /**
  * Enter keeps, Esc discards (pending) or undoes (kept). True when the key was taken. Enter on a
- * change that holds nothing to keep (an offered title nobody ticked, plan R2) is not taken: it
- * goes on to the card or row as it would without a change.
+ * change that holds nothing to keep (every row crossed out, or an offered title nobody ticked)
+ * is taken and does nothing: under review Enter means Keep, so it must neither open the note
+ * nor start a keyboard drag of the card.
  */
 export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefined): boolean {
   if (!pending || event.nativeEvent.isComposing) return false;
   const { phase, fields } = pending.mark;
-  if (event.key === 'Enter' && phase === 'pending' && fields.length > 0) {
+  if (event.key === 'Enter' && phase === 'pending') {
     event.preventDefault();
     event.stopPropagation();
-    pending.onKeep('enter');
+    if (fields.length > 0) pending.onKeep('enter');
     return true;
   }
   if (event.key === 'Escape' && (phase === 'pending' || phase === 'asking')) {
