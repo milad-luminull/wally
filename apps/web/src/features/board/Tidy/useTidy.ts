@@ -16,7 +16,7 @@ import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
 import { localToday, useToday } from './useToday';
 
-/** How long "Nothing to tidy" stays in the bar (plan R4). */
+/** How long "All in its place." stays in the bar (plan R4). */
 export const EMPTY_NOTICE_MS = 4000;
 
 export type TidyPhase = 'idle' | 'asking' | 'pending' | 'kept' | 'empty';

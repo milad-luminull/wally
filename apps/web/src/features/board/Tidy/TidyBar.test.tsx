@@ -68,7 +68,7 @@ describe('TidyBar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(kept.undo).toHaveBeenCalledWith('click');
     rerender(<TidyBar tidy={controller({ phase: 'empty' })} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Nothing to tidy.');
+    expect(screen.getByRole('status')).toHaveTextContent('All in its place.');
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   });
 });

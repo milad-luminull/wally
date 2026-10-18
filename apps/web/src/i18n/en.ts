@@ -479,7 +479,7 @@ export const en = {
     pending_other: '{{count}} notes move',
     kept_one: '{{count}} note moved',
     kept_other: '{{count}} notes moved',
-    nothing: 'Nothing to tidy.',
+    nothing: 'All in its place.',
     keep: 'Move',
     discard: 'Discard',
     undo: 'Undo',
