@@ -409,6 +409,14 @@ export const de = {
       remove: '{{tag}} entfernen',
     },
     related: {
+      label: 'Verwandte Notizen',
+      add: 'Notiz verknüpfen…',
+      search: 'Notiz suchen',
+      empty: 'Keine passende Notiz',
+      remove: 'Verknüpfung zu {{title}} entfernen',
+      fromOther: 'Verknüpft von {{title}}',
+      linked: 'Verknüpft mit {{title}}',
+
       count_one: '{{count}} verwandt',
       count_other: '{{count}} verwandt',
     },

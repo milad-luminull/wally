@@ -68,6 +68,7 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
       axis="horizon"
       isBelowDesktop={false}
       onClose={onClose}
+      onOpenNote={vi.fn()}
       onDuplicate={onDuplicate}
       currentUserId="user-1"
       {...overrides}
@@ -77,6 +78,18 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
 }
 
 describe('NoteDetailPanel', () => {
+  it('opens a related note from the panel and offers an unlinked note', async () => {
+    const onOpenNote = vi.fn();
+    vi.mocked(notesApi.list).mockResolvedValue([
+      makeNoteDetail({ id: 'backlink', title: 'Incoming', links: ['note-1'] }),
+      makeNoteDetail({ id: 'candidate', title: 'Candidate' }),
+    ]);
+    renderPanel({ onOpenNote });
+    await userEvent.click(await screen.findByTitle('Linked from Incoming'));
+    expect(onOpenNote).toHaveBeenCalledWith('backlink');
+    await userEvent.click(screen.getByRole('button', { name: 'Link a note…' }));
+    expect(screen.getByRole('option', { name: 'Candidate' })).toBeVisible();
+  });
   /**
    * Completion used to be a filled, full-width button in the footer labelled "Done".
    * That is the slot — and the word — every sheet uses for "dismiss", so people pressing it
@@ -514,6 +527,7 @@ describe('NoteDetailPanel', () => {
         axis="free"
         isBelowDesktop={false}
         onClose={vi.fn()}
+        onOpenNote={vi.fn()}
         onDuplicate={vi.fn()}
         currentUserId="user-1"
       />,
@@ -567,6 +581,7 @@ describe('NoteDetailPanel', () => {
             axis="horizon"
             isBelowDesktop={false}
             onClose={onClose}
+            onOpenNote={vi.fn()}
             onDuplicate={vi.fn()}
             currentUserId="user-1"
           />
@@ -708,6 +723,7 @@ describe('NoteDetailPanel', () => {
         isBelowDesktop: false,
         onClose: vi.fn(),
         onDuplicate: vi.fn(),
+        onOpenNote: vi.fn(),
         currentUserId: 'user-1',
       };
       const { rerender } = renderWithProviders(
@@ -746,6 +762,7 @@ describe('NoteDetailPanel', () => {
         isBelowDesktop: false,
         onClose: vi.fn(),
         onDuplicate: vi.fn(),
+        onOpenNote: vi.fn(),
         currentUserId: 'user-1',
       };
       const { rerender } = renderWithProviders(

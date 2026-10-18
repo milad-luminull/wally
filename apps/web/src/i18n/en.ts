@@ -387,6 +387,14 @@ export const en = {
       remove: 'Remove {{tag}}',
     },
     related: {
+      label: 'Related notes',
+      add: 'Link a note…',
+      search: 'Search notes',
+      empty: 'No matching note',
+      remove: 'Remove the link to {{title}}',
+      fromOther: 'Linked from {{title}}',
+      linked: 'Linked to {{title}}',
+
       count_one: '{{count}} related',
       count_other: '{{count}} related',
     },

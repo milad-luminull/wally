@@ -310,6 +310,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           isBelowDesktop={isBelowDesktop}
           onClose={() => viewState.openNote(null)}
           onDuplicate={duplicateNote}
+          onOpenNote={viewState.openNote}
           currentUserId={user?.uid}
           pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
         />
