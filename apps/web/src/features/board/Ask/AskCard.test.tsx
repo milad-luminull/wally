@@ -210,6 +210,17 @@ describe('AskCard', () => {
     expect(input).toHaveFocus();
   });
 
+  it('the focus it takes on mount does not hold the clock; focus the person moves in does', () => {
+    // The focus lies on the page, as the capture card leaves it (an earlier case leaves a field).
+    (document.activeElement as HTMLElement | null)?.blur();
+    const { onPause } = renderCard(session());
+    expect(screen.getByRole('group', { name: 'Answer from the wall' })).toHaveFocus();
+    expect(onPause).not.toHaveBeenCalled();
+    act(() => screen.getByRole('button', { name: 'Pin the answer' }).focus());
+    expect(onPause).toHaveBeenCalledTimes(1);
+    expect(onPause).toHaveBeenLastCalledWith(true);
+  });
+
   it('hands the focus to the board surface when it goes with the focus inside', () => {
     const surface = document.createElement('div');
     surface.setAttribute('data-board-surface', '');

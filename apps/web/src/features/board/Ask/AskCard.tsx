@@ -55,14 +55,23 @@ export function AskCard({
   const rootRef = useRef<HTMLDivElement>(null);
   const hovered = useRef(false);
   const focused = useRef(false);
+  /** True while the card takes the focus itself on mount: that focus is not the person's, so it
+   *  must not hold the clock, or the answer would never fade on its own (R5 with R8). */
+  const takingFocus = useRef(false);
 
   // The capture card gave way to this one and left the focus on the page: the card takes it,
   // so Esc, the pin, the × and the rows work from the keyboard (R8). Focus the person put
   // somewhere else meanwhile is left alone.
   useEffect(() => {
     const active = document.activeElement;
-    if (!active || active === document.body || active.matches(BOARD_SURFACE))
-      rootRef.current?.focus();
+    if (!active || active === document.body || active.matches(BOARD_SURFACE)) {
+      takingFocus.current = true;
+      try {
+        rootRef.current?.focus();
+      } finally {
+        takingFocus.current = false;
+      }
+    }
   }, []);
   // Going away with the focus inside, the card hands it to the board, never to the page. The
   // browser has already moved the focus to the body by the time this runs, so that is the sign.
@@ -127,7 +136,9 @@ export function AskCard({
       onKeyDown={onKeyDown}
       onMouseEnter={() => hold('hover', true)}
       onMouseLeave={() => hold('hover', false)}
-      onFocus={() => hold('focus', true)}
+      onFocus={() => {
+        if (!takingFocus.current) hold('focus', true);
+      }}
       onBlur={onBlur}
       className={cn(
         'relative flex flex-col gap-2 rounded-lg border border-dashed border-[color:var(--note-border)] p-3 text-left shadow-e2 outline-none',
