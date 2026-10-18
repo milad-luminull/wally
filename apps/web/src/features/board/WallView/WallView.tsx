@@ -40,6 +40,7 @@ import {
 import { groupByAxis } from '../util/noteDerived';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import type { TidyProps } from '../Tidy/tidyProps';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
@@ -72,6 +73,8 @@ interface WallViewProps {
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** The note's part in a Tidy batch, if any; the horizon wall only (WALLYBOT_INLINE.md §3.5). */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
@@ -102,6 +105,7 @@ export function WallView({
   onCaptureNoteId,
   visibility,
   pendingFor,
+  tidyFor,
 }: WallViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -436,6 +440,7 @@ export function WallView({
             activeDragId={activeId}
             filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
             pendingFor={pendingFor}
+            tidyFor={tidyFor}
           />
         )}
 

@@ -9,7 +9,7 @@ import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '.
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { PrivateBadge } from '../PrivateBadge';
-import { PendingDot } from '../Suggestions/PendingDot';
+import { PendingDot, type DotMark } from '../Suggestions/PendingDot';
 import { ProposedField } from '../Suggestions/ProposedField';
 import {
   pendingKeys,
@@ -19,6 +19,7 @@ import {
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
+import { tidyKeys, type TidyProps } from '../Tidy/tidyProps';
 import { CopyDragContext } from './copyDrag';
 
 interface NoteCardProps {
@@ -42,6 +43,8 @@ interface NoteCardProps {
   dragging?: boolean;
   /** A change Wallybot proposed for this note, still pending or just kept (§3.3). */
   pending?: PendingProps;
+  /** The note's part in a Tidy batch, pending or just moved (WALLYBOT_INLINE.md §3.5). */
+  tidy?: TidyProps;
 }
 
 /**
@@ -62,9 +65,10 @@ export function NoteCard({
   overlay = false,
   dragging = false,
   pending,
+  tidy,
 }: NoteCardProps) {
   const { t, i18n } = useTranslation();
-  const { priority: priorityLabels } = useEnumLabels();
+  const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const description = note.description.trim();
@@ -89,6 +93,17 @@ export function NoteCard({
   const stepsLabel =
     proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
   const corner = overlay || !pending ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
+  // A tidy's corner: the waiting dot while the batch is pending, Undo once it moved (R6, R7).
+  const tidyCorner = overlay || !tidy ? null : tidy.mark.phase === 'kept' ? 'undo' : 'dot';
+  const tidyLine =
+    !overlay && tidy?.mark.phase === 'pending'
+      ? t('tidy.moveTo', { zone: horizonLabels[tidy.mark.to] })
+      : null;
+  const tidyReason = tidy
+    ? tidy.mark.source === 'date' && note.dueDate
+      ? t('tidy.reasonDue', { date: proposedDateLabel(note.dueDate, i18n.language) })
+      : (tidy.mark.reason ?? '')
+    : '';
 
   const body = (
     <>
@@ -97,8 +112,8 @@ export function NoteCard({
           'line-clamp-3 text-14 font-medium leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
           // Room for the dot, or the Undo after it, in the card's top-right corner.
-          corner === 'dot' && 'pr-4',
-          corner === 'undo' && 'pr-[4.5rem]',
+          (corner === 'dot' || tidyCorner === 'dot') && 'pr-4',
+          (corner === 'undo' || tidyCorner === 'undo') && 'pr-[4.5rem]',
         )}
       >
         {note.title || t('common.untitled')}
@@ -135,6 +150,19 @@ export function NoteCard({
         <span className="-mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
           {description}
         </span>
+      )}
+
+      {/* Where the batch would move this note: the zone's own label, with the reason as the
+          line's tooltip (the due date, or the model's words); the × keeps the note here (R6). */}
+      {tidyLine && tidy && (
+        <ProposedField
+          className="-mt-1"
+          name={tidyLine}
+          label={<span className="text-12 font-medium leading-snug text-fg-1">{tidyLine}</span>}
+          reason={tidyReason}
+          removeLabel={t('tidy.remove')}
+          onRemove={tidy.onRemove}
+        />
       )}
 
       {/* A card shows no properties of its own, so the proposed reference takes a meta line
@@ -304,6 +332,7 @@ export function NoteCard({
       surface={surface}
       body={body}
       pending={pending}
+      tidy={tidy}
     />
   );
 }
@@ -319,6 +348,7 @@ interface RestingProps {
   surface: string;
   body: ReactNode;
   pending?: PendingProps;
+  tidy?: TidyProps;
 }
 
 /** Split out so the overlay variant above never calls `useDraggable`. */
@@ -333,11 +363,18 @@ function RestingNoteCard({
   surface,
   body,
   pending,
+  tidy,
 }: RestingProps) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
   // A copy-drag leaves the original in place: only the copy is travelling.
   const hidden = dragging || (isDragging && !copying);
-  const dashed = pending !== undefined && pending.mark.phase !== 'kept';
+  const dashed =
+    (pending !== undefined && pending.mark.phase !== 'kept') || tidy?.mark.phase === 'pending';
+  // A tidy waits for a yes, so its dot runs no countdown (plan R1).
+  const tidyDot: DotMark | null = tidy
+    ? { phase: tidy.mark.phase, countdownEndsAt: null, countdownMs: 0, paused: false }
+    : null;
   const pause = usePendingPause(pending);
 
   const wrapperStyle: CSSProperties = {
@@ -358,12 +395,13 @@ function RestingNoteCard({
         {...listeners}
         {...attributes}
         data-pending={pending?.mark.phase}
+        data-tidy={tidy?.mark.phase}
         onClick={onOpen}
-        // Enter keeps and Esc discards while a change is pending; every other key, every key
-        // on a card with nothing pending, and every key mid-drag (Esc cancels the drag, not
-        // the change) still reaches dnd-kit's keyboard sensor.
+        // Enter keeps and Esc discards while a change or a tidy is pending (Esc undoes a moved
+        // tidy); every other key, every key on a card with nothing pending, and every key
+        // mid-drag (Esc cancels the drag, not the change) still reaches dnd-kit's keyboard sensor.
         onKeyDown={(e) => {
-          if (!isDragging && pendingKeys(e, pending)) return;
+          if (!isDragging && (pendingKeys(e, pending) || tidyKeys(e, tidy))) return;
           listeners?.onKeyDown?.(e);
         }}
         {...pause}
@@ -398,10 +436,18 @@ function RestingNoteCard({
         {/* The dot sits inside the card, so its label is part of the name of the control
             that has focus: a screen reader hears that a change is counting down, or waiting
             for Enter. It is an image, not a control, so it may sit inside the button. */}
-        {dashed && (
+        {pending && pending.mark.phase !== 'kept' && (
           <PendingDot
             mark={pending.mark}
             onUndo={() => pending.onUndo('click')}
+            className="pointer-events-none absolute right-2 top-2"
+          />
+        )}
+        {tidyDot?.phase === 'pending' && !pending && (
+          <PendingDot
+            mark={tidyDot}
+            label={t('tidy.dotAria')}
+            onUndo={() => {}}
             className="pointer-events-none absolute right-2 top-2"
           />
         )}
@@ -412,6 +458,16 @@ function RestingNoteCard({
         <PendingDot
           mark={pending.mark}
           onUndo={() => pending.onUndo('click')}
+          className={cn(
+            'absolute right-2 top-2 transition-transform duration-150 ease-ds',
+            'peer-hover/note:-translate-y-0.5 motion-reduce:peer-hover/note:translate-y-0',
+          )}
+        />
+      )}
+      {tidy && tidyDot?.phase === 'kept' && !pending && !hidden && (
+        <PendingDot
+          mark={tidyDot}
+          onUndo={() => tidy.onUndo('click')}
           className={cn(
             'absolute right-2 top-2 transition-transform duration-150 ease-ds',
             'peer-hover/note:-translate-y-0.5 motion-reduce:peer-hover/note:translate-y-0',

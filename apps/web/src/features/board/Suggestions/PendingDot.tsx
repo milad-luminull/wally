@@ -2,6 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import type { SuggestionMark } from './useSuggestions';
 
+/** What the dot reads of a mark: a suggestion's, or a tidy's with no countdown. */
+export type DotMark = Pick<SuggestionMark, 'phase' | 'countdownEndsAt' | 'countdownMs' | 'paused'>;
+
 const SIZE = 14;
 const STROKE = 2;
 const R = (SIZE - STROKE) / 2;
@@ -16,10 +19,13 @@ const LENGTH = 2 * Math.PI * R;
 export function PendingDot({
   mark,
   onUndo,
+  label: labelOverride,
   className,
 }: {
-  mark: SuggestionMark;
+  mark: DotMark;
   onUndo: () => void;
+  /** Replaces the dot's own name, for a mark that is not a suggestion's (a tidy's). */
+  label?: string;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -44,11 +50,13 @@ export function PendingDot({
     );
   const asking = mark.phase === 'asking';
   const running = mark.countdownEndsAt !== null;
-  const label = asking
-    ? t('suggest.dotAriaAsking')
-    : running || mark.paused
-      ? t('suggest.dotAria')
-      : t('suggest.dotAriaWaiting');
+  const label =
+    labelOverride ??
+    (asking
+      ? t('suggest.dotAriaAsking')
+      : running || mark.paused
+        ? t('suggest.dotAria')
+        : t('suggest.dotAriaWaiting'));
   return (
     <svg
       role="img"

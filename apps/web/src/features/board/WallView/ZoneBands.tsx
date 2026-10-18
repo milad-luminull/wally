@@ -8,6 +8,7 @@ import type { NoteGroup } from '../util/noteDerived';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
 
 /** Droppable-region id convention consumed by WallView's onDragEnd. */
@@ -39,6 +40,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
 function ZoneBand({
@@ -52,6 +55,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  tidyFor,
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
@@ -130,6 +134,7 @@ function ZoneBand({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              tidy={tidyFor?.(note.id)}
             />
           ))}
         </div>
@@ -174,6 +179,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
 /** Horizon → columns side by side; Priority → rows stacked. Never rendered in free mode —
