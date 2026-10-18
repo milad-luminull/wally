@@ -490,6 +490,27 @@ export const de = {
       rowStep: 'Schritt: {{text}}',
     },
   },
+  /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */
+  tidy: {
+    action_one: '{{count}} Notiz aufräumen',
+    action_other: '{{count}} Notizen aufräumen',
+    asking: 'Wird sortiert…',
+    pending_one: '{{count}} Notiz wandert',
+    pending_other: '{{count}} Notizen wandern',
+    kept_one: '{{count}} Notiz verschoben',
+    kept_other: '{{count}} Notizen verschoben',
+    nothing: 'Alles an seinem Platz.',
+    keep: 'Verschieben',
+    discard: 'Verwerfen',
+    undo: 'Rückgängig',
+    barAria: 'Aufräumen',
+    /** The destination line on a card: the zone it would move to. */
+    moveTo: '→ {{zone}}',
+    /** The tooltip of a move by date. */
+    reasonDue: 'Fällig {{date}}',
+    remove: 'Nicht verschieben',
+    dotAria: 'Soll verschoben werden, wartet auf Enter',
+  },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */
   home: {
     title: 'Deine Wände',

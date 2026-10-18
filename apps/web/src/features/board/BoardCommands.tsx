@@ -85,7 +85,10 @@ interface BoardCommandsProps {
   onResetView: () => void;
   /** Wallybot can fill in on this board; gates the ⌘Z help row. */
   assistantEnabled: boolean;
-  /** Undoes the last kept Wallybot change still in its window; false when there is none. */
+  /**
+   * Undoes the most recently kept Wallybot change still in its window, a note's fill-in or the
+   * kept tidy batch, whichever was kept last (plan R7); false when there is none.
+   */
   onUndoSuggestion: () => boolean;
 }
 

@@ -6,6 +6,7 @@ import { useWallybotPreferences } from '@/lib/preferences';
 import { assistantApi } from '@/lib/resources';
 import { settleNoteCaches } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
+import { nextKeptStamp } from './keptOrder';
 
 /** The dot's ring: how long a proposal waits before it is kept (WALLYBOT_INLINE.md §3.3). */
 export const COUNTDOWN_MS = 6000;
@@ -37,6 +38,8 @@ export interface SuggestionsController {
   discard: (noteId: string, source: 'esc') => void;
   undo: (noteId: string, source: 'esc' | 'click' | 'shortcut') => void;
   undoLast: () => boolean;
+  /** When the change `undoLast` would undo was kept (a `nextKeptStamp`), or null when none is. */
+  lastKeptAt: () => number | null;
   /**
    * The card's ×: `setField(noteId, field, false)`, except on the title line, where it is
    * "use mine" and drops the offered title altogether (R2). The last field out discards.
@@ -131,6 +134,8 @@ export function useSuggestions(
   const retryTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   /** The keeps still inside their undo window, most recent last (⌘Z takes the last). */
   const undoable = useRef<string[]>([]);
+  /** Per note in `undoable`: the stamp of its keep, so ⌘Z can weigh it against a Tidy (R7). */
+  const keptAt = useRef(new Map<string, number>());
   /**
    * The notes whose decision is on its way to the server, each with the token of that call.
    * While a note is here, every other keep, discard, undo, remove and pause is refused, so one
@@ -172,6 +177,7 @@ export function useSuggestions(
     if (t) clearTimeout(t);
     undoTimers.current.delete(noteId);
     undoable.current = undoable.current.filter((id) => id !== noteId);
+    keptAt.current.delete(noteId);
   }, []);
   /** Every timer and claim the note holds goes; the mark stays until the caller replaces it. */
   const reset = useCallback(
@@ -295,6 +301,7 @@ export function useSuggestions(
                 paused: false,
               });
               undoable.current = [...undoable.current, noteId];
+              keptAt.current.set(noteId, nextKeptStamp());
               undoTimers.current.set(
                 noteId,
                 setTimeout(() => forget(noteId), UNDO_WINDOW_MS),
@@ -409,6 +416,10 @@ export function useSuggestions(
     undo(noteId, 'shortcut');
     return true;
   }, [undo]);
+  const lastKeptAt = useCallback<SuggestionsController['lastKeptAt']>(() => {
+    const noteId = undoable.current.at(-1);
+    return noteId ? (keptAt.current.get(noteId) ?? null) : null;
+  }, []);
   /**
    * Puts a pending change's new choice in place. Nothing left in it discards it, as the last ×
    * always has (an offered title that is not ticked is not in it). A ticked title is the
@@ -597,6 +608,7 @@ export function useSuggestions(
       discard,
       undo,
       undoLast,
+      lastKeptAt,
       remove,
       setField,
       setSubtask,
@@ -606,6 +618,7 @@ export function useSuggestions(
     [
       discard,
       keep,
+      lastKeptAt,
       marks,
       remove,
       request,

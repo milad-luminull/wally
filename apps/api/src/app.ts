@@ -15,7 +15,7 @@ import assistantRoutes from './routes/assistant.js';
 import boardRoutes from './routes/boards.js';
 import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
-import type { SuggestionRunner, TurnRunner } from './lib/assistant/model/index.js';
+import type { SuggestionRunner, TidyRunner, TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
 
 /** gRPC status code Firestore raises when updating or reading a document that isn't there. */
@@ -31,6 +31,8 @@ export interface BuildAppOptions {
   assistantRunner?: TurnRunner;
   /** Overrides the capture suggestion runner — tests pass a fake so no model is called. */
   suggestionRunner?: SuggestionRunner;
+  /** Overrides the tidy runner — tests pass a fake so no model is called. */
+  tidyRunner?: TidyRunner;
   /** Overrides the deployment switch for tests (the env is cached per process). */
   assistantEnabled?: boolean;
   /** Overrides the turn deadline for tests. */
@@ -142,6 +144,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(assistantRoutes, {
     runner: options.assistantRunner,
     suggestionRunner: options.suggestionRunner,
+    tidyRunner: options.tidyRunner,
     enabled: options.assistantEnabled,
     deadlineMs: options.assistantDeadlineMs,
   });

@@ -4,6 +4,7 @@
  */
 export { createConfiguredTurnRunner, toolDefinitionsJson } from './runTurn.js';
 export { createConfiguredSuggestionRunner, suggestionSchemaJson } from './suggest.js';
+export { createConfiguredTidyRunner, tidySchemaJson } from './tidy.js';
 export { parseModelRef } from './config.js';
 export type {
   ApprovalDecision,
@@ -11,11 +12,15 @@ export type {
   AttemptLease,
   ModelRef,
   ModelSuggestion,
+  ModelTidy,
   PendingApproval,
   StoredMessage,
   SuggestionInput,
   SuggestionOutput,
   SuggestionRunner,
+  TidyInput,
+  TidyOutput,
+  TidyRunner,
   ToolCallRecord,
   TurnFinishReason,
   TurnInput,

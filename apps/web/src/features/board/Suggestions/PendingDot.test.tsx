@@ -62,4 +62,10 @@ describe('PendingDot', () => {
     expect(screen.getByRole('img', { name: 'Filling in' })).toBeInTheDocument();
     expect(container.querySelector('circle.animate-countdown')).toBeNull();
   });
+
+  it('needs no undo handler: a kept dot without one does nothing when pressed', async () => {
+    render(<PendingDot mark={mark({ phase: 'kept', countdownEndsAt: null })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
+    expect(screen.getByRole('button', { name: 'Undo the kept changes' })).toBeInTheDocument();
+  });
 });

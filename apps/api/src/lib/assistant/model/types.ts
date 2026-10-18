@@ -128,3 +128,29 @@ export interface SuggestionOutput {
   finishReason: TurnFinishReason;
 }
 export type SuggestionRunner = (input: SuggestionInput) => Promise<SuggestionOutput>;
+
+/** One structured call for a Tidy of the horizon wall (WALLYBOT_INLINE.md §3.5, plan R3). */
+export interface TidyInput {
+  instructions: string;
+  prompt: string;
+  /** The answer's allowance. The runner adds the configured model's thinking room on top. */
+  maxOutputTokens: number;
+  abortSignal?: AbortSignal;
+  onAttempt: (info: AttemptInfo) => Promise<AttemptLease>;
+}
+export interface ModelTidy {
+  moves: {
+    noteId: string;
+    /** Only away from Today: a note the words leave for today needs no move. */
+    horizon: 'DIESE_WOCHE' | 'SPAETER';
+    confidence: number;
+    reason: string;
+  }[];
+}
+export interface TidyOutput {
+  /** null when the model produced nothing that validates against the schema. */
+  moves: ModelTidy | null;
+  usage: TurnUsage | null;
+  finishReason: TurnFinishReason;
+}
+export type TidyRunner = (input: TidyInput) => Promise<TidyOutput>;

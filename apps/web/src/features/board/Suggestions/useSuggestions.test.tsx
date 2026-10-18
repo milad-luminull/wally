@@ -18,6 +18,7 @@ import { assistantApi } from '@/lib/resources';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
 import { COUNTDOWN_MS, KEEP_RETRY_MS, UNDO_WINDOW_MS, useSuggestions } from './useSuggestions';
+import { nextKeptStamp } from './keptOrder';
 import { PendingDot } from './PendingDot';
 import { proposedTitle } from './pendingProps';
 
@@ -602,6 +603,26 @@ describe('useSuggestions', () => {
         'undo',
       ]);
       expect(result.current.marks.has('n1')).toBe(false);
+    });
+
+    it('names when the change ⌘Z would undo was kept, and nothing once it is undone (R7)', async () => {
+      const { result } = setup();
+      expect(result.current.lastKeptAt()).toBeNull();
+      act(() => result.current.request('n1', []));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+      });
+      expect(result.current.marks.get('n1')?.phase).toBe('kept');
+      const at = result.current.lastKeptAt();
+      expect(at).not.toBeNull();
+      // A Tidy kept from now on is more recent than this change.
+      expect(nextKeptStamp()).toBeGreaterThan(at!);
+      // The undo's answer lands inside act too, so no update escapes it.
+      await act(async () => {
+        result.current.undoLast();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.lastKeptAt()).toBeNull();
     });
   });
 

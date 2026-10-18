@@ -13,6 +13,8 @@ import type {
   NoteVisibility,
   SuggestionFieldKey,
   ThemePreference,
+  TidyMoveSource,
+  TidyStatus,
   WhiteboardRole,
 } from '@wally/shared';
 
@@ -324,6 +326,39 @@ export type AssistantSuggestionDoc = {
   } | null;
   model: string;
   usage: { inputTokens: number; outputTokens: number };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  /** createdAt + SUGGESTION_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};
+
+/**
+ * users/{uid}/assistantTidies/{id}: the approval record for one Tidy of the horizon wall
+ * (WALLYBOT_INLINE.md §3.5, plan R5). One apply and one undo operation id per move, minted
+ * when the record is created; the id doubles as the provenance's conversation and approval
+ * id, as a suggestion's does.
+ */
+export type AssistantTidyDoc = {
+  boardId: string;
+  status: TidyStatus;
+  moves: {
+    noteId: string;
+    baseRevision: number;
+    from: NoteHorizon;
+    to: NoteHorizon;
+    reason: string | null;
+    source: TidyMoveSource;
+    operationIds: { apply: string; undo: string };
+  }[];
+  /** The keep or discard: the chosen notes for a keep; `replaced` when a newer tidy discarded it. */
+  decision: { source: string; noteIds: string[]; at: Timestamp } | null;
+  /** The undo, with the notes it moved back (in the order it moved them). */
+  undone?: { source: string; noteIds: string[]; at: Timestamp } | null;
+  /** Written by a keep: each note that moved with the revision the move produced, and the skipped ones. */
+  applied: { moves: { noteId: string; revision: number }[]; skipped: string[] } | null;
+  /** The model and usage of the one call, or null when every move came from the date rule. */
+  model: string | null;
+  usage: { inputTokens: number; outputTokens: number } | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   /** createdAt + SUGGESTION_RETENTION_DAYS; the TTL field. */

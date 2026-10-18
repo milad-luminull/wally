@@ -9,6 +9,7 @@ import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
 import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
 import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
 
 /** Droppable-region id convention consumed by WallView's onDragEnd. */
@@ -43,6 +44,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
 function ZoneBand({
@@ -57,6 +60,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  tidyFor,
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
@@ -144,6 +148,7 @@ function ZoneBand({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              tidy={tidyFor?.(note.id)}
             />
           ))}
         </div>
@@ -192,6 +197,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
 /** Horizon → columns side by side; Priority → rows stacked. Never rendered in free mode —
@@ -214,11 +221,13 @@ export function ZoneBands({
   return (
     <div
       className={cn(
-        'board-surface wally-scroll min-w-0 flex-1',
+        // A flex child of the wall's column (the bands above the Tidy bar): min-h-0 lets it
+        // shrink to the column's height, so the priority rows scroll inside it.
+        'board-surface wally-scroll min-h-0 min-w-0 flex-1',
         // Horizon columns stretch to fill the width, so there is no leftover to centre; below
         // three card widths the row scrolls sideways instead of squeezing the columns.
         axis === 'horizon'
-          ? 'flex h-full gap-3 overflow-x-auto p-4 lg:p-5'
+          ? 'flex gap-3 overflow-x-auto p-4 lg:p-5'
           : 'flex flex-col gap-3 overflow-y-auto p-4 lg:p-5',
       )}
     >
