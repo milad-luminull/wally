@@ -29,6 +29,10 @@ import {
   suggestionDecisionSchema,
   suggestionDecisionResponseSchema,
   suggestionListSchema,
+  tidyRequestSchema,
+  tidyResponseSchema,
+  tidyDecisionSchema,
+  tidyDecisionResponseSchema,
   type AssistantConversationDto,
   type AssistantTurnRequest,
   type AssistantTurnResponse,
@@ -37,6 +41,10 @@ import {
   type SuggestionDecision,
   type SuggestionDto,
   type SuggestionList,
+  type TidyRequest,
+  type TidyResponse,
+  type TidyDecision,
+  type TidyDto,
   type Language,
   type MeDto,
   type WhiteboardDto,
@@ -170,6 +178,18 @@ export const assistantApi = {
     ),
   pendingSuggestions: (boardId: string): Promise<SuggestionList> =>
     api.get(`/whiteboards/${boardId}/assistant/suggestions/pending`, suggestionListSchema),
+  tidy: (boardId: string, body: TidyRequest): Promise<TidyResponse> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/tidies`,
+      tidyRequestSchema.parse(body),
+      tidyResponseSchema,
+    ),
+  decideTidy: (boardId: string, tidyId: string, body: TidyDecision): Promise<{ tidy: TidyDto }> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/tidies/${tidyId}/decision`,
+      tidyDecisionSchema.parse(body),
+      tidyDecisionResponseSchema,
+    ),
 };
 
 export const subtasksApi = {
