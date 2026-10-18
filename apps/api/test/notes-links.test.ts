@@ -85,6 +85,44 @@ describe('note links', () => {
     expect((await stored(a.id)).revision).toBe(a.revision);
   });
 
+  it('filters link ids for each reader on lists, details and mutation responses', async () => {
+    const fx = await createBoardFixture(ctx);
+    const a = await create(fx.boardId, fx.ownerToken, { title: 'Source' });
+    const visible = await create(fx.boardId, fx.ownerToken, { title: 'Visible' });
+    const secret = await create(fx.boardId, fx.ownerToken, {
+      title: 'Secret',
+      visibility: 'PRIVATE',
+    });
+    const gone = await create(fx.boardId, fx.ownerToken, { title: 'Gone' });
+    await notesCol(ctx.db)
+      .doc(gone.id)
+      .update({ deletedAt: (await stored(gone.id)).createdAt });
+    await notesCol(ctx.db)
+      .doc(a.id)
+      .update({ links: [visible.id, secret.id, gone.id, 'missing'] });
+    for (const token of [fx.editToken, fx.viewToken, fx.ownerToken]) {
+      const expected = token === fx.ownerToken ? [visible.id, secret.id] : [visible.id];
+      const list = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes?q=Source`,
+        headers: ctx.authHeader(token),
+      });
+      expect(list.statusCode).toBe(200);
+      expect(list.json()[0].links).toEqual(expected);
+      const detail = await ctx.inject({
+        method: 'GET',
+        url: `/notes/${a.id}`,
+        headers: ctx.authHeader(token),
+      });
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json().links).toEqual(expected);
+    }
+    const updated = await patch(fx.editToken, a.id, { title: 'Changed' });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().links).toEqual([visible.id]);
+    expect((await stored(a.id)).links).toEqual([visible.id, secret.id, gone.id, 'missing']);
+  });
+
   it('caps the list at ten and keeps a viewer to their own private notes', async () => {
     const fx = await createBoardFixture(ctx);
     const a = await create(fx.boardId, fx.ownerToken, { title: 'A' });

@@ -1,3 +1,4 @@
+import { visibleLinks } from '../visibleLinks.js';
 import { createHash } from 'node:crypto';
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import {
@@ -251,6 +252,16 @@ export async function executeBoardCommand(
           outcome: 'cleanup_pending',
         });
       }
+    }
+    // Receipts preserve the original result, but target visibility may have changed since.
+    if (
+      command.type.startsWith('note.') &&
+      result.data &&
+      typeof result.data === 'object' &&
+      'links' in result.data
+    ) {
+      const note = result.data as { whiteboardId: string; links: string[] };
+      return { ...result, data: { ...note, links: await visibleLinks(db, note, actor.id) } };
     }
     return result;
   } catch (error) {
