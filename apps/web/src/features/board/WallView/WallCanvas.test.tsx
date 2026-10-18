@@ -1,3 +1,4 @@
+import { makeNote } from '@/test/fixtures';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
@@ -21,6 +22,27 @@ vi.mock('../Capture/InlineCaptureCard', () => ({
 }));
 
 describe('WallCanvas capture', () => {
+  it('draws kept links beneath the cards', () => {
+    const { container } = renderWithProviders(
+      <DndContext>
+        <WallCanvas
+          notes={[makeNote({ id: 'a', links: ['b'] }), makeNote({ id: 'b' })]}
+          filtered={false}
+          currentUserId="u1"
+          selectedNoteId={null}
+          onOpenNote={vi.fn()}
+          onCapture={vi.fn()}
+          capture={null}
+          onCaptureDone={vi.fn()}
+          visibility="SHARED"
+          boardId="b1"
+          canEditShared
+          activeDragId={null}
+        />
+      </DndContext>,
+    );
+    expect(container.querySelectorAll('[data-link-lines] line')).toHaveLength(1);
+  });
   it('asks for a capture at the double-click point', () => {
     const onCapture = vi.fn();
     renderWithProviders(

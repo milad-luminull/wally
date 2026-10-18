@@ -1,3 +1,4 @@
+import { LinkLines } from './LinkLines';
 import { useDroppable } from '@dnd-kit/core';
 import { useRef, type MouseEvent } from 'react';
 import { MousePointerClick } from 'lucide-react';
@@ -134,6 +135,7 @@ export function WallCanvas({
           className={cn(CANVAS_PATTERN_CLASS[pattern], 'relative')}
           style={{ width: FREE_CANVAS_WIDTH, height: FREE_CANVAS_HEIGHT }}
         >
+          <LinkLines notes={notes} pendingFor={pendingFor} />
           {notes.map((note) => (
             <NoteCard
               key={note.id}
