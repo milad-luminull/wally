@@ -166,6 +166,31 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       },
     });
   }
+  // Three links at once: the first three rows of the "Other notes" block, newest first; with
+  // `dated` in the title, a due date beside them.
+  if (title.startsWith('threelinks')) {
+    const block = input.prompt.split('Other notes on this board:\n')[1] ?? '';
+    const ids = block
+      .split('\n')
+      .map((line) => line.split(': ')[0]!)
+      .filter(Boolean)
+      .slice(0, 3);
+    return settle({
+      dueDate: title.includes('dated')
+        ? { value: '2026-10-23', confidence: 0.9, reason: 'Friday' }
+        : null,
+      priority: null,
+      assignee: null,
+      title: null,
+      reference: null,
+      subtasks: null,
+      links: {
+        items: ids.map((noteId) => ({ noteId, reason: `related to ${noteId}` })),
+        confidence: 0.9,
+        reason: 'related',
+      },
+    });
+  }
   if (title.startsWith('unsure'))
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.3, reason: 'maybe' },
@@ -244,6 +269,9 @@ describe('capture suggestions', () => {
     });
   const patchTitle = (token: string, noteId: string, title: string) =>
     patchNote(token, noteId, { title });
+  /** The audit rows the caller's assistant writes left: one per committed write. */
+  const audits = async (actorId: string) =>
+    (await assistantAuditCol(ctx.db).where('actorId', '==', actorId).get()).size;
   /**
    * The command layer exactly as a keep or an undo calls it, so a test can commit one write
    * of a suggestion's chain on its own: the state a keep or undo cut short leaves behind.
@@ -1738,6 +1766,125 @@ describe('capture suggestions', () => {
     const { suggestion } = (await suggest(fx.viewToken, fx.boardId, n.id)).json();
     expect(suggestion?.fields.links ?? null).toBeNull();
     expect(lastInput?.prompt).toContain('Other notes on this board: none');
+  });
+
+  // Links. These run as the editor too: the owner's captures in this file already reach the
+  // route's per-user rate limit of 30 a minute.
+  it('keeps two of three proposed links in one write, replays once, and undo removes exactly them', async () => {
+    const fx = await createBoardFixture(ctx);
+    const a = (await createNote(fx.editToken, fx.boardId, { title: 'A' })).json();
+    const b = (await createNote(fx.editToken, fx.boardId, { title: 'B' })).json();
+    const c = (await createNote(fx.editToken, fx.boardId, { title: 'C' })).json();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'threelinks' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    expect(suggestion.fields.links.items.map((i: { noteId: string }) => i.noteId)).toEqual([
+      c.id,
+      b.id,
+      a.id,
+    ]);
+    const kept = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['links'],
+      links: [0, 2],
+      source: 'click',
+    });
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json().suggestion.kept).toMatchObject({ fields: ['links'], links: [0, 2] });
+    expect((await note(n.id)).links).toEqual([c.id, a.id]);
+    expect((await note(n.id)).revision).toBe(n.revision + 1);
+    expect(await audits(fx.editorId)).toBe(1);
+    await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['links'],
+      links: [0, 2],
+      source: 'click',
+    });
+    expect((await note(n.id)).revision).toBe(n.revision + 1);
+    expect(await audits(fx.editorId)).toBe(1);
+    // What the undo takes back: the ticked items and the ids they named, in index order.
+    expect((await stored(fx.editorId, suggestion.id)).applied).toMatchObject({
+      links: [0, 2],
+      linkIds: [c.id, a.id],
+    });
+    const undone = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json().suggestion.status).toBe('UNDONE');
+    expect((await note(n.id)).links).toEqual([]);
+    expect((await note(n.id)).revision).toBe(n.revision + 2);
+    expect(await audits(fx.editorId)).toBe(2);
+  });
+
+  it('a link added by hand after the keep moves the revision, so the undo is refused and every link stays', async () => {
+    const fx = await createBoardFixture(ctx);
+    const a = (await createNote(fx.editToken, fx.boardId, { title: 'A' })).json();
+    const b = (await createNote(fx.editToken, fx.boardId, { title: 'B' })).json();
+    const c = (await createNote(fx.editToken, fx.boardId, { title: 'C' })).json();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'threelinks' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['links'],
+      links: [0, 2],
+      source: 'click',
+    });
+    const linked = await patchNote(fx.editToken, n.id, { linkChanges: { add: [b.id] } });
+    expect(linked.statusCode).toBe(200);
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    expect((await note(n.id)).links).toEqual([c.id, a.id, b.id]);
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
+  });
+
+  it('an undo refused after removing the links puts them back, and the record stays kept', async () => {
+    const fx = await createBoardFixture(ctx);
+    const a = (await createNote(fx.editToken, fx.boardId, { title: 'A' })).json();
+    const b = (await createNote(fx.editToken, fx.boardId, { title: 'B' })).json();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'threelinks dated' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const kept = (
+      await decide(fx.editToken, fx.boardId, suggestion.id, {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        source: 'click',
+      })
+    ).json().suggestion.kept;
+    expect(kept).toMatchObject({ fields: ['dueDate', 'links'], links: [0, 1] });
+    expect(await note(n.id)).toMatchObject({ dueDate: '2026-10-23', links: [b.id, a.id] });
+    const record = await stored(fx.editorId, suggestion.id);
+    // The undo's first inverse write (the links) commits, then a panel edit lands before its
+    // second (the date).
+    await runOperation(asSuggestion(fx.editorId, fx.boardId, suggestion.id), {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: kept.revision,
+        input: { linkChanges: { remove: [b.id, a.id] } },
+      },
+      operationId: record.operationIds.links!.undo,
+    });
+    expect((await note(n.id)).links).toEqual([]);
+    expect((await patchTitle(fx.editToken, n.id, 'Afterwards')).statusCode).toBe(200);
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe('STALE_REVISION');
+    // Not half undone: the links are back beside the date and the person's edit.
+    expect(await note(n.id)).toMatchObject({
+      title: 'Afterwards',
+      dueDate: '2026-10-23',
+      links: [b.id, a.id],
+    });
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
   });
 
   it("records as typed only the chips' fields, each once", async () => {

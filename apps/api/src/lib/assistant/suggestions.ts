@@ -539,7 +539,12 @@ async function claim(
   id: string,
   from: AssistantSuggestionDoc['status'],
   to: AssistantSuggestionDoc['status'],
-  decision: { source: string; fields: SuggestionFieldKey[]; subtasks?: number[] },
+  decision: {
+    source: string;
+    fields: SuggestionFieldKey[];
+    subtasks?: number[];
+    links?: number[];
+  },
   now: Date,
 ): Promise<{ doc: WithId<AssistantSuggestionDoc>; claimed: boolean }> {
   // An undo is recorded beside the keep, so the keep's own decision (its source and fields)
@@ -585,7 +590,8 @@ type Step = { key: SuggestionFieldKey; index?: number };
 
 /**
  * The writes for the kept fields, in the one canonical order the chain and its receipts use,
- * with `subtasks` expanded into one step per kept index, ascending.
+ * with `subtasks` expanded into one step per kept index, ascending. The kept links are one
+ * write (L4), so `links` stays one step.
  */
 function stepsFor(fields: SuggestionFieldKey[], subtaskIndexes: number[]): Step[] {
   return suggestionFieldKeys
@@ -599,10 +605,13 @@ function stepsFor(fields: SuggestionFieldKey[], subtaskIndexes: number[]): Step[
 
 /** A step is added with its text, and taken back by the id it was created with. */
 type SubtaskWrite = { add: string } | { remove: string };
+/** The kept links are added in one write and taken back in one (L4). */
+type LinkWrite = { add: string[] } | { remove: string[] };
 
 /**
  * What one direction of the chain writes. A reference whose value is null removes its key;
- * the subtask writes are keyed by the proposed step's index.
+ * the subtask writes are keyed by the proposed step's index; the links are added on a keep
+ * and removed on an undo.
  */
 type FieldValues = {
   dueDate: string | null;
@@ -611,6 +620,7 @@ type FieldValues = {
   title: string;
   reference: { key: string; value: string | null } | null;
   subtasks: Map<number, SubtaskWrite>;
+  links: LinkWrite;
 };
 type Applied = NonNullable<AssistantSuggestionDoc['applied']>;
 
@@ -623,7 +633,10 @@ const EMPTY = { dueDate: null, priority: 'MITTEL', assigneeId: null } as const s
   'dueDate' | 'priority' | 'assigneeId'
 >;
 
-/** What a keep writes: the proposed values (a field that is not kept is never read). */
+/**
+ * What a keep writes: the proposed values (a field that is not kept is never read). The links
+ * are every proposed one; a keep writes only the ticked ones (`keptLinkIds`).
+ */
 function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
   const { fields } = doc;
   return {
@@ -635,18 +648,28 @@ function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
       ? { key: fields.reference.key, value: fields.reference.value }
       : null,
     subtasks: new Map((fields.subtasks?.items ?? []).map((text, index) => [index, { add: text }])),
+    links: { add: (fields.links?.items ?? []).map((item) => item.noteId) },
   };
 }
 
+/** The ids the ticked links name, in the order of `indexes` (ascending). */
+const keptLinkIds = (doc: AssistantSuggestionDoc, indexes: number[]): string[] =>
+  indexes.flatMap((index) => {
+    const id = doc.fields.links?.items[index]?.noteId;
+    return id ? [id] : [];
+  });
+
 /**
- * What puts the note back where the keep found it: the values it held before, and each kept
- * step removed by its id. `subtaskIds` follows `keptIndexes` (ascending), so a keep that
- * stopped part way restores only the steps it created.
+ * What puts the note back where the keep found it: the values it held before, each kept
+ * step removed by its id, and the kept links removed. `subtaskIds` follows `keptIndexes`
+ * (ascending), so a keep that stopped part way restores only the steps it created. The note
+ * had no links at the base (L3), so removing what the keep added is exact (L4).
  */
 function restoredValues(
   before: Applied['before'],
   keptIndexes: number[],
   subtaskIds: string[],
+  linkIds: string[],
 ): FieldValues {
   const sorted = [...keptIndexes].sort((a, b) => a - b);
   return {
@@ -660,6 +683,7 @@ function restoredValues(
     subtasks: new Map(
       subtaskIds.map((id, position): [number, SubtaskWrite] => [sorted[position]!, { remove: id }]),
     ),
+    links: { remove: linkIds },
   };
 }
 
@@ -743,8 +767,7 @@ function stepCall(
         : { name: 'delete_subtask', input: { ...at, subtaskId: write.remove } };
     }
     case 'links':
-      // Written by a later task; no record proposes links yet, so no step reaches here.
-      throw new Error('No write for links yet');
+      return { name: 'update_note', input: { ...at, input: { linkChanges: values.links } } };
   }
 }
 
@@ -753,7 +776,8 @@ function stepCall(
  * changed since. A step the chain added is still there by its id. A step it removed is put
  * back only while no step with its text is on the note: an undo run again after one refused
  * part way replays the receipt of a delete an earlier revert already answered with a new
- * step, and adding it once more would double it.
+ * step, and adding it once more would double it. Links the chain added are all still on the
+ * note; links it removed are put back only while none of them is there again.
  */
 function stillWritten(
   step: Step,
@@ -775,6 +799,12 @@ function stillWritten(
       return 'remove' in undo
         ? note.subtasks.some((task) => task.id === undo.remove)
         : !note.subtasks.some((task) => task.text.trim() === undo.add.trim());
+    }
+    case 'links': {
+      const links = note.links ?? [];
+      return 'add' in written.links
+        ? written.links.add.every((id) => links.includes(id))
+        : !written.links.remove.some((id) => links.includes(id));
     }
     default:
       return noteValue(step.key, note) === valueOf(step.key, written);
@@ -904,7 +934,12 @@ async function completeKeep(
   const keptIndexes = kept.includes('subtasks')
     ? [...(doc.decision?.subtasks ?? [])].sort((a, b) => a - b)
     : [];
-  const written = proposedValues(doc);
+  const keptLinks = kept.includes('links')
+    ? [...(doc.decision?.links ?? [])].sort((a, b) => a - b)
+    : [];
+  const linkIds = keptLinkIds(doc, keptLinks);
+  // Only the ticked links are written, in one update (L4).
+  const written: FieldValues = { ...proposedValues(doc), links: { add: linkIds } };
   const done: Step[] = [];
   const created: string[] = [];
   let before: Applied['before'] | undefined;
@@ -933,7 +968,7 @@ async function completeKeep(
         doc,
         done,
         written,
-        restoredValues(before, keptIndexes, created),
+        restoredValues(before, keptIndexes, created, linkIds),
       );
     await settleKeep(db, ctx.actor, doc.id, { status: 'DISCARDED' }, deps.now?.() ?? new Date());
     throw error;
@@ -944,18 +979,27 @@ async function completeKeep(
     doc.id,
     {
       status: 'KEPT',
-      applied: { before, fields: kept, subtasks: keptIndexes, subtaskIds: created, revision },
+      applied: {
+        before,
+        fields: kept,
+        subtasks: keptIndexes,
+        subtaskIds: created,
+        links: keptLinks,
+        linkIds,
+        revision,
+      },
     },
     deps.now?.() ?? new Date(),
   );
 }
 
 /**
- * Keep, discard or undo (WALLYBOT_INLINE.md §4). A keep applies the kept fields, and each
- * kept step, through the command layer under the record's own operation ids, so a repeat
- * replays receipts and the note changes once; it is refused with 409 STALE_REVISION, and
- * the record discarded, when the note changed since the proposal. An undo is the inverse on
- * the kept revision: the previous values back, every kept step deleted by its id.
+ * Keep, discard or undo (WALLYBOT_INLINE.md §4). A keep applies the kept fields, each kept
+ * step, and the kept links in one write, through the command layer under the record's own
+ * operation ids, so a repeat replays receipts and the note changes once; it is refused with
+ * 409 STALE_REVISION, and the record discarded, when the note changed since the proposal. An undo is the inverse on
+ * the kept revision: the previous values back, every kept step deleted by its id, the kept
+ * links removed.
  */
 export async function decideSuggestion(
   deps: SuggestionDeps,
@@ -1003,6 +1047,14 @@ export async function decideSuggestion(
           .sort((a, b) => a - b)
       : [];
     if (subtasks.length === 0) fields = fields.filter((key) => key !== 'subtasks');
+    // The same for the links: each proposed item once, ascending; none left keeps no links.
+    const linkItems = current.fields.links?.items ?? [];
+    const links = fields.includes('links')
+      ? unique(decision.links ?? linkItems.map((_, index) => index))
+          .filter((index) => index < linkItems.length)
+          .sort((a, b) => a - b)
+      : [];
+    if (links.length === 0) fields = fields.filter((key) => key !== 'links');
     // A proposal holding nothing but a title runs no countdown (R2): one that fires anyway
     // leaves the title waiting for the person, neither written nor discarded.
     // Only while the record is still pending: on a settled one the claim below answers.
@@ -1035,7 +1087,7 @@ export async function decideSuggestion(
       suggestionId,
       'PENDING',
       'KEPT',
-      { source: decision.source, fields, subtasks },
+      { source: decision.source, fields, subtasks, links },
       now,
     );
     return toDto(db, board, actor.id, await completeKeep(deps, ctx, doc));
@@ -1055,7 +1107,8 @@ export async function decideSuggestion(
   // writes that committed replay their receipts.
   const keptIndexes = applied.subtasks ?? [];
   const inverse = stepsFor(applied.fields, keptIndexes).reverse();
-  const restore = restoredValues(applied.before, keptIndexes, applied.subtaskIds ?? []);
+  const linkIds = applied.linkIds ?? [];
+  const restore = restoredValues(applied.before, keptIndexes, applied.subtaskIds ?? [], linkIds);
   const undoIds = current.operationIds;
   const done: Step[] = [];
   try {
@@ -1074,7 +1127,10 @@ export async function decideSuggestion(
     // was already put back returns to what the keep wrote, so the record stays KEPT and the
     // note is not left half undone. A step deleted here comes back as a new one.
     if (isFinal(error))
-      await revertWrites(deps, ctx, current, done, restore, proposedValues(current));
+      await revertWrites(deps, ctx, current, done, restore, {
+        ...proposedValues(current),
+        links: { add: linkIds },
+      });
     throw error;
   }
   const { doc } = await claim(
