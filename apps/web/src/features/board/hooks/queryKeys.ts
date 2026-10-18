@@ -29,9 +29,6 @@ export function scopedQueryKeys(uid: string | null) {
      * underlying members cache entry (see useCreateInvite). */
     invites: (boardId: string) => [...root, 'boards', boardId, 'invites'] as const,
     shareLink: (boardId: string) => [...root, 'boards', boardId, 'shareLink'] as const,
-    /** The latest open question-panel conversation on a board; null in the cache means none. */
-    assistantLatest: (boardId: string) =>
-      [...root, 'boards', boardId, 'assistant', 'latest'] as const,
     /** The board's suggestions still waiting for a decision (shown again after a reload). */
     assistantPending: (boardId: string) =>
       [...root, 'boards', boardId, 'assistant', 'pending'] as const,

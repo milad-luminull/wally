@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 /**
- * Escape closes a desktop side panel (the note panel and the question panel).
+ * Escape closes a desktop side panel (the note panel).
  *
  * The mobile sheet gets this free from Radix; the desktop `<aside>` is a plain element, so
  * until now the panel had exactly one exit — a 28px X in the corner. That is half of why

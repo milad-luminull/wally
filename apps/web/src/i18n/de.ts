@@ -202,9 +202,6 @@ export const de = {
     focusSearch: 'Notizen filtern',
     duplicateNote: 'Notiz duplizieren',
     share: 'Wand teilen',
-    ask: 'Wand fragen…',
-    /** Extra words the palette matches the ask entry on, space-separated; never shown. */
-    askKeywords: 'wand fragen',
     viewWall: 'Zur Wand wechseln',
     viewList: 'Zur Liste wechseln',
     showDone: 'Erledigte einblenden',
@@ -228,7 +225,6 @@ export const de = {
     groupFree: 'Frei anordnen',
     closePanel: 'Notiz schließen',
     duplicateNote: 'Notiz duplizieren',
-    ask: 'Wand fragen',
     undoSuggestion: 'Übernommene Änderung rückgängig',
     /** Shown next to the Alt/Option key: held while dragging a card. */
     copyDrag: 'Beim Ziehen gedrückt: Kopie ablegen',
@@ -412,34 +408,6 @@ export const de = {
       addPlaceholder: 'Hinzufügen',
       remove: '{{tag}} entfernen',
     },
-  },
-  /** The question panel on a board (RFC WALLY_AGENT). The AI has no name and no first person. */
-  assistant: {
-    title: 'Fragen',
-    panelAria: 'Fragen zur Wand',
-    placeholder: 'Was ist heute offen?',
-    fieldAria: 'Frage an die Wand',
-    ask: 'Fragen',
-    newConversation: 'Neu',
-    examples: {
-      open: 'Was ist heute offen?',
-      overdue: 'Was ist überfällig?',
-      busiest: 'Wer hat die meisten offenen Notizen?',
-    },
-    notesRead: 'Gelesene Notizen',
-    partial: 'Nur ein Teil der passenden Notizen wurde gelesen.',
-    stopped: {
-      TOOL_LIMIT: 'Nach zwölf Lesevorgängen gestoppt. Eine engere Frage hilft.',
-      TIMEOUT: 'Keine Antwort innerhalb einer Minute. Eine engere Frage hilft.',
-      LENGTH: 'Die Antwort wurde gekürzt.',
-    },
-    limit: {
-      daily: 'Tageslimit erreicht. Ab {{when}} wieder verfügbar.',
-      monthly: 'Monatslimit erreicht. Ab {{when}} wieder verfügbar.',
-      busy: 'Gerade beschäftigt. Gleich noch einmal versuchen.',
-    },
-    failed: 'Keine Antwort. Noch einmal versuchen.',
-    earlier: 'Zuvor',
   },
   /** The answer card on the wall (WALLYBOT_INLINE.md §3.6). No name, no first person. */
   ask: {
