@@ -882,3 +882,55 @@
     min-height: 44px;
   }
 }
+
+.paper-note-actions {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--border-subtle),
+    var(--shadow-e2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.note-card-wrapper:hover .paper-note-actions,
+.note-card-wrapper:focus-within .paper-note-actions,
+.paper-note-actions[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.paper-note-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--fg-2);
+}
+.paper-note-actions > button:hover,
+.paper-note-actions > button:focus-visible {
+  background: var(--inset);
+  color: var(--fg-1);
+}
+.paper-note-actions > button:focus-visible {
+  outline: 2px solid var(--fg-1);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .paper-note-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .paper-note-actions > button {
+    width: 36px;
+    height: 36px;
+  }
+}

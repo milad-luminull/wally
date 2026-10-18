@@ -21,3 +21,7 @@ Use palette tokens in light and dark appearances, including Minimal. Preserve au
 ## Review focus
 
 No draft loss on presentation changes; no hidden board focus while expanded; dropdown Escape must not collapse the editor; mobile and read-only behavior; palette contrast; no additional data or permission changes.
+
+## Follow-up scope from the user
+
+Match the reference card's hover toolbar: direct full-screen opening and a More menu with Duplicate and Delete. Keep the controls reachable from the keyboard, preserve existing delete/Undo, and omit edit actions on read-only notes. Apply to Priority, This Week and Whiteboard cards; keep drag and suggestion review interactions intact.

@@ -426,6 +426,7 @@ export const de = {
     },
   },
   note: {
+    actions: 'Notizaktionen',
     expand: 'Notiz im Vollbild öffnen',
     collapse: 'In Seitenleiste öffnen',
     details: 'Details',

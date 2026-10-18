@@ -5,11 +5,18 @@ test('full-screen note keeps edits and returns to the board', async ({ page }) =
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
   await signIn(page);
   const title = `Expanded note ${Date.now()}`;
-  const panel = await captureNote(page, title, { open: true });
-  await panel.getByRole('button', { name: 'Notiz im Vollbild öffnen' }).click();
+  await captureNote(page, title);
+  const card = page.locator('[data-note-id]').filter({ hasText: title });
+  await card.hover();
+  await card.getByRole('button', { name: 'Notiz im Vollbild öffnen' }).click();
+  const panel = page.getByRole('complementary', { name: 'Notizdetails' });
   const viewport = page.viewportSize()!;
   await expect.poll(() => panel.boundingBox()).toEqual({ x: 0, y: 0, ...viewport });
-  await expect(page.getByRole('textbox', { name: 'Notizen durchsuchen' })).toHaveCount(0);
+  // Playwright's DOM role locator still matches inert descendants. Verify the actual
+  // browser behavior instead: the covered search must refuse keyboard focus.
+  const search = page.getByLabel('Notizen durchsuchen');
+  await search.focus();
+  await expect(search).not.toBeFocused();
   await expect(page.locator('.board-layout')).toHaveAttribute('inert', '');
   const saved = page.waitForResponse(
     (response) =>

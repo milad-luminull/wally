@@ -9,6 +9,7 @@ import { BoardSkeleton } from '@/components/AppSkeleton';
 import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
+import { useDeleteNote } from './hooks/mutations/useDeleteNote';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
@@ -54,6 +55,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   useRememberLastBoard(boardId);
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
+  const { deleteNote } = useDeleteNote(boardId);
 
   const access = useMemo(
     () => boardAccess(board.currentUserRole, user?.uid, viewState.visibility),
@@ -284,6 +286,21 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 selectedNoteId={viewState.noteId}
                 onOpenNote={viewState.openNote}
                 onDuplicateNote={duplicateNote}
+                cardActions={(note) => ({
+                  onExpand: () => {
+                    setDetailExpanded(true);
+                    viewState.openNote(note.id);
+                  },
+                  ...(access.canEditNote(note)
+                    ? {
+                        onDuplicate: () => duplicateNote(note.id),
+                        onDelete: () => {
+                          deleteNote(note.id);
+                          if (viewState.noteId === note.id) viewState.openNote(null);
+                        },
+                      }
+                    : {}),
+                })}
                 access={access}
                 capture={capture}
                 captureKey={captureKey}

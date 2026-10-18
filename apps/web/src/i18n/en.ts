@@ -412,6 +412,7 @@ export const en = {
     },
   },
   note: {
+    actions: 'Note actions',
     expand: 'Expand note',
     collapse: 'Open in side panel',
     details: 'Details',
