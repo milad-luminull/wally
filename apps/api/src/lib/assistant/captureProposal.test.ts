@@ -89,7 +89,8 @@ describe('buildCaptureCall', () => {
 });
 
 describe('acceptCapture', () => {
-  const call = () => buildCaptureCall(note(), [boardNote({ id: 'n-2', title: 'Acme renewal' })], ctx)!;
+  const call = () =>
+    buildCaptureCall(note(), [boardNote({ id: 'n-2', title: 'Acme renewal' })], ctx)!;
 
   it('drops low confidence, unknown members, past dates and links to notes not shown', () => {
     const fields = acceptCapture(
