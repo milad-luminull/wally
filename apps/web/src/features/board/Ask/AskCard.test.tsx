@@ -55,8 +55,48 @@ describe('AskCard', () => {
     const card = screen.getByRole('group', { name: 'Answer from the wall' });
     expect(card).toHaveTextContent('What is open today?');
     expect(card).toHaveAttribute('data-ask-phase', 'asking');
-    expect(screen.getByText('Reading the wall')).toBeInTheDocument();
-    expect(card.querySelector('[aria-live="polite"]')).toHaveAttribute('aria-busy', 'true');
+    const busy = card.querySelector('[aria-live="polite"]');
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    // Said outside the busy region, so it is heard while the wall is being read.
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Reading the wall');
+    expect(busy).not.toContainElement(status);
+  });
+
+  it('says nothing more once the answer is there', () => {
+    renderCard(session());
+    expect(screen.getByRole('status')).toHaveTextContent('');
+  });
+
+  it('an answer with no words and no notes to show says that there was no answer', () => {
+    const { view } = renderCard(session({ answer: answer({ text: '  ', chips: [] }) }));
+    expect(screen.getByText('No answer. Try again.')).toBeInTheDocument();
+    // Its notes are all gone from the board: nothing is left to show either.
+    view.rerender(
+      <AskCard
+        session={session({ answer: answer({ text: '' }) })}
+        notes={[]}
+        layout="card"
+        onOpenNote={vi.fn()}
+        onSetPinned={vi.fn()}
+        onDismiss={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('No answer. Try again.')).toBeInTheDocument();
+    view.rerender(
+      <AskCard
+        session={session({ answer: answer({ text: '' }) })}
+        notes={[makeNote({ id: 'n1', title: 'Call Müller' })]}
+        layout="card"
+        onOpenNote={vi.fn()}
+        onSetPinned={vi.fn()}
+        onDismiss={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('No answer. Try again.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Call Müller/ })).toBeInTheDocument();
   });
 
   it('shows the answer, its stopped and partial lines and the notes read as rows', () => {
@@ -201,8 +241,9 @@ describe('AskCard', () => {
   });
 
   it('takes the focus on mount when it lies on the page, and leaves a focused field alone', () => {
-    renderCard(session());
+    const first = renderCard(session());
     expect(screen.getByRole('group', { name: 'Answer from the wall' })).toHaveFocus();
+    first.view.unmount();
     document.body.innerHTML = '';
     const input = document.createElement('input');
     document.body.append(input);
@@ -250,6 +291,36 @@ describe('AskCard', () => {
     view.unmount();
     expect(surface).toHaveFocus();
     surface.remove();
+  });
+
+  it('leaves the focus alone when it goes with the focus outside', () => {
+    const surface = document.createElement('div');
+    surface.setAttribute('data-board-surface', '');
+    surface.tabIndex = -1;
+    document.body.append(surface);
+    const { view } = renderCard(session({ takeFocus: false }));
+    // The person clicked the empty wall: the focus lies on the page, not in the card.
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(document.activeElement).toBe(document.body);
+    view.unmount();
+    expect(surface).not.toHaveFocus();
+    surface.remove();
+  });
+
+  it('lets go of the clock when it goes while hovered, so a card drawn again is not held', () => {
+    const { onPause, view } = renderCard(session());
+    fireEvent.mouseEnter(screen.getByRole('group', { name: 'Answer from the wall' }));
+    expect(onPause).toHaveBeenLastCalledWith(true);
+    view.unmount();
+    expect(onPause).toHaveBeenLastCalledWith(false);
+    expect(onPause).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets nothing go when it goes unheld', () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    const { onPause, view } = renderCard(session());
+    view.unmount();
+    expect(onPause).not.toHaveBeenCalled();
   });
 
   it('fades out when told to, and is a full-width row in the list', () => {

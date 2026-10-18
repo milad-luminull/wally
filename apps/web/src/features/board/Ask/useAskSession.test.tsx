@@ -193,6 +193,57 @@ describe('useAskSession', () => {
     });
   });
 
+  it('a turn whose last entry is not the answer counts as failed', async () => {
+    const turn = conversation('c1', 'ignored');
+    askTurn.mockResolvedValueOnce({
+      kind: 'answered',
+      conversation: { ...turn, entries: turn.entries.slice(0, 1) },
+    });
+    const { result } = renderHook(() => useAskSession('b1'));
+    act(() => result.current.ask('Open?', FREE));
+    await settle();
+    expect(result.current.session).toMatchObject({ phase: 'failed', answer: null });
+    await act(() => vi.advanceTimersByTimeAsync(READ_BASE_MS));
+    expect(result.current.session?.phase).toBe('fading');
+  });
+
+  it('pinning or unpinning to the state it is in leaves the reading clock alone', async () => {
+    askTurn.mockResolvedValue(answered('c1', ''));
+    const { result } = renderHook(() => useAskSession('b1'));
+    act(() => result.current.ask('Open?', FREE));
+    await settle();
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    // A pause and its end restart the clock with what was left: 5 s.
+    act(() => result.current.pause(true));
+    act(() => result.current.pause(false));
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    // Already unpinned: nothing changes, and 3 s are left.
+    act(() => result.current.setPinned(false));
+    act(() => result.current.pause(true));
+    act(() => result.current.pause(false));
+    await act(() => vi.advanceTimersByTimeAsync(READ_BASE_MS - 5000 - 1));
+    expect(result.current.session?.phase).toBe('answered');
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(result.current.session?.phase).toBe('fading');
+  });
+
+  it('two questions in a row: the second card gets its whole reading time', async () => {
+    askTurn.mockResolvedValueOnce(answered('c1', '')).mockResolvedValueOnce(answered('c1', ''));
+    const { result } = renderHook(() => useAskSession('b1'));
+    act(() => result.current.ask('First?', FREE));
+    await settle();
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    act(() => result.current.ask('Second?', FREE));
+    await settle();
+    // A pause and its end keep what was left of the second card's own time.
+    act(() => result.current.pause(true));
+    act(() => result.current.pause(false));
+    await act(() => vi.advanceTimersByTimeAsync(READ_BASE_MS - 1));
+    expect(result.current.session).toMatchObject({ question: 'Second?', phase: 'answered' });
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(result.current.session?.phase).toBe('fading');
+  });
+
   it('a refusal and a failure stay for the base time', async () => {
     askTurn.mockResolvedValueOnce({ kind: 'refused', code: 'ASSISTANT_DAILY_CAP', resetsAt: AT });
     const { result } = renderHook(() => useAskSession('b1'));

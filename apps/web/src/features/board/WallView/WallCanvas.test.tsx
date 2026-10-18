@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { ASK_CARD_MAX_HEIGHT } from '../Ask/AskCard';
 import { WallCanvas } from './WallCanvas';
 
 // The canvas reads its backdrop from the profile; signed out, that query never runs.
@@ -116,6 +117,17 @@ describe('WallCanvas answer card', () => {
       card: <div data-testid="answer" />,
     });
     expect(screen.getByTestId('answer').parentElement).toHaveStyle({ left: `${2400 - 376}px` });
+  });
+
+  it('keeps a card written near the bottom edge on the canvas', () => {
+    render({
+      key: 1,
+      placement: { kind: 'free', x: 120, y: 1350 },
+      card: <div data-testid="answer" />,
+    });
+    expect(screen.getByTestId('answer').parentElement).toHaveStyle({
+      top: `${1400 - ASK_CARD_MAX_HEIGHT}px`,
+    });
   });
 
   it('draws a capture started at the answer’s point above the answer', () => {

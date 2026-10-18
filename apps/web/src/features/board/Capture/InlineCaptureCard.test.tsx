@@ -910,6 +910,44 @@ describe('InlineCaptureCard', () => {
       expect(elsewhere).toHaveFocus();
     });
 
+    it('tells a screen reader that Enter asks, once the title ends in a question mark', async () => {
+      const { title } = renderAsking();
+      const live = document.querySelector('[data-testid="capture-ask-live"]')!;
+      expect(live).toHaveAttribute('aria-live', 'polite');
+      expect(live).toHaveClass('sr-only');
+      await userEvent.type(title, 'What is open today');
+      expect(live).toHaveTextContent('');
+      await userEvent.type(title, '?');
+      expect(live).toHaveTextContent('Enter asks the wall');
+    });
+
+    it('shows no chips and marks no words while the title is a question', async () => {
+      const { title } = renderAsking();
+      await userEvent.type(title, 'urgent work for Friday');
+      expect(screen.getByRole('button', { name: 'High priority' })).toBeInTheDocument();
+      expect(screen.getAllByTestId('capture-mark')).toHaveLength(2);
+      await userEvent.type(title, ' now?');
+      expect(screen.queryByRole('button', { name: 'High priority' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Due / })).not.toBeInTheDocument();
+      expect(screen.queryAllByTestId('capture-mark')).toHaveLength(0);
+    });
+
+    it('keeps the title read-only and busy while the question settles', async () => {
+      let finishCreate: (note: NoteDto) => void = () => {};
+      vi.mocked(notesApi.create).mockReturnValue(
+        new Promise<NoteDto>((resolve) => {
+          finishCreate = resolve;
+        }),
+      );
+      const { onAsk, onDone, title } = renderAsking();
+      await userEvent.type(title, 'What is open today?{Enter}');
+      await waitFor(() => expect(onAsk).toHaveBeenCalledTimes(1));
+      expect(title).toHaveAttribute('readonly');
+      expect(title).toHaveAttribute('aria-busy', 'true');
+      await act(async () => finishCreate(created({ title: 'What is open today?' })));
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
+    });
+
     it('caps the title at the note title length', () => {
       renderCard();
       expect(screen.getByLabelText('Title of the new note')).toHaveAttribute('maxlength', '200');

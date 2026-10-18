@@ -60,8 +60,12 @@ export function useAskSession(boardId: string): AskController {
   const liveId = useRef<number | null>(null);
   /** The conversation the cards on this page continue, while one of them still shows (R4). */
   const conversationId = useRef<string | null>(null);
-  /** Reading time left before the fade, carried across pauses. */
-  const remaining = useRef(READ_BASE_MS);
+  /** Reading time left before the fade, carried across pauses, for the session it belongs to:
+   *  a replaced card's clock, stopping late, never takes from the next card's time. */
+  const remaining = useRef<{ id: number; ms: number }>({ id: 0, ms: READ_BASE_MS });
+  const setRemaining = useCallback((id: number, ms: number) => {
+    remaining.current = { id, ms };
+  }, []);
   const latest = useRef(session);
   latest.current = session;
 
@@ -100,18 +104,20 @@ export function useAskSession(boardId: string): AskController {
   useEffect(() => {
     if (!ticking || sessionId === undefined) return;
     const started = Date.now();
-    const timer = setTimeout(() => fade(sessionId), remaining.current);
+    const left = remaining.current.id === sessionId ? remaining.current.ms : READ_BASE_MS;
+    const timer = setTimeout(() => fade(sessionId), left);
     return () => {
       clearTimeout(timer);
-      remaining.current = Math.max(0, remaining.current - (Date.now() - started));
+      if (remaining.current.id === sessionId)
+        setRemaining(sessionId, Math.max(0, left - (Date.now() - started)));
     };
-  }, [fade, sessionId, ticking]);
+  }, [fade, sessionId, setRemaining, ticking]);
 
   const ask = useCallback<AskController['ask']>(
     (question, placement, takeFocus = true) => {
       const id = nextId.current++;
       liveId.current = id;
-      remaining.current = READ_BASE_MS;
+      setRemaining(id, READ_BASE_MS);
       setSession({
         id,
         placement,
@@ -132,35 +138,45 @@ export function useAskSession(boardId: string): AskController {
           const entries = outcome.conversation.entries;
           const last = entries[entries.length - 1];
           const answer = last && last.role === 'assistant' ? last : null;
-          remaining.current = readingTimeMs(answer?.text ?? '');
+          if (!answer) {
+            // A turn that ends without the answer has nothing to show: it is said as a failure.
+            setRemaining(id, READ_BASE_MS);
+            update(id, (s) => ({ ...s, phase: 'failed' }));
+            return;
+          }
+          setRemaining(id, readingTimeMs(answer.text));
           update(id, (s) => ({ ...s, phase: 'answered', answer }));
         } else if (outcome.kind === 'refused') {
-          remaining.current = READ_BASE_MS;
+          setRemaining(id, READ_BASE_MS);
           update(id, (s) => ({
             ...s,
             phase: 'refused',
             refusal: { code: outcome.code, resetsAt: outcome.resetsAt },
           }));
         } else {
-          remaining.current = READ_BASE_MS;
+          setRemaining(id, READ_BASE_MS);
           update(id, (s) => ({ ...s, phase: 'failed' }));
         }
       })();
     },
-    [askTurn, update],
+    [askTurn, setRemaining, update],
   );
 
   const setPinned = useCallback<AskController['setPinned']>(
     (pinned) => {
       const s = latest.current;
       if (!s || s.phase === 'fading') return;
+      // Already so: the clock keeps what it has left.
+      if (s.pinned === pinned) return;
       // Unpinned, the card gets its whole reading time again.
       if (!pinned)
-        remaining.current =
-          s.phase === 'answered' ? readingTimeMs(s.answer?.text ?? '') : READ_BASE_MS;
+        setRemaining(
+          s.id,
+          s.phase === 'answered' ? readingTimeMs(s.answer?.text ?? '') : READ_BASE_MS,
+        );
       update(s.id, (x) => (x.pinned === pinned ? x : { ...x, pinned }));
     },
-    [update],
+    [setRemaining, update],
   );
 
   const dismiss = useCallback(() => {

@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
-import { FREE_CANVAS_WIDTH, NOTE_CARD_HEIGHT, NOTE_CARD_WIDTH } from '@wally/shared';
+import {
+  FREE_CANVAS_HEIGHT,
+  FREE_CANVAS_WIDTH,
+  NOTE_CARD_HEIGHT,
+  NOTE_CARD_WIDTH,
+} from '@wally/shared';
 import type { CapturePlacement } from '../Capture/useCapture';
 import { ASK_CARD_MAX_HEIGHT, ASK_CARD_WIDTH } from './AskCard';
 
@@ -20,7 +25,8 @@ export interface AskSlot {
 export function askCardOrigin(placement: { x: number; y: number }): { x: number; y: number } {
   return {
     x: Math.max(0, Math.min(placement.x, FREE_CANVAS_WIDTH - ASK_CARD_WIDTH)),
-    y: placement.y,
+    // A tall answer's estimated height, so a question asked near the bottom stays readable.
+    y: Math.max(0, Math.min(placement.y, FREE_CANVAS_HEIGHT - ASK_CARD_MAX_HEIGHT)),
   };
 }
 

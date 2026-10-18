@@ -165,6 +165,9 @@ export function InlineCaptureCard({
   const rootRef = useRef<HTMLDivElement>(null);
   // Set once a commit or cancel is under way, so Enter, Esc and blur settle the capture once.
   const settling = useRef(false);
+  // Set while a question settles: the card waits for its draft note to go, and the title is
+  // read-only meanwhile, as it is while a note commits.
+  const [askSettling, setAskSettling] = useState(false);
   const hintId = useId();
 
   useEffect(() => {
@@ -248,8 +251,13 @@ export function InlineCaptureCard({
       if (active instanceof HTMLElement && rootRef.current?.contains(active)) active.blur();
       // The answer is not a note (BRAND AI rule 6): the shell draws it where this card stood,
       // and the words typed so far go the way a discarded capture's do (plan R2).
+      setAskSettling(true);
       onAsk(question, { takeFocus: byEnter });
-      await controller.cancel();
+      try {
+        await controller.cancel();
+      } finally {
+        setAskSettling(false);
+      }
       return;
     }
     settling.current = true;
@@ -339,6 +347,7 @@ export function InlineCaptureCard({
   const drop = (kind: ChipKind) =>
     setChips((s) => ({ ...s, dropped: { ...s.dropped, [kind]: true } }));
   const asking = onAsk !== undefined && isQuestion(title);
+  const busy = controller.state === 'committing' || askSettling;
 
   return (
     <div
@@ -366,7 +375,8 @@ export function InlineCaptureCard({
       <MirroredField
         ref={titleRef}
         value={title}
-        parse={withoutDropped(parse, chips)}
+        // A question is asked as typed: no word in it is read as a field (plan R1).
+        parse={asking ? null : withoutDropped(parse, chips)}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={onTitleKey}
         aria-label={t('capture.titleAria')}
@@ -375,8 +385,8 @@ export function InlineCaptureCard({
         maxLength={NOTE_TITLE_MAX_LENGTH}
         // Read-only rather than disabled while committing: a disabled field loses focus, and
         // whether that fires blur differs by browser; read-only keeps the caret where it was.
-        readOnly={controller.state === 'committing'}
-        aria-busy={controller.state === 'committing'}
+        readOnly={busy}
+        aria-busy={busy}
       />
       {showText && (
         <textarea
@@ -390,7 +400,7 @@ export function InlineCaptureCard({
           className="block w-full resize-none overflow-hidden bg-transparent text-12 leading-snug text-fg-meta-on-note outline-none placeholder:text-fg-faint"
         />
       )}
-      {parse && (
+      {parse && !asking && (
         <CaptureChips
           parse={parse}
           memberName={memberName}
@@ -406,6 +416,11 @@ export function InlineCaptureCard({
       <p className="hidden text-12 text-fg-faint [@media(pointer:coarse)]:block">
         {t(asking ? 'capture.hintAskCoarse' : 'capture.hintCoarse')}
       </p>
+      {/* The hint above only describes the title field, which is read once on focus: this says
+          the change aloud when the title becomes a question, in words rather than key symbols. */}
+      <span data-testid="capture-ask-live" aria-live="polite" className="sr-only">
+        {asking ? t('capture.hintAskCoarse') : ''}
+      </span>
     </div>
   );
 }

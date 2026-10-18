@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FocusEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, type FocusEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pin, PinOff, X } from 'lucide-react';
 import type { NoteDto } from '@wally/shared';
@@ -78,12 +78,26 @@ export function AskCard({
     }
     // On mount: the flag is the session's, and a card lives for one session.
   }, [takeFocus]);
-  // Going away with the focus inside, the card hands it to the board, never to the page. The
-  // browser has already moved the focus to the body by the time this runs, so that is the sign.
+  // Going away with the focus inside, the card hands it to the board, never to the page. Whether
+  // the focus was inside is read before the card leaves the page (a layout cleanup runs before
+  // its node is removed); the hand-over waits until it has left, when the focus lies on the body.
+  // Focus the person had put outside the card is left where it is.
+  const focusWasInside = useRef(false);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    return () => {
+      focusWasInside.current = Boolean(root?.contains(document.activeElement));
+    };
+  }, []);
+  // A card held by hover or focus lets the clock go as it leaves, so the same answer drawn again
+  // (the wall and the list swap at a breakpoint) is not left paused with nothing holding it.
+  const latestOnPause = useRef(onPause);
+  latestOnPause.current = onPause;
   useEffect(
     () => () => {
+      if (hovered.current || focused.current) latestOnPause.current(false);
       const active = document.activeElement;
-      if (!active || active === document.body)
+      if (focusWasInside.current && (!active || active === document.body))
         document.querySelector<HTMLElement>(BOARD_SURFACE)?.focus();
     },
     [],
@@ -128,6 +142,15 @@ export function AskCard({
         ? t('ask.limit.daily', { when })
         : t('ask.limit.monthly', { when });
   }
+  // An answer with no words and no notes left to show would be an empty card: it is said as a
+  // failure. The rows are the ones AnswerNotes shows: the chips whose note is still on the board.
+  const rows = answer
+    ? notes
+      ? answer.chips.filter((chip) => notes.some((n) => n.id === chip.id))
+      : answer.chips
+    : [];
+  if (phase === 'answered' && (!answer || (!answer.text.trim() && rows.length === 0)))
+    outcomeLine = t('ask.failed');
   const pinLabel = t(session.pinned ? 'ask.unpin' : 'ask.pin');
 
   return (
@@ -177,12 +200,16 @@ export function AskCard({
         </IconTooltip>
       </div>
 
+      {/* Said while the wall is being read, outside the busy region below, which holds back
+          what it contains until the outcome lands. */}
+      <span role="status" className="sr-only">
+        {phase === 'asking' ? t('ask.asking') : ''}
+      </span>
       {/* A polite live region: the answer, a refusal or a failure is announced when it lands;
           aria-busy holds the announcement back while the wall is being read. */}
       <div aria-live="polite" aria-busy={phase === 'asking'}>
         {phase === 'asking' && (
           <div className="flex flex-col gap-2">
-            <span className="sr-only">{t('ask.asking')}</span>
             <Skeleton className="h-3.5 w-[90%]" />
             <Skeleton className="h-3.5 w-[60%]" />
           </div>
