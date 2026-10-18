@@ -58,14 +58,17 @@ interface Batch {
   tidy: TidyDto;
   /** Notes taken out with the × while pending. */
   removed: Set<string>;
-  /** After a keep: the notes that moved, in the record's order. */
-  moved: string[];
+  /**
+   * After a keep: the notes that moved, in the record's order; `null` until the batch is kept.
+   * An empty list is a keep that moved nothing (every note skipped), never "not kept yet".
+   */
+  moved: string[] | null;
 }
 
-/** The moves still in the batch, in the record's order. */
+/** The moves still in the batch (pending), or the ones that moved (kept), in the record's order. */
 const activeMoves = (b: Batch) =>
   b.tidy.moves.filter(
-    (m) => !b.removed.has(m.noteId) && (b.moved.length === 0 || b.moved.includes(m.noteId)),
+    (m) => !b.removed.has(m.noteId) && (b.moved === null || b.moved.includes(m.noteId)),
   );
 
 /**
@@ -99,6 +102,12 @@ export function useTidy(
   latestBatch.current = batch;
   const latestPhase = useRef(phase);
   latestPhase.current = phase;
+  // Read through refs so `rest`, and every callback built on it, keeps its identity even when
+  // the caller passes a new `canMove` or `busy` on a render.
+  const latestCanMove = useRef(canMove);
+  latestCanMove.current = canMove;
+  const latestBusy = useRef(busy);
+  latestBusy.current = busy;
 
   const candidates = useMemo(
     () => (enabled ? tidyCandidateIds(notes, localToday(), canMove, busy) : []),
@@ -118,9 +127,14 @@ export function useTidy(
     snapshots.current.clear();
     setBatch(null);
     setPhase('idle');
-    const ids = tidyCandidateIds(latestNotes.current, localToday(), canMove, busy);
+    const ids = tidyCandidateIds(
+      latestNotes.current,
+      localToday(),
+      latestCanMove.current,
+      latestBusy.current,
+    );
     setLastRun(candidateSignature(latestNotes.current, ids));
-  }, [busy, canMove, clearTimer]);
+  }, [clearTimer]);
 
   const patchAll = useCallback(
     (moves: { noteId: string; horizon: NoteHorizon }[]) => {
@@ -164,7 +178,7 @@ export function useTidy(
           timer.current = setTimeout(rest, EMPTY_NOTICE_MS);
           return;
         }
-        setBatch({ tidy: proposed, removed: new Set(), moved: [] });
+        setBatch({ tidy: proposed, removed: new Set(), moved: null });
         setPhase('pending');
       })
       .catch(() => {
@@ -195,8 +209,15 @@ export function useTidy(
             rest();
             return;
           }
-          // A note the server skipped goes back where it was, without motion (R5, R8).
           const { noteIds: movedIds, skipped } = decided.kept;
+          if (movedIds.length === 0) {
+            // Every note was skipped: nothing moved, so every card goes back, there is nothing
+            // to undo, and nothing is said (R5, R8).
+            restoreAll(noteIds);
+            rest();
+            return;
+          }
+          // A note the server skipped goes back where it was, without motion (R5, R8).
           if (skipped.length) restoreAll(skipped);
           for (const id of movedIds) settleNoteCaches(queryClient, keys, boardId, id);
           setBatch((current) =>
@@ -229,8 +250,9 @@ export function useTidy(
   const undo = useCallback<TidyController['undo']>(
     (source) => {
       const b = latestBatch.current;
-      if (!b || latestPhase.current !== 'kept') return;
-      const back = b.tidy.moves.filter((m) => b.moved.includes(m.noteId));
+      if (!b || latestPhase.current !== 'kept' || !b.moved) return;
+      const moved = b.moved;
+      const back = b.tidy.moves.filter((m) => moved.includes(m.noteId));
       patchAll(back.map((m) => ({ noteId: m.noteId, horizon: m.from })));
       const noteIds = back.map((m) => m.noteId);
       const mine = Symbol('undo');

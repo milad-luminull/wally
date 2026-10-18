@@ -235,4 +235,56 @@ describe('useTidy', () => {
     expect(result.current.phase).toBe('idle');
     expect(result.current.undoLast()).toBe(false);
   });
+
+  it('a keep the server answers with nothing moved puts every card back, offers no undo and says nothing', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    // Both notes were edited in another tab after the proposal: the server skips them all.
+    vi.mocked(assistantApi.decideTidy).mockResolvedValueOnce({
+      tidy: kept([], ['late', 'jotted']),
+    });
+    const { result, cached } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    expect(result.current).toMatchObject({ phase: 'kept', moving: 2 });
+    await settle();
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(result.current).toMatchObject({ phase: 'idle', moving: 0, trackedIds: [] });
+    expect(result.current.markFor('late')).toBeUndefined();
+    expect(result.current.markFor('jotted')).toBeUndefined();
+    let took = true;
+    act(() => {
+      took = result.current.undoLast();
+    });
+    expect(took).toBe(false);
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS));
+    expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps its callbacks and its value when the caller passes a new canMove and busy set', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const queryClient = createTestQueryClient();
+    const notes = [late, jotted, placed];
+    queryClient.setQueryData(keys.notes(BOARD), notes);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    // A fresh function and a fresh set on every render: the worst a caller can do.
+    const { result, rerender } = renderHook(
+      () => useTidy(BOARD, true, notes, () => true, new Set<string>()),
+      { wrapper },
+    );
+    const idle = result.current;
+    rerender();
+    expect(result.current).toBe(idle);
+    act(() => result.current.tidy());
+    await settle();
+    const pending = result.current;
+    expect(pending.phase).toBe('pending');
+    rerender();
+    rerender();
+    expect(result.current).toBe(pending);
+    expect(result.current.moving).toBe(2);
+  });
 });
