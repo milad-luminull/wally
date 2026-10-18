@@ -10,10 +10,15 @@ import { z } from 'zod';
 import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
+  NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
   SUBTASK_TEXT_MAX_LENGTH,
   SUGGESTION_MAX_LINKS,
+  SUGGESTION_MAX_PROPERTIES,
   SUGGESTION_MAX_SUBTASKS,
+  SUGGESTION_MAX_TAGS,
+  TAG_MAX_LENGTH,
+  foldFieldKey,
 } from '@wally/shared';
 import type { Env } from '../../../env.js';
 import {
@@ -55,14 +60,6 @@ export const modelSuggestionWireSchema = z.object({
     })
     .describe('A cleaner title, or null.')
     .nullable(),
-  reference: z
-    .object({
-      key: z.string().describe("A property name, reusing one of the board's when it fits."),
-      value: z.string(),
-      confidence,
-      reason: z.string(),
-    })
-    .nullable(),
   subtasks: z
     .object({
       items: z
@@ -79,6 +76,41 @@ export const modelSuggestionWireSchema = z.object({
         .array(z.object({ noteId: z.string(), reason: z.string() }))
         .max(SUGGESTION_MAX_LINKS)
         .describe('One to three other notes from the list, by id, each with why.'),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  horizon: z
+    .object({
+      value: z.enum(['DIESE_WOCHE', 'SPAETER']).describe('This week, or Later.'),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  visibility: z.object({ value: z.enum(['PRIVATE']), confidence, reason: z.string() }).nullable(),
+  tags: z
+    .object({
+      items: z
+        .array(z.string())
+        .max(SUGGESTION_MAX_TAGS)
+        .describe("Up to three tags, the board's own where they fit."),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  properties: z
+    .object({
+      items: z
+        .array(z.object({ key: z.string(), value: z.string() }))
+        .max(SUGGESTION_MAX_PROPERTIES)
+        .describe("Up to three properties, reusing the board's keys when they fit."),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
+  description: z
+    .object({
+      value: z.string().describe('The detail of a long title, moved out of it.'),
       confidence,
       reason: z.string(),
     })
@@ -126,11 +158,58 @@ const linkItems = z
   })
   .pipe(z.array(z.object({ noteId: z.string().min(1), reason: z.string() })).min(1));
 /**
+ * Tags as a note holds them: trimmed, blank ones and repeats (by the locale-neutral fold, the
+ * first spelling kept) dropped, the first three kept. One too long for a tag drops the tags.
+ */
+const tagItems = z
+  .array(z.string())
+  .transform((items) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of items) {
+      const tag = raw.trim();
+      if (!tag || seen.has(foldFieldKey(tag))) continue;
+      seen.add(foldFieldKey(tag));
+      out.push(tag);
+    }
+    return out.slice(0, SUGGESTION_MAX_TAGS);
+  })
+  .pipe(z.array(z.string().max(TAG_MAX_LENGTH)).min(1));
+/**
+ * Properties as a note holds them: key and value trimmed, an item with either blank dropped,
+ * a key named twice (by the fold) kept once, the first three kept. One that does not fit a
+ * property drops the properties.
+ */
+const propertyItems = z
+  .array(z.object({ key: z.string(), value: z.string() }))
+  .transform((items) => {
+    const seen = new Set<string>();
+    const out: { key: string; value: string }[] = [];
+    for (const item of items) {
+      const key = item.key.trim();
+      const value = item.value.trim();
+      if (!key || !value || seen.has(foldFieldKey(key))) continue;
+      seen.add(foldFieldKey(key));
+      out.push({ key, value });
+    }
+    return out.slice(0, SUGGESTION_MAX_PROPERTIES);
+  })
+  .pipe(
+    z
+      .array(
+        z.object({
+          key: z.string().max(FIELD_KEY_MAX_LENGTH),
+          value: z.string().max(FIELD_VALUE_MAX_LENGTH),
+        }),
+      )
+      .min(1),
+  );
+/**
  * What a suggestion must be once it arrives: the wire shape, plus the format and lengths. The
  * date is a real calendar day (`2026-04-31` is refused), the same check the response schema
  * makes, so a record that is stored can always be answered. A date, a priority or a person
- * that does not fit refuses the reply. The title line, the reference, the steps and the links
- * are optional extras: one that does not fit what a note can hold reads as not proposed
+ * that does not fit refuses the reply. The title line, the steps, the links and the smarter
+ * capture's fields are optional extras: one that does not fit what a note can hold reads as not proposed
  * (`.catch(null)`), so it never costs the person a good date, priority or person beside it.
  */
 export const modelSuggestionSchema = z.object({
@@ -145,17 +224,26 @@ export const modelSuggestionSchema = z.object({
     })
     .nullable()
     .catch(null),
-  reference: z
+  subtasks: z.object({ items: steps, confidence, reason }).nullable().catch(null),
+  links: z.object({ items: linkItems, confidence, reason }).nullable().catch(null),
+  horizon: z
+    .object({ value: z.enum(['DIESE_WOCHE', 'SPAETER']), confidence, reason })
+    .nullable()
+    .catch(null),
+  visibility: z
+    .object({ value: z.literal('PRIVATE'), confidence, reason })
+    .nullable()
+    .catch(null),
+  tags: z.object({ items: tagItems, confidence, reason }).nullable().catch(null),
+  properties: z.object({ items: propertyItems, confidence, reason }).nullable().catch(null),
+  description: z
     .object({
-      key: z.string().trim().min(1).max(FIELD_KEY_MAX_LENGTH),
-      value: z.string().trim().min(1).max(FIELD_VALUE_MAX_LENGTH),
+      value: z.string().trim().min(1).max(NOTE_DESCRIPTION_MAX_LENGTH),
       confidence,
       reason,
     })
     .nullable()
     .catch(null),
-  subtasks: z.object({ items: steps, confidence, reason }).nullable().catch(null),
-  links: z.object({ items: linkItems, confidence, reason }).nullable().catch(null),
 });
 
 /**

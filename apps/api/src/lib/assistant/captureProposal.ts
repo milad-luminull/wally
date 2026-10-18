@@ -210,9 +210,16 @@ export function acceptCapture(
       fields.title.value.trim() !== note.title.trim()
         ? { value: fields.title.value.trim(), reason: fields.title.reason }
         : null,
+    // Until several properties can be kept, the first one proposed is the note's reference.
     reference:
-      open.includes('reference') && fields.reference && sure(fields.reference.confidence)
-        ? acceptReference(fields.reference, call.fieldKeys)
+      open.includes('reference') &&
+      fields.properties &&
+      fields.properties.items[0] &&
+      sure(fields.properties.confidence)
+        ? acceptReference(
+            { ...fields.properties.items[0], reason: fields.properties.reason },
+            call.fieldKeys,
+          )
         : null,
     subtasks:
       open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
@@ -232,7 +239,7 @@ export function acceptCapture(
  * schema refuses drops the reference.
  */
 function acceptReference(
-  reference: NonNullable<ModelSuggestion['reference']>,
+  reference: { key: string; value: string; reason: string },
   fieldKeys: string[],
 ): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
   const wanted = foldFieldKey(reference.key);

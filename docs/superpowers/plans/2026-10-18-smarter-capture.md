@@ -289,4 +289,20 @@ Behaviour (spec §5, all of it in these components):
 
 ## Results
 
-(Filled in at Task 1 Step 12 and Task 11 Step 6.)
+Baseline (owner's run on `ae52025b`, 2026-10-18, `vertex:gemini-2.5-flash`): **30 of 70 scored
+fields right, anti-goal failures: none.**
+
+| field       | right | wrong | missed | extra |
+| ----------- | ----: | ----: | -----: | ----: |
+| dueDate     |     8 |     0 |      0 |     2 |
+| assignee    |     7 |     0 |      0 |     3 |
+| priority    |     5 |     0 |      3 |     0 |
+| properties  |     3 |     4 |      3 |     0 |
+| horizon     |     0 |     0 |      4 |     0 |
+| tags        |     1 |     0 |      8 |     0 |
+| visibility  |     4 |     0 |      3 |     0 |
+| subtasks    |     2 |     0 |      4 |     0 |
+| title       |     0 |     0 |      3 |     0 |
+| description |     0 |     0 |      3 |     0 |
+
+Final run: (Task 11 Step 6.)

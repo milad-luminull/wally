@@ -24,8 +24,17 @@ const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoni
 /** The last prompt the fake saw, so a test can assert what reached the model. */
 let lastInput: SuggestionInput | null = null;
 
-/** Slice 3's fields and the links, which these replies propose nothing for. */
-const noProposal = { title: null, reference: null, subtasks: null, links: null };
+/** The fields beyond date, priority and person, which these replies propose nothing for. */
+const noProposal = {
+  title: null,
+  subtasks: null,
+  links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
+};
 /**
  * Keyed on the title line: the fake answers like a model would, and its reply gets the one
  * check a real runner's reply gets, so the route sees what a runner hands over.
@@ -34,7 +43,9 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
   lastInput = input;
   const lease = await input.onAttempt({ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 });
   const title = input.prompt.split('\n')[0]!.slice('Title: '.length);
-  const settle = async (fields: SuggestionOutput['fields']): Promise<SuggestionOutput> => {
+  // The reply as a model sends it, checked like a real runner's: unknown keys drop, absent
+  // optional fields read as nothing proposed.
+  const settle = async (fields: Record<string, unknown>): Promise<SuggestionOutput> => {
     await lease.settle(usage);
     const checked = modelSuggestionSchema.safeParse(fields);
     return { fields: checked.success ? checked.data : null, usage, finishReason: 'stop' };
@@ -83,9 +94,8 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       priority: null,
       assignee: null,
       title: { value: 'Quote for Müller', confidence: 0.8, reason: 'shorter' },
-      reference: {
-        key: 'customer',
-        value: 'Müller GmbH',
+      properties: {
+        items: [{ key: 'customer', value: 'Müller GmbH' }],
         confidence: 0.9,
         reason: 'customer named',
       },
@@ -114,7 +124,11 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       priority: null,
       assignee: null,
       title: null,
-      reference: { key: 'Cust.omer', value: 'x', confidence: 0.9, reason: 'dot in the name' },
+      properties: {
+        items: [{ key: 'Cust.omer', value: 'x' }],
+        confidence: 0.9,
+        reason: 'dot in the name',
+      },
       subtasks: { items: ['a', 'a', ' '], confidence: 0.9, reason: 'doubled' },
       links: null,
     });

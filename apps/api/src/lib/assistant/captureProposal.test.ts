@@ -62,9 +62,13 @@ const none: ModelSuggestion = {
   priority: null,
   assignee: null,
   title: null,
-  reference: null,
   subtasks: null,
   links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
 };
 
 describe('buildCaptureCall', () => {
