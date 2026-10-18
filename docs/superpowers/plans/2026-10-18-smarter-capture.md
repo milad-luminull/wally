@@ -326,3 +326,47 @@ field instead of two, so the total is 68 + 1 unscored fixture against the baseli
 
 Remaining misses: a recipient proposed as assignee ("Send Ben the slides", "Reply to Anna"), a
 new property key not proposed (`props-new-key`), "sometime" not read as low priority.
+
+---
+
+## Revision tasks (2026-10-19, spec "Revision: the review card follows Paper Wall v3")
+
+### Task 12: Title and description join the change; Keep is always active
+
+- `packages/shared/src/schemas/assistant.ts`: `suggestionOptInFieldKeys = ['visibility']`.
+- API `decideSuggestion`: the countdown keeps title and description; route tests that pinned
+  "the countdown never keeps a title" now pin that it does, and that it never keeps Private.
+- Web `useSuggestions`: initial change = every proposed field but Private; `remove('title')`
+  unticks title and description (no permanent dismissal); `keep` with nothing ticked discards
+  (`source` as given); `pendingKeys` Enter with nothing ticked keeps (so discards).
+- `ReviewFooter`: Keep never disabled.
+
+### Task 13: Rows from the mockup
+
+- `proposalRows(note, mark)`: a Title row first (field `title`, value the cleaned title); typed
+  rows from `suggestion.typed` with the note's current values and `fixed: true` (no toggle);
+  steps stay rows of kind `step` but the list renders them as a checklist after the rows.
+- `ProposalList`: mockup row layout (label 60px, value wraps, no truncation to a sliver), steps
+  as a checklist with `×`/`↺`, fixed rows without a button.
+
+### Task 14: One card on the wall
+
+- `NoteCard`/`RestingNoteCard`: while `asking` or `pending`, an outer `div.paper-note-review-card`
+  carries the glow, the fill, the hover lift and a `:has(:focus-visible)` ring; inside it the
+  card's `<button>` (borderless) and the review as siblings. Title swap and description swap,
+  shimmer and "Filling in" while asking, meta line hidden, done circle hidden, no corner dot.
+  Outside review the card is unchanged.
+- CSS in `board-shell.css`: `@property --capture-angle`, the spin, the shimmer, the pulse, all
+  off under reduced motion.
+
+### Task 15: The list row and the panel
+
+- `NoteRow`: the same container pattern and content while reviewing.
+- `PendingReview`: the same `ProposalList` and `ReviewFooter`; the grouped checkboxes go.
+
+### Task 16: Docs, E2E, verification
+
+- BRAND.md "## AI" amendments; RFC §3.3 note; E2E spec updated to the new card.
+- Full suite; route files one at a time.
+- Side by side with the mockup on :5300 and the preview on :5250 with everyday notes ("call
+  doctor tomorrow…", "remind the team…"), wall and list, before handing over.

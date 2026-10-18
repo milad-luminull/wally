@@ -300,3 +300,55 @@ caps.
 - E2E coverage: CI runs with the assistant off, so a spec that exercises the new chips needs the
   capture response stubbed at the network layer; if that proves impractical, component tests
   carry the UI and the live pass carries the rest.
+
+## Revision 2026-10-19: the review card follows Paper Wall v3
+
+The owner reviewed the preview and rejected the card built under §5: for the most common
+proposal (a cleaned title alone) the change was empty, so Keep stayed disabled and nothing
+showed; fields lived in two places (typed ones in the meta line, Wallybot's in a block below);
+the review block was attached under the card with a visible seam; values were cut off. The
+owner's ruling: follow the mockup (`../wally-design/Wally Paper Wall v3.dc.html`, inline card)
+and make it clean. This section supersedes §5 and owner's decision 4's "opt-in like the title"
+for the title and description; Private stays opt-in.
+
+**Thinking (`asking`).** The card is wrapped in the mockup's animated gradient border (a 1.5px
+conic gradient in the accent family turning every 3 s, with a soft warm shadow), the person's
+words shimmer, and a "Filling in" label with three pulsing dots sits under them. The done
+circle is hidden. No corner dot. Reduced motion: a still gradient, no shimmer, no pulse.
+
+**Review (`pending`), all inside one card.**
+
+- The title shows the cleaned title while it is in the change, and the person's words when
+  it is crossed out. The description under it is the proposed one while the title is in the
+  change.
+- Under a hairline, one row per field: accent dot, label (60px), value, `×`. A crossed-out row
+  is struck through at 45% and its button is `↺`. Order: Title, Due, When, Priority, Person,
+  Private, properties, tags, related notes.
+  - The Title row's value is the cleaned title; crossing it out brings back the person's words
+    and takes the description out with it.
+  - Fields the person typed (the chips: due date, priority, person) are rows too, with their
+    current value and no `×`: they are already on the note.
+- Steps follow as a checklist (small square, full text that wraps), each with a `×`/`↺`.
+- The footer under a hairline: the ring (ink), "Saves in N s" or "Paused", Undo (outline pill)
+  and Keep (primary pill). Keep is always enabled and keeps every row not crossed out; with
+  everything crossed out it discards. Enter is Keep, Esc is Undo.
+- The countdown keeps the same as Keep, title and description included; only Private is never
+  kept by the countdown and starts crossed out.
+- The meta line (date, steps count, priority, person) is hidden during review: everything is
+  in the rows. Rows and values are never cut to one character; long values wrap.
+
+**One card, one control.** The visual card is a container holding the card's button (title and
+words: open, drag) and the review (rows and footer) as siblings, so no control sits inside a
+button and there is no seam. The hover lift and the focus ring belong to the whole card.
+
+**After Keep or Undo.** An ordinary card; Undo restores the person's words and fields.
+
+**The list row and the note panel** use the same rows and footer. The panel's two-group
+checkbox review ("From what you typed" / "Added by Wallybot") is replaced by the same list.
+
+**BRAND.md "## AI"** is amended: the gradient border and the shimmer while thinking and under
+review, the cleaned title shown in place until kept (Undo restores), the ink ring in the footer.
+
+Not taken (owner's choice): a colour proposal, an estimate field, moving the card to its date's
+lane at once, a fresh blank card after Enter, the "Keep all / Undo all" bar. The countdown stays
+15 s.
