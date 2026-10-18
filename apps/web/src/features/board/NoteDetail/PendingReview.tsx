@@ -144,6 +144,16 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
       onCheckedChange: (on) => pending.onSetSubtask(index, on),
     });
   });
+  // A link is named by the index the proposal stored, which a keep sends: a target that
+  // dropped out on the server leaves a gap, so the row's place in the list is not its index.
+  offered.links?.items.forEach((item) => {
+    added.push({
+      key: `link-${item.index}`,
+      label: t('suggest.review.rowLink', { title: item.title || t('common.untitled') }),
+      checked: ticked('links') && mark.links.includes(item.index),
+      onCheckedChange: (on) => pending.onSetLink(item.index, on),
+    });
+  });
 
   return (
     <PanelSection>

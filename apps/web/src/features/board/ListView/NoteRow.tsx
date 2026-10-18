@@ -80,7 +80,11 @@ export function NoteRow({
     a.localeCompare(b, language),
   );
   const fieldLabel = firstField ? `${firstField[0]}: ${firstField[1]}` : undefined;
-  const metaParts = [fieldLabel, assigneeName, checklistLabel || undefined].filter(Boolean);
+  const relatedLabel =
+    note.links.length > 0 ? t('note.related.count', { count: note.links.length }) : undefined;
+  const metaParts = [fieldLabel, assigneeName, checklistLabel || undefined, relatedLabel].filter(
+    Boolean,
+  );
 
   function handleCheckboxClick(e: MouseEvent) {
     e.stopPropagation();

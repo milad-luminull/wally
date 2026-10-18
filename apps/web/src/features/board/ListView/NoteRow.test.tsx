@@ -35,6 +35,7 @@ describe('NoteRow with a pending change', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   });
   const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
@@ -229,6 +230,7 @@ describe('NoteRow just after a keep', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   };
   it('shows the kept date, without an ×, until the refetched note carries it', () => {
@@ -260,6 +262,22 @@ describe('NoteRow just after a keep', () => {
 });
 
 describe('NoteRow without a pending change', () => {
+  it('counts the related notes in its meta line, and says nothing without links', () => {
+    const row = (links: string[]) => (
+      <NoteRow
+        note={makeNote({ links, assignee: null })}
+        currentUserId="user-1"
+        onOpen={vi.fn()}
+        onToggleDone={vi.fn()}
+        canEdit
+      />
+    );
+    const { rerender } = render(row(['b', 'c']));
+    expect(screen.getByText(/2 related/)).toBeInTheDocument();
+    rerender(row([]));
+    expect(screen.queryByText(/related/)).toBeNull();
+  });
+
   it('still opens the note on Enter', () => {
     const onOpen = vi.fn();
     render(

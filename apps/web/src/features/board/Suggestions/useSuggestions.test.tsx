@@ -790,6 +790,119 @@ describe('useSuggestions', () => {
       });
     });
 
+    it('links are kept one by one', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 0, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 1, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = () => result.current.marks.get('n1')!;
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([0, 1]);
+      act(() => result.current.setLink('n1', 0, false));
+      expect(mark().links).toEqual([1]);
+      // An index the proposal does not hold changes nothing.
+      act(() => result.current.setLink('n1', 2, true));
+      expect(mark().links).toEqual([1]);
+      act(() => result.current.setLink('n1', 1, false));
+      expect(mark().fields).toEqual(['dueDate']);
+      expect(mark().links).toEqual([]);
+      act(() => result.current.setLink('n1', 0, true));
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([0]);
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [0],
+        source: 'enter',
+      });
+    });
+
+    it('a link is named by its stored index, and the links tick back all at once', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 1, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 2, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = () => result.current.marks.get('n1')!;
+      // Index 0 dropped out on the server (its target is gone): it cannot be ticked.
+      act(() => result.current.setLink('n1', 0, true));
+      expect(mark().links).toEqual([1, 2]);
+      act(() => result.current.setLink('n1', 2, false));
+      expect(mark().links).toEqual([1]);
+      act(() => result.current.setLink('n1', 1, false));
+      expect(mark().fields).toEqual(['dueDate']);
+      act(() => result.current.setField('n1', 'links', true));
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([1, 2]);
+      act(() => result.current.setLink('n1', 1, false));
+      act(() => result.current.keep('n1', 'click'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [2],
+        source: 'click',
+      });
+    });
+
+    it("the countdown's keep carries the ticked links", async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            links: {
+              items: [
+                { index: 0, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 1, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.setLink('n1', 0, false));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['links'],
+        links: [1],
+        source: 'countdown',
+      });
+    });
+
     it('ticks the steps all at once again, and leaves them out of a keep that drops them', async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
         suggestion: dto({

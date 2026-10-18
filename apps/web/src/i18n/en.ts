@@ -389,6 +389,10 @@ export const en = {
       addPlaceholder: 'Add',
       remove: 'Remove {{tag}}',
     },
+    related: {
+      count_one: '{{count}} related',
+      count_other: '{{count}} related',
+    },
   },
   assistant: {
     title: 'Ask',
@@ -447,6 +451,9 @@ export const en = {
       reference: '{{key}}: {{value}}',
       subtasks_one: '{{count}} step',
       subtasks_other: '{{count}} steps',
+      link: 'Related: {{title}}',
+      links_one: '{{count}} related note',
+      links_other: '{{count}} related notes',
     },
     title: {
       proposed: 'Suggested: {{title}}',
@@ -469,6 +476,7 @@ export const en = {
       rowAssignee: 'Assigned to {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Step: {{text}}',
+      rowLink: 'Related: {{title}}',
     },
   },
   home: {

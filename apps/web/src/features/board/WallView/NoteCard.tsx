@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CheckCircle2, ListChecks, Plus } from 'lucide-react';
+import { CheckCircle2, Link2, ListChecks, Plus } from 'lucide-react';
 import { useContext, type CSSProperties, type ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
@@ -153,6 +153,29 @@ export function NoteCard({
         />
       )}
 
+      {/* One line per ticked proposed link, named by the target's current title; its ×
+          unticks that link alone, by the index the proposal stored (the links plan's L3). */}
+      {proposed.links?.items.map((item) => {
+        if (!proposed.links?.kept.includes(item.index)) return null;
+        const linkLabel = t('suggest.fields.link', {
+          title: item.title || t('common.untitled'),
+        });
+        return (
+          <ProposedField
+            key={item.noteId}
+            className="-mt-1"
+            name={linkLabel}
+            label={
+              <span className="line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
+                {linkLabel}
+              </span>
+            }
+            reason={item.reason}
+            onRemove={removable ? () => pending?.onSetLink(item.index, false) : undefined}
+          />
+        );
+      })}
+
       {/* Wraps when a full proposal (date, steps, priority, person, each with its ×) is
           wider than the card, so the last values move down a line instead of being clipped. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -206,6 +229,13 @@ export function NoteCard({
               {checklistLabel}
             </span>
           )
+        )}
+
+        {note.links.length > 0 && (
+          <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
+            <Link2 className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+            {t('note.related.count', { count: note.links.length })}
+          </span>
         )}
 
         <span className="flex-1" />

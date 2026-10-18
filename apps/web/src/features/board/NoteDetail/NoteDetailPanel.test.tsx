@@ -625,6 +625,7 @@ describe('NoteDetailPanel', () => {
         onRemove: vi.fn(),
         onSetField: vi.fn(),
         onSetSubtask: vi.fn(),
+        onSetLink: vi.fn(),
         onPause: vi.fn(),
       };
     }

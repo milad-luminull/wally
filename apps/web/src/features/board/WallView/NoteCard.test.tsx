@@ -132,6 +132,15 @@ describe('NoteCard content', () => {
 
     expect(screen.queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
   });
+
+  it('counts the related notes in the meta row, and shows nothing without links', () => {
+    const { unmount } = renderCard(makeNote({ links: ['b', 'c'] }));
+    expect(screen.getByText('2 related')).toBeInTheDocument();
+    unmount();
+
+    renderCard(makeNote({ links: [] }));
+    expect(screen.queryByText(/related/)).not.toBeInTheDocument();
+  });
 });
 
 describe('NoteCard with a pending change', () => {
@@ -143,6 +152,7 @@ describe('NoteCard with a pending change', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   });
   const renderCard = (p = pending()) => {
@@ -338,6 +348,36 @@ describe('NoteCard with a pending change', () => {
     );
     expect(screen.getByText('1 step')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove suggestion: 1 step' })).toBeInTheDocument();
+  });
+
+  it('shows one line per ticked proposed link, each with an × that unticks it by its index', () => {
+    const p = renderCard(
+      withProposals(
+        ['dueDate', 'links'],
+        {
+          links: {
+            items: [
+              { index: 0, noteId: 'b', title: 'Supplier list', reason: 'same supplier' },
+              { index: 1, noteId: 'c', title: 'Budget', reason: 'same budget' },
+              { index: 2, noteId: 'd', title: '', reason: 'same quote' },
+            ],
+            reason: 'related',
+          },
+        },
+        { links: [0, 2] },
+      ),
+    );
+    expect(screen.getByText('Related: Supplier list')).toBeInTheDocument();
+    expect(screen.getByText('Related: Untitled')).toBeInTheDocument();
+    // An unticked link leaves the card; the review still offers it.
+    expect(screen.queryByText('Related: Budget')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove suggestion: Related: Supplier list' }),
+    );
+    expect(p.onSetLink).toHaveBeenCalledWith(0, false);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Related: Untitled' }));
+    expect(p.onSetLink).toHaveBeenLastCalledWith(2, false);
+    expect(p.onRemove).not.toHaveBeenCalled();
   });
 
   it('keeps showing the kept values, without an ×, until the refetch carries them', () => {

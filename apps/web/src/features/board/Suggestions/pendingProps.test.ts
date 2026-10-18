@@ -36,6 +36,7 @@ const pending = (m: SuggestionMark): PendingProps => ({
   onRemove: vi.fn(),
   onSetField: vi.fn(),
   onSetSubtask: vi.fn(),
+  onSetLink: vi.fn(),
   onPause: vi.fn(),
 });
 
@@ -142,6 +143,23 @@ describe('proposedValues, place by place', () => {
     // The title is a second line beside the person's own: once ticked it shows whatever the
     // note's title is.
     expect(proposedValues(empty({ title: 'My own' }), all).title).toEqual(TITLE);
+  });
+
+  it('offers the proposed links, with the ticked indexes, only on a note without links', () => {
+    const links = {
+      items: [
+        { index: 0, noteId: 'b', title: 'B', reason: 'same' },
+        { index: 1, noteId: 'c', title: 'C', reason: 'same' },
+      ],
+      reason: 'r',
+    };
+    const m = makeSuggestionMark({ fields: ['links'], links: [1] });
+    m.suggestion!.fields.links = links;
+    const p = pending(m);
+    expect(proposedValues(makeNote({ links: [] }), p).links).toEqual({ ...links, kept: [1] });
+    expect(proposedValues(makeNote({ links: ['z'] }), p).links).toBeNull();
+    // Unticked as a whole: nothing in its place.
+    expect(proposedValues(makeNote({ links: [] }), pending({ ...m, fields: [] })).links).toBeNull();
   });
 });
 

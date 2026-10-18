@@ -412,6 +412,10 @@ export const de = {
       addPlaceholder: 'Hinzufügen',
       remove: '{{tag}} entfernen',
     },
+    related: {
+      count_one: '{{count}} verwandt',
+      count_other: '{{count}} verwandt',
+    },
   },
   /** The question panel on a board (RFC WALLY_AGENT). The AI has no name and no first person. */
   assistant: {
@@ -472,6 +476,9 @@ export const de = {
       reference: '{{key}}: {{value}}',
       subtasks_one: '{{count}} Schritt',
       subtasks_other: '{{count}} Schritte',
+      link: 'Verwandt: {{title}}',
+      links_one: '{{count}} verwandte Notiz',
+      links_other: '{{count}} verwandte Notizen',
     },
     title: {
       /** The second line under the person's own title (BRAND rule 7). */
@@ -496,6 +503,7 @@ export const de = {
       rowAssignee: 'Zuständig: {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Schritt: {{text}}',
+      rowLink: 'Verwandt: {{title}}',
     },
   },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */

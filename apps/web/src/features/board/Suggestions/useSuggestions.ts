@@ -55,6 +55,11 @@ export interface SuggestionsController {
   setField: (noteId: string, field: SuggestionFieldKey, on: boolean) => void;
   /** Ticks one proposed step in or out; the last one out takes `subtasks` out of the change. */
   setSubtask: (noteId: string, index: number, on: boolean) => void;
+  /**
+   * Ticks one proposed link in or out, by its stored index; the last one out takes `links` out
+   * of the change.
+   */
+  setLink: (noteId: string, index: number, on: boolean) => void;
   setPaused: (noteId: string, paused: boolean) => void;
   /**
    * The board's notes as the cache holds them. A pending change whose note has moved past the
@@ -76,15 +81,17 @@ const proposed = (s: SuggestionDto): SuggestionFieldKey[] =>
 const countsDown = (fields: readonly SuggestionFieldKey[]) => fields.some((k) => k !== 'title');
 
 type DecideBody = Parameters<typeof assistantApi.decide>[2];
-/** A keep of these fields, with the ticked steps when the steps are among them. */
+/** A keep of these fields, with the ticked steps and links when they are among them. */
 const keepBody = (
   fields: SuggestionFieldKey[],
   subtasks: number[],
+  links: number[],
   source: DecideBody['source'],
 ): DecideBody => ({
   decision: 'keep',
   fields,
   ...(fields.includes('subtasks') ? { subtasks } : {}),
+  ...(fields.includes('links') ? { links } : {}),
   source,
 });
 
@@ -229,7 +236,7 @@ export function useSuggestions(
         // The title never rides on a countdown keep (R2); the server would leave it out too.
         const fields = mark.fields.filter((k) => k !== 'title');
         if (fields.length === 0) return;
-        decideRef.current(noteId, keepBody(fields, mark.subtasks, 'countdown'));
+        decideRef.current(noteId, keepBody(fields, mark.subtasks, mark.links, 'countdown'));
       }, remainingMs);
       clocks.current.set(noteId, { timer, remainingMs });
     },
@@ -387,7 +394,7 @@ export function useSuggestions(
       if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
       // A title nobody ticked is all there is: nothing to keep, the change keeps waiting.
       if (mark.fields.length === 0) return;
-      decide(noteId, keepBody(mark.fields, mark.subtasks, source));
+      decide(noteId, keepBody(mark.fields, mark.subtasks, mark.links, source));
     },
     [decide],
   );
@@ -424,13 +431,19 @@ export function useSuggestions(
    * Nothing here starts a countdown again, so a title ticked and unticked leaves it stopped.
    */
   const choose = useCallback(
-    (noteId: string, mark: SuggestionMark, fields: SuggestionFieldKey[], subtasks: number[]) => {
+    (
+      noteId: string,
+      mark: SuggestionMark,
+      fields: SuggestionFieldKey[],
+      subtasks: number[],
+      links: number[],
+    ) => {
       if (fields.length === 0) {
         // Taken apart field by field; the record says so.
         decide(noteId, { decision: 'discard', source: 'remove' });
         return;
       }
-      const next = { ...mark, fields, subtasks };
+      const next = { ...mark, fields, subtasks, links };
       if (fields.includes('title')) {
         stopClock(noteId);
         next.countdownEndsAt = null;
@@ -456,7 +469,11 @@ export function useSuggestions(
         field === 'subtasks' && on && mark.subtasks.length === 0
           ? (mark.suggestion.fields.subtasks?.items.map((_, i) => i) ?? [])
           : mark.subtasks;
-      choose(noteId, mark, fields, subtasks);
+      const links =
+        field === 'links' && on && mark.links.length === 0
+          ? (mark.suggestion.fields.links?.items.map((item) => item.index) ?? [])
+          : mark.links;
+      choose(noteId, mark, fields, subtasks, links);
     },
     [choose],
   );
@@ -478,7 +495,31 @@ export function useSuggestions(
         subtasks.length === 0
           ? mark.fields.filter((k) => k !== 'subtasks')
           : suggestionFieldKeys.filter((k) => k === 'subtasks' || mark.fields.includes(k));
-      choose(noteId, mark, fields, subtasks);
+      choose(noteId, mark, fields, subtasks, mark.links);
+    },
+    [choose],
+  );
+  const setLink = useCallback<SuggestionsController['setLink']>(
+    (noteId, index, on) => {
+      const mark = latestMarks.current.get(noteId);
+      if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
+      // Named by the stored index, which a keep sends: an item whose target dropped out on the
+      // server leaves a gap in the indexes, so the position in the list is not the index.
+      const items = mark.suggestion?.fields.links?.items ?? [];
+      if (!items.some((item) => item.index === index)) return;
+      // With the links out of the change (the × or every link unticked), none is ticked: one
+      // link ticked back in is that link alone, as with the steps.
+      const inChange = mark.fields.includes('links');
+      if (!on && !inChange) return;
+      const base = inChange ? mark.links : [];
+      const links = on
+        ? [...new Set([...base, index])].sort((a, b) => a - b)
+        : base.filter((i) => i !== index);
+      const fields =
+        links.length === 0
+          ? mark.fields.filter((k) => k !== 'links')
+          : suggestionFieldKeys.filter((k) => k === 'links' || mark.fields.includes(k));
+      choose(noteId, mark, fields, mark.subtasks, links);
     },
     [choose],
   );
@@ -498,6 +539,7 @@ export function useSuggestions(
         { ...mark, titleDismissed: true },
         mark.fields.filter((k) => k !== 'title'),
         mark.subtasks,
+        mark.links,
       );
     },
     [choose, setField],
@@ -607,6 +649,7 @@ export function useSuggestions(
       remove,
       setField,
       setSubtask,
+      setLink,
       setPaused,
       syncNotes,
     }),
@@ -617,6 +660,7 @@ export function useSuggestions(
       remove,
       request,
       setField,
+      setLink,
       setPaused,
       setSubtask,
       syncNotes,

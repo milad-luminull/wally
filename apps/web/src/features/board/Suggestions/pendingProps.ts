@@ -16,6 +16,8 @@ export interface PendingProps {
   onSetField: (field: SuggestionFieldKey, on: boolean) => void;
   /** Ticks one proposed step in or out, by its index. */
   onSetSubtask: (index: number, on: boolean) => void;
+  /** Ticks one proposed link in or out, by its stored index. */
+  onSetLink: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
 }
 
@@ -72,8 +74,9 @@ const NONE: ProposedValues = {
  * and only where the note has nothing of its own (plan R3), so a value the person set is never
  * covered. A done note shows no due date or priority, so none is proposed there; a private
  * note shows a lock, never an assignee. The reference shows only on a note without properties
- * and the steps only on a note without subtasks (R7). The title is a second line beside the
- * person's own, so it shows whatever the note's title is, once ticked (R2).
+ * and the steps only on a note without subtasks (R7); the links only on a note without links
+ * of its own (the links plan's L3). The title is a second line beside the person's own, so it
+ * shows whatever the note's title is, once ticked (R2).
  *
  * Once kept, the kept values stay in their places until the refetched note carries them (its
  * revision reaches the one the keep produced), so a date, a priority or a person never blinks
@@ -103,8 +106,10 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('subtasks') && note.subtaskSummary.total === 0 && fields.subtasks
         ? { ...fields.subtasks, kept: mark.subtasks }
         : null,
-    // Shown by a later task; nothing proposes links on the card yet.
-    links: null,
+    links:
+      has('links') && note.links.length === 0 && fields.links
+        ? { ...fields.links, kept: mark.links }
+        : null,
   };
 }
 

@@ -50,6 +50,7 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   };
   const view = render(<PendingReview note={note} pending={pending} />);
@@ -111,6 +112,59 @@ describe('PendingReview', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Customer: Müller GmbH' }));
     expect(pending.onSetField).toHaveBeenCalledWith('reference', false);
+  });
+
+  describe('the proposed links', () => {
+    const withLinks = (indexes: [number, number], links: number[]): Partial<SuggestionMark> => {
+      const base = markWith();
+      return {
+        fields: ['priority', 'links'],
+        links,
+        suggestion: {
+          ...base.suggestion!,
+          fields: {
+            ...proposal,
+            links: {
+              items: [
+                { index: indexes[0], noteId: 'b', title: 'Supplier list', reason: 'same supplier' },
+                { index: indexes[1], noteId: 'c', title: '', reason: 'same quote' },
+              ],
+              reason: 'related',
+            },
+          },
+        },
+      };
+    };
+
+    it('offers one row per link, ticked as the mark says, and ticking one reports its index', async () => {
+      const user = userEvent.setup();
+      const { pending } = renderReview(withLinks([0, 1], [0]));
+
+      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
+      expect(within(added).getByRole('checkbox', { name: 'Related: Supplier list' })).toBeChecked();
+      const second = within(added).getByRole('checkbox', { name: 'Related: Untitled' });
+      expect(second).not.toBeChecked();
+      await user.click(second);
+      expect(pending.onSetLink).toHaveBeenCalledWith(1, true);
+    });
+
+    it('names a link by the index the proposal stored, not its place in the list', async () => {
+      const user = userEvent.setup();
+      // The item stored at index 1 dropped out on the server: the second row is index 2.
+      const { pending } = renderReview(withLinks([0, 2], [2]));
+
+      expect(screen.getByRole('checkbox', { name: 'Related: Supplier list' })).not.toBeChecked();
+      const second = screen.getByRole('checkbox', { name: 'Related: Untitled' });
+      expect(second).toBeChecked();
+      await user.click(second);
+      expect(pending.onSetLink).toHaveBeenCalledWith(2, false);
+    });
+
+    it('shows every link unticked once the links are out of the change', () => {
+      renderReview({ ...withLinks([0, 1], [0, 1]), fields: ['priority'] });
+      expect(screen.getByRole('checkbox', { name: 'Related: Supplier list' })).not.toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Related: Untitled' })).not.toBeChecked();
+    });
   });
 
   /*
