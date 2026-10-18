@@ -10,6 +10,8 @@ import {
   suggestionDecisionResponseSchema,
   suggestionDecisionSchema,
   suggestionListSchema,
+  tidyRequestSchema,
+  tidyResponseSchema,
 } from '@wally/shared';
 import { loadEnv } from '../env.js';
 import { BudgetError } from '../lib/assistant/budget/ledger.js';
@@ -20,8 +22,10 @@ import {
 } from '../lib/assistant/conversations.js';
 import {
   createConfiguredSuggestionRunner,
+  createConfiguredTidyRunner,
   createConfiguredTurnRunner,
   type SuggestionRunner,
+  type TidyRunner,
   type TurnRunner,
 } from '../lib/assistant/model/index.js';
 import {
@@ -30,6 +34,7 @@ import {
   suggestForCapture,
 } from '../lib/assistant/suggestions.js';
 import { assistantEnabledFor } from '../lib/assistant/switch.js';
+import { proposeTidy } from '../lib/assistant/tidy.js';
 import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
 import { liveWhiteboard, userLanguage, whiteboardsCol } from '../lib/db/collections.js';
@@ -56,6 +61,7 @@ const refused = z.object({
 export interface AssistantRouteOptions {
   runner?: TurnRunner;
   suggestionRunner?: SuggestionRunner;
+  tidyRunner?: TidyRunner;
   enabled?: boolean;
   deadlineMs?: number;
 }
@@ -76,6 +82,8 @@ export default async function assistantRoutes(
   const getRunner = () => (runner ??= createConfiguredTurnRunner(env));
   let suggestionRunner: SuggestionRunner | undefined = options.suggestionRunner;
   const getSuggestionRunner = () => (suggestionRunner ??= createConfiguredSuggestionRunner(env));
+  let tidyRunner: TidyRunner | undefined = options.tidyRunner;
+  const getTidyRunner = () => (tidyRunner ??= createConfiguredTidyRunner(env));
 
   async function boardFor(
     request: Pick<FastifyRequest, 'server' | 'user'> & { params: { id: string } },
@@ -217,6 +225,35 @@ export default async function assistantRoutes(
     async (request) => {
       const { board } = await boardFor(request);
       return { suggestions: await pendingSuggestions(request.server.db, request.user, board) };
+    },
+  );
+
+  app.post(
+    '/whiteboards/:id/assistant/tidies',
+    {
+      schema: {
+        params,
+        body: tidyRequestSchema,
+        response: { 200: tidyResponseSchema, 429: refused },
+      },
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
+      const { board, role } = await boardFor(request);
+      try {
+        const tidy = await proposeTidy(
+          { db: request.server.db, env, runner: getTidyRunner(), logger: request.log },
+          { actor: request.user, language: userLanguage(request.user), board, role },
+          request.body,
+        );
+        return { tidy };
+      } catch (error) {
+        if (error instanceof BudgetError)
+          return reply
+            .code(429)
+            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+        throw error;
+      }
     },
   );
 }
