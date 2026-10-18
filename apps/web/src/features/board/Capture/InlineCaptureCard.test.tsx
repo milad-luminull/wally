@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,6 +40,7 @@ import { membersApi, notesApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { useKeyboardShortcuts } from '@/lib/shortcuts';
+import { AskCard } from '../Ask/AskCard';
 import { InlineCaptureCard } from './InlineCaptureCard';
 import { DRAFT_SAVE_MS, type CapturePlacement } from './useCapture';
 
@@ -739,7 +740,9 @@ describe('InlineCaptureCard', () => {
     it('Enter on a question hands it over, deletes the draft note and ends the capture with no note', async () => {
       const { onAsk, onDone, title } = renderAsking();
       await userEvent.type(title, 'What is open today?{Enter}');
-      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('What is open today?'));
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is open today?', { takeFocus: true }),
+      );
       await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
       expect(onDone).toHaveBeenCalledWith(null, false, []);
       expect(notesApi.move).not.toHaveBeenCalled();
@@ -750,14 +753,20 @@ describe('InlineCaptureCard', () => {
       const { onAsk, title } = renderAsking();
       await userEvent.type(title, 'Which are overdue?{Shift>}{Enter}{/Shift}');
       await userEvent.type(screen.getByLabelText('Text of the new note'), 'Only mine{Enter}');
-      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('Which are overdue?\n\nOnly mine'));
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('Which are overdue?\n\nOnly mine', {
+          takeFocus: true,
+        }),
+      );
     });
 
-    it('a blur on a question asks it too', async () => {
+    it('a blur on a question asks it too, and the answer does not take the focus', async () => {
       const { onAsk, title } = renderAsking();
       await userEvent.type(title, 'What is late?');
       await userEvent.tab();
-      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('What is late?'));
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is late?', { takeFocus: false }),
+      );
     });
 
     it('without asking on, a question mark is a plain title and the hint does not change', async () => {
@@ -771,41 +780,52 @@ describe('InlineCaptureCard', () => {
     });
 
     /**
-     * The shell's side as plan R8 has it: the answer is drawn as soon as the question is heard,
-     * the capture stays until it ends, and the answer takes the focus on mount only when the
-     * focus lies on the page. A stand-in for the answer card, so the hand-over is tested here.
+     * The shell's side as plan R8 has it, with the real answer card: the answer is drawn as soon
+     * as the question is heard, the capture stays until it ends, and the answer takes the focus
+     * on mount only for a question asked with Enter, and only when the focus lies on the page.
      */
-    function AnswerStandIn({ question }: { question: string }) {
-      const ref = useRef<HTMLDivElement>(null);
-      useEffect(() => {
-        const active = document.activeElement;
-        if (!active || active === document.body) ref.current?.focus();
-      }, []);
-      return (
-        <div ref={ref} tabIndex={-1} role="note" aria-label="answer">
-          {question}
-        </div>
-      );
-    }
     function ShellStandIn({ onDone }: { onDone: () => void }) {
-      const [question, setQuestion] = useState<string | null>(null);
+      const [asked, setAsked] = useState<{ question: string; takeFocus: boolean } | null>(null);
       const [capturing, setCapturing] = useState(true);
+      const placement = { kind: 'free', x: 10, y: 20 } as const;
       return (
         <>
           {capturing && (
             <InlineCaptureCard
               boardId="b1"
-              placement={{ kind: 'free', x: 10, y: 20 }}
+              placement={placement}
               visibility="SHARED"
               layout="card"
               onDone={() => {
                 setCapturing(false);
                 onDone();
               }}
-              onAsk={setQuestion}
+              onAsk={(question, { takeFocus }) => setAsked({ question, takeFocus })}
             />
           )}
-          {question !== null && <AnswerStandIn question={question} />}
+          {asked !== null && (
+            <AskCard
+              session={{
+                id: 1,
+                placement,
+                question: asked.question,
+                phase: 'asking',
+                answer: null,
+                refusal: null,
+                pinned: false,
+                paused: false,
+                takeFocus: asked.takeFocus,
+              }}
+              notes={[]}
+              layout="card"
+              onOpenNote={vi.fn()}
+              onSetPinned={vi.fn()}
+              onDismiss={vi.fn()}
+              onPause={vi.fn()}
+            />
+          )}
+          {/* Somewhere on the wall that takes no focus, as the empty canvas is. */}
+          <div data-testid="wall">wall</div>
         </>
       );
     }
@@ -824,7 +844,7 @@ describe('InlineCaptureCard', () => {
       await userEvent.type(title, 'What is open today?{Enter}');
 
       // The answer is drawn while the capture still waits for the create, and has the focus.
-      const answer = await screen.findByRole('note', { name: 'answer' });
+      const answer = await screen.findByRole('group', { name: 'Answer from the wall' });
       expect(answer).toHaveFocus();
       expect(screen.getByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
       expect(onDone).not.toHaveBeenCalled();
@@ -835,6 +855,19 @@ describe('InlineCaptureCard', () => {
       await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
       expect(screen.queryByRole('group', { name: 'Write a new note' })).not.toBeInTheDocument();
       expect(answer).toHaveFocus();
+    });
+
+    it('a question asked by a click elsewhere leaves the focus where that click put it', async () => {
+      vi.mocked(notesApi.create).mockResolvedValue(created({ title: 'What is late?' }));
+      const onDone = vi.fn();
+      renderWithProviders(<ShellStandIn onDone={onDone} />);
+      await userEvent.type(screen.getByLabelText('Title of the new note'), 'What is late?');
+      // A click on the wall moves the focus to the page; the capture settles by its blur.
+      await userEvent.click(screen.getByTestId('wall'));
+      const answer = await screen.findByRole('group', { name: 'Answer from the wall' });
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(answer).not.toHaveFocus();
+      expect(document.activeElement).toBe(document.body);
     });
 
     it('a question asked from the text line lets go of the focus too', async () => {
@@ -870,7 +903,9 @@ describe('InlineCaptureCard', () => {
       await userEvent.type(screen.getByLabelText('Title of the new note'), 'What is late?');
       const elsewhere = screen.getByRole('button', { name: 'elsewhere' });
       await userEvent.click(elsewhere);
-      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('What is late?'));
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is late?', { takeFocus: false }),
+      );
       expect(focusedAtAsk).not.toBe(screen.getByLabelText('Title of the new note'));
       expect(elsewhere).toHaveFocus();
     });

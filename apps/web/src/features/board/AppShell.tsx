@@ -26,10 +26,10 @@ import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
-import type { CapturePlacement } from './Capture/useCapture';
+import type { AskOptions, CapturePlacement } from './Capture/useCapture';
 import { useAskSession } from './Ask/useAskSession';
 import { AskCard } from './Ask/AskCard';
-import type { AskSlot } from './Ask/askSlot';
+import { placementsTaken, type AskSlot } from './Ask/askSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
 
@@ -92,7 +92,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const askController = useAskSession(boardId);
   const { ask: askQuestion } = askController;
   const onAsked = useCallback(
-    (question: string, placement: CapturePlacement) => askQuestion(question, placement),
+    (question: string, placement: CapturePlacement, { takeFocus }: AskOptions) =>
+      askQuestion(question, placement, takeFocus),
     [askQuestion],
   );
 
@@ -155,10 +156,13 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [boardNotes, viewState, user?.uid],
   );
 
+  const askPlacement = askSession?.placement;
   const newNote = useCallback(() => {
     if (effectiveView === 'list') startCapture({ kind: 'list' });
     else if (viewState.axis === 'free') {
-      const at = nextFreeNotePosition(notes);
+      // The answer card's place counts as taken: the question's draft note is gone, so the
+      // notes alone would read its point as free and the new card would land on the answer.
+      const at = nextFreeNotePosition(placementsTaken(notes, askPlacement));
       startCapture({ kind: 'free', x: at.freeX, y: at.freeY });
     } else
       startCapture({
@@ -167,7 +171,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         key: defaultZoneKey(viewState.axis),
         at: nextFreeNotePosition(notes),
       });
-  }, [effectiveView, notes, startCapture, viewState.axis]);
+  }, [askPlacement, effectiveView, notes, startCapture, viewState.axis]);
 
   const { openNote } = viewState;
   const { duplicate } = useDuplicateNote(boardId, {

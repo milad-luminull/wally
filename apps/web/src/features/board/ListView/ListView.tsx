@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { groupByAxis } from '../util/noteDerived';
 import type { BoardAccess } from '../util/permissions';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
+import type { CaptureAsk } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { AskSlot } from '../Ask/askSlot';
 import { NoteRow } from './NoteRow';
@@ -70,7 +71,7 @@ interface ListViewProps {
     /** Hears each id the note is shown under, so the list leaves it to its row. */
     onNoteId?: (noteId: string) => void;
     /** Hears a question typed into the row; absent when the board's assistant is off. */
-    onAsk?: (question: string) => void;
+    onAsk?: CaptureAsk;
   } | null;
   /** The answer to a question typed into the row, drawn as the top row (§3.6). */
   ask?: AskSlot | null;

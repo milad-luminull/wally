@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
-import type { CapturePlacement } from './useCapture';
+import type { AskOptions, CapturePlacement } from './useCapture';
 
 /** One note being written in place, from the gesture that asked for it until it is done. */
 interface Session {
@@ -81,8 +81,11 @@ export function useCaptureSession({
   openNote: (noteId: string | null) => void;
   /** Hears each committed note with the fields the person decided in it (the shell asks Wallybot). */
   onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
-  /** Hears a question typed into the card, with the place it was written (§3.6); the shell answers there. */
-  onAsked?: (question: string, placement: CapturePlacement) => void;
+  /**
+   * Hears a question typed into the card, with the place it was written (§3.6) and whether its
+   * answer may take the focus (only after Enter, R8); the shell answers there.
+   */
+  onAsked?: (question: string, placement: CapturePlacement, options: AskOptions) => void;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const nextId = useRef(1);
@@ -151,8 +154,8 @@ export function useCaptureSession({
   );
   const shownPlacement = shown?.placement;
   const onCaptureAsk = useCallback(
-    (question: string) => {
-      if (shownPlacement) latestOnAsked.current?.(question, shownPlacement);
+    (question: string, options: AskOptions) => {
+      if (shownPlacement) latestOnAsked.current?.(question, shownPlacement, options);
     },
     [shownPlacement],
   );

@@ -6,7 +6,7 @@ import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { NoteGroup } from '../util/noteDerived';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
 import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
@@ -24,7 +24,7 @@ interface ZoneCapture {
   visibility: NoteVisibility;
   onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
-  onAsk: ((question: string) => void) | undefined;
+  onAsk: CaptureAsk | undefined;
 }
 
 interface ZoneBandProps {
@@ -180,7 +180,7 @@ interface ZoneBandsProps {
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: (question: string) => void;
+  onCaptureAsk?: CaptureAsk;
   /** The answer to a question; shown at the top of its zone when its placement is a zone. */
   ask?: AskSlot | null;
   visibility: NoteVisibility;

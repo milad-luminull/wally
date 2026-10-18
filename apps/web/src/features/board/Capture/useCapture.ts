@@ -21,6 +21,17 @@ export type CapturePlacement =
     }
   | { kind: 'list' };
 
+/**
+ * How a question left the capture card: `takeFocus` is true only for Enter. A question settled
+ * by a blur (a click or Tab elsewhere) leaves the focus where the person put it (plan R8).
+ */
+export interface AskOptions {
+  takeFocus: boolean;
+}
+
+/** Hears a question typed into the capture card (WALLYBOT_INLINE.md §3.6). */
+export type CaptureAsk = (question: string, options: AskOptions) => void;
+
 export interface CaptureFields {
   dueDate: string | null;
   assigneeId: string | null;

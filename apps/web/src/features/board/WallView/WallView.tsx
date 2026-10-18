@@ -38,7 +38,7 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
 import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
@@ -70,7 +70,7 @@ interface WallViewProps {
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: (question: string) => void;
+  onCaptureAsk?: CaptureAsk;
   /** The answer to a question, drawn where the question was written (§3.6). */
   ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */

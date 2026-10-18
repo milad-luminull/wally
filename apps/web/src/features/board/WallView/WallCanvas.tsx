@@ -16,9 +16,8 @@ import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CapturePlacement } from '../Capture/useCapture';
-import { ASK_CARD_WIDTH } from '../Ask/AskCard';
-import type { AskSlot } from '../Ask/askSlot';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
+import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
@@ -40,7 +39,7 @@ interface WallCanvasProps {
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
   /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: (question: string) => void;
+  onCaptureAsk?: CaptureAsk;
   /** The answer to a question, shown on the canvas when its placement is free (§3.6). */
   ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
@@ -148,7 +147,9 @@ export function WallCanvas({
             <div
               key={captureKey}
               data-capture
-              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 30 }}
+              // Above an answer card at the same point (31 over 30): a note started from New
+              // note may land where the answer stands, and the card being written comes first.
+              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 31 }}
             >
               <InlineCaptureCard
                 boardId={boardId}
@@ -167,9 +168,9 @@ export function WallCanvas({
               data-ask
               style={{
                 position: 'absolute',
-                // Clamped like a capture point, for the answer's own width.
-                left: Math.min(ask.placement.x, FREE_CANVAS_WIDTH - ASK_CARD_WIDTH),
-                top: ask.placement.y,
+                // Clamped like a capture point, for the answer's own size.
+                left: askCardOrigin(ask.placement).x,
+                top: askCardOrigin(ask.placement).y,
                 zIndex: 30,
               }}
             >

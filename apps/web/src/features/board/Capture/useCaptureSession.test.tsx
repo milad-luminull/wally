@@ -48,7 +48,7 @@ import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import { ListView } from '../ListView/ListView';
 import { WallView } from '../WallView/WallView';
-import type { CapturePlacement } from './useCapture';
+import type { AskOptions, CapturePlacement } from './useCapture';
 import { useCaptureSession } from './useCaptureSession';
 
 const BOARD = 'board-1';
@@ -95,7 +95,7 @@ function Board({
   openNote: (id: string | null) => void;
   onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
   /** Given when the board's assistant is on, as the shell does; absent, a `?` is a plain title. */
-  onAsked?: (question: string, placement: CapturePlacement) => void;
+  onAsked?: (question: string, placement: CapturePlacement, options: AskOptions) => void;
 }) {
   const query = useNotes(BOARD);
   const notes = query.data ?? EMPTY;
@@ -176,7 +176,7 @@ function Board({
 function renderBoard(
   view: BoardView,
   axis: BoardAxis,
-  onAsked?: (question: string, placement: CapturePlacement) => void,
+  onAsked?: (question: string, placement: CapturePlacement, options: AskOptions) => void,
 ) {
   const openNote = vi.fn();
   const onCommitted = vi.fn();
@@ -462,13 +462,17 @@ describe('useCaptureSession asking', () => {
       }),
     );
     act(() => result.current.startCapture({ kind: 'free', x: 40, y: 60 }));
-    act(() => result.current.onCaptureAsk('What is open?'));
-    expect(onAsked).toHaveBeenCalledWith('What is open?', { kind: 'free', x: 40, y: 60 });
+    act(() => result.current.onCaptureAsk('What is open?', { takeFocus: false }));
+    expect(onAsked).toHaveBeenCalledWith(
+      'What is open?',
+      { kind: 'free', x: 40, y: 60 },
+      { takeFocus: false },
+    );
 
     // The capture then ends with no note, as a discarded one does; nothing else is heard.
     act(() => result.current.onCaptureDone(null, false, []));
     expect(result.current.capture).toBeNull();
-    act(() => result.current.onCaptureAsk('Late?'));
+    act(() => result.current.onCaptureAsk('Late?', { takeFocus: true }));
     expect(onAsked).toHaveBeenCalledTimes(1);
   });
 });
@@ -497,7 +501,9 @@ describe('useCaptureSession asking from the real views', () => {
       await userEvent.type(await titleField(), 'What is open?{Enter}');
 
       await waitFor(() =>
-        expect(onAsked).toHaveBeenCalledWith('What is open?', expect.objectContaining(placement)),
+        expect(onAsked).toHaveBeenCalledWith('What is open?', expect.objectContaining(placement), {
+          takeFocus: true,
+        }),
       );
       expect(onAsked).toHaveBeenCalledTimes(1);
       // The capture let go of the focus before the shell heard the question (plan R8).

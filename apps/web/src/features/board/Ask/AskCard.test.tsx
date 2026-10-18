@@ -26,6 +26,7 @@ const session = (overrides: Partial<AskSession> = {}): AskSession => ({
   refusal: null,
   pinned: false,
   paused: false,
+  takeFocus: true,
   ...overrides,
 });
 
@@ -208,6 +209,24 @@ describe('AskCard', () => {
     input.focus();
     renderCard(session({ id: 2 }));
     expect(input).toHaveFocus();
+  });
+
+  it('takes no focus on mount for a question asked by a blur', () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    const first = renderCard(session({ takeFocus: false }));
+    expect(screen.getByRole('group', { name: 'Answer from the wall' })).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
+    first.view.unmount();
+
+    // A click on the wall put the focus on the board surface: it stays there.
+    const surface = document.createElement('div');
+    surface.setAttribute('data-board-surface', '');
+    surface.tabIndex = -1;
+    document.body.append(surface);
+    surface.focus();
+    renderCard(session({ id: 2, takeFocus: false }));
+    expect(surface).toHaveFocus();
+    surface.remove();
   });
 
   it('the focus it takes on mount does not hold the clock; focus the person moves in does', () => {

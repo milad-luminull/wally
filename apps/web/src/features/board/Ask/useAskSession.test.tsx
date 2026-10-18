@@ -87,6 +87,17 @@ describe('useAskSession', () => {
     expect(result.current.session).toBeNull();
   });
 
+  it('remembers whether the card may take the focus: only a question asked with Enter', async () => {
+    askTurn.mockResolvedValue(answered('c1'));
+    const { result } = renderHook(() => useAskSession('b1'));
+    act(() => result.current.ask('What is open?', FREE, true));
+    expect(result.current.session?.takeFocus).toBe(true);
+    act(() => result.current.ask('What is late?', FREE, false));
+    expect(result.current.session?.takeFocus).toBe(false);
+    await settle();
+    expect(result.current.session).toMatchObject({ phase: 'answered', takeFocus: false });
+  });
+
   it('continues the conversation while its card shows, and starts afresh once it is gone', async () => {
     askTurn
       .mockResolvedValueOnce(answered('c1'))

@@ -12,6 +12,8 @@ import type { AskSession } from './useAskSession';
 
 /** Wider than a note: an answer is a paragraph, a note is a line (plan R3). */
 export const ASK_CARD_WIDTH = 376;
+/** A tall answer's height, an estimate: the room it is given on the canvas and kept clear of new notes. */
+export const ASK_CARD_MAX_HEIGHT = 320;
 /** The board's own surface (AppShell), where the focus goes when the card leaves with it. */
 const BOARD_SURFACE = '[data-board-surface]';
 
@@ -59,10 +61,12 @@ export function AskCard({
    *  must not hold the clock, or the answer would never fade on its own (R5 with R8). */
   const takingFocus = useRef(false);
 
-  // The capture card gave way to this one and left the focus on the page: the card takes it,
-  // so Esc, the pin, the × and the rows work from the keyboard (R8). Focus the person put
-  // somewhere else meanwhile is left alone.
+  // The capture card gave way to this one with Enter and left the focus on the page: the card
+  // takes it, so Esc, the pin, the × and the rows work from the keyboard (R8). A question
+  // settled by a blur, and focus the person put somewhere else meanwhile, are left alone.
+  const takeFocus = session.takeFocus;
   useEffect(() => {
+    if (!takeFocus) return;
     const active = document.activeElement;
     if (!active || active === document.body || active.matches(BOARD_SURFACE)) {
       takingFocus.current = true;
@@ -72,7 +76,8 @@ export function AskCard({
         takingFocus.current = false;
       }
     }
-  }, []);
+    // On mount: the flag is the session's, and a card lives for one session.
+  }, [takeFocus]);
   // Going away with the focus inside, the card hands it to the board, never to the page. The
   // browser has already moved the focus to the body by the time this runs, so that is the sign.
   useEffect(

@@ -21,7 +21,12 @@ import { isQuestion, questionOf } from '@/lib/capture/question';
 import { useActiveMembers } from '../hooks/useMembers';
 import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
-import { useCapture, type CaptureFields, type CapturePlacement } from './useCapture';
+import {
+  useCapture,
+  type CaptureAsk,
+  type CaptureFields,
+  type CapturePlacement,
+} from './useCapture';
 
 /**
  * Chips start kept, except a priority on the priority wall: keeping it would move the note out
@@ -142,9 +147,10 @@ export function InlineCaptureCard({
   /**
    * Set when the board's assistant is on: a title ending in `?` is a question for the wall
    * (WALLYBOT_INLINE.md §3.6, plan R1). The card hands the question over, deletes the draft
-   * note and ends the capture with no note (R2). Without it a `?` is a plain title.
+   * note and ends the capture with no note (R2). Without it a `?` is a plain title. The
+   * answer takes the focus only for a question asked with Enter (R8).
    */
-  onAsk?: (question: string) => void;
+  onAsk?: CaptureAsk;
 }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -227,7 +233,8 @@ export function InlineCaptureCard({
   }
   /** Words in either field make a note; whitespace alone in both does not. */
   const hasWords = Boolean(title.trim() || description.trim());
-  async function commit(thenOpen: boolean) {
+  /** `byEnter` is false when a blur settles the capture: the focus is then where it went. */
+  async function commit(thenOpen: boolean, byEnter: boolean) {
     const trimmed = title.trim();
     if (!hasWords || settling.current) return;
     const question = onAsk ? questionOf(trimmed, description) : null;
@@ -241,7 +248,7 @@ export function InlineCaptureCard({
       if (active instanceof HTMLElement && rootRef.current?.contains(active)) active.blur();
       // The answer is not a note (BRAND AI rule 6): the shell draws it where this card stood,
       // and the words typed so far go the way a discarded capture's do (plan R2).
-      onAsk(question);
+      onAsk(question, { takeFocus: byEnter });
       await controller.cancel();
       return;
     }
@@ -290,7 +297,7 @@ export function InlineCaptureCard({
       else setShowText(true);
     } else if (event.key === 'Enter') {
       claim(event);
-      void commit(event.metaKey || event.ctrlKey);
+      void commit(event.metaKey || event.ctrlKey, true);
     } else if (event.key === 'Escape') {
       claim(event);
       void cancel();
@@ -300,7 +307,7 @@ export function InlineCaptureCard({
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       claim(event);
-      void commit(event.metaKey || event.ctrlKey);
+      void commit(event.metaKey || event.ctrlKey, true);
     } else if (event.key === 'Escape') {
       claim(event);
       void cancel();
@@ -324,7 +331,7 @@ export function InlineCaptureCard({
   function onBlur(event: FocusEvent<HTMLDivElement>) {
     // Focus moving between the card's own fields and chips is not leaving the capture.
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-    if (hasWords) void commit(false);
+    if (hasWords) void commit(false, false);
     else void cancel();
   }
   const toggle = (kind: ChipKind) =>

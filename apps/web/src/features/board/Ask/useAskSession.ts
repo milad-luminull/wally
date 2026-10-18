@@ -33,11 +33,14 @@ export interface AskSession {
   pinned: boolean;
   /** Held by hover or focus on the card: the clock waits (R5). */
   paused: boolean;
+  /** Asked with Enter: the card takes the focus on mount. Asked by a blur, the focus stays
+   *  where the person put it (R8). */
+  takeFocus: boolean;
 }
 
 export interface AskController {
   session: AskSession | null;
-  ask: (question: string, placement: CapturePlacement) => void;
+  ask: (question: string, placement: CapturePlacement, takeFocus?: boolean) => void;
   setPinned: (pinned: boolean) => void;
   /** Esc or the card's ×: the card fades now. */
   dismiss: () => void;
@@ -105,7 +108,7 @@ export function useAskSession(boardId: string): AskController {
   }, [fade, sessionId, ticking]);
 
   const ask = useCallback<AskController['ask']>(
-    (question, placement) => {
+    (question, placement, takeFocus = true) => {
       const id = nextId.current++;
       liveId.current = id;
       remaining.current = READ_BASE_MS;
@@ -118,6 +121,7 @@ export function useAskSession(boardId: string): AskController {
         refusal: null,
         pinned: false,
         paused: false,
+        takeFocus,
       });
       void (async () => {
         const outcome = await askTurn(question, conversationId.current);

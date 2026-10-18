@@ -118,6 +118,37 @@ describe('WallCanvas answer card', () => {
     expect(screen.getByTestId('answer').parentElement).toHaveStyle({ left: `${2400 - 376}px` });
   });
 
+  it('draws a capture started at the answer’s point above the answer', () => {
+    renderWithProviders(
+      <DndContext>
+        <WallCanvas
+          notes={[]}
+          filtered={false}
+          currentUserId="u1"
+          selectedNoteId={null}
+          onOpenNote={vi.fn()}
+          onCapture={vi.fn()}
+          capture={{ kind: 'free', x: 120, y: 80 }}
+          onCaptureDone={vi.fn()}
+          visibility="SHARED"
+          boardId="b1"
+          canEditShared
+          activeDragId={null}
+          ask={{
+            key: 1,
+            placement: { kind: 'free', x: 120, y: 80 },
+            card: <div data-testid="answer" />,
+          }}
+        />
+      </DndContext>,
+    );
+    const capture = screen.getByTestId('capture').parentElement!;
+    const answer = screen.getByTestId('answer').parentElement!;
+    expect(capture).toHaveAttribute('data-capture');
+    expect(answer).toHaveAttribute('data-ask');
+    expect(Number(capture.style.zIndex)).toBeGreaterThan(Number(answer.style.zIndex));
+  });
+
   it('does not start a note when a word in the answer is double-clicked', () => {
     const onCapture = vi.fn();
     renderWithProviders(
