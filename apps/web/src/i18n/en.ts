@@ -412,6 +412,10 @@ export const en = {
     },
   },
   note: {
+    expand: 'Expand note',
+    collapse: 'Open in side panel',
+    details: 'Details',
+    showActivity: 'Show activity · {{count}}',
     panelAria: 'Note details',
     titlePlaceholder: 'What needs doing?',
     titleAria: 'Title',

@@ -426,6 +426,10 @@ export const de = {
     },
   },
   note: {
+    expand: 'Notiz im Vollbild öffnen',
+    collapse: 'In Seitenleiste öffnen',
+    details: 'Details',
+    showActivity: 'Aktivität anzeigen · {{count}}',
     panelAria: 'Notizdetails',
     titlePlaceholder: 'Was ist zu tun?',
     titleAria: 'Titel',

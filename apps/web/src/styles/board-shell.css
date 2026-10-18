@@ -422,7 +422,7 @@
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--shadow-e2);
 }
 .board-shell .paper-detail {
-  border-radius: 18px 0 0 18px;
+  border-radius: 0;
   border-color: var(--border-subtle);
 }
 .boards-home-shell > header {
@@ -618,5 +618,267 @@
   }
   .board-view-toggle > button {
     height: 36px;
+  }
+}
+
+/* Paper Wall note editor: a quiet panel or a full-screen reading surface. */
+.paper-detail {
+  color: var(--fg-1);
+}
+.note-detail-header {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+  height: 52px;
+  padding: 0 10px 0 14px;
+}
+.note-detail-header > button:not(.note-detail-complete):not(.note-detail-back) {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--fg-3);
+}
+.note-detail-header-spacer {
+  flex: 1;
+}
+.note-detail-complete {
+  height: 30px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.paper-detail:not(.paper-detail-expanded) .note-detail-complete[aria-checked='false'] {
+  border-color: transparent;
+  padding-left: 4px;
+}
+.note-detail-article {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 6px 22px 28px;
+}
+.note-detail-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.note-detail-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+.note-detail-eyebrow > span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.note-detail-colour {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--note-border);
+  border-radius: 3px;
+  flex: none;
+}
+.paper-detail .note-detail-title {
+  padding: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+.paper-detail .note-detail-description {
+  padding: 0;
+  margin-top: -12px;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.paper-detail .note-detail-section {
+  padding: 0;
+  border: 0;
+}
+.paper-detail .note-detail-section:empty {
+  display: none;
+}
+.note-detail-section-heading {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--fg-3);
+}
+.note-detail-checklist-heading {
+  gap: 6px;
+}
+.note-detail-checklist-heading > span:last-child:not(:first-child)::before {
+  content: '·';
+  margin-right: 6px;
+}
+.note-detail-progress {
+  height: 2px;
+  opacity: 0.5;
+}
+.note-detail-step {
+  gap: 10px;
+  padding: 5px 4px;
+}
+.note-detail-step > span {
+  font-size: 13px;
+  padding: 0;
+}
+.note-detail-step [role='checkbox'] {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: none;
+}
+.note-detail-checklist input {
+  min-height: 36px;
+  font-size: 13px;
+}
+.note-detail-properties {
+  gap: 12px;
+}
+.note-detail-property {
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 12px;
+}
+.paper-detail .note-detail-segment {
+  flex-wrap: wrap;
+  background: transparent;
+  padding: 0;
+}
+.note-detail-segment > button {
+  padding: 0 6px;
+  font-size: 12px;
+}
+.note-detail-segment > button[data-state='on'] {
+  background: var(--inset);
+  box-shadow: none;
+}
+.note-detail-property input[type='date'],
+.note-detail-property [role='combobox'] {
+  max-width: 100%;
+  background: transparent;
+  border-color: transparent;
+}
+.note-detail-property input[type='date']:hover,
+.note-detail-property [role='combobox']:hover {
+  background: var(--inset);
+}
+.note-detail-property [aria-pressed] {
+  border-radius: 50%;
+}
+.note-detail-activity summary {
+  width: fit-content;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+.note-detail-activity[open] summary {
+  margin-bottom: 10px;
+}
+.note-detail-footer {
+  min-height: 48px;
+}
+.note-detail-footer button {
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.note-detail-footer button:hover {
+  color: var(--fg-1);
+}
+.paper-detail-expanded {
+  width: 100%;
+  height: 100dvh;
+}
+.paper-detail-expanded .note-detail-header {
+  height: 56px;
+  gap: 10px;
+  padding: 0 16px 0 12px;
+}
+.paper-detail-expanded .note-detail-back {
+  margin-right: auto;
+  font-size: 14px;
+  font-weight: 400;
+}
+.paper-detail-expanded .note-detail-header-spacer {
+  display: none;
+}
+.paper-detail-expanded .note-detail-complete {
+  height: 32px;
+}
+.paper-detail-expanded .note-detail-article {
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 32px 100px;
+  gap: 28px;
+}
+.paper-detail-expanded .note-detail-intro {
+  gap: 12px;
+  padding: 0 4px;
+}
+.paper-detail-expanded .note-detail-eyebrow {
+  font-size: 13px;
+}
+.paper-detail-expanded .note-detail-title {
+  font-size: clamp(28px, 3.6vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.paper-detail-expanded .note-detail-description {
+  margin-top: 0;
+  font-size: 17px;
+  line-height: 1.6;
+}
+.note-detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  color: var(--fg-3);
+  font-size: 13px;
+}
+.note-detail-summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.note-detail-summary svg {
+  width: 14px;
+  height: 14px;
+}
+.paper-detail-expanded .note-detail-section-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.paper-detail-expanded .note-detail-checklist-heading > span:last-child:not(:first-child) {
+  font-size: 13px;
+}
+.paper-detail-expanded .note-detail-step {
+  padding: 7px 4px;
+  gap: 12px;
+}
+.paper-detail-expanded .note-detail-step > span,
+.paper-detail-expanded .note-detail-checklist input {
+  font-size: 15px;
+}
+.paper-detail-expanded .note-detail-step [role='checkbox'] {
+  width: 20px;
+  height: 20px;
+}
+.paper-detail-expanded .note-detail-footer {
+  width: min(680px, 100%);
+  align-self: center;
+  padding: 8px 32px;
+}
+@media (pointer: coarse) {
+  .note-detail-header > button:not(.note-detail-complete):not(.note-detail-back) {
+    width: 40px;
+    height: 40px;
+  }
+  .note-detail-step {
+    min-height: 44px;
   }
 }

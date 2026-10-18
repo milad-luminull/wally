@@ -42,9 +42,9 @@ export function SubtaskChecklist({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <FieldLabel>{t('note.subtasks.label')}</FieldLabel>
+    <div className="note-detail-checklist flex flex-col gap-2">
+      <div className="note-detail-checklist-heading flex items-baseline gap-2">
+        <FieldLabel className="note-detail-section-heading">{t('note.subtasks.label')}</FieldLabel>
         {/* One interpolated string, not three JSX children — otherwise the German word
             "von" would stay orphaned in the markup, outside the catalogue. */}
         {subtasks.length > 0 && (
@@ -54,7 +54,7 @@ export function SubtaskChecklist({
         )}
       </div>
       {subtasks.length > 0 && (
-        <div aria-hidden className="h-1 overflow-hidden rounded-full bg-inset">
+        <div aria-hidden className="note-detail-progress h-1 overflow-hidden rounded-full bg-inset">
           <div
             className="h-full rounded-full bg-[color:var(--fg-1)] transition-[width] duration-300 ease-ds"
             style={{ width: `${(done / subtasks.length) * 100}%` }}
@@ -65,7 +65,7 @@ export function SubtaskChecklist({
         {subtasks.map((subtask) => (
           <div
             key={subtask.id}
-            className="group/subtask flex min-h-8 items-center gap-2.5 rounded-md px-1.5 hover:bg-surface-alt"
+            className="note-detail-step group/subtask flex min-h-8 items-center gap-2.5 rounded-md px-1.5 hover:bg-surface-alt"
           >
             <Checkbox
               checked={subtask.done}

@@ -1,5 +1,5 @@
 import { BoardRail } from './BoardRail';
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/i18n/LanguageProvider';
@@ -49,6 +49,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const { language } = useLanguage();
   const { isDesktop, isBelowDesktop, isBelowTablet } = useBreakpoint();
   const viewState = useBoardViewState(boardId);
+  const [detailExpanded, setDetailExpanded] = useState(false);
+  const boardCovered = detailExpanded && isDesktop && Boolean(viewState.noteId);
   useRememberLastBoard(boardId);
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
@@ -227,9 +229,11 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
     // visible viewport, which pushes the board's own scroll containers off-screen.
-    <div className="board-shell flex h-[100dvh] flex-col overflow-hidden bg-background">
-      <EmailVerificationBanner />
-      <div className="board-layout">
+    <div className="board-shell relative flex h-[100dvh] flex-col overflow-hidden bg-background">
+      <div inert={boardCovered}>
+        <EmailVerificationBanner />
+      </div>
+      <div className="board-layout isolate" inert={boardCovered}>
         {isDesktop && (
           <BoardRail
             boardId={boardId}
@@ -321,25 +325,29 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 relatedCounts={relatedCountByNote}
               />
             )}
-
-            <NoteDetailPanel
-              noteId={viewState.noteId}
-              boardId={boardId}
-              access={access}
-              axis={viewState.axis}
-              isBelowDesktop={isBelowDesktop}
-              onClose={() => viewState.openNote(null)}
-              onDuplicate={duplicateNote}
-              onOpenNote={viewState.openNote}
-              currentUserId={user?.uid}
-              pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
-            />
           </div>
         </div>
       </div>
 
+      <NoteDetailPanel
+        noteId={viewState.noteId}
+        boardId={boardId}
+        boardName={board.name}
+        expanded={detailExpanded}
+        onExpandedChange={setDetailExpanded}
+        access={access}
+        axis={viewState.axis}
+        isBelowDesktop={isBelowDesktop}
+        onClose={() => viewState.openNote(null)}
+        onDuplicate={duplicateNote}
+        onOpenNote={viewState.openNote}
+        currentUserId={user?.uid}
+        pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
+      />
+
       <BoardCommands
         boardId={boardId}
+        onRevealBoard={() => setDetailExpanded(false)}
         notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
@@ -353,11 +361,26 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onDuplicateNote={() => viewState.noteId && duplicateNote(viewState.noteId)}
         onOpenNote={viewState.openNote}
         onCloseNote={() => viewState.openNote(null)}
-        onSetView={viewState.setView}
-        onSetAxis={viewState.setAxis}
-        onSetDone={viewState.setDone}
-        onSetMine={viewState.setMine}
-        onResetView={viewState.resetView}
+        onSetView={(value) => {
+          setDetailExpanded(false);
+          viewState.setView(value);
+        }}
+        onSetAxis={(value) => {
+          setDetailExpanded(false);
+          viewState.setAxis(value);
+        }}
+        onSetDone={(value) => {
+          setDetailExpanded(false);
+          viewState.setDone(value);
+        }}
+        onSetMine={(value) => {
+          setDetailExpanded(false);
+          viewState.setMine(value);
+        }}
+        onResetView={() => {
+          setDetailExpanded(false);
+          viewState.resetView();
+        }}
         assistantEnabled={board.assistantEnabled}
         onUndoSuggestion={() => undoMostRecent([suggestions, tidy])}
       />
