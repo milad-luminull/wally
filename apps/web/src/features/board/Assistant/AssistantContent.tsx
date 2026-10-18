@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, X } from 'lucide-react';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { IconTooltip } from '@/components/ui/tooltip';
+import { useQueryKeys } from '../hooks/queryKeys';
 import { useNotes } from '../hooks/useNotes';
 import { AnswerNotes } from './AnswerNotes';
-import { useAskAssistant, type AskOutcome } from './useAskAssistant';
+import { useAskAssistant, type AskOutcome } from '../Ask/useAskAssistant';
 import { useAssistantConversation } from './useAssistantConversation';
 
 const EXAMPLES = ['open', 'overdue', 'busiest'] as const;
@@ -64,7 +66,10 @@ export function AssistantContent({
   const { t, i18n } = useTranslation();
   const { data: stored } = useAssistantConversation(boardId, true);
   const { data: notes } = useNotes(boardId);
-  const { ask, isPending } = useAskAssistant(boardId);
+  const queryClient = useQueryClient();
+  const keys = useQueryKeys();
+  const ask = useAskAssistant(boardId);
+  const [isPending, setIsPending] = useState(false);
   const [draft, setDraft] = useState('');
   const [fresh, setFresh] = useState(false);
   const [pending, setPending] = useState<Exchange | null>(null);
@@ -111,8 +116,10 @@ export function AssistantContent({
     setDraft('');
     setAsked(true);
     setPending({ question: message, answer: null, outcome: null });
-    const outcome = await ask(message, conversation?.id ?? null);
+    setIsPending(true);
+    const outcome = await ask(message, conversation?.id ?? null).finally(() => setIsPending(false));
     if (outcome.kind === 'answered') {
+      queryClient.setQueryData(keys.assistantLatest(boardId), outcome.conversation);
       setFresh(false);
       setPending(null);
     } else {
