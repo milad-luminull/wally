@@ -25,3 +25,9 @@ No draft loss on presentation changes; no hidden board focus while expanded; dro
 ## Follow-up scope from the user
 
 Match the reference card's hover toolbar: direct full-screen opening and a More menu with Duplicate and Delete. Keep the controls reachable from the keyboard, preserve existing delete/Undo, and omit edit actions on read-only notes. Apply to Priority, This Week and Whiteboard cards; keep drag and suggestion review interactions intact.
+
+## Additional UI refinements
+
+Add Open, completion/reopen and Make private to the card menu using existing mutations and creator/edit permissions. Collapse the sidebar to the reference's 52px icon rail while preserving keyboard focus and navigation. Keep the public root visible for signed-in users, replacing authentication calls to action with Open Wally links to their boards. Verify these together against the real backend in a browser regression. The sample preview's read-only colour failure is confined to its local adapter; enable session-only sample edits separately from production code.
+
+The open note must remain clearly selected behind the side panel. Use the palette selection token directly for a persistent inset outline, and expose the current note on both cards and list rows. Remove the selection when the detail panel closes.

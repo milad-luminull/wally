@@ -23,8 +23,28 @@
 .board-rail > * {
   flex-shrink: 0;
 }
+.board-rail-header {
+  display: flex;
+  align-items: center;
+  height: 30px;
+}
+.board-rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 7px;
+  color: var(--fg-3);
+}
+.board-rail-toggle:hover {
+  background: var(--inset-hover);
+  color: var(--fg-1);
+}
 .board-rail-brand {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
   height: 30px;
@@ -187,6 +207,33 @@
 .board-rail-account > span {
   font-size: 10px;
   color: var(--fg-3);
+}
+.board-rail[data-collapsed='true'] {
+  width: 52px;
+}
+.board-rail[data-collapsed='true'] .board-rail-brand,
+.board-rail[data-collapsed='true'] .board-wall-selector-label,
+.board-rail[data-collapsed='true'] .board-wall-selector > svg,
+.board-rail[data-collapsed='true'] .board-rail-nav button > span,
+.board-rail[data-collapsed='true'] .board-rail-new > span,
+.board-rail[data-collapsed='true'] .board-rail-new > kbd,
+.board-rail[data-collapsed='true'] .board-rail-account > span {
+  display: none;
+}
+.board-rail[data-collapsed='true'] .board-rail-toggle {
+  width: 36px;
+}
+.board-rail[data-collapsed='true'] .board-wall-selector {
+  padding: 0 7px;
+}
+.board-rail[data-collapsed='true'] .board-rail-nav button,
+.board-rail[data-collapsed='true'] .board-rail-new {
+  justify-content: center;
+  padding: 0;
+}
+.board-rail[data-collapsed='true'] .board-rail-account {
+  justify-content: center;
+  padding: 12px 0 0;
 }
 /* One floating toolbar, matching the reference's 32px search well and icon controls. */
 .board-filter-toolbar {
@@ -418,8 +465,13 @@
 .board-shell .paper-note:hover {
   box-shadow: var(--shadow-e2);
 }
-.board-shell .paper-note.ring-2 {
-  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--shadow-e2);
+.board-shell .paper-note[data-selected='true'],
+.board-shell .paper-note-row[data-selected='true'] {
+  /* Resolve the palette ink here; Tailwind's inherited ring shadow could stay pale. */
+  box-shadow:
+    inset 0 0 0 2px var(--note-selected),
+    var(--shadow-e2);
+  opacity: 1;
 }
 .board-shell .paper-detail {
   border-radius: 0;

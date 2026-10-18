@@ -9,6 +9,7 @@ import { BoardSkeleton } from '@/components/AppSkeleton';
 import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
+import { useSetNoteVisibility } from './hooks/mutations/useSetNoteVisibility';
 import { useDeleteNote } from './hooks/mutations/useDeleteNote';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
@@ -56,6 +57,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
   const { deleteNote } = useDeleteNote(boardId);
+  const setVisibility = useSetNoteVisibility(boardId);
 
   const access = useMemo(
     () => boardAccess(board.currentUserRole, user?.uid, viewState.visibility),
@@ -287,12 +289,47 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 onOpenNote={viewState.openNote}
                 onDuplicateNote={duplicateNote}
                 cardActions={(note) => ({
+                  onOpen: () => {
+                    setDetailExpanded(false);
+                    viewState.openNote(note.id);
+                    if (viewState.noteId === note.id) {
+                      // The editor stays mounted when Open targets the already-open note.
+                      const panel = document.querySelector('.paper-detail');
+                      (
+                        panel?.querySelector<HTMLElement>('.note-detail-title:not(:disabled)') ??
+                        panel?.querySelector<HTMLElement>('button:not(:disabled)')
+                      )?.focus();
+                    }
+                  },
+                  isDone: note.status === 'DONE',
+                  ...(access.canEditShared &&
+                  access.showsVisibilitySwitch(note) &&
+                  note.visibility === 'SHARED'
+                    ? {
+                        onMakePrivate: () => {
+                          if (viewState.visibility === 'shared') {
+                            document.querySelector<HTMLElement>('[data-board-surface]')?.focus();
+                          }
+                          setVisibility.mutate({
+                            noteId: note.id,
+                            visibility: 'PRIVATE',
+                            creator: note.createdBy,
+                          });
+                        },
+                      }
+                    : {}),
                   onExpand: () => {
                     setDetailExpanded(true);
                     viewState.openNote(note.id);
                   },
                   ...(access.canEditNote(note)
                     ? {
+                        onToggleStatus: () => {
+                          if (!viewState.done && note.status !== 'DONE') {
+                            document.querySelector<HTMLElement>('[data-board-surface]')?.focus();
+                          }
+                          toggleStatus.mutate({ noteId: note.id, currentStatus: note.status });
+                        },
                         onDuplicate: () => duplicateNote(note.id),
                         onDelete: () => {
                           deleteNote(note.id);
@@ -317,6 +354,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
               />
             ) : (
               <ListView
+                selectedNoteId={viewState.noteId}
                 notes={filteredNotes}
                 totalNoteCount={boardNotes.length}
                 axis={viewState.axis}

@@ -445,6 +445,8 @@ function RestingNoteCard({
         type="button"
         {...listeners}
         {...attributes}
+        data-selected={selected || undefined}
+        aria-current={selected ? 'true' : undefined}
         data-pending={pending?.mark.phase}
         data-tidy={tidy?.mark.phase}
         onClick={onOpen}
@@ -479,7 +481,7 @@ function RestingNoteCard({
           // keeps its own colour (docs/BRAND.md). Inset, because the zones are scroll
           // containers: an outline outside the card was clipped along the column's top edge.
           selected
-            ? 'border-transparent shadow-e2 ring-2 ring-inset ring-[color:var(--note-selected)]'
+            ? 'border-transparent shadow-e2'
             : 'border-[color:var(--note-border)] shadow-pin',
           // A pending change: the edge goes dashed in the note's own border colour, never
           // marigold (BRAND job 4: marigold is the dot and its ring alone).

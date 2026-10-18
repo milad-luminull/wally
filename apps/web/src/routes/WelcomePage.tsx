@@ -1,26 +1,43 @@
 import { Link } from 'react-router';
 import { Check, CheckCheck, List, MoveUpRight, PencilLine } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/features/auth/AuthProvider';
 import { PublicHeader } from '@/components/PublicHeader';
 
 export function WelcomePage() {
   const { t } = useTranslation();
+  const { status } = useAuth();
+  const signedIn = status === 'authenticated';
+  const actionLabel = t(signedIn ? 'welcome.open' : 'welcome.start');
+  const actionContent = (
+    <>
+      {actionLabel}
+      <MoveUpRight aria-hidden size={18} />
+    </>
+  );
+  const action =
+    status === 'loading' ? (
+      <button type="button" className="welcome-cta" disabled>
+        {actionContent}
+      </button>
+    ) : (
+      <Link to={signedIn ? '/boards' : '/signup'} className="welcome-cta">
+        {actionContent}
+      </Link>
+    );
   const cards = ['call', 'slides', 'weekend', 'idea', 'done'] as const;
   const moments = ['capture', 'organise', 'review'] as const;
   const icons = [PencilLine, List, CheckCheck];
   return (
     <div className="welcome-page">
-      <PublicHeader showAuth />
+      <PublicHeader showAuth={status !== 'loading'} signedIn={signedIn} />
       <main>
         <section className="welcome-hero">
           <div className="welcome-intro">
             <p className="welcome-context">{t('welcome.context')}</p>
             <h1>{t('welcome.headline')}</h1>
             <p className="welcome-description">{t('welcome.description')}</p>
-            <Link to="/signup" className="welcome-cta">
-              {t('welcome.start')}
-              <MoveUpRight aria-hidden size={18} />
-            </Link>
+            {action}
             <p className="welcome-note">{t('welcome.note')}</p>
           </div>
           <div className="welcome-wall" role="img" aria-label={t('welcome.preview')}>
@@ -55,10 +72,7 @@ export function WelcomePage() {
         </section>
         <section className="welcome-closing">
           <h2>{t('welcome.closing')}</h2>
-          <Link to="/signup" className="welcome-cta">
-            {t('welcome.start')}
-            <MoveUpRight aria-hidden size={18} />
-          </Link>
+          {action}
         </section>
       </main>
       <footer className="welcome-footer">

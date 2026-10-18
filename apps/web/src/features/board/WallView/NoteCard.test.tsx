@@ -550,7 +550,7 @@ describe('NoteCard quick actions', () => {
             currentUserId="user-1"
             selected={false}
             onOpen={onOpen}
-            actions={{ onExpand, ...(editable ? { onDuplicate, onDelete } : {}) }}
+            actions={{ onOpen, onExpand, ...(editable ? { onDuplicate, onDelete } : {}) }}
           />
         </div>
       </DndContext>,
@@ -578,10 +578,17 @@ describe('NoteCard quick actions', () => {
     expect(actions.onOpen).not.toHaveBeenCalled();
   });
 
-  it('offers only full-screen viewing for a read-only card', () => {
-    setup(false);
+  it('offers opening but no editing actions on a read-only card', async () => {
+    const actions = setup(false);
     expect(screen.getByRole('button', { name: 'Expand note' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Note actions' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as done' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Make private' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(actions.onOpen).toHaveBeenCalledTimes(1));
+    expect(actions.onExpand).not.toHaveBeenCalled();
   });
 
   it('expands with E and prevents double-click from triggering the zone create gesture', () => {
@@ -603,7 +610,9 @@ describe('NoteCard quick actions', () => {
     renderWithProviders(
       <>
         <input aria-label="Copied note title" />
-        <NoteCardQuickActions actions={{ onExpand: vi.fn(), onDuplicate: duplicate }} />
+        <NoteCardQuickActions
+          actions={{ onOpen: vi.fn(), onExpand: vi.fn(), onDuplicate: duplicate }}
+        />
       </>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
@@ -611,4 +620,49 @@ describe('NoteCard quick actions', () => {
     await waitFor(() => expect(duplicate).toHaveBeenCalledTimes(1));
     expect(screen.getByLabelText('Copied note title')).toHaveFocus();
   });
+  it.each([
+    [false, 'Mark as done'],
+    [true, 'Mark as open'],
+  ])('offers the matching completion action (completed: %s)', async (isDone, label) => {
+    const toggle = vi.fn();
+    renderWithProviders(
+      <NoteCardQuickActions
+        actions={{ onOpen: vi.fn(), onExpand: vi.fn(), isDone, onToggleStatus: toggle }}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    await waitFor(() => expect(toggle).toHaveBeenCalledTimes(1));
+  });
+
+  it('offers making private only when allowed and returns focus after changing a card', async () => {
+    const makePrivate = vi.fn();
+    renderWithProviders(
+      <NoteCardQuickActions
+        actions={{ onOpen: vi.fn(), onExpand: vi.fn(), onMakePrivate: makePrivate }}
+      />,
+    );
+    const more = screen.getByRole('button', { name: 'Note actions' });
+    await userEvent.click(more);
+    await userEvent.click(screen.getByRole('button', { name: 'Make private' }));
+    await waitFor(() => expect(makePrivate).toHaveBeenCalledTimes(1));
+    expect(more).toHaveFocus();
+  });
+});
+
+it('identifies the card shown in the detail panel and clears that state when closed', () => {
+  const note = makeNote();
+  const { rerender } = render(
+    <DndContext>
+      <NoteCard note={note} currentUserId="user-1" selected onOpen={vi.fn()} />
+    </DndContext>,
+  );
+  const card = screen.getByText(note.title).closest('button')!;
+  expect(card).toHaveAttribute('aria-current', 'true');
+  rerender(
+    <DndContext>
+      <NoteCard note={note} currentUserId="user-1" selected={false} onOpen={vi.fn()} />
+    </DndContext>,
+  );
+  expect(card).not.toHaveAttribute('aria-current');
 });

@@ -7,6 +7,7 @@
  */
 export const de = {
   welcome: {
+    open: 'Wally öffnen',
     brand: 'Wally',
     byline: 'by Luminull',
     navigation: 'Hauptnavigation',
@@ -308,7 +309,13 @@ export const de = {
     then: 'dann',
   },
   board: {
-    rail: { wall: 'Wand', views: 'Wandansichten', whiteboard: 'Whiteboard' },
+    rail: {
+      wall: 'Wand',
+      views: 'Wandansichten',
+      whiteboard: 'Whiteboard',
+      collapse: 'Seitenleiste einklappen',
+      expand: 'Seitenleiste ausklappen',
+    },
     rowStatus: { markOpen: 'Als offen markieren', markDone: 'Als erledigt markieren' },
     switcherHeading: 'Wände',
     switcherAria: 'Wand wechseln',
@@ -426,6 +433,8 @@ export const de = {
     },
   },
   note: {
+    open: 'Öffnen',
+    makePrivate: 'Privat machen',
     actions: 'Notizaktionen',
     expand: 'Notiz im Vollbild öffnen',
     collapse: 'In Seitenleiste öffnen',

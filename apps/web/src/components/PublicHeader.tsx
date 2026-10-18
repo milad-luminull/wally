@@ -7,7 +7,13 @@ import { AppearanceControls } from './AppearanceControls';
 import { BrandMark } from './BrandMark';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-export function PublicHeader({ showAuth = false }: { showAuth?: boolean }) {
+export function PublicHeader({
+  showAuth = false,
+  signedIn = false,
+}: {
+  showAuth?: boolean;
+  signedIn?: boolean;
+}) {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
   return (
@@ -43,16 +49,21 @@ export function PublicHeader({ showAuth = false }: { showAuth?: boolean }) {
             </label>
           </PopoverContent>
         </Popover>
-        {showAuth && (
-          <>
-            <Link to="/login" className="public-login">
-              {t('welcome.login')}
+        {showAuth &&
+          (signedIn ? (
+            <Link to="/boards" className="public-signup">
+              {t('welcome.open')}
             </Link>
-            <Link to="/signup" className="public-signup">
-              {t('welcome.signup')}
-            </Link>
-          </>
-        )}
+          ) : (
+            <>
+              <Link to="/login" className="public-login">
+                {t('welcome.login')}
+              </Link>
+              <Link to="/signup" className="public-signup">
+                {t('welcome.signup')}
+              </Link>
+            </>
+          ))}
       </nav>
     </header>
   );
