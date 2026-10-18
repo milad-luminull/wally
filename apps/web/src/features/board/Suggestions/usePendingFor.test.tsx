@@ -313,34 +313,32 @@ describe('the card and the review read one mark (§3.4)', () => {
     open();
 
     expect(card().querySelector('.border-dashed')).not.toBeNull();
-    expect(within(card()).getByText('Customer: Müller GmbH')).toBeInTheDocument();
-    expect(within(card()).getByText('3 steps')).toBeInTheDocument();
+    const button = (name: string | RegExp) => within(card()).getByRole('button', { name });
+    expect(button('Leave out: Customer Müller GmbH')).toBeInTheDocument();
+    expect(button(/^Leave out: Step Compare/)).toBeInTheDocument();
     expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
-    const titleLine = within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' });
+    const titleLine = button('Suggested: Quote for Müller');
     expect(titleLine).toHaveAttribute('aria-pressed', 'false');
 
+    // A row unticked in the review is crossed out on the card, ready to come back.
     fireEvent.click(row('Customer: Müller GmbH'));
-    expect(within(card()).queryByText('Customer: Müller GmbH')).toBeNull();
+    expect(button('Bring back: Customer Müller GmbH')).toBeInTheDocument();
     expect(row('Customer: Müller GmbH')).not.toBeChecked();
 
     fireEvent.click(row('Step: Compare'));
-    expect(within(card()).getByText('2 steps')).toBeInTheDocument();
+    expect(button(/^Bring back: Step Compare/)).toBeInTheDocument();
 
     fireEvent.click(row(/^Suggested: Quote for Müller/));
-    expect(
-      within(card()).getByRole('button', { name: 'Suggested: Quote for Müller' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    expect(button('Suggested: Quote for Müller')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(row('High priority'));
-    expect(
-      within(card()).queryByRole('button', { name: 'Remove suggestion: High priority' }),
-    ).toBeNull();
+    expect(button('Bring back: Priority High')).toBeInTheDocument();
 
-    // The other way round: the card's × unticks the review's row.
-    fireEvent.click(within(card()).getByRole('button', { name: /^Remove suggestion: Due / }));
+    // The other way round: the card's × unticks the review's row, and back.
+    fireEvent.click(button(/^Leave out: Due /));
     expect(row(/^Due /)).not.toBeChecked();
     fireEvent.click(row(/^Due /));
-    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(button(/^Leave out: Due /)).toBeInTheDocument();
 
     // Keep sends exactly what is ticked in both places.
     fireEvent.click(within(review()!).getByRole('button', { name: 'Keep' }));

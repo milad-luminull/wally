@@ -9,7 +9,9 @@ import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '.
 import { PriorityIcon } from '../PriorityIcon';
 import { PrivateBadge } from '../PrivateBadge';
 import { PendingDot } from '../Suggestions/PendingDot';
+import { ProposalList } from '../Suggestions/ProposalList';
 import { ProposedField } from '../Suggestions/ProposedField';
+import { ReviewFooter } from '../Suggestions/ReviewFooter';
 import {
   pendingKeys,
   proposedDateLabel,
@@ -47,7 +49,11 @@ export function NoteRow({
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const isDone = note.status === 'DONE';
   const isPrivate = note.visibility === 'PRIVATE';
-  const proposed = proposedValues(note, pending);
+  // A pending change is drawn as its list under the title; only a kept one shows its values
+  // in their places, until the refetch carries them.
+  const proposed = proposedValues(note, pending?.mark.phase === 'kept' ? pending : undefined);
+  // The list and its footer: while the call runs and while the change waits for a decision.
+  const reviewing = pending && pending.mark.phase !== 'kept' ? pending : undefined;
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   const dashed = pending !== undefined && pending.mark.phase !== 'kept';
   // Only a pending change has fields to take out; a kept one shows its values plainly.
@@ -57,6 +63,8 @@ export function NoteRow({
   const titleTaken = pending?.mark.fields.includes('title') ?? false;
   const offeredTitleLabel =
     offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
+  // The detail moved out of a long title rides with the offered title, in its state (R2).
+  const offeredDescription = offeredTitle ? pending?.mark.suggestion?.fields.description : null;
   const referenceLabel =
     proposed.reference &&
     t('suggest.fields.reference', {
@@ -115,7 +123,9 @@ export function NoteRow({
       }}
       {...pause}
       className={cn(
-        'paper-note-row group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
+        'paper-note-row group/row relative flex min-h-10 cursor-pointer gap-3 px-3 py-2',
+        // Under review the row grows a list and a footer; its ends then sit at the top.
+        reviewing ? 'items-start' : 'items-center',
         noteColourFillClass[note.colour],
         'transition-shadow duration-100',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
@@ -132,7 +142,9 @@ export function NoteRow({
         onClick={handleCheckboxClick}
         disabled={!canEdit}
         aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
-        className="paper-row-status shrink-0"
+        // Hidden, not removed, while a change is under review: a stray click must not
+        // complete a note whose proposal is still open.
+        className={cn('paper-row-status shrink-0', reviewing && 'invisible')}
       />
 
       <div
@@ -179,6 +191,28 @@ export function NoteRow({
             removeLabel={t('suggest.title.mine')}
             onRemove={() => pending.onRemove('title')}
           />
+        )}
+        {offeredDescription && (
+          <span
+            className={cn(
+              'basis-full line-clamp-2 text-12 leading-snug',
+              titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
+            )}
+          >
+            {offeredDescription.value}
+          </span>
+        )}
+
+        {/* The same list and footer as the wall card, under the title across the row. */}
+        {reviewing && (
+          <span className="flex basis-full flex-col gap-1.5 pt-0.5">
+            <ProposalList pending={reviewing} />
+            <ReviewFooter
+              mark={reviewing.mark}
+              onKeep={() => reviewing.onKeep('click')}
+              onUndo={reviewing.onDiscard}
+            />
+          </span>
         )}
 
         {isPrivate && <PrivateBadge className="text-fg-meta-on-note" />}
@@ -286,7 +320,14 @@ export function NoteRow({
             />
           )
         )}
-        {pending && <PendingDot mark={pending.mark} onUndo={() => pending.onUndo('click')} />}
+        {pending && (
+          <PendingDot
+            mark={pending.mark}
+            onUndo={() => pending.onUndo('click')}
+            // Under review the footer draws the countdown ring; the dot stays a plain marker.
+            ring={!reviewing}
+          />
+        )}
       </div>
     </div>
   );

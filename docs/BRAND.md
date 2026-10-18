@@ -167,9 +167,12 @@ follow, and `brandGuards.test.ts` enforces the first one.
 
 1. No sparkle, wand, robot or brain icon anywhere in the product.
 2. The AI has no name and no pronoun. Copy says "Wally set the date", never "I set the date".
-3. AI output uses the same type, colour and layout as user input. The only markers are a
-   dashed edge and the marigold dot with its countdown, and only until the changes are kept
-   or undone.
+3. AI output uses the same type and colour as user input. The only markers are a dashed edge
+   and the marigold dot with its countdown, and only until the changes are kept or undone.
+   While a fresh note's proposal waits for a decision, the card or row lists the proposed
+   fields under a hairline, one labelled line each with its ×, and ends in a footer with the
+   countdown ring, the seconds left, Undo and Keep. Once kept or undone the card is an
+   ordinary card again.
 4. Every AI action is reversible in one step, and the reversal is visible where the action
    happened.
 5. The AI never interrupts. No toasts, no modals, no badges counting suggestions.

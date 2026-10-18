@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
@@ -195,18 +195,36 @@ describe('NoteCard with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed edge, the dot, and each proposed field in its place with an ×', () => {
+  it('draws a dashed edge, the dot, and the proposed fields as a list with an × each', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     expect(card.className).toContain('border-dashed');
     expect(card.className).not.toMatch(/\banimate-/);
     expect(screen.getByRole('img', { name: /Proposed changes/ })).toBeInTheDocument();
-    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
+      within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
-    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+    fireEvent.click(within(list).getByRole('button', { name: 'Leave out: Person Anna' }));
+    expect(p.onSetField).toHaveBeenCalledWith('assignee', false);
+  });
+
+  it('a pending change shows the list and the footer and hides the done checkbox', () => {
+    const p = renderCard();
+    expect(screen.getByRole('list', { name: 'Suggested fields' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(p.onKeep).toHaveBeenCalledWith('click');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+    const card = screen.getByText('Approve the quote comparison').closest('button')!;
+    expect(card.querySelector('.paper-note-status')?.className).toContain('invisible');
+  });
+
+  it('while the call runs the footer says so, with no list', () => {
+    renderCard(pending({ phase: 'asking', suggestion: null, countdownEndsAt: null }));
+    expect(screen.getByText('Filling in…')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
   });
 
   it('keeps on Enter, discards on Esc, and never opens the note for those keys', () => {
@@ -264,7 +282,7 @@ describe('NoteCard with a pending change', () => {
   it('stays paused while focus moves from the card to one of its ×', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
-    const remove = screen.getByRole('button', { name: 'Remove suggestion: High priority' });
+    const remove = screen.getByRole('button', { name: 'Leave out: Priority High' });
     fireEvent.focus(card);
     fireEvent.blur(card, { relatedTarget: remove });
     fireEvent.focus(remove);
@@ -341,7 +359,7 @@ describe('NoteCard with a pending change', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('shows the reference and the step count with an × each', () => {
+  it('shows the reference and each step as rows with an × each', () => {
     const p = renderCard(
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
@@ -352,30 +370,16 @@ describe('NoteCard with a pending change', () => {
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
-    );
-    expect(p.onRemove).toHaveBeenCalledWith('reference');
-    // The count is of the steps still ticked, in the checklist's place.
-    expect(screen.getByText('2 steps')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
-    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Customer Müller GmbH' }));
+    expect(p.onSetField).toHaveBeenCalledWith('reference', false);
+    // Each step is a row; the unticked one is crossed out and can be brought back.
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Step Approve' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(2, false);
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Step Compare' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(1, true);
   });
 
-  it('counts one step in the singular', () => {
-    renderCard(
-      withProposals(
-        ['subtasks'],
-        { subtasks: { items: ['Get prices', 'Compare'], reason: 'process' } },
-        { subtasks: [1] },
-      ),
-    );
-    expect(screen.getByText('1 step')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove suggestion: 1 step' })).toBeInTheDocument();
-  });
-
-  it('shows one line per ticked proposed link, each with an × that unticks it by its index', () => {
+  it('shows one row per proposed link, each toggled by its stored index', () => {
     const p = renderCard(
       withProposals(
         ['dueDate', 'links'],
@@ -392,16 +396,13 @@ describe('NoteCard with a pending change', () => {
         { links: [0, 2] },
       ),
     );
-    expect(screen.getByText('Related: Supplier list')).toBeInTheDocument();
-    expect(screen.getByText('Related: Untitled')).toBeInTheDocument();
-    // An unticked link leaves the card; the review still offers it.
-    expect(screen.queryByText('Related: Budget')).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Related: Supplier list' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Related Supplier list' }));
     expect(p.onSetLink).toHaveBeenCalledWith(0, false);
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Related: Untitled' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Related Untitled' }));
     expect(p.onSetLink).toHaveBeenLastCalledWith(2, false);
+    // An unticked link stays as a crossed-out row that can come back.
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Related Budget' }));
+    expect(p.onSetLink).toHaveBeenLastCalledWith(1, true);
     expect(p.onRemove).not.toHaveBeenCalled();
   });
 
@@ -438,6 +439,9 @@ describe('NoteCard with a pending change', () => {
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     expect(card.className).not.toContain('border-dashed');
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    // Neither the list nor the footer outlives the keep.
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);

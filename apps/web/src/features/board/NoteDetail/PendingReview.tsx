@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useEnumLabels } from '@/i18n/enumLabels';
 import { suggestionFieldKeys, type NoteDto, type SuggestionFieldKey } from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -47,6 +48,7 @@ function offeredValues(note: NoteDto, pending: PendingProps) {
  */
 export function PendingReview({ note, pending }: PendingReviewProps) {
   const { t, i18n } = useTranslation();
+  const { horizon: horizonLabels } = useEnumLabels();
   const id = useId();
   const { mark } = pending;
   const kept = mark.phase === 'kept';
@@ -100,6 +102,50 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
       onCheckedChange: setField('title'),
     });
   }
+  // The smarter-capture fields, read from the proposal itself: the title's description
+  // (taken with the title), the horizon, Private (unticked until the person takes it), and
+  // each tag and property, kept one by one.
+  const smart = mark.phase === 'pending' ? mark.suggestion?.fields : undefined;
+  if (title && smart?.description) {
+    added.push({
+      key: 'description',
+      label: t('suggest.review.rowDescription', { text: smart.description.value }),
+      checked: ticked('description'),
+      onCheckedChange: setField('description'),
+    });
+  }
+  if (smart?.horizon) {
+    added.push({
+      key: 'horizon',
+      label: t('suggest.review.rowWhen', { value: horizonLabels[smart.horizon.value] }),
+      checked: ticked('horizon'),
+      onCheckedChange: setField('horizon'),
+    });
+  }
+  if (smart?.visibility) {
+    added.push({
+      key: 'visibility',
+      label: t('suggest.review.rowPrivate'),
+      checked: ticked('visibility'),
+      onCheckedChange: setField('visibility'),
+    });
+  }
+  smart?.tags?.items.forEach((tag, index) => {
+    added.push({
+      key: `tag-${index}`,
+      label: t('suggest.review.rowTag', { tag }),
+      checked: ticked('tags') && mark.tags.includes(index),
+      onCheckedChange: (on) => pending.onSetTag(index, on),
+    });
+  });
+  smart?.properties?.items.forEach((item, index) => {
+    added.push({
+      key: `property-${index}`,
+      label: t('suggest.review.rowReference', { key: item.key, value: item.value }),
+      checked: ticked('properties') && mark.properties.includes(index),
+      onCheckedChange: (on) => pending.onSetProperty(index, on),
+    });
+  });
   if (offered.dueDate) {
     const date = proposedDateLabel(offered.dueDate.value, i18n.language);
     added.push({

@@ -10,7 +10,9 @@ import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { PrivateBadge } from '../PrivateBadge';
 import { PendingDot, type DotMark } from '../Suggestions/PendingDot';
+import { ProposalList } from '../Suggestions/ProposalList';
 import { ProposedField } from '../Suggestions/ProposedField';
+import { ReviewFooter } from '../Suggestions/ReviewFooter';
 import {
   pendingKeys,
   proposedDateLabel,
@@ -81,8 +83,16 @@ export function NoteCard({
   const description = note.description.trim();
   const isDone = note.status === 'DONE';
   const copying = useContext(CopyDragContext);
-  // The overlay is a picture of the card in flight: it shows the note as it stands.
-  const proposed = proposedValues(note, overlay ? undefined : pending);
+  // The overlay is a picture of the card in flight: it shows the note as it stands. A pending
+  // change is drawn as its list (below); only a kept one shows its values in their places,
+  // until the refetch carries them.
+  const proposed = proposedValues(
+    note,
+    overlay || pending?.mark.phase !== 'kept' ? undefined : pending,
+  );
+  // The list and its footer: while the call runs and while the change waits for a decision.
+  const reviewing =
+    !overlay && pending !== undefined && pending.mark.phase !== 'kept' ? pending : undefined;
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
@@ -91,6 +101,8 @@ export function NoteCard({
   const titleTaken = pending?.mark.fields.includes('title') ?? false;
   const offeredTitleLabel =
     offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
+  // The detail moved out of a long title rides with the offered title, in its state (R2).
+  const offeredDescription = offeredTitle ? pending?.mark.suggestion?.fields.description : null;
   const referenceLabel =
     proposed.reference &&
     t('suggest.fields.reference', {
@@ -114,7 +126,16 @@ export function NoteCard({
 
   const body = (
     <>
-      <span className={cn('paper-note-status', isDone && 'paper-note-status-done')} aria-hidden>
+      {/* Hidden, not removed, while a change is under review: a stray click must not
+          complete a note whose proposal is still open, and the title must not jump. */}
+      <span
+        className={cn(
+          'paper-note-status',
+          isDone && 'paper-note-status-done',
+          reviewing && 'invisible',
+        )}
+        aria-hidden
+      >
         {isDone && <Check size={11} strokeWidth={3} />}
       </span>
       <span
@@ -155,6 +176,19 @@ export function NoteCard({
           onRemove={() => pending.onRemove('title')}
         />
       )}
+
+      {offeredDescription && (
+        <span
+          className={cn(
+            '-mt-1 line-clamp-2 text-12 leading-snug',
+            titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
+          )}
+        >
+          {offeredDescription.value}
+        </span>
+      )}
+
+      {reviewing && <ProposalList pending={reviewing} />}
 
       {description && (
         <span className="paper-note-description -mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
@@ -327,6 +361,14 @@ export function NoteCard({
           )
         )}
       </div>
+
+      {reviewing && (
+        <ReviewFooter
+          mark={reviewing.mark}
+          onKeep={() => reviewing.onKeep('click')}
+          onUndo={reviewing.onDiscard}
+        />
+      )}
     </>
   );
 
@@ -481,6 +523,8 @@ function RestingNoteCard({
           <PendingDot
             mark={pending.mark}
             onUndo={() => pending.onUndo('click')}
+            // The footer draws the countdown ring; the corner keeps the plain marker.
+            ring={false}
             className="pointer-events-none absolute right-2 top-2"
           />
         )}

@@ -620,3 +620,25 @@
     height: 36px;
   }
 }
+
+/* A pending change's rows arrive one after another (smarter capture, after Paper Wall v3):
+   opacity and a 4px rise only, within BRAND's 120–180ms; the stagger is each row's own
+   animation-delay. Under reduced motion they are simply there. */
+@keyframes proposal-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.proposal-row {
+  animation: proposal-row-in 150ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .proposal-row {
+    animation: none;
+  }
+}

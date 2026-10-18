@@ -68,6 +68,55 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
 }
 
 describe('PendingReview', () => {
+  it('lists the new fields as rows: When, Private unticked, each tag and property, the text', async () => {
+    const smart: SuggestionFields = {
+      ...proposal,
+      reference: null,
+      horizon: { value: 'DIESE_WOCHE', reason: 'this week' },
+      visibility: { value: 'PRIVATE', reason: 'personal' },
+      tags: { items: ['ops', 'sales'], reason: 'tags' },
+      properties: { items: [{ key: 'Customer', value: 'Acme' }], reason: 'named' },
+      description: { value: 'The detail.', reason: 'moved' },
+    };
+    const base = makeSuggestionMark();
+    const pending: PendingProps = {
+      mark: {
+        ...base,
+        suggestion: { ...base.suggestion!, fields: smart, typed: [] },
+        fields: ['priority', 'horizon', 'tags', 'properties'],
+        tags: [1],
+        properties: [0],
+        countdownEndsAt: null,
+      },
+      onKeep: vi.fn(),
+      onDiscard: vi.fn(),
+      onUndo: vi.fn(),
+      onRemove: vi.fn(),
+      onSetField: vi.fn(),
+      onSetSubtask: vi.fn(),
+      onSetLink: vi.fn(),
+      onSetTag: vi.fn(),
+      onSetProperty: vi.fn(),
+      onPause: vi.fn(),
+    };
+    render(<PendingReview note={note} pending={pending} />);
+    const added = screen.getByRole('group', { name: 'Added by Wallybot' });
+    const box = (name: string) => within(added).getByRole('checkbox', { name });
+    expect(box('Text: The detail.')).not.toBeChecked();
+    expect(box('When: This week')).toBeChecked();
+    expect(box('Private: only you see it')).not.toBeChecked();
+    expect(box('Tag: ops')).not.toBeChecked();
+    expect(box('Tag: sales')).toBeChecked();
+    expect(box('Customer: Acme')).toBeChecked();
+    const user = userEvent.setup();
+    await user.click(box('Private: only you see it'));
+    expect(pending.onSetField).toHaveBeenCalledWith('visibility', true);
+    await user.click(box('Tag: ops'));
+    expect(pending.onSetTag).toHaveBeenCalledWith(0, true);
+    await user.click(box('Customer: Acme'));
+    expect(pending.onSetProperty).toHaveBeenCalledWith(0, false);
+  });
+
   it('shows the typed group from the note and the record, and the added group from the proposal', () => {
     renderReview();
 

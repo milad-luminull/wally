@@ -565,6 +565,28 @@ export const de = {
       take: 'Vorschlag für den Titel übernehmen',
       mine: 'Meinen Titel behalten',
     },
+    /** The pending card's list of suggested fields (smarter capture, after Paper Wall v3). */
+    rows: {
+      dueDate: 'Fällig',
+      horizon: 'Wann',
+      priority: 'Priorität',
+      assignee: 'Person',
+      visibility: 'Privat',
+      privateValue: 'Nur du siehst sie',
+      tag: 'Tag',
+      step: 'Schritt',
+      link: 'Verknüpft',
+      leaveOut: 'Weglassen: {{label}}',
+      bringBack: 'Wieder aufnehmen: {{label}}',
+      list: 'Vorgeschlagene Felder',
+    },
+    /** The pending card's footer: the countdown, Undo and Keep. */
+    footer: {
+      asking: 'Wird ausgefüllt …',
+      saving: 'Speichert in {{count}} s',
+      paused: 'Pausiert',
+      keep: 'Behalten',
+    },
     /** The note panel's review of a pending change, grouped by source (§3.4, plan R3, R4). */
     review: {
       label: 'Wallybot',
@@ -583,6 +605,10 @@ export const de = {
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Schritt: {{text}}',
       rowLink: 'Verwandt: {{title}}',
+      rowDescription: 'Text: {{text}}',
+      rowWhen: 'Wann: {{value}}',
+      rowPrivate: 'Privat: nur du siehst sie',
+      rowTag: 'Tag: {{tag}}',
     },
   },
   /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
+import { RingCircle } from './CountdownRing';
 import type { SuggestionMark } from './useSuggestions';
 
 /** What the dot reads of a mark: a suggestion's, or a tidy's with no countdown. */
@@ -8,7 +9,6 @@ export type DotMark = Pick<SuggestionMark, 'phase' | 'countdownEndsAt' | 'countd
 const SIZE = 14;
 const STROKE = 2;
 const R = (SIZE - STROKE) / 2;
-const LENGTH = 2 * Math.PI * R;
 
 /**
  * Marigold's fourth job (BRAND.md): the dot and its countdown ring on a note whose changes are
@@ -20,9 +20,12 @@ export function PendingDot({
   mark,
   onUndo,
   label: labelOverride,
+  ring = true,
   className,
 }: {
   mark: DotMark;
+  /** False where a review footer draws the ring instead: the dot then stays a plain marker. */
+  ring?: boolean;
   /** The kept Undo's action; a dot that never shows the Undo needs none. */
   onUndo?: () => void;
   /** Replaces the dot's own name, for a mark that is not a suggestion's (a tidy's). */
@@ -68,25 +71,7 @@ export function PendingDot({
       className={cn('shrink-0', asking && 'opacity-50', className)}
     >
       <circle cx={SIZE / 2} cy={SIZE / 2} r={R - STROKE} className="fill-accent" />
-      {(running || mark.paused) && (
-        <circle
-          cx={SIZE / 2}
-          cy={SIZE / 2}
-          r={R}
-          fill="none"
-          strokeWidth={STROKE}
-          strokeDasharray={LENGTH}
-          transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-          style={{ '--ring-length': `${LENGTH}px`, '--ring-ms': `${mark.countdownMs}ms` } as never}
-          className={cn(
-            'stroke-accent animate-countdown motion-reduce:[animation-timing-function:steps(6,end)]',
-            // globals.css cuts every animation to 0.001ms under reduced motion, which would
-            // empty the ring at once; this one keeps its length and steps instead.
-            'motion-reduce:![animation-duration:var(--ring-ms)]',
-            mark.paused && '[animation-play-state:paused]',
-          )}
-        />
-      )}
+      {ring && <RingCircle mark={mark} size={SIZE} stroke={STROKE} />}
     </svg>
   );
 }

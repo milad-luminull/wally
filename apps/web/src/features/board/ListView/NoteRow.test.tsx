@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
@@ -55,7 +55,7 @@ describe('NoteRow with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed left edge, the dot at the end, and each proposed field with an ×', () => {
+  it('draws a dashed left edge, the dot at the end, and the proposed fields as a list under the title', () => {
     const p = renderRow();
     const row = rowOf();
     // The left edge alone: `border-dashed` would dash the row's bottom divider too.
@@ -66,12 +66,17 @@ describe('NoteRow with a pending change', () => {
     // The dot is the last thing on the row.
     expect(dot.parentElement?.lastElementChild).toBe(dot);
     expect(row.lastElementChild?.contains(dot)).toBe(true);
-    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
+      within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
-    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+    fireEvent.click(within(list).getByRole('button', { name: 'Leave out: Person Anna' }));
+    expect(p.onSetField).toHaveBeenCalledWith('assignee', false);
+    // The footer keeps and undoes; the done checkbox waits until the change is decided.
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(p.onKeep).toHaveBeenCalledWith('click');
+    expect(screen.getByRole('checkbox').className).toContain('invisible');
   });
 
   it('keeps on Enter instead of opening, discards on Esc', () => {
@@ -179,7 +184,7 @@ describe('NoteRow with a pending change', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('shows the reference and the step count with an × each', () => {
+  it('shows the reference and each step as rows with an × each', () => {
     const p = renderRow(
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
@@ -190,14 +195,10 @@ describe('NoteRow with a pending change', () => {
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
-    );
-    expect(p.onRemove).toHaveBeenCalledWith('reference');
-    expect(screen.getByText('2 steps')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
-    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Customer Müller GmbH' }));
+    expect(p.onSetField).toHaveBeenCalledWith('reference', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Step Compare' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(1, true);
   });
 
   it('looks like any other row once kept, with only the faint Undo left', () => {
@@ -206,6 +207,8 @@ describe('NoteRow with a pending change', () => {
     expect(rowOf().className).not.toContain('[border-left-style:dashed]');
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Remove suggestion/ })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
