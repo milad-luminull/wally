@@ -265,6 +265,7 @@ export type SuggestionOperationIds = {
   title?: { apply: string; undo: string };
   reference?: { apply: string; undo: string };
   subtasks?: { apply: string; undo: string }[];
+  links?: { apply: string; undo: string };
 };
 
 /**
@@ -290,6 +291,7 @@ export type AssistantSuggestionDoc = {
     title?: { value: string; reason: string } | null;
     reference?: { key: string; value: string; reason: string } | null;
     subtasks?: { items: string[]; reason: string } | null;
+    links?: { items: { noteId: string; reason: string }[]; reason: string } | null;
   };
   /** The fields the person decided while writing (`locked` at capture); absent on slice 2 records. */
   typed?: SuggestionFieldKey[];
@@ -300,6 +302,8 @@ export type AssistantSuggestionDoc = {
     fields: SuggestionFieldKey[];
     /** For a keep with subtasks: the indexes of the items the person kept. */
     subtasks?: number[];
+    /** For a keep with links: the indexes of the items the person kept. */
+    links?: number[];
     at: Timestamp;
   } | null;
   /**
@@ -322,6 +326,9 @@ export type AssistantSuggestionDoc = {
     subtasks?: number[];
     /** The ids the kept subtasks were created with, in index order of the kept items. */
     subtaskIds?: string[];
+    /** The kept indexes of the proposed links, and the ids they named. */
+    links?: number[];
+    linkIds?: string[];
     revision: number;
   } | null;
   model: string;

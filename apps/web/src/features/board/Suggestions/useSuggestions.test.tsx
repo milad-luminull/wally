@@ -35,6 +35,7 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
     title: null,
     reference: null,
     subtasks: null,
+    links: null,
   },
   typed: [],
   kept: null,
@@ -71,7 +72,7 @@ function holdDecide() {
                     : 'DISCARDED',
               kept:
                 body.decision === 'keep'
-                  ? { fields: body.fields ?? [], subtasks: [], revision: 5 }
+                  ? { fields: body.fields ?? [], subtasks: [], links: [], revision: 5 }
                   : null,
             }),
           });
@@ -104,7 +105,12 @@ beforeEach(() => {
       status: body.decision === 'keep' ? 'KEPT' : body.decision === 'undo' ? 'UNDONE' : 'DISCARDED',
       kept:
         body.decision === 'keep'
-          ? { fields: body.fields ?? ['dueDate', 'priority'], subtasks: [], revision: 5 }
+          ? {
+              fields: body.fields ?? ['dueDate', 'priority'],
+              subtasks: [],
+              links: [],
+              revision: 5,
+            }
           : null,
     }),
   }));
@@ -317,6 +323,7 @@ describe('useSuggestions', () => {
           title: null,
           reference: null,
           subtasks: null,
+          links: null,
         },
       }),
     });
@@ -341,6 +348,7 @@ describe('useSuggestions', () => {
           title: null,
           reference: null,
           subtasks: null,
+          links: null,
         },
       }),
     });
@@ -613,6 +621,7 @@ describe('useSuggestions', () => {
       title: null,
       reference: null,
       subtasks: null,
+      links: null,
       ...over,
     });
     const DATE = { value: '2026-10-23', reason: 'Friday' };
@@ -970,7 +979,12 @@ describe('useSuggestions', () => {
         suggestion: {
           ...restored,
           status: 'KEPT',
-          kept: { fields: body.fields ?? [], subtasks: body.subtasks ?? [], revision: 5 },
+          kept: {
+            fields: body.fields ?? [],
+            subtasks: body.subtasks ?? [],
+            links: [],
+            revision: 5,
+          },
         },
       }));
       const { result } = setup();

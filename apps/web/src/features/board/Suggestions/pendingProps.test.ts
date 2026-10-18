@@ -76,7 +76,12 @@ describe('proposedValues, place by place', () => {
       suggestion: {
         ...m.suggestion!,
         status: 'KEPT',
-        kept: { fields: ['dueDate', 'reference', 'subtasks'], subtasks: [0, 1, 2], revision },
+        kept: {
+          fields: ['dueDate', 'reference', 'subtasks'],
+          subtasks: [0, 1, 2],
+          links: [],
+          revision,
+        },
       },
     });
   };
@@ -90,6 +95,7 @@ describe('proposedValues, place by place', () => {
       title: null,
       reference: null,
       subtasks: null,
+      links: null,
     };
     expect(proposedValues(note, pending(mark({ phase: 'asking' })))).toEqual(none);
     expect(proposedValues(note, pending(mark({ suggestion: null })))).toEqual(none);

@@ -218,7 +218,7 @@ describe('NoteRow just after a keep', () => {
     suggestion: {
       ...kept.suggestion!,
       status: 'KEPT' as const,
-      kept: { fields: ['dueDate' as const], subtasks: [], revision: 2 },
+      kept: { fields: ['dueDate' as const], subtasks: [], links: [], revision: 2 },
     },
   };
   const props = {

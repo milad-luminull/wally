@@ -344,8 +344,45 @@ describe('capture suggestions', () => {
     expect(kept.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority', 'assignee'],
       subtasks: [],
+      links: [],
       revision: n.revision + 3,
     });
+  });
+
+  it('reads a proposed link with its target current title, and drops a target gone from the board', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const renamed = (await createNote(fx.ownerToken, fx.boardId, { title: 'Quote' })).json();
+    const deleted = (await createNote(fx.ownerToken, fx.boardId, { title: 'Old' })).json();
+    const elsewhere = (
+      await createNote(fx.editToken, 'fx-editor', { title: 'Other board' })
+    ).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    await assistantSuggestionsCol(ctx.db, fx.ownerId)
+      .doc(suggestion.id)
+      .update({
+        'fields.links': {
+          items: [
+            { noteId: renamed.id, reason: 'same customer' },
+            { noteId: deleted.id, reason: 'same topic' },
+            { noteId: elsewhere.id, reason: 'same words' },
+            { noteId: 'no-such-note', reason: 'never existed' },
+          ],
+          reason: 'related',
+        },
+      });
+    await patchTitle(fx.ownerToken, renamed.id, 'Quote for Müller');
+    await notesCol(ctx.db).doc(deleted.id).update({ deletedAt: Timestamp.now() });
+    const read = await pending(fx.ownerToken, fx.boardId);
+    expect(read.statusCode).toBe(200);
+    expect(read.json().suggestions[0].fields.links).toEqual({
+      items: [{ noteId: renamed.id, title: 'Quote for Müller', reason: 'same customer' }],
+      reason: 'related',
+    });
+    // With every target gone the field reads as nothing proposed.
+    await notesCol(ctx.db).doc(renamed.id).update({ deletedAt: Timestamp.now() });
+    const empty = await pending(fx.ownerToken, fx.boardId);
+    expect(empty.json().suggestions[0].fields.links).toBeNull();
   });
 
   it('drops low confidence, unknown members and an empty reply without a record', async () => {
@@ -475,6 +512,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority'],
       subtasks: [],
+      links: [],
       revision: n.revision + 2,
     });
     expect((await stored(fx.editorId, suggestion.id)).decision?.fields).toEqual([
@@ -515,6 +553,7 @@ describe('capture suggestions', () => {
     expect(a.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority', 'assignee'],
       subtasks: [],
+      links: [],
       revision: n.revision + 3,
     });
     expect(b.json().suggestion.kept).toEqual(a.json().suggestion.kept);
@@ -808,6 +847,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'priority'],
       subtasks: [],
+      links: [],
       revision: n.revision + 2,
     });
     expect(await note(n.id)).toMatchObject({
@@ -1039,6 +1079,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'reference', 'subtasks'],
       subtasks: [0, 1, 2],
+      links: [],
       revision: n.revision + 5,
     });
     expect(await note(n.id)).toMatchObject({ title: 'review', dueDate: '2026-10-23' });
@@ -1103,6 +1144,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'reference', 'subtasks'],
       subtasks: [1],
+      links: [],
       revision: n.revision + 3,
     });
     const after = await note(n.id);
@@ -1136,6 +1178,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept).toEqual({
       fields: ['dueDate'],
       subtasks: [],
+      links: [],
       revision: n.revision + 1,
     });
     expect((await note(n.id)).subtaskSummary.total).toBe(0);
@@ -1182,6 +1225,7 @@ describe('capture suggestions', () => {
     expect(kept.json().suggestion.kept).toEqual({
       fields: ['dueDate', 'title', 'reference', 'subtasks'],
       subtasks: [0, 1, 2],
+      links: [],
       revision: n.revision + 6,
     });
     const keptNote = await note(n.id);
@@ -1260,6 +1304,7 @@ describe('capture suggestions', () => {
     expect(second.json().suggestion.kept).toEqual({
       fields: ['subtasks'],
       subtasks: [0, 1, 2],
+      links: [],
       revision: n.revision + 3,
     });
     const steps = (await noteDetail(fx.editToken, n.id)).subtasks;

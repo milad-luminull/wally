@@ -98,6 +98,7 @@ function mintOperationIds(): SuggestionOperationIds {
       apply: randomUUID(),
       undo: randomUUID(),
     })),
+    links: { apply: randomUUID(), undo: randomUUID() },
   };
 }
 
@@ -198,6 +199,7 @@ function accept(
       open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
         ? acceptSubtasks(fields.subtasks)
         : null,
+    links: null,
   };
 }
 
@@ -255,6 +257,28 @@ async function toDto(
   const live = liveFields(board, doc.fields);
   const users = await loadUsers(db, [live.assignee?.value]);
   const assignee = live.assignee ? users.get(live.assignee.value) : undefined;
+  // A proposed link reads with its target's current title; a target gone from the board drops out (L3, L7).
+  const linkIds = live.links?.items.map((item) => item.noteId) ?? [];
+  const targets = linkIds.length
+    ? await db.getAll(...linkIds.map((id) => notesCol(db).doc(id)))
+    : [];
+  const titles = new Map(
+    targets.flatMap((snap) => {
+      const data = snap.data();
+      return data && !data.deletedAt && data.whiteboardId === board.id
+        ? [[snap.id, data.title]]
+        : [];
+    }),
+  );
+  const links =
+    live.links && live.links.items.some((item) => titles.has(item.noteId))
+      ? {
+          items: live.links.items.flatMap((item) =>
+            titles.has(item.noteId) ? [{ ...item, title: titles.get(item.noteId)! }] : [],
+          ),
+          reason: live.links.reason,
+        }
+      : null;
   const fields: SuggestionFields = {
     dueDate: live.dueDate,
     priority: live.priority,
@@ -269,6 +293,7 @@ async function toDto(
     title: live.title ?? null,
     reference: live.reference ?? null,
     subtasks: live.subtasks ?? null,
+    links,
   };
   return {
     id: doc.id,
@@ -282,6 +307,7 @@ async function toDto(
       ? {
           fields: doc.applied.fields,
           subtasks: doc.applied.subtasks ?? [],
+          links: doc.applied.links ?? [],
           revision: doc.applied.revision,
         }
       : null,
@@ -663,6 +689,9 @@ function stepCall(
         ? { name: 'add_subtask', input: { ...at, input: { text: write.add } } }
         : { name: 'delete_subtask', input: { ...at, subtaskId: write.remove } };
     }
+    case 'links':
+      // Written by a later task; no record proposes links yet, so no step reaches here.
+      throw new Error('No write for links yet');
   }
 }
 

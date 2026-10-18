@@ -26,6 +26,7 @@ const proposal: SuggestionFields = {
     items: ['Look up the number', 'Open the quote', 'Note the call back'],
     reason: 'call',
   },
+  links: null,
 };
 
 function markWith(over: Partial<SuggestionMark> = {}): SuggestionMark {

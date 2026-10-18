@@ -50,10 +50,12 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
 
 type Proposed<K extends SuggestionFieldKey> = NonNullable<SuggestionFields[K]>;
 type ProposedValues = {
-  [K in Exclude<SuggestionFieldKey, 'subtasks'>]: Proposed<K> | null;
+  [K in Exclude<SuggestionFieldKey, 'subtasks' | 'links'>]: Proposed<K> | null;
 } & {
   /** The proposed steps, with the indexes still ticked. */
   subtasks: (Proposed<'subtasks'> & { kept: number[] }) | null;
+  /** The proposed links, with the indexes still ticked. */
+  links: (Proposed<'links'> & { kept: number[] }) | null;
 };
 const NONE: ProposedValues = {
   dueDate: null,
@@ -62,6 +64,7 @@ const NONE: ProposedValues = {
   title: null,
   reference: null,
   subtasks: null,
+  links: null,
 };
 
 /**
@@ -100,6 +103,8 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('subtasks') && note.subtaskSummary.total === 0 && fields.subtasks
         ? { ...fields.subtasks, kept: mark.subtasks }
         : null,
+    // Shown by a later task; nothing proposes links on the card yet.
+    links: null,
   };
 }
 

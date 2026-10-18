@@ -21,6 +21,8 @@ export interface SuggestionMark {
   fields: SuggestionFieldKey[];
   /** The proposed steps still in the change, by index; all of them at first. */
   subtasks: number[];
+  /** The proposed links still in the change, by index; all of them at first. */
+  links: number[];
   /**
    * The person said "use mine" (the × on the title line, plan R2): the offered title is gone
    * from the card and the review for this proposal, and cannot be ticked again.
@@ -252,6 +254,7 @@ export function useSuggestions(
         subtasks: suggestion.fields.subtasks
           ? suggestion.fields.subtasks.items.map((_, i) => i)
           : [],
+        links: suggestion.fields.links ? suggestion.fields.links.items.map((_, i) => i) : [],
         titleDismissed: false,
         countdownEndsAt: endsAt,
         countdownMs: COUNTDOWN_MS,
@@ -289,6 +292,7 @@ export function useSuggestions(
                 suggestion,
                 fields: suggestion.kept?.fields ?? [],
                 subtasks: suggestion.kept?.subtasks ?? [],
+                links: suggestion.kept?.links ?? [],
                 titleDismissed: false,
                 countdownEndsAt: null,
                 countdownMs: COUNTDOWN_MS,
@@ -338,6 +342,7 @@ export function useSuggestions(
         suggestion: null,
         fields: [],
         subtasks: [],
+        links: [],
         titleDismissed: false,
         countdownEndsAt: null,
         countdownMs: COUNTDOWN_MS,
