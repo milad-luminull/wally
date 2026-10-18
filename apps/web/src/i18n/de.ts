@@ -202,9 +202,6 @@ export const de = {
     focusSearch: 'Notizen filtern',
     duplicateNote: 'Notiz duplizieren',
     share: 'Wand teilen',
-    ask: 'Wand fragen…',
-    /** Extra words the palette matches the ask entry on, space-separated; never shown. */
-    askKeywords: 'wand fragen',
     viewWall: 'Zur Wand wechseln',
     viewList: 'Zur Liste wechseln',
     showDone: 'Erledigte einblenden',
@@ -228,7 +225,6 @@ export const de = {
     groupFree: 'Frei anordnen',
     closePanel: 'Notiz schließen',
     duplicateNote: 'Notiz duplizieren',
-    ask: 'Wand fragen',
     undoSuggestion: 'Übernommene Änderung rückgängig',
     /** Shown next to the Alt/Option key: held while dragging a card. */
     copyDrag: 'Beim Ziehen gedrückt: Kopie ablegen',
@@ -413,19 +409,13 @@ export const de = {
       remove: '{{tag}} entfernen',
     },
   },
-  /** The question panel on a board (RFC WALLY_AGENT). The AI has no name and no first person. */
-  assistant: {
-    title: 'Fragen',
-    panelAria: 'Fragen zur Wand',
-    placeholder: 'Was ist heute offen?',
-    fieldAria: 'Frage an die Wand',
-    ask: 'Fragen',
-    newConversation: 'Neu',
-    examples: {
-      open: 'Was ist heute offen?',
-      overdue: 'Was ist überfällig?',
-      busiest: 'Wer hat die meisten offenen Notizen?',
-    },
+  /** The answer card on the wall (WALLYBOT_INLINE.md §3.6). No name, no first person. */
+  ask: {
+    cardAria: 'Antwort der Wand',
+    asking: 'Die Wand wird gelesen',
+    pin: 'Antwort anheften',
+    unpin: 'Antwort lösen',
+    close: 'Antwort schließen',
     notesRead: 'Gelesene Notizen',
     partial: 'Nur ein Teil der passenden Notizen wurde gelesen.',
     stopped: {
@@ -439,7 +429,6 @@ export const de = {
       busy: 'Gerade beschäftigt. Gleich noch einmal versuchen.',
     },
     failed: 'Keine Antwort. Noch einmal versuchen.',
-    earlier: 'Zuvor',
   },
   capture: {
     cardAria: 'Neue Notiz schreiben',
@@ -447,6 +436,9 @@ export const de = {
     descriptionAria: 'Text der neuen Notiz',
     hint: '↵ anlegen · ⇧↵ Text · Esc verwerfen',
     hintCoarse: 'Enter legt die Notiz an',
+    /** While the title ends in a question mark: Enter asks instead of writing a note (§3.6). */
+    hintAsk: '↵ fragt die Wand · ⇧↵ Text · Esc verwerfen',
+    hintAskCoarse: 'Enter fragt die Wand',
     chips: {
       due: 'Fällig {{date}}',
       assignee: 'Zuständig: {{name}}',

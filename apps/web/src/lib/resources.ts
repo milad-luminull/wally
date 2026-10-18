@@ -21,7 +21,6 @@ import {
   subtaskDtoSchema,
   subtaskCreateSchema,
   subtaskUpdateSchema,
-  assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
   captureSuggestRequestSchema,
@@ -33,7 +32,6 @@ import {
   tidyResponseSchema,
   tidyDecisionSchema,
   tidyDecisionResponseSchema,
-  type AssistantConversationDto,
   type AssistantTurnRequest,
   type AssistantTurnResponse,
   type CaptureSuggestRequest,
@@ -149,11 +147,6 @@ export const notesApi = {
 };
 
 export const assistantApi = {
-  latest: (boardId: string): Promise<AssistantConversationDto> =>
-    api.get(
-      `/whiteboards/${boardId}/assistant/conversations/latest`,
-      assistantConversationDtoSchema,
-    ),
   turn: (boardId: string, body: AssistantTurnRequest): Promise<AssistantTurnResponse> =>
     api.post(
       `/whiteboards/${boardId}/assistant/turns`,

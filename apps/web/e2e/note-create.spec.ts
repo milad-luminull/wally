@@ -32,3 +32,24 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
     page.locator('[data-note-id]', { hasText: title }).locator('[data-tidy]'),
   ).toHaveCount(0);
 });
+
+test('a title ending in a question mark is a plain note while the board has no assistant', async ({
+  page,
+}) => {
+  test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
+
+  await signIn(page);
+
+  // With the assistant off, nothing is asked: the hint never changes and Enter writes the note.
+  const title = `E2E question ${Date.now()}?`;
+  await page.getByRole('button', { name: 'Neue Notiz' }).click();
+  const card = page.getByRole('group', { name: 'Neue Notiz schreiben' });
+  await card.getByLabel('Titel der neuen Notiz', { exact: true }).fill(title);
+  await expect(card.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen')).toBeVisible();
+  await card.getByLabel('Titel der neuen Notiz', { exact: true }).press('Enter');
+  await expect(card).toBeHidden();
+
+  await expect(page.locator('[data-ask-card]')).toHaveCount(0);
+  await page.getByLabel('Notizen durchsuchen').fill(title);
+  await expect(page.locator('[data-note-id]', { hasText: title })).toBeVisible();
+});

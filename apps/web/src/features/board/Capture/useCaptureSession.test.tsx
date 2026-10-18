@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 
@@ -48,6 +48,7 @@ import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 import { ListView } from '../ListView/ListView';
 import { WallView } from '../WallView/WallView';
+import type { AskOptions, CapturePlacement } from './useCapture';
 import { useCaptureSession } from './useCaptureSession';
 
 const BOARD = 'board-1';
@@ -87,11 +88,14 @@ function Board({
   axis,
   openNote,
   onCommitted,
+  onAsked,
 }: {
   view: BoardView;
   axis: BoardAxis;
   openNote: (id: string | null) => void;
   onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
+  /** Given when the board's assistant is on, as the shell does; absent, a `?` is a plain title. */
+  onAsked?: (question: string, placement: CapturePlacement, options: AskOptions) => void;
 }) {
   const query = useNotes(BOARD);
   const notes = query.data ?? EMPTY;
@@ -102,7 +106,9 @@ function Board({
     openNoteId: null,
     openNote,
     onCommitted,
+    onAsked,
   });
+  const onCaptureAsk = onAsked ? session.onCaptureAsk : undefined;
   const { withoutCapturing } = session;
   const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
   if (query.isLoading) return null;
@@ -139,6 +145,7 @@ function Board({
               visibility: owner.newNoteVisibility,
               onDone: session.onCaptureDone,
               onNoteId: session.onCaptureNoteId,
+              onAsk: onCaptureAsk,
             }
           }
         />
@@ -158,6 +165,7 @@ function Board({
           onCapture={session.startCapture}
           onCaptureDone={session.onCaptureDone}
           onCaptureNoteId={session.onCaptureNoteId}
+          onCaptureAsk={onCaptureAsk}
           visibility={owner.newNoteVisibility}
         />
       )}
@@ -165,15 +173,31 @@ function Board({
   );
 }
 
-function renderBoard(view: BoardView, axis: BoardAxis) {
+function renderBoard(
+  view: BoardView,
+  axis: BoardAxis,
+  onAsked?: (question: string, placement: CapturePlacement, options: AskOptions) => void,
+) {
   const openNote = vi.fn();
   const onCommitted = vi.fn();
   const result = renderWithProviders(
-    <Board view={view} axis={axis} openNote={openNote} onCommitted={onCommitted} />,
+    <Board
+      view={view}
+      axis={axis}
+      openNote={openNote}
+      onCommitted={onCommitted}
+      onAsked={onAsked}
+    />,
   );
   const rerender = (next: { view: BoardView; axis: BoardAxis }) =>
     result.rerender(
-      <Board view={next.view} axis={next.axis} openNote={openNote} onCommitted={onCommitted} />,
+      <Board
+        view={next.view}
+        axis={next.axis}
+        openNote={openNote}
+        onCommitted={onCommitted}
+        onAsked={onAsked}
+      />,
     );
   return { ...result, openNote, onCommitted, rerender };
 }
@@ -422,4 +446,93 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
     await settle(release);
     expect(screen.getByRole('group', { name: 'Write a new note' })).toBe(card);
   });
+});
+
+describe('useCaptureSession asking', () => {
+  it('hands a question to onAsked with the placement of the capture it was typed in', () => {
+    const onAsked = vi.fn();
+    const { result } = renderHook(() =>
+      useCaptureSession({
+        boardId: BOARD,
+        view: 'wand',
+        axis: 'free',
+        openNoteId: null,
+        openNote: vi.fn(),
+        onAsked,
+      }),
+    );
+    act(() => result.current.startCapture({ kind: 'free', x: 40, y: 60 }));
+    act(() => result.current.onCaptureAsk('What is open?', { takeFocus: false }));
+    expect(onAsked).toHaveBeenCalledWith(
+      'What is open?',
+      { kind: 'free', x: 40, y: 60 },
+      { takeFocus: false },
+    );
+
+    // The capture then ends with no note, as a discarded one does; nothing else is heard.
+    act(() => result.current.onCaptureDone(null, false, []));
+    expect(result.current.capture).toBeNull();
+    act(() => result.current.onCaptureAsk('Late?', { takeFocus: true }));
+    expect(onAsked).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useCaptureSession asking from the real views', () => {
+  it.each([
+    [
+      'in a zone',
+      'wand',
+      'horizon',
+      'Add a note to “Today”',
+      { kind: 'zone', axis: 'horizon', key: 'HEUTE' },
+    ],
+    ['on the free canvas', 'wand', 'free', 'new', { kind: 'free', x: 40, y: 40 }],
+    ['in the list', 'list', 'horizon', 'new', { kind: 'list' }],
+  ] as const)(
+    'a question typed %s reaches the shell with its placement and leaves no note',
+    async (_where, view, axis, opener, placement) => {
+      let focusedAtAsk: Element | null = null;
+      const onAsked = vi.fn(() => {
+        focusedAtAsk = document.activeElement;
+      });
+      const { onCommitted } = renderBoard(view, axis, onAsked);
+      await screen.findByText('Existing');
+      await userEvent.click(screen.getByRole('button', { name: opener }));
+      await userEvent.type(await titleField(), 'What is open?{Enter}');
+
+      await waitFor(() =>
+        expect(onAsked).toHaveBeenCalledWith('What is open?', expect.objectContaining(placement), {
+          takeFocus: true,
+        }),
+      );
+      expect(onAsked).toHaveBeenCalledTimes(1);
+      // The capture let go of the focus before the shell heard the question (plan R8).
+      expect(focusedAtAsk).toBe(document.body);
+      await waitFor(() =>
+        expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
+      );
+      await waitFor(() =>
+        expect(notesApi.remove).toHaveBeenCalledWith('created-1', expect.anything()),
+      );
+      expect(server.map((n) => n.id)).toEqual(['n1']);
+      expect(onCommitted).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['in a zone', 'wand', 'horizon', 'Add a note to “Today”'],
+    ['on the free canvas', 'wand', 'free', 'new'],
+    ['in the list', 'list', 'horizon', 'new'],
+  ] as const)(
+    'with the assistant off, a question mark typed %s is a plain note',
+    async (_where, view, axis, opener) => {
+      const { onCommitted } = renderBoard(view, axis);
+      await screen.findByText('Existing');
+      await userEvent.click(screen.getByRole('button', { name: opener }));
+      await userEvent.type(await titleField(), 'What is open?{Enter}');
+      await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-1', []));
+      expect(notesApi.remove).not.toHaveBeenCalled();
+      expect(await screen.findAllByText('What is open?')).toHaveLength(1);
+    },
+  );
 });

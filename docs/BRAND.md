@@ -154,13 +154,13 @@ in hex and must be kept in step.
 
 ## AI
 
-Wally's AI is three things on the board: the question panel beside it
-(`features/board/Assistant`), which answers questions about the wall from the notes it reads,
-and the fill-in on a note written in place (`features/board/Suggestions`), which proposes a due
-date, a priority, a person, subtasks or a reference as a pending change, reviewed in the note
-panel in two groups ("From what you typed", "Added by Wallybot"; `suggest.review.typed` and
-`suggest.review.added`) and offering a cleaner title on the card's title line as a second
-version beside the original, which is rule 7's instance, and Tidy on the horizon wall
+Wally's AI is three things on the board: the answer to a question typed into the capture card
+(`features/board/Ask`), drawn as a card where the question was written, with the notes it read
+listed underneath, and the fill-in on a note written in place (`features/board/Suggestions`), which
+proposes a due date, a priority, a person, subtasks or a reference as a pending change, reviewed in
+the note panel in two groups ("From what you typed", "Added by Wallybot"; `suggest.review.typed` and
+`suggest.review.added`) and offering a cleaner title on the card's title line as a second version
+beside the original, which is rule 7's instance, and Tidy on the horizon wall
 (`features/board/Tidy`), which proposes where jotted notes belong and moves them only on the
 person's yes, every moved card carrying the Undo for a while. These rules are the contract all three
 follow, and `brandGuards.test.ts` enforces the first one.
@@ -179,8 +179,9 @@ follow, and `brandGuards.test.ts` enforces the first one.
 6. It never writes a note the user didn't start. It completes, files and reorders; it doesn't
    author.
 7. Rewriting text is offered as a second version beside the original, never as a replacement.
-8. Questions about the wall are answered in the panel in plain text, with the notes it read
-   listed underneath.
+8. Questions about the wall are answered on the wall, as a card where the question was written,
+   in plain text, with the notes it read listed underneath. The card has the dashed edge and
+   nothing else: no dot, no ring, because nothing is written.
 
 ### "Wand" is the German word for the wall
 

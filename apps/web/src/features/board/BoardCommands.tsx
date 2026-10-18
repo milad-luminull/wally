@@ -43,7 +43,6 @@ import { useCanvasPattern } from '@/lib/preferences';
 import {
   ALT_KEY,
   MOD_KEY,
-  overlayIsOpen,
   requestOpen,
   useKeyboardShortcuts,
   useOpenRequest,
@@ -84,9 +83,8 @@ interface BoardCommandsProps {
   onSetDone: (done: boolean) => void;
   onSetMine: (mine: boolean) => void;
   onResetView: () => void;
-  /** The board's question panel is on; without it there is no entry, no key, no help row. */
+  /** Wallybot can fill in on this board; gates the ⌘Z help row. */
   assistantEnabled: boolean;
-  onOpenAssistant: () => void;
   /**
    * Undoes the most recently kept Wallybot change still in its window, a note's fill-in or the
    * kept tidy batch, whichever was kept last (plan R7); false when there is none.
@@ -150,19 +148,6 @@ export function BoardCommands(props: BoardCommandsProps) {
       },
     },
   ];
-  if (props.assistantEnabled) {
-    shortcuts.push({
-      keys: 'mod+j',
-      allowInInputs: true,
-      handler: (event) => {
-        event.preventDefault();
-        // Works from the board's own fields, but never opens the panel behind a layer above
-        // it (the palette, the shortcuts sheet, the share dialog, a popover).
-        if (overlayIsOpen()) return;
-        props.onOpenAssistant();
-      },
-    });
-  }
   useKeyboardShortcuts(shortcuts);
 
   return (
@@ -196,8 +181,6 @@ function CommandPalette({
   onSetDone,
   onSetMine,
   onResetView,
-  assistantEnabled,
-  onOpenAssistant,
   open,
   onOpenChange,
 }: BoardCommandsProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -303,22 +286,6 @@ function CommandPalette({
                 <UserPlus strokeWidth={1.75} />
                 <span className="flex-1">{t('palette.share')}</span>
               </CommandItem>
-              {assistantEnabled && (
-                <CommandItem
-                  value="ask question"
-                  keywords={t('palette.askKeywords').split(' ')}
-                  onSelect={() => run(onOpenAssistant)}
-                >
-                  {/* The question panel carries no icon; an icon-wide gap keeps the label in
-                      line with the iconed rows. */}
-                  <span aria-hidden className="size-4 shrink-0" />
-                  <span className="flex-1">{t('palette.ask')}</span>
-                  <span className="flex gap-0.5">
-                    <Kbd>{MOD_KEY}</Kbd>
-                    <Kbd>J</Kbd>
-                  </span>
-                </CommandItem>
-              )}
             </CommandGroup>
 
             <CommandGroup heading={t('palette.groups.view')}>
@@ -472,7 +439,6 @@ function ShortcutsDialog({
     { keys: [MOD_KEY, 'D'], label: t('shortcuts.duplicateNote') },
     ...(assistantEnabled
       ? [
-          { keys: [MOD_KEY, 'J'], label: t('shortcuts.ask') },
           // Only where Wallybot can fill in is there a kept change to undo.
           { keys: [MOD_KEY, 'Z'], label: t('shortcuts.undoSuggestion') },
         ]

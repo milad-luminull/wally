@@ -12,15 +12,21 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
-import { suggestionFieldKeys } from '@wally/shared';
+import { NOTE_TITLE_MAX_LENGTH, suggestionFieldKeys } from '@wally/shared';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
 import { parseCapture, type CaptureParse } from '@/lib/capture/parseCapture';
+import { isQuestion, questionOf } from '@/lib/capture/question';
 import { useActiveMembers } from '../hooks/useMembers';
 import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
-import { useCapture, type CaptureFields, type CapturePlacement } from './useCapture';
+import {
+  useCapture,
+  type CaptureAsk,
+  type CaptureFields,
+  type CapturePlacement,
+} from './useCapture';
 
 /**
  * Chips start kept, except a priority on the priority wall: keeping it would move the note out
@@ -122,6 +128,7 @@ export function InlineCaptureCard({
   layout,
   onDone,
   onNoteId,
+  onAsk,
 }: {
   boardId: string;
   placement: CapturePlacement;
@@ -137,6 +144,13 @@ export function InlineCaptureCard({
    * before the board shows it, so the board can leave that note to this card until it is done.
    */
   onNoteId?: (id: string) => void;
+  /**
+   * Set when the board's assistant is on: a title ending in `?` is a question for the wall
+   * (WALLYBOT_INLINE.md §3.6, plan R1). The card hands the question over, deletes the draft
+   * note and ends the capture with no note (R2). Without it a `?` is a plain title. The
+   * answer takes the focus only for a question asked with Enter (R8).
+   */
+  onAsk?: CaptureAsk;
 }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -148,8 +162,12 @@ export function InlineCaptureCard({
   const [chips, setChips] = useState<ChipState>(() => initialChips(placement));
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   // Set once a commit or cancel is under way, so Enter, Esc and blur settle the capture once.
   const settling = useRef(false);
+  // Set while a question settles: the card waits for its draft note to go, and the title is
+  // read-only meanwhile, as it is while a note commits.
+  const [askSettling, setAskSettling] = useState(false);
   const hintId = useId();
 
   useEffect(() => {
@@ -218,9 +236,30 @@ export function InlineCaptureCard({
   }
   /** Words in either field make a note; whitespace alone in both does not. */
   const hasWords = Boolean(title.trim() || description.trim());
-  async function commit(thenOpen: boolean) {
+  /** `byEnter` is false when a blur settles the capture: the focus is then where it went. */
+  async function commit(thenOpen: boolean, byEnter: boolean) {
     const trimmed = title.trim();
     if (!hasWords || settling.current) return;
+    const question = onAsk ? questionOf(trimmed, description) : null;
+    if (onAsk && question) {
+      settling.current = true;
+      // The answer card takes the focus on mount only from the page (plan R8), and it mounts
+      // while this card still waits for its draft note's create to delete it. So the card lets
+      // go of the focus first; the blur this fires settles nothing, as the capture is settling.
+      // After a blur that already took the focus elsewhere, the focus stays where it went.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && rootRef.current?.contains(active)) active.blur();
+      // The answer is not a note (BRAND AI rule 6): the shell draws it where this card stood,
+      // and the words typed so far go the way a discarded capture's do (plan R2).
+      setAskSettling(true);
+      onAsk(question, { takeFocus: byEnter });
+      try {
+        await controller.cancel();
+      } finally {
+        setAskSettling(false);
+      }
+      return;
+    }
     settling.current = true;
     try {
       await controller.commit(
@@ -266,7 +305,7 @@ export function InlineCaptureCard({
       else setShowText(true);
     } else if (event.key === 'Enter') {
       claim(event);
-      void commit(event.metaKey || event.ctrlKey);
+      void commit(event.metaKey || event.ctrlKey, true);
     } else if (event.key === 'Escape') {
       claim(event);
       void cancel();
@@ -276,7 +315,7 @@ export function InlineCaptureCard({
     if (event.nativeEvent.isComposing) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       claim(event);
-      void commit(event.metaKey || event.ctrlKey);
+      void commit(event.metaKey || event.ctrlKey, true);
     } else if (event.key === 'Escape') {
       claim(event);
       void cancel();
@@ -300,16 +339,19 @@ export function InlineCaptureCard({
   function onBlur(event: FocusEvent<HTMLDivElement>) {
     // Focus moving between the card's own fields and chips is not leaving the capture.
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-    if (hasWords) void commit(false);
+    if (hasWords) void commit(false, false);
     else void cancel();
   }
   const toggle = (kind: ChipKind) =>
     setChips((s) => ({ ...s, kept: { ...s.kept, [kind]: !s.kept[kind] } }));
   const drop = (kind: ChipKind) =>
     setChips((s) => ({ ...s, dropped: { ...s.dropped, [kind]: true } }));
+  const asking = onAsk !== undefined && isQuestion(title);
+  const busy = controller.state === 'committing' || askSettling;
 
   return (
     <div
+      ref={rootRef}
       role="group"
       aria-label={t('capture.cardAria')}
       data-layout={layout}
@@ -333,16 +375,18 @@ export function InlineCaptureCard({
       <MirroredField
         ref={titleRef}
         value={title}
-        parse={withoutDropped(parse, chips)}
+        // A question is asked as typed: no word in it is read as a field (plan R1).
+        parse={asking ? null : withoutDropped(parse, chips)}
         onChange={(e) => onTitleChange(e.target.value)}
         onKeyDown={onTitleKey}
         aria-label={t('capture.titleAria')}
         aria-describedby={hintId}
         placeholder={t('note.titlePlaceholder')}
+        maxLength={NOTE_TITLE_MAX_LENGTH}
         // Read-only rather than disabled while committing: a disabled field loses focus, and
         // whether that fires blur differs by browser; read-only keeps the caret where it was.
-        readOnly={controller.state === 'committing'}
-        aria-busy={controller.state === 'committing'}
+        readOnly={busy}
+        aria-busy={busy}
       />
       {showText && (
         <textarea
@@ -356,7 +400,7 @@ export function InlineCaptureCard({
           className="block w-full resize-none overflow-hidden bg-transparent text-12 leading-snug text-fg-meta-on-note outline-none placeholder:text-fg-faint"
         />
       )}
-      {parse && (
+      {parse && !asking && (
         <CaptureChips
           parse={parse}
           memberName={memberName}
@@ -367,11 +411,16 @@ export function InlineCaptureCard({
         />
       )}
       <p id={hintId} className="font-mono text-12 text-fg-faint [@media(pointer:coarse)]:hidden">
-        {t('capture.hint')}
+        {t(asking ? 'capture.hintAsk' : 'capture.hint')}
       </p>
       <p className="hidden text-12 text-fg-faint [@media(pointer:coarse)]:block">
-        {t('capture.hintCoarse')}
+        {t(asking ? 'capture.hintAskCoarse' : 'capture.hintCoarse')}
       </p>
+      {/* The hint above only describes the title field, which is read once on focus: this says
+          the change aloud when the title becomes a question, in words rather than key symbols. */}
+      <span data-testid="capture-ask-live" aria-live="polite" className="sr-only">
+        {asking ? t('capture.hintAskCoarse') : ''}
+      </span>
     </div>
   );
 }

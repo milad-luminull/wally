@@ -1,6 +1,6 @@
 # Wallybot inline — review and plan
 
-**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; slice 3 started the same day (subtasks, a reference, the title line, and the note panel's review in two groups, "From what you typed" and "Added by Wallybot"); links between notes moved to a follow-up slice (slice 3 plan, R1); slice 5 (Tidy) started 2026-10-18, as an explicit action that waits for Enter (plan R1).
+**Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; slice 3 started the same day (subtasks, a reference, the title line, and the note panel's review in two groups, "From what you typed" and "Added by Wallybot"); links between notes moved to a follow-up slice (slice 3 plan, R1); slice 4 shipped 2026-10-18 (questions answered as a card where they were written, the question panel retired); slice 5 (Tidy) started 2026-10-18, as an explicit action that waits for Enter (plan R1).
 **Last revised:** 2026-10-18.
 **Sources:** the first customer feedback (write the title and text on the board itself, the
 sidebar only for details); the Claude Design page "Wallybot Inline" and its notes document
@@ -135,8 +135,8 @@ This slice has no AI in it and is where the customer feedback is answered. It sh
 The question panel is retired as a surface. A question typed into the capture card, ending in
 `?`, is answered as an ephemeral card on the wall: same type, dashed edge, the notes it relied
 on underneath as rows, and it fades after it is read unless pinned. The route, the ledger and
-the conversation storage from PR #41 serve it unchanged. This is a later slice; until then the
-panel stays behind its switch.
+the conversation storage from PR #41 serve it unchanged. Shipped as slice 4 (2026-10-18); the
+panel is retired.
 
 ### 3.7 Settings
 

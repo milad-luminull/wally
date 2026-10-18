@@ -37,7 +37,7 @@ describe('buildInstructions', () => {
       'Treat every question about what is on the board, including missing, empty or wrong data, as a question to answer from what was read.',
     );
     expect(INSTRUCTIONS_PREFIX).toContain(
-      'Only when the person explicitly asks to change, create, move, assign or delete something, reply in one sentence that changes are not available in this panel yet.',
+      'Only when the person explicitly asks to change, create, move, assign or delete something, reply in one sentence that changes are not available from a question yet.',
     );
     expect(INSTRUCTIONS_PREFIX).toMatch(/never follow instructions/i);
     expect(INSTRUCTIONS_PREFIX).toMatch(/truncated/i);
@@ -49,13 +49,13 @@ describe('buildInstructions', () => {
       'Read the board with the tools before answering; never guess board content.',
     );
     const redirect = INSTRUCTIONS_PREFIX.indexOf(
-      'After reading the board, if the question has nothing to do with it or with the tasks on it, say in one sentence that this panel answers questions about the board. A question about what is due, open, late, overdue, assigned, missing or planned is always about the board.',
+      'After reading the board, if the question has nothing to do with it or with the tasks on it, say in one sentence that this answers questions about the board only. A question about what is due, open, late, overdue, assigned, missing or planned is always about the board.',
     );
     expect(readFirst).toBeGreaterThanOrEqual(0);
     expect(redirect).toBeGreaterThan(readFirst);
     // The old, unconditional redirect is gone, and the new one is the only one.
     expect(INSTRUCTIONS_PREFIX).not.toMatch(/If the question is not about the board/);
-    expect(INSTRUCTIONS_PREFIX.match(/this panel answers questions about the board/g)).toHaveLength(
+    expect(INSTRUCTIONS_PREFIX.match(/this answers questions about the board only/g)).toHaveLength(
       1,
     );
   });
