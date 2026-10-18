@@ -57,7 +57,8 @@ describe('ProposalList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Leave out: Tag ops' }));
     expect(p.onSetTag).toHaveBeenCalledWith(0, false);
     const back = screen.getByRole('button', { name: 'Bring back: Tag sales' });
-    expect(back).toHaveAttribute('aria-pressed', 'false');
+    // The label says what a press does; no pressed state contradicts it.
+    expect(back).not.toHaveAttribute('aria-pressed');
     fireEvent.click(back);
     expect(p.onSetTag).toHaveBeenCalledWith(1, true);
     fireEvent.click(screen.getByRole('button', { name: 'Leave out: Customer Acme' }));

@@ -642,3 +642,56 @@
     animation: none;
   }
 }
+
+/* A pending change's list and footer sit under the wall card as its continuation, not inside
+   the card's <button> (controls cannot nest in a button). The card squares its bottom edge
+   and the review carries the dashed edge, the fill and the shadow on to the bottom. */
+.board-shell .paper-note[data-reviewing] {
+  border-bottom-width: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+  padding-bottom: 8px;
+}
+.paper-note-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 248px;
+  padding: 0 14px 12px 42px;
+  border: 1px dashed var(--note-border);
+  border-top: 0;
+  border-radius: 0 0 11px 11px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 8px 16px -12px rgba(0, 0, 0, 0.23);
+}
+.paper-zone-notes .paper-note-review {
+  width: 100%;
+}
+
+/* The list row's review, under the row as its continuation (see .paper-note-review). */
+.paper-note-row-shell {
+  display: flex;
+  flex-direction: column;
+}
+.paper-note-row-shell > .paper-note-row {
+  border-bottom-width: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
+  padding-bottom: 8px;
+}
+.paper-note-row-review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 13px 41px;
+  border: 1px solid var(--note-border);
+  border-left: 2px dashed var(--note-border);
+  border-top: 0;
+  border-radius: 0 0 11px 11px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 8px 16px -12px rgba(0, 0, 0, 0.23);
+}

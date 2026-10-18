@@ -79,6 +79,13 @@ describe('NoteRow with a pending change', () => {
     expect(screen.getByRole('checkbox').className).toContain('invisible');
   });
 
+  it('the list and footer sit beside the row, not inside its button role', () => {
+    renderRow();
+    expect(within(rowOf() as HTMLElement).queryByRole('list')).toBeNull();
+    expect(screen.getByRole('list', { name: 'Suggested fields' })).toBeInTheDocument();
+    expect(within(rowOf() as HTMLElement).queryByRole('button', { name: 'Keep' })).toBeNull();
+  });
+
   it('keeps on Enter instead of opening, discards on Esc', () => {
     const onOpen = vi.fn();
     const p = renderRow(pending(), onOpen);

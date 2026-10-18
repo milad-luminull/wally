@@ -221,6 +221,26 @@ describe('NoteCard with a pending change', () => {
     expect(card.querySelector('.paper-note-status')?.className).toContain('invisible');
   });
 
+  it("the list and footer sit beside the card's button, so its name stays the note", () => {
+    renderCard();
+    const card = screen.getByText('Approve the quote comparison').closest('button')!;
+    expect(within(card).queryByRole('list')).toBeNull();
+    expect(card.querySelector('[data-review-footer]')).toBeNull();
+    const review = card.parentElement!.querySelector('[data-note-review]')!;
+    expect(
+      within(review as HTMLElement).getByRole('list', { name: 'Suggested fields' }),
+    ).toBeInTheDocument();
+    expect(within(review as HTMLElement).getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  });
+
+  it('Esc on a row of the review discards, as on the card', () => {
+    const p = renderCard();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Leave out: Priority High' }), {
+      key: 'Escape',
+    });
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+  });
+
   it('while the call runs the footer says so, with no list', () => {
     renderCard(pending({ phase: 'asking', suggestion: null, countdownEndsAt: null }));
     expect(screen.getByText('Filling in…')).toBeInTheDocument();

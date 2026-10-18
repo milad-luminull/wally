@@ -102,7 +102,7 @@ export function NoteRow({
     onToggleDone();
   }
 
-  return (
+  const row = (
     <div
       role="button"
       tabIndex={0}
@@ -121,7 +121,8 @@ export function NoteRow({
           onOpen();
         }
       }}
-      {...pause}
+      // Under review the shell around the row and its review holds the pause instead.
+      {...(reviewing ? {} : pause)}
       className={cn(
         'paper-note-row group/row relative flex min-h-10 cursor-pointer gap-3 px-3 py-2',
         // Under review the row grows a list and a footer; its ends then sit at the top.
@@ -200,18 +201,6 @@ export function NoteRow({
             )}
           >
             {offeredDescription.value}
-          </span>
-        )}
-
-        {/* The same list and footer as the wall card, under the title across the row. */}
-        {reviewing && (
-          <span className="flex basis-full flex-col gap-1.5 pt-0.5">
-            <ProposalList pending={reviewing} />
-            <ReviewFooter
-              mark={reviewing.mark}
-              onKeep={() => reviewing.onKeep('click')}
-              onUndo={reviewing.onDiscard}
-            />
           </span>
         )}
 
@@ -328,6 +317,28 @@ export function NoteRow({
             ring={!reviewing}
           />
         )}
+      </div>
+    </div>
+  );
+  if (!reviewing) return row;
+  // The same list and footer as the wall card, under the row as its continuation: not inside
+  // the row's button role, whose name would take in every row and the ticking seconds.
+  return (
+    <div className="paper-note-row-shell" {...pause}>
+      {row}
+      <div
+        data-note-review
+        onKeyDown={(e) => {
+          pendingKeys(e, reviewing);
+        }}
+        className={cn('paper-note-row-review', noteColourFillClass[note.colour])}
+      >
+        <ProposalList pending={reviewing} />
+        <ReviewFooter
+          mark={reviewing.mark}
+          onKeep={() => reviewing.onKeep('click')}
+          onUndo={reviewing.onDiscard}
+        />
       </div>
     </div>
   );

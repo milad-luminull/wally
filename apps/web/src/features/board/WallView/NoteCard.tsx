@@ -188,8 +188,6 @@ export function NoteCard({
         </span>
       )}
 
-      {reviewing && <ProposalList pending={reviewing} />}
-
       {description && (
         <span className="paper-note-description -mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
           {description}
@@ -361,14 +359,18 @@ export function NoteCard({
           )
         )}
       </div>
-
-      {reviewing && (
-        <ReviewFooter
-          mark={reviewing.mark}
-          onKeep={() => reviewing.onKeep('click')}
-          onUndo={reviewing.onDiscard}
-        />
-      )}
+    </>
+  );
+  // The review sits under the card, not inside its <button>: controls cannot nest in a button,
+  // and the card's accessible name would take in every row and the ticking seconds.
+  const review = reviewing && (
+    <>
+      <ProposalList pending={reviewing} />
+      <ReviewFooter
+        mark={reviewing.mark}
+        onKeep={() => reviewing.onKeep('click')}
+        onUndo={reviewing.onDiscard}
+      />
     </>
   );
 
@@ -414,6 +416,7 @@ export function NoteCard({
       style={style}
       surface={surface}
       body={body}
+      review={review || null}
       pending={pending}
       tidy={tidy}
     />
@@ -430,6 +433,8 @@ interface RestingProps {
   style?: CSSProperties;
   surface: string;
   body: ReactNode;
+  /** A pending change's list and footer, drawn under the card as its continuation. */
+  review: ReactNode;
   pending?: PendingProps;
   tidy?: TidyProps;
 }
@@ -445,6 +450,7 @@ function RestingNoteCard({
   style,
   surface,
   body,
+  review,
   pending,
   tidy,
 }: RestingProps) {
@@ -472,6 +478,8 @@ function RestingNoteCard({
       data-note-id={note.id}
       data-dragging={hidden || undefined}
       className="relative"
+      // On the wrapper, so the card and its review below count as one place to hover or focus.
+      {...pause}
     >
       <button
         type="button"
@@ -487,7 +495,7 @@ function RestingNoteCard({
           if (!isDragging && (pendingKeys(e, pending) || tidyKeys(e, tidy))) return;
           listeners?.onKeyDown?.(e);
         }}
-        {...pause}
+        data-reviewing={review ? '' : undefined}
         className={cn(
           surface,
           'peer/note group/note cursor-grab',
@@ -536,6 +544,21 @@ function RestingNoteCard({
           />
         )}
       </button>
+      {review && (
+        <div
+          data-note-review
+          onKeyDown={(e) => {
+            pendingKeys(e, pending);
+          }}
+          className={cn(
+            'paper-note-review',
+            noteColourFillClass[note.colour],
+            hidden && 'invisible',
+          )}
+        >
+          {review}
+        </div>
+      )}
       {/* Once kept, the Undo sits where the dot was, but beside the card rather than inside
           it: a button cannot sit inside the card's own. It lifts with the card on hover. */}
       {pending?.mark.phase === 'kept' && !hidden && (

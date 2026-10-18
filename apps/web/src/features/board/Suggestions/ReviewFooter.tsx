@@ -36,9 +36,8 @@ const action = cn(
  * The foot of a pending card or row (the smarter-capture spec §5, after Paper Wall v3): while
  * the call runs, "Filling in…"; once the proposal is there, the countdown ring with the seconds
  * left (or "Paused"), Undo and Keep. Undo discards the proposal and Keep keeps what is ticked,
- * exactly as Esc and Enter do; with nothing ticked Keep is disabled. The buttons are
- * `role="button"` spans, since on the wall the
- * card is itself a `<button>`, and every press stops here so it never opens the note.
+ * exactly as Esc and Enter do; with nothing ticked Keep is disabled. It sits under the card
+ * or row, never inside its button; every press stops here so it never opens the note.
  */
 export function ReviewFooter({
   mark,
