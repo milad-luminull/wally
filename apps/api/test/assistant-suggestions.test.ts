@@ -406,6 +406,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'priority', 'assignee'],
       subtasks: [],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 3,
     });
   });
@@ -629,6 +631,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'priority'],
       subtasks: [],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 2,
     });
     expect((await stored(fx.editorId, suggestion.id)).decision?.fields).toEqual([
@@ -670,6 +674,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'priority', 'assignee'],
       subtasks: [],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 3,
     });
     expect(b.json().suggestion.kept).toEqual(a.json().suggestion.kept);
@@ -964,6 +970,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'priority'],
       subtasks: [],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 2,
     });
     expect(await note(n.id)).toMatchObject({
@@ -1196,6 +1204,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'reference', 'subtasks'],
       subtasks: [0, 1, 2],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 5,
     });
     expect(await note(n.id)).toMatchObject({ title: 'review', dueDate: '2026-10-23' });
@@ -1261,6 +1271,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'reference', 'subtasks'],
       subtasks: [1],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 3,
     });
     const after = await note(n.id);
@@ -1295,6 +1307,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate'],
       subtasks: [],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 1,
     });
     expect((await note(n.id)).subtaskSummary.total).toBe(0);
@@ -1342,6 +1356,8 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'title', 'reference', 'subtasks'],
       subtasks: [0, 1, 2],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 6,
     });
     const keptNote = await note(n.id);
@@ -1421,6 +1437,8 @@ describe('capture suggestions', () => {
       fields: ['subtasks'],
       subtasks: [0, 1, 2],
       links: [],
+      tags: [],
+      properties: [],
       revision: n.revision + 3,
     });
     const steps = (await noteDetail(fx.editToken, n.id)).subtasks;
