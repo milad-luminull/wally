@@ -35,6 +35,8 @@ The causes are in the capture call, not in the model and not in the UI:
 - The proposal can reach the whole card that matters for a task: horizon, visibility, tags,
   several properties and a description join today's fields.
 - The countdown before a silent keep is long enough to read: 15 s instead of 6 s.
+- The proposal is plain to see and act on, on the wall and in the list: fields arrive one by
+  one as a labelled list, with a visible countdown and Undo / Keep (Paper Wall v3).
 - "Smarter" is measured on a fixed set of sample notes, before and after.
 - Capture in the list view is verified working end to end once the work is done.
 
@@ -43,9 +45,9 @@ The causes are in the capture call, not in the model and not in the UI:
 - No model change. The deployment stays on `vertex:gemini-2.5-flash` in the EU with thinking
   off (`suggestionCallSettings`). Owner's decision: better instructions and context first. If
   the sample set shows the model is the limit, that is a later, separate decision.
-- No new screens, settings, buttons or layout. New fields use the existing proposed-field chip
-  (`ProposedField`), the existing review rows (`PendingReview`) and the existing keep / `×` /
-  Esc / Undo behaviour.
+- No new screens or settings. The only UI change is the pending card itself (section 5),
+  following the owner's Paper Wall v3 mockup within the brand rules. The review panel
+  (`PendingReview`) gains rows for the new fields and nothing else.
 - No change to the local, keystroke-time parser (`apps/web/src/lib/capture/parseCapture.ts`).
   What it finds while typing stays locked for the model exactly as today.
 - No proposals for existing notes; Tidy is unchanged. No colour proposals (RFC decision 2).
@@ -76,16 +78,22 @@ The causes are in the capture call, not in the model and not in the UI:
 - Older stored proposals (7-day retention) must still read and decide correctly after deploy.
 - Budget caps and the ledger stay authoritative; estimates must count the larger prompt and
   allowance.
-- Codex is working on `codex/paper-wall-uplift`, which also touches `AppShell.tsx`,
-  `WallView/NoteCard.tsx` and the `de.ts` / `en.ts` catalogues. Keep edits in those files small
-  and expect to rebase on whichever lands first.
+- The UI builds on PR #60 (`codex/paper-wall-uplift`, open, Codex's): its palettes, the
+  `paper-note` card surface and its BRAND.md. PR #60 also touches `AppShell.tsx`,
+  `WallView/NoteCard.tsx`, BRAND.md and the `de.ts` / `en.ts` catalogues. No stacked PRs: the
+  server and prompt work comes first and does not touch those files; the UI work starts only
+  once PR #60 is merged into `main` and this branch is rebased on it. If the server work is done
+  before PR #60 merges, the work pauses and the owner is asked.
+- Styling uses PR #60's semantic tokens only (`--accent`, `--note-border`, `--fg-meta-on-note`,
+  `--primary`, the palette's `--accent-foreground`), never the mockup's hard-coded amber, so the
+  card reads right in all nine palettes, light and dark.
 
 ## Owner's decisions
 
 1. **Model:** unchanged (see Non-goals).
 2. **Countdown:** 15 s (`COUNTDOWN_MS` in `apps/web/src/features/board/Suggestions/useSuggestions.ts`,
-   and every test and doc line that states 6 s). Hover/focus still pauses it; Esc still discards;
-   `×` still drops one field; Undo still holds for 30 s after a keep.
+   and every test and doc line that states 6 s). Hover/focus still pauses it; Esc and the
+   footer's Undo discard; `×` crosses one field out; Undo still holds for 30 s after a keep.
 3. **Horizon:** Wallybot may set This week or Later on the note just written, never on an
    existing note. On a horizon wall a kept horizon moves the fresh card to that column; Undo
    moves it back.
@@ -96,6 +104,11 @@ The causes are in the capture call, not in the model and not in the UI:
 5. **Scoring:** the owner runs the scoring script twice, a baseline before the prompt changes
    and a final run at the end. The PR is called ready only after the final run, and only with
    zero failures on the anti-goal fixtures.
+6. **Pending card from Paper Wall v3, within the brand rules of PR #60:** a labelled field list
+   and a review footer (section 5). The mockup's spinning gradient border, shimmering text,
+   "Wallybot is filling in" label, ✦ mark, toasts, colour and estimate fields are not taken.
+7. **Review before any PR:** the work stays on the local branch. The owner reviews the changes
+   (the diff and a preview) before anything is pushed or a PR is opened.
 
 ## The design
 
@@ -186,14 +199,54 @@ same way subtasks and links are today.
 
 ### 5. On screen
 
-The only visible changes:
+Reference: `../wally-design/Wally Paper Wall v3.dc.html` (the inline create card in a lane) and
+its brief `Inline Create Card - Brief for Codex.md`. What is taken, adapted to BRAND.md "## AI"
+as PR #60 leaves it (no name, no pronoun, no sparkle icon, no toast, markers limited to the
+dashed edge and the accent dot with its ring, motion 120–180 ms on opacity and transform,
+reduced motion turns it off):
 
-- the countdown is 15 s;
-- the pending card and the list row show chips for the new fields, in the place each field has
-  on a normal card, using `ProposedField` and new catalogue strings (de authority, en mirror);
-  Private uses the toggle form the offered title already uses (`aria-pressed`, unticked until
-  the person ticks it);
-- the review panel lists the same fields as extra rows in its existing groups.
+**While the call runs (`asking`).** The card keeps the person's words and the dashed edge; the
+dot shows at half strength as today. The footer (below) reads "Filling in…" with no ring and
+no buttons. No shimmer, no gradient border, no spinner.
+
+**When the proposal arrives.** The fields appear one at a time as a **labelled list** under
+the title, separated by a hairline (`--note-border`): a small accent dot, a short label
+(Due, Priority, When, Person, Private, Tags, then each property's own key, Steps, Related), the
+value, and `×`. Rows fade and rise in (opacity and a few pixels of translate, 150 ms each,
+about 100 ms apart); subtasks follow the same way. Under reduced motion all rows appear at
+once. Each row's reason is its tooltip and accessible description, as the chips' reasons are
+today. The same list is used on the wall card and, condensed to the same rows, under the list
+row, so both views look and behave the same.
+
+- `×` crosses a row out (struck through, faded) and turns into `↺`, which brings it back; a
+  crossed-out row is left out of the keep. This replaces today's "× removes the chip".
+- Multi-value rows (Tags, Steps, Related) cross out per item.
+- Private is a row that starts crossed out and is ticked in to take part (owner's decision 4).
+- The offered title keeps today's form on the title line, with "use mine" (R2); the offered
+  description sits under it in the same opt-in state and is taken together with it.
+
+**The review footer.** Under the list, behind a hairline: the countdown ring (the accent ring
+the dot draws today, moved here), "Saves in 12 s" or "Paused", then **Undo** (outline) and
+**Keep** (the palette's `--primary` filled button, not the accent, which stays one per
+screen). Hover or focus pauses; Enter keeps, Esc undoes, as today. While pending, the card's
+done checkbox is hidden so a stray click cannot complete a note under review. The corner dot
+remains as the at-a-glance marker.
+
+**After a keep.** The dashed edge, list styling and footer go; the card is an ordinary
+`paper-note` card with the kept values in their usual places, and the faint Undo sits where
+the dot was for 30 s, as today. After an Undo the card is as written, silently.
+
+**Not taken from the mockup:** the batch bar ("filled in N notes · Undo all · Keep all"; it
+names the AI and counts suggestions, rule 5), the spinning gradient border and shimmer
+(rule 3 and the motion limits), the ✦ "filled in" mark (rule 1), toasts (rule 5), the AI
+replacing the title (rule 7), colour and estimate fields (RFC decision 2; no estimate field
+exists), and the 1.5 s typing-pause trigger (capture still asks on Enter).
+
+**Documents amended with the UI work:** BRAND.md "## AI" rule 3 (the pending card may show a
+labelled list and a review footer until kept or undone) and RFC `WALLYBOT_INLINE.md` §3.3
+(fields as a list rather than in their usual places; 15 s; footer). The review panel lists the
+new fields as extra rows in its existing groups. New strings go in `de.ts` (authority) and
+`en.ts`.
 
 ### 6. Answer size and cost
 
@@ -222,18 +275,22 @@ caps.
 
 ### 8. Verification when the work is done
 
-- All repo checks and guard tests (see the handoff's list), then CI green, E2E included.
-- A live pass on a preview of the branch (`.env.preview`, owner signs in), in **both views**:
-  - wall: a fresh note shows the new chips, the countdown runs 15 s, keep / `×` / Esc / Undo work;
+- All repo checks and guard tests (see the handoff's list) pass locally.
+- A live pass on a preview of the branch (`.env.preview`, owner signs in), in **both views**,
+  in Paper Wall and Minimal, light and dark, and at a phone width:
+  - wall: a fresh note shows "Filling in…", then the rows arrive one by one, the footer counts
+    down 15 s, `×` / `↺`, Keep, Undo, Enter and Esc work, Private and the title stay opt-in;
   - **list view** (owner report: "the AI features are not working, at least it looks like it"):
     write a clearly marked test note in the list, confirm the pending row appears where the
-    person can see it, its chips are readable, the countdown runs, and keep and Undo work.
+    person can see it, its rows and footer are readable, the countdown runs, and keep and Undo work.
     Code reading found no difference in wiring between the views; suspected causes are the row
     jumping to its sorted place out of view, or chips clipped on a one-line row. If it fails,
     it is diagnosed and fixed on this branch before the PR is called ready. The test note is
     deleted afterwards.
 - The owner runs the scoring script on the branch and compares with the baseline. Ready means:
   better than the baseline overall and zero anti-goal failures.
+- The owner reviews the branch (diff and preview). Only after their OK is it pushed and one PR
+  opened against `main`; CI, E2E included, must then be green before it is called ready.
 
 ## Left to the builder
 
