@@ -123,6 +123,48 @@ describe('note links', () => {
     expect((await stored(a.id)).links).toEqual([visible.id, secret.id, gone.id, 'missing']);
   });
 
+  it('refuses an existing target that became private or deleted without writing other changes', async () => {
+    const fx = await createBoardFixture(ctx);
+    const source = await create(fx.boardId, fx.ownerToken, { title: 'Unchanged' });
+    for (const state of ['private', 'deleted']) {
+      const target = await create(fx.boardId, fx.editToken);
+      await patch(fx.ownerToken, source.id, { linkChanges: { add: [target.id] } });
+      if (state === 'private') await patch(fx.editToken, target.id, { visibility: 'PRIVATE' });
+      else
+        await ctx.inject({
+          method: 'DELETE',
+          url: `/notes/${target.id}`,
+          headers: ctx.authHeader(fx.editToken),
+        });
+      const revision = (await stored(source.id)).revision;
+      const response = await patch(fx.ownerToken, source.id, {
+        title: 'Must not write',
+        linkChanges: { add: [target.id] },
+      });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().error).toBe('LINK_TARGET_INVALID');
+      expect((await stored(source.id)).title).toBe('Unchanged');
+      expect((await stored(source.id)).revision).toBe(revision);
+    }
+  });
+
+  it('reclaims deleted and missing targets before applying the link capacity limit', async () => {
+    const fx = await createBoardFixture(ctx);
+    const source = await create(fx.boardId, fx.ownerToken);
+    const dead = await create(fx.boardId, fx.ownerToken);
+    await notesCol(ctx.db)
+      .doc(dead.id)
+      .update({ deletedAt: (await stored(dead.id)).createdAt });
+    await notesCol(ctx.db)
+      .doc(source.id)
+      .update({ links: [dead.id, ...Array.from({ length: 9 }, (_, i) => `missing-${i}`)] });
+    const live = await create(fx.boardId, fx.ownerToken);
+    const response = await patch(fx.ownerToken, source.id, { linkChanges: { add: [live.id] } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().links).toEqual([live.id]);
+    expect((await stored(source.id)).links).toEqual([live.id]);
+  });
+
   it('caps the list at ten and keeps a viewer to their own private notes', async () => {
     const fx = await createBoardFixture(ctx);
     const a = await create(fx.boardId, fx.ownerToken, { title: 'A' });

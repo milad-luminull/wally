@@ -211,7 +211,7 @@ export const noteDtoSchema = z.object({
   dueDate: z.string().date().nullable(),
   assignee: userSummarySchema.nullable(),
   tags: z.array(z.string()),
-  /** Ids of the notes this one links to (L1); a reader drops an id it cannot resolve (L7). */
+  /** Outgoing links resolved to live, same-board targets visible to this caller. */
   links: z.array(z.string()),
   /** Permissive on the way out — the write schemas are what enforce the rules. */
   customFields: z.record(z.string(), z.string()),

@@ -198,29 +198,30 @@ export async function executeNoteCommand(
       let links: string[] | undefined;
       if (linkChanges) {
         const current = note.links ?? [];
-        const next = applyLinkChanges(current, linkChanges, note.id);
-        // A list that comes out the same is no change, also on a note with no list yet.
-        if (JSON.stringify(next) !== JSON.stringify(current)) links = next;
-        // Every new target is read inside the transaction: a live note of this board the
-        // caller can see (the plan's L2). A target that fails is a 422, nothing is written.
-        const added = next.filter((id) => !current.includes(id));
-        if (added.length) {
-          const targets = await tx.getAll(...added.map((id) => notesCol(db).doc(id)));
-          for (const snap of targets) {
-            const target = snap.data();
-            if (
-              !target ||
-              target.deletedAt ||
-              target.whiteboardId !== board.id ||
-              !canSeeNote(target, actor.id)
-            )
-              throw new AppError(
-                422,
-                'LINK_TARGET_INVALID',
-                'A link must name a note on this board',
-              );
-          }
+        const requested = [...new Set(linkChanges.add ?? [])];
+        const ids = [...new Set([...current, ...requested])];
+        const targets = ids.length ? await tx.getAll(...ids.map((id) => notesCol(db).doc(id))) : [];
+        const byId = new Map(targets.map((snap) => [snap.id, snap.data()]));
+        // Validate every requested target, even an already stored edge: otherwise success
+        // reveals an inaccessible relation and lets unrelated fields bypass refusal.
+        for (const id of requested) {
+          const target = byId.get(id);
+          if (
+            !target ||
+            target.deletedAt ||
+            target.whiteboardId !== board.id ||
+            !canSeeNote(target, actor.id)
+          )
+            throw new AppError(422, 'LINK_TARGET_INVALID', 'A link must name a note on this board');
         }
+        // Reclaim dead edges on a link edit so invisible tombstones cannot exhaust capacity.
+        // Live private targets remain stored; only response mapping hides them per reader.
+        const live = current.filter((id) => {
+          const target = byId.get(id);
+          return target && !target.deletedAt && target.whiteboardId === board.id;
+        });
+        const next = applyLinkChanges(live, linkChanges, note.id);
+        if (JSON.stringify(next) !== JSON.stringify(current)) links = next;
       }
       changes = {
         ...fields,

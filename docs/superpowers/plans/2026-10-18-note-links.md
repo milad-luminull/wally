@@ -12,6 +12,12 @@
 
 ## Context
 
+**Handoff/review amendments (2026-10-18):** L7's raw DTO rule is superseded: list, detail,
+and mutation/replay responses filter links per caller to live, same-board targets. Link edits
+reclaim missing/deleted targets before the ten-link cap; live private relations remain stored.
+Every requested addition is validated, including an already stored target. No background cleanup.
+Proposed-link consumers use the stored `item.index`, not the filtered array position.
+
 Slice 3 deferred links because they need a stored relation, the model reading the board, and lines across the wall's scroll containers (R1 there). Decisions for this plan, each with its reason and its cost if wrong:
 
 - **L1. The relation is a list of note ids on the note that links**, `links: string[]`, at most `MAX_LINKS_PER_NOTE = 10`, one direction stored. Both sides show it: a note's panel lists the notes it links to and the notes that link to it (derived from the board's notes the client already holds). No separate collection: a link is a property of the note that was written, like a tag. Cost if wrong: a migration to an edge collection later.
