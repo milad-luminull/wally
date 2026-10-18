@@ -370,8 +370,17 @@ Three things worth understanding:
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
 (`provider:model`, default `vertex:gemini-2.5-flash`), `ASSISTANT_VERTEX_LOCATION`
 (default `europe-west1`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
-and the Cloud Run service account needs `roles/aiplatform.user`. `GET /health` reports
-the configured model without calling it.
+and the Cloud Run service account needs `roles/aiplatform.user`:
+
+```bash
+gcloud projects add-iam-policy-binding luminull-wally --member=serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com --role=roles/aiplatform.user
+```
+
+`GET /health` reports the configured model without calling it. The release pipeline sets
+`ASSISTANT_ENABLED`, `ASSISTANT_MODEL` and `ASSISTANT_VERTEX_LOCATION` from the repository
+variables of the same names (`gh variable set ASSISTANT_ENABLED --body true`), with the
+API's defaults when a variable is absent; a value set by hand on the service is replaced at
+the next release.
 
 The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
 Gemini 3.8 Flash is served only on the `global` endpoint for this project: it answers 404

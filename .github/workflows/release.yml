@@ -231,13 +231,15 @@ jobs:
           IMAGE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api@${{ steps.build.outputs.digest }}"
           # ^@^ picks @ as the delimiter so a value containing a comma cannot silently split
           # into two variables. --set-env-vars REPLACES the whole set, which is deliberate:
-          # the workflow, not deploy history, is the source of truth. All four are listed,
-          # and the next step asserts them back.
+          # the workflow, not deploy history, is the source of truth. All seven are listed,
+          # and the next step asserts them back. The three ASSISTANT_* values come from the
+          # repository variables of the same names and fall back to the API's own defaults
+          # (apps/api/src/env.ts) when a variable is absent.
           gcloud run deploy wally-api \
             --image="${IMAGE}" \
             --region="${{ vars.GCP_REGION }}" \
             --service-account="wally-api@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --set-env-vars="^@^FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@NODE_ENV=production@CORS_ORIGIN=${{ vars.WEB_ORIGIN }}@FIRESTORE_DATABASE_ID=wally" \
+            --set-env-vars="^@^FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@NODE_ENV=production@CORS_ORIGIN=${{ vars.WEB_ORIGIN }}@FIRESTORE_DATABASE_ID=wally@ASSISTANT_ENABLED=${{ vars.ASSISTANT_ENABLED || 'false' }}@ASSISTANT_MODEL=${{ vars.ASSISTANT_MODEL || 'vertex:gemini-2.5-flash' }}@ASSISTANT_VERTEX_LOCATION=${{ vars.ASSISTANT_VERTEX_LOCATION || 'europe-west1' }}" \
             --tag="rel-${{ steps.ver.outputs.short }}" \
             --revision-suffix="rel-${{ steps.ver.outputs.short }}" \
             --no-traffic
@@ -261,8 +263,10 @@ jobs:
                 and ($e.NODE_ENV == "production")
                 and ($e | has("FIRESTORE_EMULATOR_HOST") | not)
                 and ($e | has("PORT") | not)
+                and ($e.ASSISTANT_ENABLED == "true" or $e.ASSISTANT_ENABLED == "false")
+                and ($e.ASSISTANT_MODEL | test("^[a-z-]+:[^:]+$"))
             ' > /dev/null \
-          || { echo "::error title=Bad Cloud Run environment::FIRESTORE_DATABASE_ID must be 'wally' (otherwise every write goes to the US (default) database), NODE_ENV must be production, and neither FIRESTORE_EMULATOR_HOST nor PORT may be set."; exit 1; }
+          || { echo "::error title=Bad Cloud Run environment::FIRESTORE_DATABASE_ID must be 'wally' (otherwise every write goes to the US (default) database), NODE_ENV must be production, ASSISTANT_ENABLED must be 'true' or 'false', ASSISTANT_MODEL must be provider:model, and neither FIRESTORE_EMULATOR_HOST nor PORT may be set."; exit 1; }
 
           # docs/DEPLOY.md section 9c: the invoker IAM check is disabled on this service
           # because the org policy forbids an allUsers binding. It is a service-level
