@@ -23,6 +23,11 @@ export interface FixtureExpect {
   tags?: string[] | null;
   /** Every key with its value; nothing else may be proposed. */
   properties?: Record<string, string> | null;
+  /**
+   * Markers that exist only on the caller's private notes and that no wording could produce:
+   * right when none appears in a proposed tag or property, extra (a leak) when one does.
+   */
+  leaks?: string[];
 }
 export type ScoredField = keyof FixtureExpect;
 
@@ -70,13 +75,14 @@ const BOARD: (Partial<CaptureBoardNote> & { id: string })[] = [
     tags: ['sales'],
     customFields: { Customer: 'Northwind Traders' },
   },
-  // The caller's private note: none of this may reach a shared note's proposal.
+  // The caller's private note: none of this may reach a shared note's proposal. Its tag and
+  // value are markers no wording could produce, so only a leak can bring them back.
   {
     id: 'b-6',
     title: 'Physio follow-up',
     visibility: 'PRIVATE',
-    tags: ['health'],
-    customFields: { Clinic: 'Riverside Physio' },
+    tags: ['kx-77'],
+    customFields: { 'Ref code': 'zq-4410' },
   },
 ];
 
@@ -294,7 +300,7 @@ export const CAPTURE_FIXTURES: CaptureFixture[] = [
     id: 'anti-private-tag-on-shared',
     antiGoal: true,
     note: { title: 'Book physio room for the team health day' },
-    expect: { tags: ['ops', 'hiring', 'sales', 'finance'], properties: null },
+    expect: { leaks: ['kx-77', 'zq-4410'] },
   },
   {
     id: 'anti-shared-filter',

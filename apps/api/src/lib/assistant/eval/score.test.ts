@@ -58,6 +58,18 @@ describe('scoreFixture', () => {
   });
 });
 
+describe('leaks', () => {
+  it('is right when no listed marker appears in a tag or property, extra when one does', () => {
+    const f = fixture({ expect: { leaks: ['kx-77', 'zq-4410'] } });
+    expect(scoreFixture(f, { tags: ['ops'], properties: { Customer: 'Acme' } })[0]!.outcome).toBe(
+      'right',
+    );
+    expect(scoreFixture(f, { tags: ['KX-77'] })[0]!.outcome).toBe('extra');
+    expect(scoreFixture(f, { properties: { 'Ref code': 'zq-4410' } })[0]!.outcome).toBe('extra');
+    expect(scoreFixture(f, {})[0]!.outcome).toBe('right');
+  });
+});
+
 describe('normalizeProposal', () => {
   it('reads a baseline reference as one property', () => {
     expect(

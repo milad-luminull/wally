@@ -1,9 +1,10 @@
 /**
  * Scores the capture call on the sample notes in `lib/assistant/eval/captureFixtures.ts`
  * against the configured model, with no Firestore: the same seam the route uses builds each
- * call and filters each answer. Prints per-field counts and every anti-goal failure; exits 1
- * when any anti-goal fixture fails. It calls the real model and charges the deployment's
- * Vertex project, so the owner runs it, from the API package:
+ * call and filters each answer. Prints per-field counts, every anti-goal failure and any
+ * fixture whose call failed (not scored); exits 1 when either list is not empty. It calls the
+ * real model and charges the deployment's Vertex project, so the owner runs it, from the API
+ * package:
  *
  *   cd apps/api
  *   eval "$(python3 -I /Users/mr_user/wally-emulator-data/exportenv.py /Users/mr_user/development/apps/wally/.env)"
@@ -28,19 +29,28 @@ const runner = createConfiguredSuggestionRunner(env);
 console.log(`model: ${env.ASSISTANT_MODEL}, ${CAPTURE_FIXTURES.length} fixtures`);
 
 const runs = [];
+/** Fixtures whose call failed (a 429, a 5xx, a timeout): reported, not scored. */
+const errors: string[] = [];
 for (const fixture of CAPTURE_FIXTURES) {
   const note = fixtureNote(fixture);
   const ctx = fixtureContext(fixture);
   const call = buildCaptureCall(note, fixtureBoard(fixture), ctx);
   let accepted = null;
   if (call) {
-    const output = await runner({
-      instructions: call.instructions,
-      prompt: call.prompt,
-      maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-      onAttempt: async () => ({ settle: async () => {} }),
-    });
-    accepted = output.fields ? acceptCapture(output.fields, call, note, ctx) : null;
+    try {
+      const output = await runner({
+        instructions: call.instructions,
+        prompt: call.prompt,
+        maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
+        onAttempt: async () => ({ settle: async () => {} }),
+      });
+      accepted = output.fields ? acceptCapture(output.fields, call, note, ctx) : null;
+    } catch (error) {
+      // One provider error costs that fixture alone, not the rest of a paid run.
+      errors.push(fixture.id);
+      console.log(`  ${fixture.id.padEnd(28)} error: ${(error as Error).message ?? error}`);
+      continue;
+    }
   }
   const scores = scoreFixture(fixture, normalizeProposal(accepted));
   runs.push({ fixture, scores });
@@ -60,4 +70,5 @@ console.log(
     ? `anti-goal failures: ${summary.antiGoalFailures.join(', ')}`
     : 'anti-goal failures: none',
 );
-process.exit(summary.antiGoalFailures.length ? 1 : 0);
+if (errors.length) console.log(`not scored (call failed): ${errors.join(', ')}`);
+process.exit(summary.antiGoalFailures.length || errors.length ? 1 : 0);

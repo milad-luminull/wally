@@ -66,7 +66,15 @@ export function normalizeProposal(fields: StoredFields | null): ScoredProposal {
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 function scoreField(field: ScoredField, expected: unknown, proposal: ScoredProposal): Outcome {
-  const got = proposal[field];
+  if (field === 'leaks') {
+    const seen = [
+      ...(proposal.tags ?? []),
+      ...Object.entries(proposal.properties ?? {}).flat(),
+    ].map((text) => text.toLowerCase());
+    const markers = (expected as string[]).map((m) => m.toLowerCase());
+    return markers.some((m) => seen.some((text) => text.includes(m))) ? 'extra' : 'right';
+  }
+  const got = proposal[field as keyof ScoredProposal];
   if (expected === null) return got === undefined ? 'right' : 'extra';
   if (got === undefined) return 'missed';
   if (expected === 'any') return 'right';
