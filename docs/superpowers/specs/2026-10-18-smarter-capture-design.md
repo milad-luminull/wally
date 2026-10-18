@@ -101,28 +101,28 @@ The causes are in the capture call, not in the model and not in the UI:
 
 ### 1. The instructions change from "copy" to "understand"
 
-Rewrite `CAPTURE_INSTRUCTIONS_PREFIX` around one rule: *fill in what a capable assistant would
+Rewrite `CAPTURE_INSTRUCTIONS_PREFIX` around one rule: _fill in what a capable assistant would
 set for this task, inferring from the words, the board and common sense; never invent a fact
-the words and board do not support.* Each field's line says what counts as a signal. The
+the words and board do not support._ Each field's line says what counts as a signal. The
 confidence and reason contract stays (reason ≤ ten words, quoting or naming the signal, in the
 answer language). Byte-stability for caching stays: board content goes in the prompt, never in
 the instructions.
 
 Per field (existing ones get smarter, new ones are added):
 
-| Field | Today | After |
-|---|---|---|
-| `dueDate` | exact dates only | deadlines stated or clearly implied ("by Friday", "before the 3rd", "end of month", "EOD"). Vague spans ("this week", "next week", "soon") go to `horizon`, not to a made-up date. |
-| `horizon` *(new)* | — | `DIESE_WOCHE` or `SPAETER` from timing words or from a proposed date's distance (this week → This week; later → Later). Never `HEUTE`: that is the default and so proposes nothing. |
-| `priority` | urgent/defer keywords | judged from stakes and timing: a near deadline with an outside party, a blocker, an escalation → `HOCH`; "when there's time", "nice to have", someday → `NIEDRIG`; ordinary tasks → none. |
-| `assignee` | a named member | also "ask Anna to…", "Anna sends…", "@anna"; still only ids from the member list. |
-| `visibility` *(new)* | — | `PRIVATE` for clearly personal matters (health, family, personal money, salary, own job applications, a gift for a colleague) or explicit "private", "just for me". Nothing else. |
-| `title` | shorter, identical meaning | a clean title when the typed one is long, rambling, or still carries words that became fields ("Call Anna tomorrow urgent" → "Call Anna"). Opt-in as today (R2). |
-| `description` *(new)* | — | when the typed title carries detail beyond a title, the detail moves here and `title` is the short form. Proposed only while the note has no description. Opt-in with the title (R2): never kept by the countdown. |
-| `properties` *(replaces the single `reference`)* | one property | up to three, e.g. Customer, Project, Contract number; reuse board keys and, where the value matches one already used, its spelling. |
-| `tags` *(new)* | — | up to three; prefer the board's existing tags; a new tag only for a clear category. |
-| `subtasks` | only when listed | also for tasks that naturally have steps ("prepare board meeting"), two to five concrete steps; none for single-action tasks ("call mom"). |
-| `links` | as merged in PR #57/#58 | unchanged. |
+| Field                                            | Today                      | After                                                                                                                                                                                                              |
+| ------------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dueDate`                                        | exact dates only           | deadlines stated or clearly implied ("by Friday", "before the 3rd", "end of month", "EOD"). Vague spans ("this week", "next week", "soon") go to `horizon`, not to a made-up date.                                 |
+| `horizon` _(new)_                                | —                          | `DIESE_WOCHE` or `SPAETER` from timing words or from a proposed date's distance (this week → This week; later → Later). Never `HEUTE`: that is the default and so proposes nothing.                                |
+| `priority`                                       | urgent/defer keywords      | judged from stakes and timing: a near deadline with an outside party, a blocker, an escalation → `HOCH`; "when there's time", "nice to have", someday → `NIEDRIG`; ordinary tasks → none.                          |
+| `assignee`                                       | a named member             | also "ask Anna to…", "Anna sends…", "@anna"; still only ids from the member list.                                                                                                                                  |
+| `visibility` _(new)_                             | —                          | `PRIVATE` for clearly personal matters (health, family, personal money, salary, own job applications, a gift for a colleague) or explicit "private", "just for me". Nothing else.                                  |
+| `title`                                          | shorter, identical meaning | a clean title when the typed one is long, rambling, or still carries words that became fields ("Call Anna tomorrow urgent" → "Call Anna"). Opt-in as today (R2).                                                   |
+| `description` _(new)_                            | —                          | when the typed title carries detail beyond a title, the detail moves here and `title` is the short form. Proposed only while the note has no description. Opt-in with the title (R2): never kept by the countdown. |
+| `properties` _(replaces the single `reference`)_ | one property               | up to three, e.g. Customer, Project, Contract number; reuse board keys and, where the value matches one already used, its spelling.                                                                                |
+| `tags` _(new)_                                   | —                          | up to three; prefer the board's existing tags; a new tag only for a clear category.                                                                                                                                |
+| `subtasks`                                       | only when listed           | also for tasks that naturally have steps ("prepare board meeting"), two to five concrete steps; none for single-action tasks ("call mom").                                                                         |
+| `links`                                          | as merged in PR #57/#58    | unchanged.                                                                                                                                                                                                         |
 
 Consistency rules the server enforces after the model answers (not left to the model):
 
