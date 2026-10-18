@@ -12,12 +12,8 @@ import type {
   SuggestionFields,
 } from '@wally/shared';
 import {
-  SUGGESTION_MAX_LINKS,
   SUGGESTION_MAX_SUBTASKS,
-  customFieldKeySchema,
-  customFieldValueSchema,
   findFieldKey,
-  foldFieldKey,
   suggestionFieldKeys,
 } from '@wally/shared';
 import type { Env } from '../../env.js';
@@ -45,23 +41,20 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import {
-  CAPTURE_MAX_OTHER_NOTES,
-  buildCaptureInstructions,
-  buildCapturePrompt,
-} from './capturePrompt.js';
+  acceptCapture,
+  buildCaptureCall,
+  captureCandidates,
+  captureNeedsBoard,
+  type CaptureContext,
+} from './captureProposal.js';
 import {
   suggestionSchemaJson,
-  type ModelSuggestion,
   type SuggestionRunner,
 } from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
 export const SUGGESTION_DEADLINE_MS = 20_000;
-/** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
-export const SUGGESTION_MIN_CONFIDENCE = 0.6;
-/** Fewer steps than this are no breakdown: steps are proposed two to five (plan R7). */
-export const SUGGESTION_MIN_SUBTASKS = 2;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -108,162 +101,11 @@ function mintOperationIds(): SuggestionOperationIds {
   };
 }
 
-/**
- * Which fields may be proposed for this note: an empty one the person did not decide while
- * writing (plan R3), a cleaner title beside a title they wrote, a reference or steps only on a
- * note that has no property and no step yet (R7), and links only on a note with none (L3).
- */
-function candidates(
-  note: Pick<
-    NoteDetailDto,
-    | 'dueDate'
-    | 'priority'
-    | 'assignee'
-    | 'visibility'
-    | 'title'
-    | 'customFields'
-    | 'subtaskSummary'
-    | 'links'
-  >,
-  locked: SuggestionFieldKey[],
-): SuggestionFieldKey[] {
-  const open: SuggestionFieldKey[] = [];
-  if (note.dueDate === null && !locked.includes('dueDate')) open.push('dueDate');
-  if (note.priority === 'MITTEL' && !locked.includes('priority')) open.push('priority');
-  if (note.assignee === null && note.visibility !== 'PRIVATE' && !locked.includes('assignee'))
-    open.push('assignee');
-  if (note.title.trim() && !locked.includes('title')) open.push('title');
-  if (Object.keys(note.customFields ?? {}).length === 0 && !locked.includes('reference'))
-    open.push('reference');
-  if (note.subtaskSummary.total === 0 && !locked.includes('subtasks')) open.push('subtasks');
-  if ((note.links ?? []).length === 0 && !locked.includes('links')) open.push('links');
-  return open;
-}
-
-/**
- * The property keys the board's notes use, for the prompt: one spelling per key compared
- * through the shared, locale-neutral fold (the first one seen), sorted for the caller's
- * language. Mirrors the web's `collectFieldKeys`, so the model sees the keys the panel offers.
- */
-export function collectKeys(
-  notes: { customFields: Record<string, string> }[],
-  language: Language,
-): string[] {
-  const byFolded = new Map<string, string>();
-  for (const note of notes)
-    for (const key of Object.keys(note.customFields ?? {})) {
-      const folded = foldFieldKey(key);
-      if (!byFolded.has(folded)) byFolded.set(folded, key);
-    }
-  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, language));
-}
-
 /** The fields a chip sets while writing: what the review's first group lists besides the words. */
 const TYPED_KEYS: readonly SuggestionFieldKey[] = ['dueDate', 'priority', 'assignee'];
 
 /** Each value once, first occurrence first. */
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
-
-/**
- * Keeps a field only when it is a candidate, confident enough, (for a person) a member and
- * (for a link) one of the other notes the model was shown, `others` (id to title). A due date
- * before the person's today is dropped: nobody writes a task that was due last week. Both are
- * YYYY-MM-DD, so the string order is the calendar order.
- */
-function accept(
-  fields: ModelSuggestion,
-  open: SuggestionFieldKey[],
-  memberIds: Set<string>,
-  today: string,
-  note: { title: string },
-  fieldKeys: string[],
-  others: Map<string, string>,
-): AssistantSuggestionDoc['fields'] {
-  const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
-  return {
-    dueDate:
-      open.includes('dueDate') &&
-      fields.dueDate &&
-      sure(fields.dueDate.confidence) &&
-      fields.dueDate.value >= today
-        ? { value: fields.dueDate.value, reason: fields.dueDate.reason }
-        : null,
-    priority:
-      open.includes('priority') && fields.priority && sure(fields.priority.confidence)
-        ? { value: fields.priority.value, reason: fields.priority.reason }
-        : null,
-    assignee:
-      open.includes('assignee') &&
-      fields.assignee &&
-      sure(fields.assignee.confidence) &&
-      memberIds.has(fields.assignee.memberId)
-        ? { value: fields.assignee.memberId, reason: fields.assignee.reason }
-        : null,
-    // A "cleaner" title that is the person's own is nothing to offer.
-    title:
-      open.includes('title') &&
-      fields.title &&
-      sure(fields.title.confidence) &&
-      fields.title.value.trim() !== note.title.trim()
-        ? { value: fields.title.value.trim(), reason: fields.title.reason }
-        : null,
-    reference:
-      open.includes('reference') && fields.reference && sure(fields.reference.confidence)
-        ? acceptReference(fields.reference, fieldKeys)
-        : null,
-    subtasks:
-      open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
-        ? acceptSubtasks(fields.subtasks)
-        : null,
-    links:
-      open.includes('links') && fields.links && sure(fields.links.confidence)
-        ? acceptLinks(fields.links, others)
-        : null,
-  };
-}
-
-/**
- * The key folds to the board's own spelling when the board already uses it ("customer" becomes
- * "Customer"), so a keep never starts a near-duplicate property. A key or value the property
- * schema refuses drops the reference.
- */
-function acceptReference(
-  reference: NonNullable<ModelSuggestion['reference']>,
-  fieldKeys: string[],
-): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
-  const wanted = foldFieldKey(reference.key);
-  const key = fieldKeys.find((k) => foldFieldKey(k) === wanted) ?? reference.key.trim();
-  const parsedKey = customFieldKeySchema.safeParse(key);
-  const parsedValue = customFieldValueSchema.safeParse(reference.value);
-  if (!parsedKey.success || !parsedValue.success) return null;
-  return { key: parsedKey.data, value: parsedValue.data, reason: reference.reason };
-}
-
-/**
- * The runner already trimmed the steps, dropped the blank and repeated ones and cut them to
- * `SUGGESTION_MAX_SUBTASKS` (`modelSuggestionSchema`); one step left is no breakdown.
- */
-function acceptSubtasks(
-  subtasks: NonNullable<ModelSuggestion['subtasks']>,
-): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
-  const { items } = subtasks;
-  return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
-}
-
-/**
- * Only notes from the rows the model saw, each once, at most three: a link is never invented
- * (L3). The rows never hold the note itself, and the runner already dropped repeated ids.
- */
-function acceptLinks(
-  links: NonNullable<ModelSuggestion['links']>,
-  others: Map<string, string>,
-): NonNullable<AssistantSuggestionDoc['fields']['links']> | null {
-  const items = links.items
-    .filter((item) => others.has(item.noteId))
-    .slice(0, SUGGESTION_MAX_LINKS)
-    .map((item) => ({ noteId: item.noteId, reason: item.reason }));
-  return items.length ? { items, reason: links.reason } : null;
-}
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
   // A slice 2 record has no title, reference or subtasks at all: absent reads as nothing proposed.
@@ -373,43 +215,27 @@ export async function suggestForCapture(
   // 404 a note they cannot see gets.
   if (note.createdBy?.id !== actor.id) throw notFound();
   if (!note.title.trim() && !note.description.trim()) return null;
-  const open = candidates(note, request.locked);
-  if (open.length === 0) return null;
+  if (captureCandidates(note, request.locked).length === 0) return null;
 
   const members = (await listMembers(db, actor, board.id)).data;
-  const memberRows = members.flatMap((m) =>
-    m.userId ? [{ id: m.userId, name: m.displayName ?? m.email }] : [],
-  );
-  const instructions = buildCaptureInstructions({
+  const captureCtx: CaptureContext = {
+    actorId: actor.id,
     today: request.today,
     timeZone: request.timeZone,
     language: ctx.language,
-  });
-  // Every note the caller can see, done ones too, read once and only when a reference or links
-  // may be proposed at all.
-  const needsBoard = open.includes('reference') || open.includes('links');
-  const boardNotes = needsBoard ? await listNotes(db, actor, board.id, { status: 'ALL' }) : [];
-  // A key in use anywhere on the board is one a reference should reuse.
-  const fieldKeys = open.includes('reference') ? collectKeys(boardNotes, ctx.language) : [];
-  // The other open notes, newest first, as `id: title` rows: what a link may name (L3).
-  const otherNotes = open.includes('links')
-    ? boardNotes
-        .filter((n) => n.id !== note.id && n.status === 'OPEN')
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
-        .slice(0, CAPTURE_MAX_OTHER_NOTES)
-        .map((n) => ({ id: n.id, title: n.title }))
+    locked: request.locked,
+    members: members.flatMap((m) =>
+      m.userId ? [{ id: m.userId, name: m.displayName ?? m.email }] : [],
+    ),
+    canChangeVisibility: ctx.role !== 'VIEW',
+  };
+  // Every note the caller can see, done ones too, read once and only when the call uses them.
+  const boardNotes = captureNeedsBoard(captureCandidates(note, request.locked))
+    ? await listNotes(db, actor, board.id, { status: 'ALL' })
     : [];
-  // Links are offered only when the board has another open note to name (L3): with none, a
-  // note whose other fields are all decided costs no call.
-  const proposable = otherNotes.length ? open : open.filter((key) => key !== 'links');
-  if (proposable.length === 0) return null;
-  const prompt = buildCapturePrompt({
-    title: note.title,
-    description: note.description,
-    members: memberRows,
-    fieldKeys,
-    notes: otherNotes,
-  });
+  const call = buildCaptureCall(note, boardNotes, captureCtx);
+  if (!call) return null;
+  const { instructions, prompt } = call;
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
   const model = env.ASSISTANT_MODEL;
@@ -473,16 +299,8 @@ export async function suggestForCapture(
     ms: Date.now() - startedAt,
   });
   if (!output.fields) return null;
-  const fields = accept(
-    output.fields,
-    proposable,
-    new Set(memberRows.map((m) => m.id)),
-    request.today,
-    note,
-    fieldKeys,
-    new Map(otherNotes.map((n) => [n.id, n.title])),
-  );
-  if (proposedKeys(fields).length === 0) return null;
+  const fields = acceptCapture(output.fields, call, note, captureCtx);
+  if (!fields) return null;
 
   const now = clock();
   const stamp = Timestamp.fromDate(now);
