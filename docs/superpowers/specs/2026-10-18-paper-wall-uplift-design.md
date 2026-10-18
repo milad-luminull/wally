@@ -1,6 +1,6 @@
 # Wally Paper Wall visual uplift — iteration one
 
-Status: builder review complete; awaiting owner scope approval. No product code changed.
+Status: approved by owner; implementation authorized, with current theme retained as Minimal.
 
 ## Intent and agreed scope
 
@@ -10,7 +10,7 @@ Keep all existing board functionality. Any additional or removed functionality r
 
 ## Visual direction
 
-Paper Wall is the default palette. Use the existing self-hosted Geist and Geist Mono fonts. Adopt the reference's compact left navigation, broad quiet workspace, floating pill toolbar, softly elevated paper cards, restrained borders and rounded controls. Use the existing canvas pattern preference, so people who chose grid or no pattern keep that choice.
+Paper Wall is the default palette. Minimal preserves the current light and dark token values exactly. Use the existing self-hosted Geist and Geist Mono fonts. Adopt the reference's compact left navigation, broad quiet workspace, floating pill toolbar, softly elevated paper cards, restrained borders and rounded controls. Use the existing canvas pattern preference, so people who chose grid or no pattern keep that choice.
 
 The board remains the dominant area. Colour primarily comes from notes and the selected accent; the surrounding interface stays quieter. No decorative marketing gradients inside the working board. Keep short metadata legible and preserve visible keyboard focus. Reference colours with insufficient text contrast get darker/lighter text variants rather than literal low-contrast copies.
 
@@ -62,16 +62,17 @@ Both English and German copy ship in the existing catalogue. Offer language, pal
 
 Palette and appearance are independent preferences. Appearance remains `light | dark | system`; System resolves the OS preference within the chosen palette. Supply these palettes from the references:
 
-| Palette              | Source anchor colours                                | Reference               |
-| -------------------- | ---------------------------------------------------- | ----------------------- |
-| Paper Wall (default) | #FFFFFF, #F6F6F5, #111111, #F5A524, #FFE27A, #BDE5FF | Paper Wall v3           |
-| Clear Morning        | #EEF6FC, #0B1A2A, #FFD05C, #D9F5E6                   | Both                    |
-| Highlighter          | #FFFFFF, #111111, #EDFF4A                            | Both                    |
-| Aurora               | #0B0B12, #5EEAD4, #FDE68A, #FDA4AF                   | Both                    |
-| Daybreak             | #FFFFFF, #FFF1E8, #FFC53D, #FF6B3D, #14110F          | Both                    |
-| Sprout               | #F6FBEA, #C6F432, #2F7D57, #0F2A1F                   | Both                    |
-| Amber Poster         | #FFF6DD, #FFD36B, #FFB21A, #FF5B2E, #111111          | Brand Research          |
-| Neutral              | #FFFFFF, #F5F5F5, #0A0A0A                            | Brand Research baseline |
+| Palette              | Source anchor colours                                     | Reference               |
+| -------------------- | --------------------------------------------------------- | ----------------------- |
+| Minimal              | Existing Graphite + Marigold, unchanged in light and dark | Current application     |
+| Paper Wall (default) | #FFFFFF, #F6F6F5, #111111, #F5A524, #FFE27A, #BDE5FF      | Paper Wall v3           |
+| Clear Morning        | #EEF6FC, #0B1A2A, #FFD05C, #D9F5E6                        | Both                    |
+| Highlighter          | #FFFFFF, #111111, #EDFF4A                                 | Both                    |
+| Aurora               | #0B0B12, #5EEAD4, #FDE68A, #FDA4AF                        | Both                    |
+| Daybreak             | #FFFFFF, #FFF1E8, #FFC53D, #FF6B3D, #14110F               | Both                    |
+| Sprout               | #F6FBEA, #C6F432, #2F7D57, #0F2A1F                        | Both                    |
+| Amber Poster         | #FFF6DD, #FFD36B, #FFB21A, #FF5B2E, #111111               | Brand Research          |
+| Neutral              | #FFFFFF, #F5F5F5, #0A0A0A                                 | Brand Research baseline |
 
 The supplied light palettes need authored dark companions, and Aurora needs a light companion. Keep each palette's hue identity. The reference values guide the result, but accessible contrast takes precedence. Do not infer “Aurora means dark” when the user selected Light.
 
