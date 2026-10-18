@@ -39,7 +39,6 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   },
 }));
 
-import { i18n } from '@/i18n';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
@@ -47,7 +46,6 @@ import { InlineCaptureCard } from './Capture/InlineCaptureCard';
 
 const PALETTE = isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}';
 const MOD = isMac ? '{Meta>}d{/Meta}' : '{Control>}d{/Control}';
-const ASK = isMac ? '{Meta>}j{/Meta}' : '{Control>}j{/Control}';
 
 function renderCommands(
   overrides: Partial<Parameters<typeof BoardCommands>[0]> = {},
@@ -55,7 +53,6 @@ function renderCommands(
 ) {
   const onDuplicateNote = vi.fn();
   const onNewNote = vi.fn();
-  const onOpenAssistant = vi.fn();
   const { unmount } = renderWithProviders(
     <>
       {alongside}
@@ -80,13 +77,12 @@ function renderCommands(
         onSetMine={vi.fn()}
         onResetView={vi.fn()}
         assistantEnabled
-        onOpenAssistant={onOpenAssistant}
         onUndoSuggestion={() => false}
         {...overrides}
       />
     </>,
   );
-  return { onDuplicateNote, onNewNote, onOpenAssistant, unmount };
+  return { onDuplicateNote, onNewNote, unmount };
 }
 
 describe('BoardCommands', () => {
@@ -141,79 +137,6 @@ describe('BoardCommands', () => {
     expect(await screen.findByText('New private note')).toBeInTheDocument();
     expect(screen.queryByText('New note')).not.toBeInTheDocument();
     expect(screen.queryByText('Duplicate note')).not.toBeInTheDocument();
-  });
-
-  it('lists the question entry and opens it with mod+j when the assistant is on', async () => {
-    const { onOpenAssistant } = renderCommands({ assistantEnabled: true });
-    const user = userEvent.setup();
-
-    await user.keyboard(PALETTE);
-    await user.click(await screen.findByText('Ask the wall…'));
-    // The palette runs its actions on the next frame, once the dialog has let go of focus.
-    await waitFor(() => expect(onOpenAssistant).toHaveBeenCalledTimes(1));
-
-    await user.keyboard(ASK);
-    expect(onOpenAssistant).toHaveBeenCalledTimes(2);
-  });
-
-  it('finds the question entry by its English keyword: typing wall', async () => {
-    renderCommands({ assistantEnabled: true });
-    const user = userEvent.setup();
-
-    await user.keyboard(PALETTE);
-    await user.type(await screen.findByRole('combobox'), 'wall');
-    // cmdk filters on the value and the keywords, not on the label.
-    expect(await screen.findByText('Ask the wall…')).toBeInTheDocument();
-  });
-
-  it('does not find the question entry by the German keywords when the palette is English', async () => {
-    const user = userEvent.setup();
-    renderCommands({ assistantEnabled: true });
-    await user.keyboard(PALETTE);
-    await user.type(await screen.findByRole('combobox'), 'fragen');
-    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
-  });
-
-  it('finds the question entry by fragen when the palette is German', async () => {
-    await i18n.changeLanguage('de');
-    renderCommands({ assistantEnabled: true });
-    const user = userEvent.setup();
-
-    await user.keyboard(PALETTE);
-    await user.type(await screen.findByRole('combobox'), 'fragen');
-    expect(await screen.findByText('Wand fragen…')).toBeInTheDocument();
-  });
-
-  it('does not open the question panel with mod+j behind an open dialog', async () => {
-    const { onOpenAssistant } = renderCommands({ assistantEnabled: true });
-    const user = userEvent.setup();
-
-    // The shortcuts sheet, not the palette: cmdk claims Ctrl+J itself, which would hide the bug.
-    await user.keyboard('?');
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    await user.keyboard(ASK);
-    expect(onOpenAssistant).not.toHaveBeenCalled();
-  });
-
-  it('shows the mod+j hint on the palette entry', async () => {
-    renderCommands({ assistantEnabled: true });
-    const user = userEvent.setup();
-
-    await user.keyboard(PALETTE);
-    const entry = (await screen.findByText('Ask the wall…')).closest('[cmdk-item]');
-    expect(entry).toHaveTextContent(/J$/);
-  });
-
-  it('has no question entry and no shortcut when the assistant is off', async () => {
-    const { onOpenAssistant } = renderCommands({ assistantEnabled: false });
-    const user = userEvent.setup();
-
-    await user.keyboard(PALETTE);
-    expect(await screen.findByText('New note')).toBeInTheDocument();
-    expect(screen.queryByText('Ask the wall…')).not.toBeInTheDocument();
-    await user.keyboard('{Escape}');
-    await user.keyboard(ASK);
-    expect(onOpenAssistant).not.toHaveBeenCalled();
   });
 
   it('lists ⌘Z in the shortcuts sheet when Wallybot can fill in, and not otherwise', async () => {

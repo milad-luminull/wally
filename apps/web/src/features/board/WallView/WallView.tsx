@@ -38,7 +38,8 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
+import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
@@ -68,6 +69,10 @@ interface WallViewProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: CaptureAsk;
+  /** The answer to a question, drawn where the question was written (§3.6). */
+  ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
@@ -100,6 +105,8 @@ export function WallView({
   onCapture,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
+  ask,
   visibility,
   pendingFor,
 }: WallViewProps) {
@@ -414,6 +421,8 @@ export function WallView({
             captureKey={captureKey}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={onCaptureAsk}
+            ask={ask}
             visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
@@ -428,6 +437,8 @@ export function WallView({
             captureKey={captureKey}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={onCaptureAsk}
+            ask={ask}
             visibility={visibility}
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}

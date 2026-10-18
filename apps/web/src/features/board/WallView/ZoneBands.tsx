@@ -6,7 +6,8 @@ import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { NoteGroup } from '../util/noteDerived';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
+import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
@@ -23,6 +24,7 @@ interface ZoneCapture {
   visibility: NoteVisibility;
   onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
+  onAsk: CaptureAsk | undefined;
 }
 
 interface ZoneBandProps {
@@ -30,6 +32,8 @@ interface ZoneBandProps {
   group: NoteGroup<string>;
   /** Set on the one zone a new note is being written into. */
   capture: ZoneCapture | null;
+  /** Set on the one zone a question was written in: its answer, drawn at the top (§3.6). */
+  ask: AskSlot | null;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -45,6 +49,7 @@ function ZoneBand({
   axis,
   group,
   capture,
+  ask,
   currentUserId,
   selectedNoteId,
   onOpenNote,
@@ -55,14 +60,15 @@ function ZoneBand({
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
-  const isEmpty = group.notes.length === 0 && !capture;
+  const isEmpty = group.notes.length === 0 && !capture && !ask;
 
   return (
     <section
       ref={setNodeRef}
       onDoubleClick={(e) => {
-        // Selecting a word in the note being written is not a request for another note.
-        if ((e.target as HTMLElement).closest('[data-capture]')) return;
+        // Selecting a word in the note being written, or in an answer, is not a request for
+        // another note.
+        if ((e.target as HTMLElement).closest('[data-capture], [data-ask]')) return;
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
@@ -109,6 +115,13 @@ function ZoneBand({
         )}
       >
         <div className="flex flex-row flex-wrap content-start gap-2">
+          {ask && (
+            // min-w-0 lets this flex item shrink below the card's 376px, so the card's own
+            // max-w-full can cap it to a narrow column instead of spilling past it.
+            <div key={ask.key} data-ask className="min-w-0 max-w-full">
+              {ask.card}
+            </div>
+          )}
           {capture && (
             <div key={capture.key} data-capture>
               <InlineCaptureCard
@@ -118,6 +131,7 @@ function ZoneBand({
                 layout="card"
                 onDone={capture.onDone}
                 onNoteId={capture.onNoteId}
+                onAsk={capture.onAsk}
               />
             </div>
           )}
@@ -165,6 +179,10 @@ interface ZoneBandsProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: CaptureAsk;
+  /** The answer to a question; shown at the top of its zone when its placement is a zone. */
+  ask?: AskSlot | null;
   visibility: NoteVisibility;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
@@ -186,10 +204,13 @@ export function ZoneBands({
   captureKey,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
+  ask,
   visibility,
   ...rest
 }: ZoneBandsProps) {
   const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
+  const zoneAsk = ask?.placement.kind === 'zone' && ask.placement.axis === axis ? ask : null;
   return (
     <div
       className={cn(
@@ -215,7 +236,13 @@ export function ZoneBands({
                   visibility,
                   onDone: onCaptureDone,
                   onNoteId: onCaptureNoteId,
+                  onAsk: onCaptureAsk,
                 }
+              : null
+          }
+          ask={
+            zoneAsk && zoneAsk.placement.kind === 'zone' && zoneAsk.placement.key === group.key
+              ? zoneAsk
               : null
           }
           {...rest}

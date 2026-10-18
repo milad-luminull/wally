@@ -25,7 +25,7 @@ export function AnswerNotes({
   if (shown.length === 0) return null;
   return (
     <div className="mt-3">
-      <p className="mb-1 text-12 font-medium text-fg-3">{t('assistant.notesRead')}</p>
+      <p className="mb-1 text-12 font-medium text-fg-3">{t('ask.notesRead')}</p>
       <ul className="overflow-hidden rounded-lg border border-border">
         {shown.map((chip) => {
           const note = notes?.find((n) => n.id === chip.id);

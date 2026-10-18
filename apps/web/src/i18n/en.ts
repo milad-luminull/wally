@@ -191,8 +191,6 @@ export const en = {
     focusSearch: 'Filter notes',
     duplicateNote: 'Duplicate note',
     share: 'Share board',
-    ask: 'Ask the wall…',
-    askKeywords: 'wall',
     viewWall: 'Switch to wall',
     viewList: 'Switch to list',
     showDone: 'Show completed',
@@ -216,7 +214,6 @@ export const en = {
     groupFree: 'Arrange freely',
     closePanel: 'Close note',
     duplicateNote: 'Duplicate note',
-    ask: 'Ask the wall',
     undoSuggestion: 'Undo the kept change',
     copyDrag: 'Hold while dragging to drop a copy',
     help: 'This overview',
@@ -390,18 +387,12 @@ export const en = {
       remove: 'Remove {{tag}}',
     },
   },
-  assistant: {
-    title: 'Ask',
-    panelAria: 'Ask about the wall',
-    placeholder: 'What is open today?',
-    fieldAria: 'Question for the wall',
-    ask: 'Ask',
-    newConversation: 'New',
-    examples: {
-      open: 'What is open today?',
-      overdue: 'What is overdue?',
-      busiest: 'Who has the most open notes?',
-    },
+  ask: {
+    cardAria: 'Answer from the wall',
+    asking: 'Reading the wall',
+    pin: 'Pin the answer',
+    unpin: 'Unpin the answer',
+    close: 'Close the answer',
     notesRead: 'Notes read',
     partial: 'Only part of the matching notes was read.',
     stopped: {
@@ -415,7 +406,6 @@ export const en = {
       busy: 'Busy right now. Try again in a moment.',
     },
     failed: 'No answer. Try again.',
-    earlier: 'Earlier',
   },
   capture: {
     cardAria: 'Write a new note',
@@ -423,6 +413,8 @@ export const en = {
     descriptionAria: 'Text of the new note',
     hint: '↵ create · ⇧↵ text · Esc discard',
     hintCoarse: 'Enter creates the note',
+    hintAsk: '↵ asks the wall · ⇧↵ text · Esc discard',
+    hintAskCoarse: 'Enter asks the wall',
     chips: {
       due: 'Due {{date}}',
       assignee: 'Assigned to {{name}}',

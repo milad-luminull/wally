@@ -16,7 +16,8 @@ import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
 import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
+import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 
@@ -37,6 +38,10 @@ interface WallCanvasProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: CaptureAsk;
+  /** The answer to a question, shown on the canvas when its placement is free (§3.6). */
+  ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
@@ -83,6 +88,8 @@ export function WallCanvas({
   captureKey,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
+  ask,
   visibility,
   canEditShared,
   filtered,
@@ -96,9 +103,9 @@ export function WallCanvas({
   const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
-    // A double-click on a card, or on the note being written (selecting a word), is not a
-    // request for another note.
-    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture]')) return;
+    // A double-click on a card, on the note being written (selecting a word) or on an answer
+    // is not a request for another note.
+    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
     const el = scrollRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -140,7 +147,9 @@ export function WallCanvas({
             <div
               key={captureKey}
               data-capture
-              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 30 }}
+              // Above an answer card at the same point (31 over 30): a note started from New
+              // note may land where the answer stands, and the card being written comes first.
+              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 31 }}
             >
               <InlineCaptureCard
                 boardId={boardId}
@@ -149,7 +158,23 @@ export function WallCanvas({
                 layout="card"
                 onDone={onCaptureDone}
                 onNoteId={onCaptureNoteId}
+                onAsk={onCaptureAsk}
               />
+            </div>
+          )}
+          {ask?.placement.kind === 'free' && (
+            <div
+              key={ask.key}
+              data-ask
+              style={{
+                position: 'absolute',
+                // Clamped like a capture point, for the answer's own size.
+                left: askCardOrigin(ask.placement).x,
+                top: askCardOrigin(ask.placement).y,
+                zIndex: 30,
+              }}
+            >
+              {ask.card}
             </div>
           )}
         </div>
@@ -158,7 +183,7 @@ export function WallCanvas({
       {/* Sits outside the scroll container so the prompt stays centred in the visible
           panel instead of drifting off with the 2400px canvas. `pointer-events-none` keeps
           the double-click-to-create gesture working straight through it. */}
-      {notes.length === 0 && !capture && (
+      {notes.length === 0 && !capture && !ask && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <EmptyState
             icon={<MousePointerClick strokeWidth={1.75} />}

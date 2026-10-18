@@ -1,9 +1,7 @@
-import { useCallback, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import type { AssistantConversationDto } from '@wally/shared';
 import { ApiError } from '@/lib/apiClient';
 import { assistantApi } from '@/lib/resources';
-import { useQueryKeys } from '../hooks/queryKeys';
 
 export type RefusalCode = 'ASSISTANT_DAILY_CAP' | 'ASSISTANT_MONTHLY_CAP' | 'ASSISTANT_BUSY';
 export type AskOutcome =
@@ -11,7 +9,7 @@ export type AskOutcome =
   | { kind: 'refused'; code: RefusalCode; resetsAt: string | null }
   | { kind: 'failed' };
 
-/** 429 codes the panel renders as a refusal. RATE_LIMITED is the route's own limiter, which
+/** 429 codes the card renders as a refusal. RATE_LIMITED is the route's own limiter, which
  *  sends no reset time, so it reads as busy. */
 const REFUSALS: Record<string, RefusalCode> = {
   ASSISTANT_DAILY_CAP: 'ASSISTANT_DAILY_CAP',
@@ -27,23 +25,18 @@ function localToday(): string {
 }
 
 /**
- * One question to the board. The API's three outcomes are returned as data, never thrown,
- * so the panel renders each in the answer's place. A conversation that closed under the
- * panel is retried once without its id, which starts a new one.
+ * One question to the board. The API's three outcomes come back as data, never thrown, so
+ * the card renders each in the answer's place. A conversation that closed underneath is
+ * retried once without its id, which starts a new one.
  */
 export function useAskAssistant(boardId: string) {
-  const queryClient = useQueryClient();
-  const keys = useQueryKeys();
-  const [isPending, setPending] = useState(false);
-
-  const ask = useCallback(
+  return useCallback(
     async (message: string, conversationId: string | null): Promise<AskOutcome> => {
       const base = {
         message,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         today: localToday(),
       };
-      setPending(true);
       try {
         let response;
         try {
@@ -61,7 +54,6 @@ export function useAskAssistant(boardId: string) {
             response = await assistantApi.turn(boardId, base);
           else throw error;
         }
-        queryClient.setQueryData(keys.assistantLatest(boardId), response.conversation);
         return { kind: 'answered', conversation: response.conversation };
       } catch (error) {
         const code =
@@ -77,12 +69,8 @@ export function useAskAssistant(boardId: string) {
           };
         }
         return { kind: 'failed' };
-      } finally {
-        setPending(false);
       }
     },
-    [boardId, keys, queryClient],
+    [boardId],
   );
-
-  return { ask, isPending };
 }

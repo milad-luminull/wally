@@ -77,9 +77,6 @@ interface TopBarProps {
   onSetAxis: (axis: BoardAxis) => void;
   onResetView: () => void;
   onNewNote: () => void;
-  /** The board's question panel is on; without it the bar has no Ask button. */
-  assistantEnabled: boolean;
-  onOpenAssistant: () => void;
 }
 
 /**
@@ -153,15 +150,13 @@ function DisplayMenu({
 }
 
 /*
- * A 375px phone has to hold the home mark, the board name, its switcher and five controls
- * (Ask, Display, Share, New, account). On a coarse pointer every button grows to px-4, which
+ * A 375px phone has to hold the home mark, the board name, its switcher and four controls
+ * (Display, Share, New, account). On a coarse pointer every button grows to px-4, which
  * left the name no room at all, so below md the icon-only buttons drop to px-3 — 40px wide,
- * the coarse-pointer floor in docs/BRAND.md — and the Ask text button to px-1.5 with that
- * same 40px minimum. From md up the shared button sizes apply unchanged.
+ * the coarse-pointer floor in docs/BRAND.md. From md up the shared button sizes apply
+ * unchanged.
  */
 const PHONE_ICON_BUTTON = 'max-md:[@media(pointer:coarse)]:px-3';
-const PHONE_TEXT_BUTTON =
-  'max-md:px-2 max-md:[@media(pointer:coarse)]:min-w-10 max-md:[@media(pointer:coarse)]:px-1.5';
 
 export function TopBar({
   board,
@@ -178,8 +173,6 @@ export function TopBar({
   onSetAxis,
   onResetView,
   onNewNote,
-  assistantEnabled,
-  onOpenAssistant,
 }: TopBarProps) {
   const { t } = useTranslation();
   const newNoteLabel = t(
@@ -319,18 +312,6 @@ export function TopBar({
             </kbd>
           </Button>
         </IconTooltip>
-
-        {assistantEnabled && (
-          <IconTooltip label={t('shortcuts.ask')} shortcut={[MOD_KEY, 'J']}>
-            <Button
-              variant="ghost"
-              onClick={onOpenAssistant}
-              className={`text-fg-3 ${PHONE_TEXT_BUTTON}`}
-            >
-              {t('assistant.ask')}
-            </Button>
-          </IconTooltip>
-        )}
 
         <DisplayMenu
           view={view}

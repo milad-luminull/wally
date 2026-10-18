@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
@@ -175,5 +175,67 @@ describe('WallView: every create path writes the note in place, with its visibil
         expect.objectContaining({ visibility: 'SHARED', freeX: 300, freeY: 200 }),
       );
     });
+  });
+});
+
+describe('WallView answer card', () => {
+  const owner = boardAccess('OWNER', 'me', 'all');
+  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE' })];
+
+  function renderWithAnswer(onCapture = vi.fn()) {
+    return renderWithProviders(
+      <WallView
+        boardId="board-1"
+        notes={notes}
+        totalNoteCount={notes.length}
+        currentUserId="me"
+        axis="horizon"
+        selectedNoteId={null}
+        onOpenNote={vi.fn()}
+        onDuplicateNote={vi.fn()}
+        access={owner}
+        capture={null}
+        onCapture={onCapture}
+        onCaptureDone={vi.fn()}
+        visibility={owner.newNoteVisibility}
+        ask={{
+          key: 1,
+          placement: {
+            kind: 'zone',
+            axis: 'horizon',
+            key: 'DIESE_WOCHE',
+            at: { freeX: 0, freeY: 0 },
+          },
+          card: <div data-testid="answer" />,
+        }}
+      />,
+    );
+  }
+
+  it('draws the answer card at the top of the zone the question was written in', () => {
+    renderWithAnswer();
+    const thisWeek = screen.getByRole('region', { name: /^This week/ });
+    const answer = within(thisWeek).getByTestId('answer');
+    expect(answer.parentElement).toHaveAttribute('data-ask');
+    // The answer takes the empty zone's place, and the other zones are left as they were.
+    expect(within(thisWeek).queryByText('Empty')).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole('region', { name: /^Today/ })).queryByTestId('answer'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('lets the answer card shrink to a column narrower than the card', () => {
+    // A flex item keeps min-width:auto, so without min-w-0 the 376px card would never
+    // shrink and its own max-w-full could not cap it to the zone column.
+    renderWithAnswer();
+    const wrapper = screen.getByTestId('answer').parentElement;
+    expect(wrapper).toHaveClass('min-w-0', 'max-w-full');
+  });
+
+  it('does not start a note when a word in the answer is double-clicked', async () => {
+    const onCapture = vi.fn();
+    renderWithAnswer(onCapture);
+    await userEvent.dblClick(screen.getByTestId('answer'));
+    expect(onCapture).not.toHaveBeenCalled();
   });
 });
