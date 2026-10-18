@@ -7,6 +7,7 @@ import { makeNote } from '@/test/fixtures';
 import { boardAccess } from '../util/permissions';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { TidyController } from '../Tidy/useTidy';
+import type { TidyProps } from '../Tidy/tidyProps';
 import { WallView } from './WallView';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
@@ -53,10 +54,12 @@ function Wall({
   axis,
   access,
   tidy,
+  tidyFor,
 }: {
   axis: 'horizon' | 'priority' | 'free';
   access: ReturnType<typeof boardAccess>;
   tidy?: TidyController;
+  tidyFor?: (noteId: string) => TidyProps | undefined;
 }) {
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
@@ -76,6 +79,7 @@ function Wall({
       onCaptureDone={() => setCapture(null)}
       visibility={access.newNoteVisibility}
       tidy={tidy}
+      tidyFor={tidyFor}
     />
   );
 }
@@ -84,9 +88,22 @@ function renderWall(
   axis: 'horizon' | 'priority' | 'free',
   access: ReturnType<typeof boardAccess>,
   tidy?: TidyController,
+  tidyFor?: (noteId: string) => TidyProps | undefined,
 ) {
-  return renderWithProviders(<Wall axis={axis} access={access} tidy={tidy} />);
+  return renderWithProviders(<Wall axis={axis} access={access} tidy={tidy} tidyFor={tidyFor} />);
 }
+
+/** The card of note n1 in a pending batch that would send it to This week. */
+const pendingTidyFor = (noteId: string): TidyProps | undefined =>
+  noteId === 'n1'
+    ? {
+        mark: { to: 'DIESE_WOCHE', from: 'HEUTE', reason: null, source: 'words', phase: 'pending' },
+        onKeep: vi.fn(),
+        onDiscard: vi.fn(),
+        onUndo: vi.fn(),
+        onRemove: vi.fn(),
+      }
+    : undefined;
 
 /** A board's Tidy with two candidates and nothing asked yet. */
 function idleTidy(): TidyController {
@@ -101,6 +118,7 @@ function idleTidy(): TidyController {
     discard: vi.fn(),
     undo: vi.fn(),
     undoLast: vi.fn(() => false),
+    lastKeptAt: () => null,
     remove: vi.fn(),
   };
 }
@@ -226,5 +244,29 @@ describe('WallView: the Tidy bar', () => {
   it('is not on the free canvas', () => {
     renderWall('free', owner, idleTidy());
     expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
+  });
+
+  it('is not there, and reserves no strip, when the shell passes no Tidy (the assistant off)', () => {
+    const { container } = renderWall('horizon', owner);
+    expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
+    expect(container.querySelector('[data-tidy-bar]')).toBeNull();
+  });
+});
+
+describe('WallView: a card of a Tidy batch', () => {
+  const owner = boardAccess('OWNER', 'me', 'all');
+
+  it('shows where it would go on the horizon wall', () => {
+    const { container } = renderWall('horizon', owner, idleTidy(), pendingTidyFor);
+    expect(container.querySelector('[data-note-id="n1"] [data-tidy]')).toHaveAttribute(
+      'data-tidy',
+      'pending',
+    );
+  });
+
+  it('shows nothing of the batch on the priority wall, even when handed one (R10)', () => {
+    const { container } = renderWall('priority', owner, idleTidy(), pendingTidyFor);
+    expect(container.querySelector('[data-note-id="n1"]')).not.toBeNull();
+    expect(container.querySelector('[data-tidy]')).toBeNull();
   });
 });

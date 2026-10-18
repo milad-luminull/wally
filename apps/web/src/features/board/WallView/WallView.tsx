@@ -43,7 +43,7 @@ import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import type { TidyController } from '../Tidy/useTidy';
 import { TidyBar } from '../Tidy/TidyBar';
-import { useFlip } from '../Tidy/useFlip';
+import { cancelFlight, useFlip } from '../Tidy/useFlip';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
@@ -76,9 +76,15 @@ interface WallViewProps {
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
-  /** The note's part in a Tidy batch, if any; the horizon wall only (WALLYBOT_INLINE.md §3.5). */
+  /**
+   * The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). Drawn on the horizon
+   * wall only (plan R10); the shell passes it only while the board's assistant is on.
+   */
   tidyFor?: (noteId: string) => TidyProps | undefined;
-  /** The board's Tidy; the horizon wall shows its bar and animates its batch (§3.5). */
+  /**
+   * The board's Tidy; the horizon wall shows its bar and animates its batch (§3.5). The shell
+   * passes it only while the board's assistant is on, so no strip is reserved otherwise (R4).
+   */
   tidy?: TidyController;
 }
 
@@ -120,8 +126,6 @@ export function WallView({
   const keys = useQueryKeys();
   const { t } = useTranslation();
   const moveNote = useMoveNote(boardId);
-  // The batch's cards travel when they change place (plan R8); no other card is measured.
-  useFlip(tidy?.trackedIds ?? EMPTY_IDS);
 
   /** The note currently under the cursor, rendered into `<DragOverlay>`. */
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -206,6 +210,19 @@ export function WallView({
     );
     if (settled) setPendingMove(null);
   }, [notes, pendingMove]);
+
+  // The batch's cards travel when they reach the zone the batch sends them to (plan R8); a card
+  // put back, a scroll or a re-render moves nothing, and no other card is measured. The horizon
+  // wall only: on any other axis nothing is tracked, so an axis switch flies no card (R10).
+  const onHorizon = axis === 'horizon';
+  const horizonOf = useMemo(
+    () => new Map(shownNotes.map((n) => [n.id, n.horizon] as const)),
+    [shownNotes],
+  );
+  useFlip(onHorizon && tidy ? tidy.trackedIds : EMPTY_IDS, {
+    zoneOf: (id) => horizonOf.get(id),
+    destinationOf: (id) => tidy?.markFor(id)?.to,
+  });
 
   // `t` belongs in these deps — see the note on ListView's identical memo.
   const groups = useMemo(
@@ -316,6 +333,9 @@ export function WallView({
     });
 
     const el = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"]`);
+    // A card of a Tidy batch dropped by hand may have just started its travel in this same
+    // commit; the drop's landing is the one motion, measured from where the card really is.
+    if (el) cancelFlight(el);
     if (!el || !releaseRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
       return;
 
@@ -452,9 +472,9 @@ export function WallView({
               activeDragId={activeId}
               filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
               pendingFor={pendingFor}
-              tidyFor={tidyFor}
+              tidyFor={onHorizon ? tidyFor : undefined}
             />
-            {axis === 'horizon' && tidy && <TidyBar tidy={tidy} />}
+            {onHorizon && tidy && <TidyBar tidy={tidy} />}
           </div>
         )}
 

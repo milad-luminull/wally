@@ -31,6 +31,8 @@ import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
 import { useTidy } from './Tidy/useTidy';
 import { useTidyFor } from './Tidy/useTidyFor';
+import { tidyOnWall } from './Tidy/tidyOnWall';
+import { undoMostRecent } from './Suggestions/keptOrder';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -107,14 +109,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
 
   // Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5): the shell counts, asks and decides;
   // the wall shows the bar and the marks. A note with a pending Wallybot change is left out.
+  // Anywhere else, or with the assistant off, the wall gets neither (plan R4, R10).
   const busy = useMemo(() => new Set(suggestions.marks.keys()), [suggestions.marks]);
-  const tidy = useTidy(
-    boardId,
-    board.assistantEnabled && effectiveView === 'wand' && viewState.axis === 'horizon',
-    boardNotes,
-    access.canEditNote,
-    busy,
-  );
+  const tidyOn = tidyOnWall(board.assistantEnabled, effectiveView, viewState.axis);
+  const tidy = useTidy(boardId, tidyOn, boardNotes, access.canEditNote, busy);
   const tidyFor = useTidyFor(tidy);
 
   const newNote = useCallback(() => {
@@ -211,8 +209,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onCaptureNoteId={onCaptureNoteId}
             visibility={access.newNoteVisibility}
             pendingFor={pendingFor}
-            tidyFor={tidyFor}
-            tidy={tidy}
+            tidyFor={tidyOn ? tidyFor : undefined}
+            tidy={tidyOn ? tidy : undefined}
           />
         ) : (
           <ListView
@@ -285,7 +283,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onResetView={viewState.resetView}
         assistantEnabled={board.assistantEnabled}
         onOpenAssistant={() => viewState.openAsk(true)}
-        onUndoSuggestion={() => suggestions.undoLast() || tidy.undoLast()}
+        onUndoSuggestion={() => undoMostRecent([suggestions, tidy])}
       />
     </div>
   );

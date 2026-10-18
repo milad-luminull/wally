@@ -13,6 +13,7 @@ import { assistantApi } from '@/lib/resources';
 import { makeNote } from '@/test/fixtures';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
+import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { EMPTY_NOTICE_MS, useTidy } from './useTidy';
 
@@ -68,6 +69,20 @@ function setup(notes: NoteDto[] = [late, jotted, placed], enabled = true) {
   return { queryClient, cached, ...hook };
 }
 const settle = () => act(() => vi.advanceTimersByTimeAsync(0));
+
+/** The controller with `enabled` the caller can flip: the horizon wall left and come back to. */
+function setupSwitch() {
+  const queryClient = createTestQueryClient();
+  const notes = [late, jotted, placed];
+  queryClient.setQueryData(keys.notes(BOARD), notes);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return renderHook(
+    ({ enabled }: { enabled: boolean }) => useTidy(BOARD, enabled, notes, all, none),
+    { wrapper, initialProps: { enabled: true } },
+  );
+}
 
 describe('useTidy', () => {
   beforeEach(() => {
@@ -260,6 +275,87 @@ describe('useTidy', () => {
     expect(took).toBe(false);
     await act(() => vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS));
     expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
+  });
+
+  it('off with a batch pending (another axis, the assistant off), the batch goes and nothing is marked', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, rerender } = setupSwitch();
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current.trackedIds).toEqual(['late', 'jotted']);
+    rerender({ enabled: false });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 0, moving: 0, trackedIds: [] });
+    expect(result.current.markFor('late')).toBeUndefined();
+    // Enter on a card that was marked keeps nothing.
+    act(() => result.current.keep('enter'));
+    // Back on the horizon wall: the batch does not come back; nothing was decided on the server.
+    rerender({ enabled: true });
+    expect(result.current.phase).toBe('idle');
+    expect(result.current.markFor('late')).toBeUndefined();
+    expect(assistantApi.decideTidy).not.toHaveBeenCalled();
+  });
+
+  it('off while the proposal is on its way, its answer changes nothing', async () => {
+    let answer!: (value: { tidy: TidyDto }) => void;
+    vi.mocked(assistantApi.tidy).mockReturnValue(new Promise((r) => (answer = r)));
+    const { result, rerender } = setupSwitch();
+    act(() => result.current.tidy());
+    expect(result.current.phase).toBe('asking');
+    rerender({ enabled: false });
+    expect(result.current.phase).toBe('idle');
+    await act(async () => {
+      answer({ tidy: dto() });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    rerender({ enabled: true });
+    expect(result.current.phase).toBe('idle');
+    expect(result.current.trackedIds).toEqual([]);
+  });
+
+  it('off with the batch kept, it is out of sight and ⌘Z leaves it; back within the window, it is there', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockResolvedValueOnce({ tidy: kept() });
+    const { result, rerender } = setupSwitch();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    expect(result.current.lastKeptAt()).not.toBeNull();
+    rerender({ enabled: false });
+    expect(result.current).toMatchObject({ phase: 'kept', moving: 0, trackedIds: [] });
+    expect(result.current.markFor('late')).toBeUndefined();
+    expect(result.current.lastKeptAt()).toBeNull();
+    let took = true;
+    act(() => {
+      took = result.current.undoLast();
+    });
+    expect(took).toBe(false);
+    rerender({ enabled: true });
+    expect(result.current.markFor('late')?.phase).toBe('kept');
+    expect(result.current.trackedIds).toEqual(['late', 'jotted']);
+    expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
+  });
+
+  it('names when the kept batch was kept, after a keep made before it, and nothing once undone', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy)
+      .mockResolvedValueOnce({ tidy: kept() })
+      .mockResolvedValueOnce({
+        tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
+      });
+    const { result } = setup();
+    expect(result.current.lastKeptAt()).toBeNull();
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current.lastKeptAt()).toBeNull();
+    const earlier = nextKeptStamp();
+    act(() => result.current.keep('click'));
+    expect(result.current.lastKeptAt()).toBeGreaterThan(earlier);
+    await settle();
+    expect(result.current.lastKeptAt()).toBeGreaterThan(earlier);
+    act(() => result.current.undo('click'));
+    expect(result.current.lastKeptAt()).toBeNull();
+    await settle();
   });
 
   it('keeps its callbacks and its value when the caller passes a new canMove and busy set', async () => {

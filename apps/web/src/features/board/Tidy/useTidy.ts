@@ -11,6 +11,7 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
+import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
 
@@ -34,7 +35,10 @@ export interface TidyController {
   count: number;
   /** Moves still in the batch (pending), or moved (kept). */
   moving: number;
-  /** The batch's notes while it is pending or kept: what the wall measures to animate (R8). */
+  /**
+   * The batch's notes while it is pending or kept and the controller is on: what the wall
+   * measures to animate (R8). Empty while off, so no card travels on an axis switch (R10).
+   */
   trackedIds: readonly string[];
   markFor: (noteId: string) => TidyMark | undefined;
   tidy: () => void;
@@ -44,6 +48,8 @@ export interface TidyController {
   undo: (source: 'esc' | 'click' | 'shortcut') => void;
   /** ⌘Z: undoes the kept batch while its window is open; false when there is none. */
   undoLast: () => boolean;
+  /** When the batch `undoLast` would undo was kept (a `nextKeptStamp`), or null (R7). */
+  lastKeptAt: () => number | null;
   /** The card's ×: takes the note out of the batch; the last one out discards (R6). */
   remove: (noteId: string) => void;
 }
@@ -108,6 +114,10 @@ export function useTidy(
   latestCanMove.current = canMove;
   const latestBusy = useRef(busy);
   latestBusy.current = busy;
+  const latestEnabled = useRef(enabled);
+  latestEnabled.current = enabled;
+  /** The stamp of the keep that made the current kept batch (R7). */
+  const keptStamp = useRef<number | null>(null);
 
   const candidates = useMemo(
     () => (enabled ? tidyCandidateIds(notes, localToday(), canMove, busy) : []),
@@ -124,6 +134,7 @@ export function useTidy(
   const rest = useCallback(() => {
     clearTimer();
     token.current = null;
+    keptStamp.current = null;
     snapshots.current.clear();
     setBatch(null);
     setPhase('idle');
@@ -197,6 +208,7 @@ export function useTidy(
       patchAll(moves.map((m) => ({ noteId: m.noteId, horizon: m.to })));
       setBatch({ ...b, moved: noteIds });
       setPhase('kept');
+      keptStamp.current = nextKeptStamp();
       const mine = Symbol('keep');
       token.current = mine;
       void assistantApi
@@ -257,6 +269,7 @@ export function useTidy(
       const noteIds = back.map((m) => m.noteId);
       const mine = Symbol('undo');
       token.current = mine;
+      keptStamp.current = null;
       setBatch(null);
       setPhase('idle');
       clearTimer();
@@ -279,10 +292,18 @@ export function useTidy(
   );
 
   const undoLast = useCallback(() => {
-    if (latestPhase.current !== 'kept' || !latestBatch.current) return false;
+    if (!latestEnabled.current || latestPhase.current !== 'kept' || !latestBatch.current)
+      return false;
     undo('shortcut');
     return true;
   }, [undo]);
+  const lastKeptAt = useCallback(
+    () =>
+      latestEnabled.current && latestPhase.current === 'kept' && latestBatch.current
+        ? keptStamp.current
+        : null,
+    [],
+  );
 
   const remove = useCallback<TidyController['remove']>(
     (noteId) => {
@@ -316,9 +337,17 @@ export function useTidy(
   // Leaving the board: the timer goes; a pending record is discarded by the next request (R9).
   useEffect(() => clearTimer, [clearTimer]);
 
+  // Off (the priority wall, the free canvas, the list, the assistant switched off): a request
+  // on its way, a pending batch and the notice end here, as on leaving the board; the server's
+  // pending record is discarded by the next request (R9, R10). A kept batch stays kept, its
+  // answer still to be heard, but out of sight until the horizon wall is back.
+  useEffect(() => {
+    if (!enabled && (phase === 'asking' || phase === 'pending' || phase === 'empty')) rest();
+  }, [enabled, phase, rest]);
+
   const markFor = useCallback<TidyController['markFor']>(
     (noteId) => {
-      if (!batch || (phase !== 'pending' && phase !== 'kept')) return undefined;
+      if (!enabled || !batch || (phase !== 'pending' && phase !== 'kept')) return undefined;
       const move = activeMoves(batch).find((m) => m.noteId === noteId);
       if (!move) return undefined;
       return {
@@ -329,14 +358,14 @@ export function useTidy(
         phase: phase === 'kept' ? 'kept' : 'pending',
       };
     },
-    [batch, phase],
+    [batch, enabled, phase],
   );
   const trackedIds = useMemo(
     () =>
-      batch && (phase === 'pending' || phase === 'kept')
+      enabled && batch && (phase === 'pending' || phase === 'kept')
         ? activeMoves(batch).map((m) => m.noteId)
         : [],
-    [batch, phase],
+    [batch, enabled, phase],
   );
 
   return useMemo(
@@ -351,8 +380,9 @@ export function useTidy(
       discard,
       undo,
       undoLast,
+      lastKeptAt,
       remove,
     }),
-    [count, discard, keep, markFor, phase, remove, tidy, trackedIds, undo, undoLast],
+    [count, discard, keep, lastKeptAt, markFor, phase, remove, tidy, trackedIds, undo, undoLast],
   );
 }

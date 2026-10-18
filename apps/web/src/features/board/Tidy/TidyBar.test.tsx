@@ -17,6 +17,7 @@ function controller(over: Partial<TidyController> = {}): TidyController {
     discard: vi.fn(),
     undo: vi.fn(),
     undoLast: vi.fn(() => false),
+    lastKeptAt: () => null,
     remove: vi.fn(),
     ...over,
   };

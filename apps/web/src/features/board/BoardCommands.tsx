@@ -88,8 +88,8 @@ interface BoardCommandsProps {
   assistantEnabled: boolean;
   onOpenAssistant: () => void;
   /**
-   * Undoes the last kept Wallybot change still in its window, else the kept tidy batch; false
-   * when there is none.
+   * Undoes the most recently kept Wallybot change still in its window, a note's fill-in or the
+   * kept tidy batch, whichever was kept last (plan R7); false when there is none.
    */
   onUndoSuggestion: () => boolean;
 }
