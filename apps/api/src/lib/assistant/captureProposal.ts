@@ -7,9 +7,12 @@ import {
 } from '@wally/shared';
 import type { AssistantSuggestionDoc } from '../db/types.js';
 import {
+  CAPTURE_MAX_KEY_VALUES,
   CAPTURE_MAX_OTHER_NOTES,
+  CAPTURE_MAX_RECENT_NOTES,
   buildCaptureInstructions,
   buildCapturePrompt,
+  type RecentNoteRow,
 } from './capturePrompt.js';
 import type { ModelSuggestion } from './model/index.js';
 
@@ -101,9 +104,85 @@ export function captureCandidates(
   return open;
 }
 
+/** The fields the board's notes inform: their keys, values, tags, habits or the notes to link. */
+const BOARD_FIELDS: readonly SuggestionFieldKey[] = [
+  'reference',
+  'properties',
+  'tags',
+  'links',
+  'horizon',
+  'priority',
+  'visibility',
+];
 /** Whether the call needs the board's notes at all; when not, the route skips reading them. */
 export function captureNeedsBoard(open: SuggestionFieldKey[]): boolean {
-  return open.includes('reference') || open.includes('links');
+  return open.some((key) => BOARD_FIELDS.includes(key));
+}
+
+/**
+ * The notes whose tags, property values and habits may inform this note: for a shared note
+ * the shared ones only, so nothing that lives only on the caller's private notes can be
+ * proposed where every member sees it; a private note may draw on everything the caller sees.
+ */
+export function captureContextNotes(
+  note: CaptureNote,
+  boardNotes: CaptureBoardNote[],
+): CaptureBoardNote[] {
+  return note.visibility === 'PRIVATE'
+    ? boardNotes
+    : boardNotes.filter((n) => n.visibility !== 'PRIVATE');
+}
+
+const newestFirst = (a: CaptureBoardNote, b: CaptureBoardNote) =>
+  a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+
+/**
+ * Each property key (the spelling `collectKeys` picks) with its newest distinct values, at
+ * most `CAPTURE_MAX_KEY_VALUES`, compared case-insensitively.
+ */
+function keyValues(notes: CaptureBoardNote[], language: Language) {
+  const newest = [...notes].sort(newestFirst);
+  return collectKeys(notes, language).map((key) => {
+    const folded = foldFieldKey(key);
+    const values: string[] = [];
+    for (const n of newest)
+      for (const [k, v] of Object.entries(n.customFields ?? {}))
+        if (
+          foldFieldKey(k) === folded &&
+          values.length < CAPTURE_MAX_KEY_VALUES &&
+          !values.some((seen) => seen.toLowerCase() === v.toLowerCase())
+        )
+          values.push(v);
+    return { key, values };
+  });
+}
+
+/** The board's tags, one spelling per fold (the first one seen), sorted for the language. */
+function collectTags(notes: CaptureBoardNote[], language: Language): string[] {
+  const byFolded = new Map<string, string>();
+  for (const n of notes)
+    for (const tag of n.tags ?? [])
+      if (!byFolded.has(foldFieldKey(tag))) byFolded.set(foldFieldKey(tag), tag);
+  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, language));
+}
+
+/** The caller's own notes besides this one, newest first, as the prompt's example rows. */
+function recentRows(
+  note: CaptureNote,
+  notes: CaptureBoardNote[],
+  actorId: string,
+): RecentNoteRow[] {
+  return notes
+    .filter((n) => n.id !== note.id && n.createdBy?.id === actorId)
+    .sort(newestFirst)
+    .slice(0, CAPTURE_MAX_RECENT_NOTES)
+    .map((n) => ({
+      title: n.title,
+      horizon: n.horizon,
+      priority: n.priority,
+      tags: n.tags ?? [],
+      properties: Object.entries(n.customFields ?? {}),
+    }));
 }
 
 /**
@@ -135,13 +214,21 @@ export function buildCaptureCall(
 ): CaptureCall | null {
   const open = captureCandidates(note, ctx.locked);
   if (open.length === 0) return null;
-  // A key in use anywhere on the board is one a reference should reuse.
-  const fieldKeys = open.includes('reference') ? collectKeys(boardNotes, ctx.language) : [];
+  // Keys, values, tags and habits come from the notes this note may draw on (a shared note:
+  // shared notes only). A key in use there is one a property should reuse.
+  const context = captureContextNotes(note, boardNotes);
+  // Keys only when a property may be proposed: otherwise they are noise the call pays for.
+  const keys =
+    open.includes('reference') || open.includes('properties')
+      ? keyValues(context, ctx.language)
+      : [];
   // The other open notes, newest first, as `id: title` rows: what a link may name (L3).
+  // Drawn from the same notes: a private note's title must not reach a shared note's
+  // proposal, as a link or as words in a title or description.
   const otherNotes = open.includes('links')
-    ? boardNotes
+    ? context
         .filter((n) => n.id !== note.id && n.status === 'OPEN')
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+        .sort(newestFirst)
         .slice(0, CAPTURE_MAX_OTHER_NOTES)
         .map((n) => ({ id: n.id, title: n.title }))
     : [];
@@ -160,11 +247,13 @@ export function buildCaptureCall(
       title: note.title,
       description: note.description,
       members: ctx.members,
-      fieldKeys,
+      fieldKeys: keys,
+      tags: collectTags(context, ctx.language),
+      recent: recentRows(note, context, ctx.actorId),
       notes: otherNotes,
     }),
     others: new Map(otherNotes.map((n) => [n.id, n.title])),
-    fieldKeys,
+    fieldKeys: keys.map((k) => k.key),
   };
 }
 

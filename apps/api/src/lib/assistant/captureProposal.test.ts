@@ -137,3 +137,73 @@ describe('acceptCapture', () => {
     expect(fields?.links?.items.map((i) => i.noteId)).toEqual(['n-2']);
   });
 });
+
+describe('the board context a capture sends', () => {
+  const board = [
+    boardNote({
+      id: 'b-1',
+      title: 'Acme renewal',
+      tags: ['sales'],
+      customFields: { Customer: 'Acme' },
+      createdAt: '2026-10-11T10:00:00.000Z',
+    }),
+    boardNote({
+      id: 'b-2',
+      title: 'Northwind offer',
+      tags: ['Sales'],
+      customFields: { customer: 'Northwind' },
+      createdAt: '2026-10-12T10:00:00.000Z',
+    }),
+    boardNote({
+      id: 'b-3',
+      title: 'Globex call',
+      customFields: { Customer: 'Globex' },
+      createdAt: '2026-10-13T10:00:00.000Z',
+    }),
+    boardNote({
+      id: 'b-4',
+      title: 'Initech call',
+      customFields: { Customer: 'Initech' },
+      createdAt: '2026-10-14T10:00:00.000Z',
+    }),
+    boardNote({
+      id: 'b-5',
+      title: 'Physio follow-up',
+      visibility: 'PRIVATE',
+      tags: ['health'],
+      customFields: { Clinic: 'Riverside' },
+      createdAt: '2026-10-15T10:00:00.000Z',
+    }),
+    boardNote({
+      id: 'b-6',
+      title: "Anna's note",
+      createdBy: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' },
+      createdAt: '2026-10-16T10:00:00.000Z',
+    }),
+  ];
+
+  it("a shared note's context leaves out every private note", () => {
+    const shared = buildCaptureCall(note(), board, ctx)!.prompt;
+    expect(shared).not.toContain('health');
+    expect(shared).not.toContain('Clinic');
+    expect(shared).not.toContain('Riverside');
+    expect(shared.split('Recent notes by this person:')[1]).not.toContain('Physio');
+    const own = buildCaptureCall(note({ visibility: 'PRIVATE' }), board, ctx)!.prompt;
+    expect(own).toContain('health');
+    expect(own).toContain('Clinic\n  - Riverside');
+  });
+
+  it("recent rows are the caller's own notes, newest first, never the note itself", () => {
+    const prompt = buildCaptureCall(note({ id: 'b-4' }), board, ctx)!.prompt;
+    const recent = prompt.split('Recent notes by this person:\n')[1]!.split('\nOther notes')[0]!;
+    const titles = recent.split('\n').map((line) => line.slice(2).split(' | ')[0]);
+    expect(titles).toEqual(['Globex call', 'Northwind offer', 'Acme renewal']);
+  });
+
+  it('example values are the newest distinct ones per key, at most three, and tags fold once', () => {
+    const prompt = buildCaptureCall(note(), board, ctx)!.prompt;
+    expect(prompt).toContain('Customer\n  - Initech\n  - Globex\n  - Northwind\n');
+    expect(prompt).toContain('Tags on this board:\nsales\n');
+    expect(prompt.match(/^sales$/gim)).toHaveLength(1);
+  });
+});
