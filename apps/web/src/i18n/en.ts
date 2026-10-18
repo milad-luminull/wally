@@ -413,7 +413,7 @@ export const en = {
     descriptionAria: 'Text of the new note',
     hint: '↵ create · ⇧↵ text · Esc discard',
     hintCoarse: 'Enter creates the note',
-    hintAsk: '↵ asks the wall · Esc discard',
+    hintAsk: '↵ asks the wall · ⇧↵ text · Esc discard',
     hintAskCoarse: 'Enter asks the wall',
     chips: {
       due: 'Due {{date}}',

@@ -1,7 +1,7 @@
 # Wally, the assistant — requirements
 
 **Status:** proposal, not yet approved. Blocking decisions are in §6.
-**Last revised:** 2026-10-15.
+**Last revised:** 2026-10-18.
 
 Read next to [`SPEC.md`](../SPEC.md). Nothing here changes a requirement there. Everything
 here builds on [ADR-0010](../adr/0010-board-commands-revisions-and-receipts.md) and the
@@ -96,7 +96,7 @@ This is the whole v1 surface; adding an operation is a product decision. Each on
 adapter over one query or one command of the board operations contract, and carries the
 MCP behaviour annotations so the MCP proposal needs no second definition.
 
-| Operation                       | Command or query                   | Behaviour in the panel                                                                                                    |
+| Operation                       | Command or query                   | Behaviour                                                                                                                 |
 | ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `list_notes`, `get_note`        | `listNotes`, `getNote`             | runs; read-only; `list_notes` is bounded and reports truncation                                                           |
 | `list_members`                  | `listMembers`                      | runs; read-only                                                                                                           |

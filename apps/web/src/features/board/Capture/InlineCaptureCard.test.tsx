@@ -733,7 +733,7 @@ describe('InlineCaptureCard', () => {
       await userEvent.type(title, 'What is open today');
       expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toBeInTheDocument();
       await userEvent.type(title, '?');
-      expect(screen.getByText('↵ asks the wall · Esc discard')).toBeInTheDocument();
+      expect(screen.getByText('↵ asks the wall · ⇧↵ text · Esc discard')).toBeInTheDocument();
       expect(screen.queryByText('↵ create · ⇧↵ text · Esc discard')).not.toBeInTheDocument();
     });
 
