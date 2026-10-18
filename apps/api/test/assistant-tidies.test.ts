@@ -12,6 +12,7 @@ import {
 } from '../src/lib/db/collections.js';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
 import { TIDY_OUTPUT_TOKENS_BASE, TIDY_OUTPUT_TOKENS_PER_MOVE } from '../src/lib/assistant/tidy.js';
+import { runOperation } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-assistant-tidies';
@@ -208,7 +209,10 @@ describe('tidies', () => {
     expect(first.moves.map((m: { noteId: string }) => m.noteId)).toEqual([mine.id]);
     const second = (await tidy(fx.viewToken, fx.boardId)).json().tidy;
     expect(second.id).not.toBe(first.id);
-    expect((await stored(fx.viewerId, first.id)).status).toBe('DISCARDED');
+    const replaced = await stored(fx.viewerId, first.id);
+    expect(replaced.status).toBe('DISCARDED');
+    expect(replaced.decision).toMatchObject({ source: 'replaced', noteIds: [] });
+    expect(replaced.decision?.at).toBeInstanceOf(Timestamp);
   });
 
   it('the provider’s failure is a 502 without its words, and a budget refusal a 429', async () => {
@@ -242,11 +246,42 @@ describe('tidies', () => {
         (await createNote(fx.ownerToken, fx.boardId, { title: `dated ${i}`, dueDate })).json().id,
       );
     }
+    // An undated note the model would place: the batch is full, so the model is not asked.
+    await createNote(fx.ownerToken, fx.boardId, { title: 'later: no room' });
     const res = await tidy(fx.ownerToken, fx.boardId);
     expect(res.statusCode).toBe(200);
     const { moves } = res.json().tidy;
     expect(moves.map((m: { noteId: string }) => m.noteId)).toEqual(ids.slice(0, TIDY_MAX_MOVES));
     expect(calls).toBe(0);
+  });
+
+  it('lists only as many undated notes as the batch has room for, the newest first', async () => {
+    const fx = await createBoardFixture(ctx);
+    for (let i = 0; i < TIDY_MAX_MOVES - 1; i++) {
+      const dueDate = new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10);
+      await createNote(fx.ownerToken, fx.boardId, { title: `dated ${i}`, dueDate });
+    }
+    await createNote(fx.ownerToken, fx.boardId, { title: 'later: older' });
+    const newer = (await createNote(fx.ownerToken, fx.boardId, { title: 'later: newer' })).json();
+    const res = await tidy(fx.ownerToken, fx.boardId);
+    expect(res.statusCode).toBe(200);
+    expect(calls).toBe(1);
+    expect(lastInput?.prompt).toBe(`Notes in Today, newest first:\n${newer.id}: later: newer`);
+    expect(lastInput?.maxOutputTokens).toBe(128 + 64);
+    const { moves } = res.json().tidy;
+    expect(moves).toHaveLength(TIDY_MAX_MOVES);
+    expect(moves.at(-1)).toMatchObject({ noteId: newer.id, source: 'words' });
+  });
+
+  it('refuses a time zone the runtime does not know', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/tidies`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { timeZone: 'Mars/Olympus_Mons', today: TODAY },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it('is not found when the assistant is off for the board', async () => {
@@ -386,6 +421,7 @@ describe('tidies', () => {
     });
     expect(undone.json().tidy.status).toBe('UNDONE');
     expect((await stored(fx.ownerId, dto.id)).status).toBe('UNDONE');
+    expect((await stored(fx.ownerId, dto.id)).undone?.noteIds).toEqual([b.id, c.id]);
     expect((await note(c.id)).horizon).toBe('SPAETER');
     expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
     const untouched = await note(a.id);
@@ -418,6 +454,11 @@ describe('tidies', () => {
     expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
     expect((await note(c.id)).horizon).toBe('HEUTE');
     expect(await audits(fx.ownerId)).toBe(5);
+    // The record names the notes the undo moved back, in the order it moved them.
+    expect((await stored(fx.ownerId, dto.id)).undone).toMatchObject({
+      source: 'click',
+      noteIds: [b.id, a.id],
+    });
     // A second undo replays.
     expect(
       (
@@ -437,7 +478,62 @@ describe('tidies', () => {
     expect([one.statusCode, two.statusCode]).toEqual([200, 200]);
     expect(one.json().tidy.status).toBe('KEPT');
     expect(two.json().tidy.status).toBe('KEPT');
+    expect(one.json().tidy.kept.skipped).toEqual([]);
+    expect(two.json().tidy.kept).toEqual(one.json().tidy.kept);
+    expect(one.json().tidy.kept.noteIds).toHaveLength(3);
     expect((await note(a.id)).revision).toBe(a.revision + 1);
+    expect(await audits(fx.ownerId)).toBe(3);
+  });
+
+  it('a keep cut short after one move resumes: that move replays under its id, the rest move', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, b, c, dto } = await threeDated(fx);
+    const record = await stored(fx.ownerId, dto.id);
+    // The first move committed under its own apply id, then the keep stopped before the record
+    // was written: KEPT, every note chosen, nothing applied.
+    const first = record.moves[0]!;
+    expect(first.noteId).toBe(c.id);
+    await runOperation(
+      {
+        db: ctx.db,
+        actor: { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true },
+        boardId: fx.boardId,
+        assistantEnabled: true,
+        provenance: { via: 'assistant', conversationId: dto.id, approvalId: dto.id },
+      },
+      {
+        name: 'move_note',
+        input: {
+          boardId: fx.boardId,
+          noteId: c.id,
+          expectedRevision: first.baseRevision,
+          input: { mode: 'HORIZON', horizon: first.to },
+        },
+        operationId: first.operationIds.apply,
+      },
+    );
+    await assistantTidiesCol(ctx.db, fx.ownerId)
+      .doc(dto.id)
+      .update({
+        status: 'KEPT',
+        decision: { source: 'enter', noteIds: [c.id, a.id, b.id], at: Timestamp.now() },
+        applied: null,
+      });
+    expect(await audits(fx.ownerId)).toBe(1);
+
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'click',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tidy).toMatchObject({
+      status: 'KEPT',
+      kept: { noteIds: [c.id, a.id, b.id], skipped: [] },
+    });
+    expect((await note(c.id)).revision).toBe(c.revision + 1);
+    expect(await movedByAssistant(c.id)).toBe(1);
+    expect((await note(a.id)).horizon).toBe('SPAETER');
+    expect((await note(b.id)).horizon).toBe('SPAETER');
     expect(await audits(fx.ownerId)).toBe(3);
   });
 

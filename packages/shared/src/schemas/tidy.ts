@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { noteHorizonSchema } from '../enums.js';
+import { isTimeZone } from '../utils/timeZone.js';
 
 /** Undated notes one tidy call may read; the newest ones go first (plan R3). */
 export const TIDY_MAX_UNDATED = 30;
@@ -13,7 +14,7 @@ const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 /** POST /whiteboards/:id/assistant/tidies: the browser's date and zone, nothing else. */
 export const tidyRequestSchema = z
   .object({
-    timeZone: z.string().min(1).max(64),
+    timeZone: z.string().min(1).max(64).refine(isTimeZone, 'Unknown time zone'),
     today: z.string().date(),
   })
   .strict();

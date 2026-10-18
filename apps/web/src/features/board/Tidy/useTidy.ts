@@ -14,6 +14,7 @@ import { useQueryKeys } from '../hooks/queryKeys';
 import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
+import { localToday, useToday } from './useToday';
 
 /** How long "Nothing to tidy" stays in the bar (plan R4). */
 export const EMPTY_NOTICE_MS = 4000;
@@ -52,12 +53,6 @@ export interface TidyController {
   lastKeptAt: () => number | null;
   /** The card's ×: takes the note out of the batch; the last one out discards (R6). */
   remove: (noteId: string) => void;
-}
-
-/** Today in the browser's calendar, as the API expects it. */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 interface Batch {
@@ -103,6 +98,8 @@ export function useTidy(
 ): TidyController {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
+  // Once per render, renewed at midnight: the count follows the date.
+  const today = useToday();
   const [phase, setPhase] = useState<TidyPhase>('idle');
   const [batch, setBatch] = useState<Batch | null>(null);
   /** The candidates as they were when the last run ended; the affordance waits for a change (R4). */
@@ -131,12 +128,14 @@ export function useTidy(
   latestBusy.current = busy;
   const latestEnabled = useRef(enabled);
   latestEnabled.current = enabled;
+  const latestToday = useRef(today);
+  latestToday.current = today;
   /** The stamp of the keep that made the current kept batch (R7). */
   const keptStamp = useRef<number | null>(null);
 
   const candidates = useMemo(
-    () => (enabled ? tidyCandidateIds(notes, localToday(), canMove, busy) : []),
-    [busy, canMove, enabled, notes],
+    () => (enabled ? tidyCandidateIds(notes, today, canMove, busy) : []),
+    [busy, canMove, enabled, notes, today],
   );
   const signature = candidateSignature(notes, candidates);
   const count = phase === 'idle' && signature !== lastRun ? candidates.length : 0;
@@ -163,7 +162,12 @@ export function useTidy(
       (queryClient.getQueryData<NoteDto[]>(keys.notes(boardId)) ?? []).map((n) => [n.id, n]),
     );
     const shown = latestNotes.current.map((n) => cached.get(n.id) ?? n);
-    const ids = tidyCandidateIds(shown, localToday(), latestCanMove.current, latestBusy.current);
+    const ids = tidyCandidateIds(
+      shown,
+      latestToday.current,
+      latestCanMove.current,
+      latestBusy.current,
+    );
     setLastRun(candidateSignature(shown, ids));
   }, [boardId, keys, queryClient]);
 

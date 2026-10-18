@@ -646,6 +646,17 @@ describe('useTidy', () => {
     expect(cached().find((n) => n.id === 'late')).toMatchObject({ horizon: 'HEUTE', revision: 3 });
   });
 
+  it('the count follows the date: at midnight a note due that day joins it', async () => {
+    // Saturday a minute before midnight: a note due on Sunday belongs to This week.
+    vi.setSystemTime(new Date(2026, 9, 17, 23, 59, 0));
+    const sunday = makeNote({ id: 'sunday', horizon: 'DIESE_WOCHE', dueDate: '2026-10-18' });
+    const { result } = setup([sunday]);
+    expect(result.current.count).toBe(0);
+    // Sunday: it is due today, so it belongs to Today.
+    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    expect(result.current.count).toBe(1);
+  });
+
   it('keeps its callbacks and its value when the caller passes a new canMove and busy set', async () => {
     vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
     const queryClient = createTestQueryClient();

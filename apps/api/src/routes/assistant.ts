@@ -50,6 +50,10 @@ const suggestionParams = z.object({
   id: z.string().min(1).max(128),
   suggestionId: z.string().min(1).max(128),
 });
+const tidyParams = z.object({
+  id: z.string().min(1).max(128),
+  tidyId: z.string().min(1).max(128),
+});
 /**
  * A budget refusal carries the reset time; the per-route rate limit answers the same status
  * through the error handler without one, so `resetsAt` is optional here.
@@ -263,7 +267,7 @@ export default async function assistantRoutes(
     '/whiteboards/:id/assistant/tidies/:tidyId/decision',
     {
       schema: {
-        params: z.object({ id: z.string().min(1).max(128), tidyId: z.string().min(1).max(128) }),
+        params: tidyParams,
         body: tidyDecisionSchema,
         response: { 200: tidyDecisionResponseSchema },
       },

@@ -447,7 +447,6 @@ function RestingNoteCard({
           <PendingDot
             mark={tidyDot}
             label={t('tidy.dotAria')}
-            onUndo={() => {}}
             className="pointer-events-none absolute right-2 top-2"
           />
         )}

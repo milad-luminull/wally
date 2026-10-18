@@ -23,17 +23,24 @@ function controller(over: Partial<TidyController> = {}): TidyController {
   };
 }
 
+const strip = () => document.querySelector<HTMLElement>('[data-tidy-bar]')!;
+
 describe('TidyBar', () => {
-  it('is an empty strip while there is nothing to tidy', () => {
+  it('is an empty strip, not a toolbar, while there is nothing to tidy', () => {
     renderWithProviders(<TidyBar tidy={controller()} />);
-    const bar = screen.getByRole('toolbar', { name: 'Tidy' });
-    expect(bar).toHaveAttribute('data-tidy-phase', 'idle');
-    expect(bar.textContent).toBe('');
+    expect(strip()).toHaveAttribute('data-tidy-phase', 'idle');
+    expect(strip().textContent).toBe('');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    // The live region is there before anything is said in it.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
-  it('offers to tidy the counted notes', async () => {
+  it('offers to tidy the counted notes, as a toolbar', async () => {
     const tidy = controller({ count: 4 });
     renderWithProviders(<TidyBar tidy={tidy} />);
+    const bar = screen.getByRole('toolbar', { name: 'Tidy' });
+    expect(bar).toBe(strip());
+    expect(bar).not.toHaveAttribute('aria-live');
     await userEvent.click(screen.getByRole('button', { name: 'Tidy 4 notes' }));
     expect(tidy.tidy).toHaveBeenCalledTimes(1);
   });
@@ -41,10 +48,13 @@ describe('TidyBar', () => {
   it('says it is sorting, then offers Move and Discard for the pending batch', async () => {
     const asking = controller({ phase: 'asking' });
     const { rerender } = renderWithProviders(<TidyBar tidy={asking} />);
-    expect(screen.getByText('Sorting…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Sorting…');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
     const pending = controller({ phase: 'pending', moving: 3 });
     rerender(<TidyBar tidy={pending} />);
-    expect(screen.getByText('3 notes move')).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Tidy' })).toBeInTheDocument();
+    // The live region says the outcome alone, never the buttons' names.
+    expect(screen.getByRole('status')).toHaveTextContent(/^3 notes move$/);
     await userEvent.click(screen.getByRole('button', { name: 'Move' }));
     expect(pending.keep).toHaveBeenCalledWith('click');
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
@@ -54,10 +64,11 @@ describe('TidyBar', () => {
   it('after a keep it says how many moved and offers Undo; when empty it says so', async () => {
     const kept = controller({ phase: 'kept', moving: 2 });
     const { rerender } = renderWithProviders(<TidyBar tidy={kept} />);
-    expect(screen.getByText('2 notes moved')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/^2 notes moved$/);
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(kept.undo).toHaveBeenCalledWith('click');
     rerender(<TidyBar tidy={controller({ phase: 'empty' })} />);
-    expect(screen.getByText('Nothing to tidy.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Nothing to tidy.');
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   });
 });

@@ -617,8 +617,10 @@ describe('useSuggestions', () => {
       expect(at).not.toBeNull();
       // A Tidy kept from now on is more recent than this change.
       expect(nextKeptStamp()).toBeGreaterThan(at!);
-      act(() => {
+      // The undo's answer lands inside act too, so no update escapes it.
+      await act(async () => {
         result.current.undoLast();
+        await vi.advanceTimersByTimeAsync(0);
       });
       expect(result.current.lastKeptAt()).toBeNull();
     });

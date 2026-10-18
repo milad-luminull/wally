@@ -1,4 +1,5 @@
 import {
+  endOfWeek,
   horizonForDueDate,
   TIDY_MAX_UNDATED,
   TIDY_MIN_CONFIDENCE,
@@ -76,22 +77,29 @@ export function tidyCandidates(
 
 /**
  * The model's moves as the batch may hold them: a listed undated note, once, away from Today,
- * confident enough; the reason travels to the card (R3).
+ * confident enough; the reason travels to the card (R3). On a Sunday the week ends today, so
+ * "This week" can only mean a later day, which is Later (the date rule says the same).
  */
-export function acceptModelMoves(moves: ModelTidy['moves'], undated: TidyNote[]): PlannedMove[] {
+export function acceptModelMoves(
+  moves: ModelTidy['moves'],
+  undated: TidyNote[],
+  today: string,
+): PlannedMove[] {
+  const sunday = endOfWeek(today) === today;
   const byId = new Map(undated.map((note) => [note.id, note]));
   const seen = new Set<string>();
   const out: PlannedMove[] = [];
   for (const move of moves) {
     const note = byId.get(move.noteId);
     if (!note || seen.has(move.noteId) || move.confidence < TIDY_MIN_CONFIDENCE) continue;
-    if (move.horizon === note.horizon) continue;
+    const to: NoteHorizon = sunday && move.horizon === 'DIESE_WOCHE' ? 'SPAETER' : move.horizon;
+    if (to === note.horizon) continue;
     seen.add(move.noteId);
     out.push({
       noteId: note.id,
       baseRevision: note.revision,
       from: note.horizon,
-      to: move.horizon,
+      to,
       reason: move.reason,
       source: 'words',
     });

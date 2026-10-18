@@ -28,17 +28,26 @@ export function buildTidyInstructions(ctx: {
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(
     new Date(`${ctx.today}T12:00:00Z`),
   );
+  // On a Sunday This week is today alone, so a later day of "this week" is next week's.
+  const sunday =
+    weekday === 'Sunday'
+      ? ' Today is Sunday: the week ends today, so every later date is Later (SPAETER).'
+      : '';
   return (
     TIDY_INSTRUCTIONS_PREFIX +
-    `Today is ${ctx.today}, a ${weekday}, in the time zone ${ctx.timeZone}. This week ends on Sunday ${endOfWeek(ctx.today)}. Write reasons in ${LANGUAGE_NAMES[ctx.language]}.`
+    `Today is ${ctx.today}, a ${weekday}, in the time zone ${ctx.timeZone}. This week ends on Sunday ${endOfWeek(ctx.today)}.${sunday} Write reasons in ${LANGUAGE_NAMES[ctx.language]}.`
   );
 }
 
-/** The undated notes in Today as data: `id: title`, then the text flattened and cut on a line of its own. */
+/**
+ * The undated notes in Today as data: `id: title` with the title flattened (`id:` alone when
+ * it is empty), then the text flattened and cut on a line of its own.
+ */
 export function buildTidyPrompt(rows: { id: string; title: string; text: string }[]): string {
   const lines = ['Notes in Today, newest first:'];
   for (const row of rows) {
-    lines.push(`${row.id}: ${row.title}`);
+    const title = row.title.replace(/\s+/g, ' ').trim();
+    lines.push(title ? `${row.id}: ${title}` : `${row.id}:`);
     const text = row.text.replace(/\s+/g, ' ').trim().slice(0, TIDY_TEXT_MAX);
     if (text) lines.push(`  ${text}`);
   }

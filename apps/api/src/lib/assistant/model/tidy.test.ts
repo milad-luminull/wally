@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TIDY_MAX_UNDATED } from '@wally/shared';
-import { zodSchema } from 'ai';
+import { APICallError, zodSchema } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { createTidyRunner, modelTidySchema, modelTidyWireSchema, tidySchemaJson } from './tidy.js';
-import type { AttemptInfo, TurnUsage } from './types.js';
+import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 
 describe('modelTidySchema', () => {
   it('keeps well-formed moves and cuts a long reason', () => {
@@ -40,25 +40,6 @@ describe('modelTidySchema', () => {
   });
 });
 
-const usage = {
-  inputTokens: { total: 40, noCache: 40, cacheRead: 0, cacheWrite: 0 },
-  outputTokens: { total: 12, text: 12, reasoning: 0 },
-};
-const reply = (text: string) => ({
-  content: [{ type: 'text' as const, text }],
-  finishReason: { unified: 'stop' as const, raw: undefined },
-  usage,
-  warnings: [],
-});
-function attempts() {
-  const seen: AttemptInfo[] = [];
-  const settled: TurnUsage[] = [];
-  const onAttempt = vi.fn(async (info: AttemptInfo) => {
-    seen.push(info);
-    return { settle: (u: TurnUsage) => void settled.push(u) };
-  });
-  return { onAttempt, seen, settled };
-}
 const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
   instructions: 'Place the notes.',
   prompt: 'Notes in Today, newest first:\nn1: Plan the offsite next month',
@@ -90,6 +71,27 @@ describe('createTidyRunner', () => {
     const out = await createTidyRunner(model)(input(a.onAttempt));
     expect(out.moves).toBeNull();
     expect(a.settled).toHaveLength(1);
+  });
+
+  it('rethrows a provider error that is not a bad reply, settling nothing', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new APICallError({
+          message: 'overloaded',
+          url: 'https://example.invalid',
+          requestBodyValues: {},
+          statusCode: 503,
+          isRetryable: true,
+        });
+      },
+    });
+    const a = attempts();
+    await expect(createTidyRunner(model)(input(a.onAttempt))).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(a.seen).toHaveLength(1);
+    expect(a.settled).toEqual([]);
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {

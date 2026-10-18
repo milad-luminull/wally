@@ -236,14 +236,15 @@ describe('WallView: the Tidy bar', () => {
 
   it('is not on the priority wall, whose rows still scroll inside the column', () => {
     const { container } = renderWall('priority', owner, idleTidy());
-    expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
+    // The strip itself, which is a toolbar only while it holds a control.
+    expect(container.querySelector('[data-tidy-bar]')).toBeNull();
     // jsdom lays nothing out: min-h-0 is what lets a flex child of the column scroll.
     expect(container.querySelector('.wally-scroll')).toHaveClass('min-h-0', 'overflow-y-auto');
   });
 
   it('is not on the free canvas', () => {
-    renderWall('free', owner, idleTidy());
-    expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
+    const { container } = renderWall('free', owner, idleTidy());
+    expect(container.querySelector('[data-tidy-bar]')).toBeNull();
   });
 
   it('is not there, and reserves no strip, when the shell passes no Tidy (the assistant off)', () => {

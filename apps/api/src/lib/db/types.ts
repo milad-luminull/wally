@@ -13,6 +13,8 @@ import type {
   NoteVisibility,
   SuggestionFieldKey,
   ThemePreference,
+  TidyMoveSource,
+  TidyStatus,
   WhiteboardRole,
 } from '@wally/shared';
 
@@ -338,18 +340,20 @@ export type AssistantSuggestionDoc = {
  */
 export type AssistantTidyDoc = {
   boardId: string;
-  status: 'PENDING' | 'KEPT' | 'UNDONE' | 'DISCARDED';
+  status: TidyStatus;
   moves: {
     noteId: string;
     baseRevision: number;
     from: NoteHorizon;
     to: NoteHorizon;
     reason: string | null;
-    source: 'date' | 'words';
+    source: TidyMoveSource;
     operationIds: { apply: string; undo: string };
   }[];
+  /** The keep or discard: the chosen notes for a keep; `replaced` when a newer tidy discarded it. */
   decision: { source: string; noteIds: string[]; at: Timestamp } | null;
-  undone?: { source: string; at: Timestamp } | null;
+  /** The undo, with the notes it moved back (in the order it moved them). */
+  undone?: { source: string; noteIds: string[]; at: Timestamp } | null;
   /** Written by a keep: each note that moved with the revision the move produced, and the skipped ones. */
   applied: { moves: { noteId: string; revision: number }[]; skipped: string[] } | null;
   /** The model and usage of the one call, or null when every move came from the date rule. */

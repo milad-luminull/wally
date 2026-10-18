@@ -92,7 +92,7 @@ export async function claimTidy(
       ...current,
       status: to,
       ...(to === 'UNDONE'
-        ? { undone: { source: decision.source, at: stamp } }
+        ? { undone: { ...decision, at: stamp } }
         : { decision: { ...decision, at: stamp } }),
       updatedAt: stamp,
     };
@@ -115,7 +115,12 @@ async function discardPending(db: Firestore, actor: Actor, boardId: string, now:
   await db.runTransaction(async (tx) => {
     for (const snap of await tx.getAll(...pending.map((doc) => col.doc(doc.id))))
       if (snap.data()?.status === 'PENDING')
-        tx.update(snap.ref, { status: 'DISCARDED', updatedAt: stamp });
+        tx.update(snap.ref, {
+          status: 'DISCARDED',
+          // No person decided it: a newer tidy replaced it (R9).
+          decision: { source: 'replaced', noteIds: [], at: stamp },
+          updatedAt: stamp,
+        });
   });
 }
 
@@ -151,12 +156,16 @@ export async function proposeTidy(
 
   const notes = await listNotes(db, actor, board.id, { status: 'OPEN' });
   const busy = await notesWithPendingSuggestion(db, actor, board.id);
-  const { dated, undated } = tidyCandidates(
+  const candidates = tidyCandidates(
     notes.filter((note) => !busy.has(note.id)),
     request.today,
     mayMoveFor(ctx.role, actor.id),
   );
-  if (dated.length === 0 && undated.length === 0) return null;
+  const { dated } = candidates;
+  if (dated.length === 0 && candidates.undated.length === 0) return null;
+  // The model reads only the undated notes the batch has room for after the dated moves; a
+  // batch the dated moves fill asks it nothing (the newest undated notes go first).
+  const undated = candidates.undated.slice(0, Math.max(0, TIDY_MAX_MOVES - dated.length));
 
   let byWords: PlannedMove[] = [];
   let model: string | null = null;
@@ -234,7 +243,7 @@ export async function proposeTidy(
       inputTokens: output.usage?.inputTokens ?? 0,
       outputTokens: output.usage?.outputTokens ?? 0,
     };
-    if (output.moves) byWords = acceptModelMoves(output.moves.moves, undated);
+    if (output.moves) byWords = acceptModelMoves(output.moves.moves, undated, request.today);
   }
 
   // At most what one batch may carry: dated moves first, earliest due first (`listNotes` order).
@@ -278,9 +287,14 @@ function operationContext(
   };
 }
 
-/** A refusal that a retry under the same id cannot change (stale, gone, forbidden, invalid). */
-const isFinal = (error: unknown): error is AppError =>
-  error instanceof AppError && error.statusCode < 500;
+/**
+ * A refusal that a retry under the same id cannot change, and that is the note's, not the
+ * server's: forbidden, gone, changed since, or a change the note cannot take. A 400 (or any
+ * other status) means the server built a bad call: it is thrown, never taken for a skip.
+ */
+const FINAL_REFUSALS = new Set([403, 404, 409, 422]);
+export const isFinalRefusal = (error: unknown): error is AppError =>
+  error instanceof AppError && FINAL_REFUSALS.has(error.statusCode);
 
 type TidyMoveDoc = AssistantTidyDoc['moves'][number];
 
@@ -315,7 +329,7 @@ async function moveEach(
       });
       moved.push({ noteId: move.noteId, revision: result.revision ?? expectedRevision });
     } catch (error) {
-      if (!isFinal(error)) throw error;
+      if (!isFinalRefusal(error)) throw error;
       skipped.push(move.noteId);
     }
   }
@@ -433,7 +447,7 @@ export async function decideTidy(
   const { applied } = current;
   if (current.status !== 'KEPT' || !applied) throw settled();
   const byId = new Map(current.moves.map((m) => [m.noteId, m]));
-  await moveEach(
+  const { moved: movedBack } = await moveEach(
     operationContext(deps, ctx, current.id),
     [...applied.moves].reverse().flatMap(({ noteId, revision }) => {
       const move = byId.get(noteId);
@@ -449,7 +463,8 @@ export async function decideTidy(
     tidyId,
     'KEPT',
     'UNDONE',
-    { source: decision.source, noteIds: applied.moves.map((m) => m.noteId) },
+    // The notes the undo moved back; a note changed since the keep stays, and is not named.
+    { source: decision.source, noteIds: movedBack.map((m) => m.noteId) },
     now,
   );
   return toTidyDto(doc);

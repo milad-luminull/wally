@@ -49,6 +49,18 @@ describe('tidyCandidates', () => {
     ]);
   });
 
+  it('drops the five oldest of thirty-five undated notes', () => {
+    const notes = Array.from({ length: 35 }, (_, i) =>
+      note({ id: `u${i}`, createdAt: new Date(Date.UTC(2026, 9, 1, i)).toISOString() }),
+    );
+    const { undated } = tidyCandidates([...notes].reverse(), today, all);
+    const ids = undated.map((n) => n.id);
+    expect(ids).toHaveLength(30);
+    for (const oldest of ['u0', 'u1', 'u2', 'u3', 'u4']) expect(ids).not.toContain(oldest);
+    expect(ids[0]).toBe('u34');
+    expect(ids.at(-1)).toBe('u5');
+  });
+
   it('hands the undated notes of Today to the model, newest first and at most thirty', () => {
     const notes = Array.from({ length: 35 }, (_, i) =>
       note({
@@ -121,6 +133,7 @@ describe('acceptModelMoves', () => {
           { noteId: 'zzz', horizon: 'SPAETER', confidence: 0.9, reason: 'not listed' },
         ],
         undated,
+        today,
       ),
     ).toEqual([
       {
@@ -132,5 +145,32 @@ describe('acceptModelMoves', () => {
         source: 'words',
       },
     ]);
+  });
+
+  it('on a Sunday, sends a move to This week to Later: the week ends today', () => {
+    const sunday = '2026-10-18';
+    expect(
+      acceptModelMoves(
+        [{ noteId: 'a', horizon: 'DIESE_WOCHE', confidence: 0.9, reason: 'by Friday' }],
+        undated,
+        sunday,
+      ),
+    ).toEqual([
+      {
+        noteId: 'a',
+        baseRevision: 4,
+        from: 'HEUTE',
+        to: 'SPAETER',
+        reason: 'by Friday',
+        source: 'words',
+      },
+    ]);
+    expect(
+      acceptModelMoves(
+        [{ noteId: 'a', horizon: 'DIESE_WOCHE', confidence: 0.9, reason: 'by Friday' }],
+        undated,
+        today,
+      )[0]!.to,
+    ).toBe('DIESE_WOCHE');
   });
 });

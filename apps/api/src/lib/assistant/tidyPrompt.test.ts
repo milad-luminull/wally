@@ -30,6 +30,29 @@ describe('tidy prompt', () => {
     );
   });
 
+  it('flattens and trims the title as it does the text; an empty title leaves the id alone', () => {
+    expect(
+      buildTidyPrompt([
+        { id: 'n1', title: '  Call\n  Müller \t', text: '' },
+        { id: 'n2', title: '   ', text: 'only text' },
+      ]),
+    ).toBe(['Notes in Today, newest first:', 'n1: Call Müller', 'n2:', '  only text'].join('\n'));
+  });
+
+  it('on a Sunday says that the week ends today, so every later date is Later', () => {
+    const sunday = buildTidyInstructions({
+      today: '2026-10-18',
+      timeZone: 'Europe/Berlin',
+      language: 'en',
+    });
+    expect(sunday).toContain(
+      'Today is Sunday: the week ends today, so every later date is Later (SPAETER).',
+    );
+    expect(
+      buildTidyInstructions({ today: '2026-10-17', timeZone: 'Europe/Berlin', language: 'en' }),
+    ).not.toContain('Today is Sunday');
+  });
+
   it('says nothing about a note without text', () => {
     expect(buildTidyPrompt([{ id: 'n1', title: 'Call', text: '  ' }])).toBe(
       'Notes in Today, newest first:\nn1: Call',

@@ -426,6 +426,29 @@ describe('NoteCard in a tidy batch', () => {
     );
   });
 
+  it('a move by words without a reason has no tooltip', () => {
+    renderTidy({ ...mark(), reason: null, source: 'words' }, makeNote({ dueDate: null }));
+    expect(screen.getByText('→ Later').closest('[title]')).toBeNull();
+  });
+
+  it('Enter or Space on the × takes the note out and never keeps the batch', () => {
+    const { onRemove, onKeep } = renderTidy();
+    const x = screen.getByRole('button', { name: 'Do not move' });
+    fireEvent.keyDown(x, { key: 'Enter', code: 'Enter' });
+    fireEvent.keyDown(x, { key: ' ', code: 'Space' });
+    expect(onRemove).toHaveBeenCalledTimes(2);
+    expect(onKeep).not.toHaveBeenCalled();
+  });
+
+  it('Enter on a moved card is not the tidy’s: it reaches dnd-kit, which picks the card up', () => {
+    const { card, onKeep, onUndo } = renderTidy(mark('kept'));
+    expect(card).not.toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(card, { key: 'Enter', code: 'Enter' });
+    expect(onKeep).not.toHaveBeenCalled();
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(card).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('the × takes the note out; Enter keeps the batch; Esc discards it', () => {
     const { card, onRemove, onKeep, onDiscard } = renderTidy();
     fireEvent.click(screen.getByRole('button', { name: 'Do not move' }));

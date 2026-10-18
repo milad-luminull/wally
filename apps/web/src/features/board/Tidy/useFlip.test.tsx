@@ -13,7 +13,15 @@ function Board({ order, ids }: { order: string[]; ids: string[] }) {
   );
 }
 
+/** jsdom has no Web Animations: each test stubs `animate`, and every stub goes after it. */
+function clearStubs() {
+  vi.restoreAllMocks();
+  delete (HTMLElement.prototype as { animate?: unknown }).animate;
+}
+
 describe('useFlip', () => {
+  afterEach(clearStubs);
+
   it('animates a tracked card from its old place to its new one, staggered, and leaves the rest', () => {
     const animate = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'animate', { value: animate, configurable: true });
@@ -38,7 +46,6 @@ describe('useFlip', () => {
     expect(frames[1].transform).toBe('translate(0, 0)');
     expect(options).toMatchObject({ duration: 180, delay: 0, fill: 'backwards' });
     expect(animate.mock.calls[1]![1]).toMatchObject({ delay: 40 });
-    vi.restoreAllMocks();
   });
 
   it('does nothing under reduced motion', () => {
@@ -48,7 +55,6 @@ describe('useFlip', () => {
     const { rerender } = render(<Board order={['a', 'b']} ids={['a']} />);
     rerender(<Board order={['b', 'a']} ids={['a']} />);
     expect(animate).not.toHaveBeenCalled();
-    vi.restoreAllMocks();
   });
 });
 
@@ -135,7 +141,7 @@ describe('useFlip on the wall: only a card that changes zone travels', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    clearStubs();
     delete (HTMLElement.prototype as { getAnimations?: unknown }).getAnimations;
   });
 

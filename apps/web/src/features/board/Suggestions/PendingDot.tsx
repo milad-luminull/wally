@@ -23,7 +23,8 @@ export function PendingDot({
   className,
 }: {
   mark: DotMark;
-  onUndo: () => void;
+  /** The kept Undo's action; a dot that never shows the Undo needs none. */
+  onUndo?: () => void;
   /** Replaces the dot's own name, for a mark that is not a suggestion's (a tidy's). */
   label?: string;
   className?: string;
@@ -35,7 +36,7 @@ export function PendingDot({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onUndo();
+          onUndo?.();
         }}
         aria-label={t('suggest.undoAria')}
         className={cn(

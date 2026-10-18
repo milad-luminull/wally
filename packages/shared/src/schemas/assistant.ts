@@ -5,17 +5,8 @@ import {
   NOTE_TITLE_MAX_LENGTH,
   SUBTASK_TEXT_MAX_LENGTH,
 } from '../constants.js';
+import { isTimeZone } from '../utils/timeZone.js';
 import { userSummarySchema } from './user.js';
-
-/** An IANA zone the runtime knows; anything else would fail later, when the prompt is built. */
-function isTimeZone(timeZone: string): boolean {
-  try {
-    new Intl.DateTimeFormat(undefined, { timeZone });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const assistantTurnRequestSchema = z
   .object({
