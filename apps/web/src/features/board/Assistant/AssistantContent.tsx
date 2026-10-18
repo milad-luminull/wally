@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { useQueryKeys } from '../hooks/queryKeys';
 import { useNotes } from '../hooks/useNotes';
-import { AnswerNotes } from './AnswerNotes';
+import { AnswerNotes } from '../Ask/AnswerNotes';
 import { useAskAssistant, type AskOutcome } from '../Ask/useAskAssistant';
 import { useAssistantConversation } from './useAssistantConversation';
 

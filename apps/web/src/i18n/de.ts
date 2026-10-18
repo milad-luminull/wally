@@ -441,6 +441,27 @@ export const de = {
     failed: 'Keine Antwort. Noch einmal versuchen.',
     earlier: 'Zuvor',
   },
+  /** The answer card on the wall (WALLYBOT_INLINE.md §3.6). No name, no first person. */
+  ask: {
+    cardAria: 'Antwort der Wand',
+    asking: 'Die Wand wird gelesen',
+    pin: 'Antwort anheften',
+    unpin: 'Antwort lösen',
+    close: 'Antwort schließen',
+    notesRead: 'Gelesene Notizen',
+    partial: 'Nur ein Teil der passenden Notizen wurde gelesen.',
+    stopped: {
+      TOOL_LIMIT: 'Nach zwölf Lesevorgängen gestoppt. Eine engere Frage hilft.',
+      TIMEOUT: 'Keine Antwort innerhalb einer Minute. Eine engere Frage hilft.',
+      LENGTH: 'Die Antwort wurde gekürzt.',
+    },
+    limit: {
+      daily: 'Tageslimit erreicht. Ab {{when}} wieder verfügbar.',
+      monthly: 'Monatslimit erreicht. Ab {{when}} wieder verfügbar.',
+      busy: 'Gerade beschäftigt. Gleich noch einmal versuchen.',
+    },
+    failed: 'Keine Antwort. Noch einmal versuchen.',
+  },
   capture: {
     cardAria: 'Neue Notiz schreiben',
     titleAria: 'Titel der neuen Notiz',

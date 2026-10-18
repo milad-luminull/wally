@@ -417,6 +417,26 @@ export const en = {
     failed: 'No answer. Try again.',
     earlier: 'Earlier',
   },
+  ask: {
+    cardAria: 'Answer from the wall',
+    asking: 'Reading the wall',
+    pin: 'Pin the answer',
+    unpin: 'Unpin the answer',
+    close: 'Close the answer',
+    notesRead: 'Notes read',
+    partial: 'Only part of the matching notes was read.',
+    stopped: {
+      TOOL_LIMIT: 'Stopped after twelve reads. A narrower question helps.',
+      TIMEOUT: 'No answer within a minute. A narrower question helps.',
+      LENGTH: 'The answer was cut short.',
+    },
+    limit: {
+      daily: 'Daily limit reached. Available again from {{when}}.',
+      monthly: 'Monthly limit reached. Available again from {{when}}.',
+      busy: 'Busy right now. Try again in a moment.',
+    },
+    failed: 'No answer. Try again.',
+  },
   capture: {
     cardAria: 'Write a new note',
     titleAria: 'Title of the new note',
