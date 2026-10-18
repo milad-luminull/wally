@@ -1,5 +1,5 @@
 import { BoardRail } from './BoardRail';
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/i18n/LanguageProvider';
@@ -9,6 +9,8 @@ import { BoardSkeleton } from '@/components/AppSkeleton';
 import { useNotes } from './hooks/useNotes';
 import { useBoardViewState } from './hooks/useBoardViewState';
 import { useRememberLastBoard } from '@/lib/preferences';
+import { useSetNoteVisibility } from './hooks/mutations/useSetNoteVisibility';
+import { useDeleteNote } from './hooks/mutations/useDeleteNote';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
 import { nextFreeNotePosition } from './util/notePlacement';
@@ -49,9 +51,13 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const { language } = useLanguage();
   const { isDesktop, isBelowDesktop, isBelowTablet } = useBreakpoint();
   const viewState = useBoardViewState(boardId);
+  const [detailExpanded, setDetailExpanded] = useState(false);
+  const boardCovered = detailExpanded && isDesktop && Boolean(viewState.noteId);
   useRememberLastBoard(boardId);
   const notesQuery = useNotes(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
+  const { deleteNote } = useDeleteNote(boardId);
+  const setVisibility = useSetNoteVisibility(boardId);
 
   const access = useMemo(
     () => boardAccess(board.currentUserRole, user?.uid, viewState.visibility),
@@ -227,9 +233,11 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
     // visible viewport, which pushes the board's own scroll containers off-screen.
-    <div className="board-shell flex h-[100dvh] flex-col overflow-hidden bg-background">
-      <EmailVerificationBanner />
-      <div className="board-layout">
+    <div className="board-shell relative flex h-[100dvh] flex-col overflow-hidden bg-background">
+      <div inert={boardCovered}>
+        <EmailVerificationBanner />
+      </div>
+      <div className="board-layout isolate" inert={boardCovered}>
         {isDesktop && (
           <BoardRail
             boardId={boardId}
@@ -280,6 +288,56 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 selectedNoteId={viewState.noteId}
                 onOpenNote={viewState.openNote}
                 onDuplicateNote={duplicateNote}
+                cardActions={(note) => ({
+                  onOpen: () => {
+                    setDetailExpanded(false);
+                    viewState.openNote(note.id);
+                    if (viewState.noteId === note.id) {
+                      // The editor stays mounted when Open targets the already-open note.
+                      const panel = document.querySelector('.paper-detail');
+                      (
+                        panel?.querySelector<HTMLElement>('.note-detail-title:not(:disabled)') ??
+                        panel?.querySelector<HTMLElement>('button:not(:disabled)')
+                      )?.focus();
+                    }
+                  },
+                  isDone: note.status === 'DONE',
+                  ...(access.canEditShared &&
+                  access.showsVisibilitySwitch(note) &&
+                  note.visibility === 'SHARED'
+                    ? {
+                        onMakePrivate: () => {
+                          if (viewState.visibility === 'shared') {
+                            document.querySelector<HTMLElement>('[data-board-surface]')?.focus();
+                          }
+                          setVisibility.mutate({
+                            noteId: note.id,
+                            visibility: 'PRIVATE',
+                            creator: note.createdBy,
+                          });
+                        },
+                      }
+                    : {}),
+                  onExpand: () => {
+                    setDetailExpanded(true);
+                    viewState.openNote(note.id);
+                  },
+                  ...(access.canEditNote(note)
+                    ? {
+                        onToggleStatus: () => {
+                          if (!viewState.done && note.status !== 'DONE') {
+                            document.querySelector<HTMLElement>('[data-board-surface]')?.focus();
+                          }
+                          toggleStatus.mutate({ noteId: note.id, currentStatus: note.status });
+                        },
+                        onDuplicate: () => duplicateNote(note.id),
+                        onDelete: () => {
+                          deleteNote(note.id);
+                          if (viewState.noteId === note.id) viewState.openNote(null);
+                        },
+                      }
+                    : {}),
+                })}
                 access={access}
                 capture={capture}
                 captureKey={captureKey}
@@ -296,6 +354,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
               />
             ) : (
               <ListView
+                selectedNoteId={viewState.noteId}
                 notes={filteredNotes}
                 totalNoteCount={boardNotes.length}
                 axis={viewState.axis}
@@ -321,25 +380,29 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 relatedCounts={relatedCountByNote}
               />
             )}
-
-            <NoteDetailPanel
-              noteId={viewState.noteId}
-              boardId={boardId}
-              access={access}
-              axis={viewState.axis}
-              isBelowDesktop={isBelowDesktop}
-              onClose={() => viewState.openNote(null)}
-              onDuplicate={duplicateNote}
-              onOpenNote={viewState.openNote}
-              currentUserId={user?.uid}
-              pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
-            />
           </div>
         </div>
       </div>
 
+      <NoteDetailPanel
+        noteId={viewState.noteId}
+        boardId={boardId}
+        boardName={board.name}
+        expanded={detailExpanded}
+        onExpandedChange={setDetailExpanded}
+        access={access}
+        axis={viewState.axis}
+        isBelowDesktop={isBelowDesktop}
+        onClose={() => viewState.openNote(null)}
+        onDuplicate={duplicateNote}
+        onOpenNote={viewState.openNote}
+        currentUserId={user?.uid}
+        pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
+      />
+
       <BoardCommands
         boardId={boardId}
+        onRevealBoard={() => setDetailExpanded(false)}
         notes={boardNotes}
         view={effectiveView}
         axis={viewState.axis}
@@ -353,11 +416,26 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onDuplicateNote={() => viewState.noteId && duplicateNote(viewState.noteId)}
         onOpenNote={viewState.openNote}
         onCloseNote={() => viewState.openNote(null)}
-        onSetView={viewState.setView}
-        onSetAxis={viewState.setAxis}
-        onSetDone={viewState.setDone}
-        onSetMine={viewState.setMine}
-        onResetView={viewState.resetView}
+        onSetView={(value) => {
+          setDetailExpanded(false);
+          viewState.setView(value);
+        }}
+        onSetAxis={(value) => {
+          setDetailExpanded(false);
+          viewState.setAxis(value);
+        }}
+        onSetDone={(value) => {
+          setDetailExpanded(false);
+          viewState.setDone(value);
+        }}
+        onSetMine={(value) => {
+          setDetailExpanded(false);
+          viewState.setMine(value);
+        }}
+        onResetView={() => {
+          setDetailExpanded(false);
+          viewState.resetView();
+        }}
         assistantEnabled={board.assistantEnabled}
         onUndoSuggestion={() => undoMostRecent([suggestions, tidy])}
       />

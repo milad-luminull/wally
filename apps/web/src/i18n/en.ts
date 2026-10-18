@@ -1,6 +1,7 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   welcome: {
+    open: 'Open Wally',
     brand: 'Wally',
     byline: 'by Luminull',
     navigation: 'Main navigation',
@@ -296,7 +297,13 @@ export const en = {
     then: 'then',
   },
   board: {
-    rail: { wall: 'Wall', views: 'Board views', whiteboard: 'Whiteboard' },
+    rail: {
+      wall: 'Wall',
+      views: 'Board views',
+      whiteboard: 'Whiteboard',
+      collapse: 'Collapse sidebar',
+      expand: 'Expand sidebar',
+    },
     rowStatus: { markOpen: 'Mark as open', markDone: 'Mark as done' },
     switcherHeading: 'Boards',
     switcherAria: 'Switch board',
@@ -412,6 +419,13 @@ export const en = {
     },
   },
   note: {
+    open: 'Open',
+    makePrivate: 'Make private',
+    actions: 'Note actions',
+    expand: 'Expand note',
+    collapse: 'Open in side panel',
+    details: 'Details',
+    showActivity: 'Show activity · {{count}}',
     panelAria: 'Note details',
     titlePlaceholder: 'What needs doing?',
     titleAria: 'Title',

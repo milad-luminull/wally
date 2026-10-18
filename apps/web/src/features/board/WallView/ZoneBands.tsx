@@ -11,6 +11,7 @@ import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
+import type { NoteCardActions } from './NoteCardActions';
 
 /** Droppable-region id convention consumed by WallView's onDragEnd. */
 export function zoneDroppableId(axis: BoardAxis, key: string) {
@@ -38,6 +39,7 @@ interface ZoneBandProps {
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
+  cardActions?: (note: NoteDto) => NoteCardActions;
   onCreateInZone: (key: string) => void;
   activeDragId: string | null;
   /** Every note on the board is hidden by the filters — say so, rather than "empty". */
@@ -58,6 +60,7 @@ function ZoneBand({
   currentUserId,
   selectedNoteId,
   onOpenNote,
+  cardActions,
   onCreateInZone,
   activeDragId,
   filteredOut,
@@ -137,6 +140,7 @@ function ZoneBand({
               selected={selectedNoteId === note.id}
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
+              actions={cardActions?.(note)}
               pending={pendingFor?.(note.id)}
               relatedCount={relatedCounts?.get(note.id)}
               tidy={tidyFor?.(note.id)}
@@ -193,6 +197,7 @@ interface ZoneBandsProps {
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
+  cardActions?: (note: NoteDto) => NoteCardActions;
   onCreateInZone: (key: string) => void;
   activeDragId: string | null;
   filteredOut: boolean;

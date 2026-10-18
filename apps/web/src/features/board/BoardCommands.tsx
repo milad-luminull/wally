@@ -73,6 +73,8 @@ interface BoardCommandsProps {
   /** The open note is one this member may duplicate. */
   canDuplicateOpenNote: boolean;
   noteOpen: boolean;
+  /** Leave full-screen note mode before targeting controls on the board. */
+  onRevealBoard?: () => void;
   onNewNote: () => void;
   /** Duplicates the open note. */
   onDuplicateNote: () => void;
@@ -109,10 +111,15 @@ export function BoardCommands(props: BoardCommandsProps) {
   useOpenRequest('palette', () => setPaletteOpen(true));
   useOpenRequest('shortcuts', () => setHelpOpen(true));
 
+  const focusSearch = () => {
+    props.onRevealBoard?.();
+    // Let React remove inert before moving focus into the board.
+    requestAnimationFrame(() => document.getElementById(SEARCH_INPUT_ID)?.focus());
+  };
   const shortcuts: Shortcut[] = [
     { keys: 'mod+k', allowInInputs: true, handler: () => setPaletteOpen((open) => !open) },
     { keys: '?', handler: () => setHelpOpen(true) },
-    { keys: '/', handler: () => document.getElementById(SEARCH_INPUT_ID)?.focus() },
+    { keys: '/', handler: focusSearch },
     { keys: 'n', handler: () => props.onNewNote() },
     {
       // Works from inside the title or description too: duplicating what you are writing
@@ -152,7 +159,12 @@ export function BoardCommands(props: BoardCommandsProps) {
 
   return (
     <>
-      <CommandPalette {...props} open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        {...props}
+        onSearch={focusSearch}
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+      />
       <ShortcutsDialog
         open={helpOpen}
         onOpenChange={setHelpOpen}
@@ -174,6 +186,8 @@ function CommandPalette({
   canDuplicateOpenNote,
   noteOpen,
   onNewNote,
+  onRevealBoard,
+  onSearch,
   onDuplicateNote,
   onOpenNote,
   onSetView,
@@ -183,7 +197,11 @@ function CommandPalette({
   onResetView,
   open,
   onOpenChange,
-}: BoardCommandsProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
+}: BoardCommandsProps & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSearch: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: boards = [] } = useBoards();
@@ -274,15 +292,20 @@ function CommandPalette({
                   </span>
                 </CommandItem>
               )}
-              <CommandItem
-                value="search filter notes"
-                onSelect={() => run(() => document.getElementById(SEARCH_INPUT_ID)?.focus())}
-              >
+              <CommandItem value="search filter notes" onSelect={() => run(onSearch)}>
                 <Search strokeWidth={1.75} />
                 <span className="flex-1">{t('palette.focusSearch')}</span>
                 <Kbd>/</Kbd>
               </CommandItem>
-              <CommandItem value="share invite" onSelect={() => run(() => requestOpen('share'))}>
+              <CommandItem
+                value="share invite"
+                onSelect={() =>
+                  run(() => {
+                    onRevealBoard?.();
+                    requestOpen('share');
+                  })
+                }
+              >
                 <UserPlus strokeWidth={1.75} />
                 <span className="flex-1">{t('palette.share')}</span>
               </CommandItem>

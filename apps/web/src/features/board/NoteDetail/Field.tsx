@@ -49,7 +49,7 @@ export function PropertyRow({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-h-8 grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
+    <div className="note-detail-property grid min-h-8 grid-cols-[88px_minmax(0,1fr)] items-center gap-3">
       <FieldLabel htmlFor={htmlFor} className="truncate">
         {label}
       </FieldLabel>
@@ -64,7 +64,7 @@ export function PanelSection({ children, className }: { children: ReactNode; cla
   return (
     <section
       className={cn(
-        'flex flex-col gap-3 border-t border-border-subtle px-5 py-4 first:border-t-0',
+        'note-detail-section flex flex-col gap-3 border-t border-border-subtle px-5 py-4 first:border-t-0',
         className,
       )}
     >

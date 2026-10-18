@@ -88,6 +88,22 @@ function renderCommands(
 describe('BoardCommands', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('reveals the board before focusing search from a shortcut or the palette', async () => {
+    const user = userEvent.setup();
+    const reveal = vi.fn();
+    renderCommands(
+      { onRevealBoard: reveal },
+      <input id="board-search" aria-label="Search notes" />,
+    );
+    await user.keyboard('/');
+    await waitFor(() => expect(screen.getByLabelText('Search notes')).toHaveFocus());
+    expect(reveal).toHaveBeenCalledTimes(1);
+    await user.keyboard(PALETTE);
+    await user.click(await screen.findByRole('option', { name: /Filter notes/ }));
+    await waitFor(() => expect(reveal).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByLabelText('Search notes')).toHaveFocus());
+  });
+
   it('duplicates the open note on ⌘D / Ctrl+D', async () => {
     const { onDuplicateNote } = renderCommands();
     await userEvent.keyboard(MOD);

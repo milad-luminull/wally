@@ -1,8 +1,19 @@
 import { RelatedNotes } from './RelatedNotes';
 import { useAddLink, useRemoveLink } from '../hooks/mutations/useLinkMutations';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Circle,
+  CircleCheck,
+  Copy,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  UserRound,
+  X,
+} from 'lucide-react';
 import {
   notePriorityValues,
   noteHorizonValues,
@@ -27,7 +38,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/cn';
-import { MOD_KEY } from '@/lib/shortcuts';
+import { MOD_KEY, useKeyboardShortcuts } from '@/lib/shortcuts';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { useNoteDetail } from '../hooks/useNoteDetail';
@@ -48,7 +59,13 @@ import {
   useSetCustomField,
   useRemoveCustomField,
 } from '../hooks/mutations/useCustomFieldMutations';
-import { collectFieldKeys, displayName } from '../util/noteDerived';
+import {
+  collectFieldKeys,
+  displayName,
+  dueInfo,
+  dueToneClass,
+  noteColourFillClass,
+} from '../util/noteDerived';
 import type { BoardAccess } from '../util/permissions';
 import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
@@ -73,11 +90,13 @@ const normalizeTitle = (raw: string) => raw.trim() || null;
 const normalizeDescription = (raw: string) => (raw.trim() ? raw : '');
 
 /** A ToggleGroup rendered as a compact segmented control, for the properties grid. */
-const SEGMENTED_GROUP = 'inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0.5';
+const SEGMENTED_GROUP =
+  'note-detail-segment inline-flex flex-nowrap gap-0.5 rounded-md bg-inset p-0.5';
 
 interface NoteDetailPanelProps {
   noteId: string | null;
   boardId: string;
+  boardName?: string;
   access: BoardAccess;
   axis: BoardAxis;
   isBelowDesktop: boolean;
@@ -85,6 +104,9 @@ interface NoteDetailPanelProps {
   onDuplicate: (noteId: string) => void;
   onOpenNote: (noteId: string) => void;
   currentUserId: string | undefined;
+  /** Controlled by the shell so board commands can reveal the board. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   /** The open note's pending change, reviewed at the top of the panel (plan R3). */
   pending?: PendingProps;
 }
@@ -92,6 +114,7 @@ interface NoteDetailPanelProps {
 export function NoteDetailPanel({
   noteId,
   boardId,
+  boardName,
   access,
   axis,
   isBelowDesktop,
@@ -100,18 +123,42 @@ export function NoteDetailPanel({
   onOpenNote,
   currentUserId,
   pending,
+  onExpandedChange,
+  expanded: controlledExpanded,
 }: NoteDetailPanelProps) {
   const { t } = useTranslation();
-  useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = controlledExpanded ?? localExpanded;
+  const setExpanded = useCallback(
+    (value: boolean) => {
+      setLocalExpanded(value);
+      onExpandedChange?.(value);
+    },
+    [onExpandedChange],
+  );
+  const isExpanded = expanded && !isBelowDesktop && Boolean(noteId);
+  useEffect(() => {
+    if (!noteId || isBelowDesktop) setExpanded(false);
+  }, [noteId, isBelowDesktop, setExpanded]);
+  useEscapeToClose(
+    () => (isExpanded ? setExpanded(false) : onClose()),
+    !isBelowDesktop && Boolean(noteId),
+  );
+  useKeyboardShortcuts(
+    [{ keys: 'e', handler: () => setExpanded(!expanded) }],
+    !isBelowDesktop && Boolean(noteId),
+  );
 
   if (isBelowDesktop) {
     return (
       <Sheet open={Boolean(noteId)} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="right" className="w-full max-w-sm p-0" hideClose>
+        <SheetContent side="right" className="paper-detail w-full max-w-sm p-0" hideClose>
           {noteId && (
             <NoteDetailContent
               noteId={noteId}
               boardId={boardId}
+              boardName={boardName}
+              expanded={false}
               access={access}
               axis={axis}
               onClose={onClose}
@@ -133,16 +180,22 @@ export function NoteDetailPanel({
     <aside
       role="complementary"
       aria-label={t('note.panelAria')}
-      /* Floats over the board's right edge instead of taking a slot in the row. As a flex
-         child it narrowed the board, so the centred columns jumped sideways every time a
-         note opened or closed. It slides in once, on open; switching to another note swaps
-         the content in place (the key is on the content, not on this element). */
-      className="paper-detail absolute inset-y-0 right-0 z-drawer flex w-[400px] max-w-full animate-slide-in-right flex-col border-l border-border bg-surface shadow-e3"
+      // One editor stays mounted across presentations, preserving focus and live drafts.
+      data-expanded={isExpanded}
+      className={cn(
+        'paper-detail z-drawer flex flex-col bg-surface',
+        isExpanded
+          ? 'paper-detail-expanded fixed inset-0'
+          : 'absolute inset-y-0 right-0 w-[360px] max-w-full border-l border-border-subtle shadow-e3',
+      )}
     >
       <NoteDetailContent
         key={noteId}
         noteId={noteId}
         boardId={boardId}
+        boardName={boardName}
+        expanded={isExpanded}
+        onToggleExpanded={() => setExpanded(!expanded)}
         access={access}
         axis={axis}
         onClose={onClose}
@@ -159,6 +212,7 @@ export function NoteDetailPanel({
 interface ContentProps {
   noteId: string;
   boardId: string;
+  boardName?: string;
   access: BoardAccess;
   axis: BoardAxis;
   onClose: () => void;
@@ -167,11 +221,14 @@ interface ContentProps {
   currentUserId: string | undefined;
   pending: PendingProps | undefined;
   autoFocusTitle: boolean;
+  expanded: boolean;
+  onToggleExpanded?: () => void;
 }
 
 function NoteDetailContent({
   noteId,
   boardId,
+  boardName,
   access,
   axis,
   onClose,
@@ -180,6 +237,8 @@ function NoteDetailContent({
   currentUserId,
   pending,
   autoFocusTitle,
+  expanded,
+  onToggleExpanded,
 }: ContentProps) {
   const { t } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
@@ -239,9 +298,32 @@ function NoteDetailContent({
     capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
     save: saveDescription,
   });
-  const titleRef = title.ref;
-
   const noteReady = Boolean(note);
+  const titleRef = title.ref;
+  const articleRef = useRef<HTMLElement>(null);
+  const resizeTitle = title.resize;
+  const resizeDescription = description.resize;
+  // Changing presentation changes wrapping without changing the text value.
+  useLayoutEffect(() => {
+    resizeTitle();
+    resizeDescription();
+  }, [expanded, noteReady, resizeTitle, resizeDescription]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || typeof ResizeObserver === 'undefined') return;
+    let width = article.getBoundingClientRect().width;
+    const observer = new ResizeObserver(() => {
+      const next = article.getBoundingClientRect().width;
+      if (next === width) return;
+      width = next;
+      resizeTitle();
+      resizeDescription();
+    });
+    observer.observe(article);
+    return () => observer.disconnect();
+  }, [noteReady, resizeTitle, resizeDescription]);
+
   useEffect(() => {
     if (autoFocusTitle && noteReady && titleRef.current) {
       // preventScroll: focusing must never scroll the board behind the panel.
@@ -262,6 +344,15 @@ function NoteDetailContent({
    */
   const showReview = Boolean(pending && pending.mark.phase !== 'asking');
   const closeRef = useRef<HTMLButtonElement>(null);
+  const expandRef = useRef<HTMLButtonElement>(null);
+  const wasExpanded = useRef(expanded);
+  useLayoutEffect(() => {
+    // Back only exists full-screen. Give its keyboard focus to a surviving control.
+    if (wasExpanded.current && !expanded && document.activeElement === document.body) {
+      expandRef.current?.focus({ preventScroll: true });
+    }
+    wasExpanded.current = expanded;
+  }, [expanded]);
   const reviewHadFocus = useRef(false);
   useLayoutEffect(() => {
     if (showReview) return;
@@ -306,6 +397,7 @@ function NoteDetailContent({
   const showZone = axis === 'horizon';
   const isDone = note.status === 'DONE';
   const isPrivate = note.visibility === 'PRIVATE';
+  const due = dueInfo(note, t);
 
   function handlePriorityChange(value: string) {
     if (!value) return;
@@ -337,11 +429,17 @@ function NoteDetailContent({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="note-detail-content flex h-full min-h-0 flex-col">
       {/* Completion leads the panel, as a toggle that says what it does. It is a checkbox
           (role and state), never a footer button: a filled "Done" in the bottom confirm
           slot read as "dismiss this panel", and people completed to-dos trying to close. */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-subtle pl-3.5 pr-2.5">
+      <header className="note-detail-header">
+        {expanded && (
+          <Button variant="ghost" size="sm" onClick={onToggleExpanded} className="note-detail-back">
+            <ArrowLeft strokeWidth={1.75} />
+            {t(axis === 'free' ? 'board.rail.whiteboard' : `board.topBar.axis.${axis}.label`)}
+          </Button>
+        )}
         <button
           type="button"
           role="checkbox"
@@ -350,7 +448,7 @@ function NoteDetailContent({
           disabled={disabled}
           onClick={() => toggleStatus.mutate({ noteId: note.id, currentStatus: note.status })}
           className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-12 font-medium',
+            'note-detail-complete inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-12 font-medium',
             'transition-[background-color,border-color,color] duration-150 ease-ds',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
             'disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:h-10',
@@ -363,7 +461,20 @@ function NoteDetailContent({
           {isDone ? <CircleCheck strokeWidth={2} /> : <Circle strokeWidth={1.75} />}
           <span aria-hidden>{isDone ? t('note.doneStatus') : t('board.rowStatus.markDone')}</span>
         </button>
-        <span className="flex-1" />
+        <span className="note-detail-header-spacer" />
+        {onToggleExpanded && (
+          <IconTooltip label={t(expanded ? 'note.collapse' : 'note.expand')} shortcut={['E']}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              ref={expandRef}
+              onClick={onToggleExpanded}
+              aria-label={t(expanded ? 'note.collapse' : 'note.expand')}
+            >
+              {expanded ? <Minimize2 strokeWidth={1.75} /> : <Maximize2 strokeWidth={1.75} />}
+            </Button>
+          </IconTooltip>
+        )}
         <IconTooltip label={t('common.close')} shortcut={['Esc']}>
           <Button
             ref={closeRef}
@@ -389,36 +500,67 @@ function NoteDetailContent({
           if (!(next instanceof Node) || !e.currentTarget.contains(next))
             reviewHadFocus.current = false;
         }}
-        className="wally-scroll min-h-0 flex-1 overflow-y-auto"
+        className="note-detail-scroll wally-scroll min-h-0 flex-1 overflow-y-auto"
       >
-        <div className="px-5 pb-4 pt-5">
-          <textarea
-            ref={titleRef}
-            value={title.value}
-            onChange={(e) => title.onChange(e.target.value)}
-            onBlur={title.onBlur}
-            onKeyDown={(e) => {
-              // One line of meaning, even when it wraps: Enter finishes the title.
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }}
-            onInput={title.resize}
-            disabled={disabled}
-            rows={1}
-            placeholder={t('note.titlePlaceholder')}
-            aria-label={t('note.titleAria')}
-            /* Explicit `block` + `resize-none` and an auto-grown height: as a shrinkable
+        <article ref={articleRef} className="note-detail-article">
+          <div className="note-detail-intro">
+            <div className="note-detail-eyebrow">
+              <span
+                aria-hidden
+                className={cn('note-detail-colour', noteColourFillClass[note.colour])}
+              />
+              <span>
+                {boardName
+                  ? `${boardName} · ${horizonLabels[note.horizon]}`
+                  : horizonLabels[note.horizon]}
+              </span>
+            </div>
+            <textarea
+              ref={titleRef}
+              value={title.value}
+              onChange={(e) => title.onChange(e.target.value)}
+              onBlur={title.onBlur}
+              onKeyDown={(e) => {
+                // One line of meaning, even when it wraps: Enter finishes the title.
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              onInput={title.resize}
+              disabled={disabled}
+              rows={1}
+              placeholder={t('note.titlePlaceholder')}
+              aria-label={t('note.titleAria')}
+              /* Explicit `block` + `resize-none` and an auto-grown height: as a shrinkable
                flex child inside the old overflowing column this field collapsed to a few
                pixels tall. It is no longer a flex item. */
-            className={cn(
-              'block w-full resize-none overflow-hidden rounded-md bg-transparent text-20 font-semibold text-fg-1 outline-none',
-              'placeholder:text-fg-faint',
-              'disabled:cursor-not-allowed disabled:opacity-70',
-              isDone && 'text-fg-3 line-through decoration-fg-faint',
+              className={cn(
+                'note-detail-title block w-full resize-none overflow-hidden rounded-md bg-transparent text-20 font-semibold text-fg-1 outline-none',
+                'placeholder:text-fg-faint',
+                'disabled:cursor-not-allowed disabled:opacity-70',
+                isDone && 'text-fg-3 line-through decoration-fg-faint',
+              )}
+            />
+            {expanded && (
+              <div className="note-detail-summary">
+                <span className={dueToneClass[due.tone]}>
+                  <CalendarDays aria-hidden />
+                  {due.label}
+                </span>
+                <span>
+                  <PriorityIcon priority={note.priority} />
+                  {priorityLabels[note.priority]}
+                </span>
+                {note.assignee && (
+                  <span>
+                    <UserRound aria-hidden />
+                    {displayName(note.assignee)}
+                  </span>
+                )}
+              </div>
             )}
-          />
+          </div>
           {/* Deliberately bare: no label, no border, no toolbar — it reads as the line under
               the title until you write in it. Enter is a new line here, unlike the title. */}
           <textarea
@@ -439,186 +581,192 @@ function NoteDetailContent({
             placeholder={disabled ? undefined : t('note.descriptionPlaceholder')}
             aria-label={t('note.descriptionAria')}
             className={cn(
-              'mt-1 block w-full resize-none overflow-hidden rounded-md bg-transparent text-14 leading-relaxed text-fg-2 outline-none',
+              'note-detail-description block w-full resize-none overflow-hidden rounded-md bg-transparent text-14 leading-relaxed text-fg-2 outline-none',
               'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
               disabled && !description.value && 'hidden',
             )}
           />
-        </div>
 
-        {pending && showReview && <PendingReview note={note} pending={pending} />}
+          {pending && showReview && <PendingReview note={note} pending={pending} />}
 
-        <PanelSection>
-          <SubtaskChecklist
-            subtasks={note.subtasks}
-            disabled={disabled}
-            onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
-            onToggle={(subtaskId, done) =>
-              toggleSubtask.mutate({ noteId: note.id, subtaskId, done })
-            }
-            onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
-          />
-        </PanelSection>
-
-        <PanelSection>
-          <PropertyRow label={t('note.priorityLabel')}>
-            <ToggleGroup
-              type="single"
-              variant="segment"
-              size="sm"
-              value={note.priority}
-              onValueChange={handlePriorityChange}
+          <PanelSection>
+            <SubtaskChecklist
+              subtasks={note.subtasks}
               disabled={disabled}
-              className={SEGMENTED_GROUP}
-            >
-              {notePriorityValues.map((p) => (
-                <ToggleGroupItem key={p} value={p} aria-label={priorityLabels[p]}>
-                  <PriorityIcon priority={p} size={12} />
-                  {priorityLabels[p]}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </PropertyRow>
+              onAdd={(text) => addSubtask.mutate({ noteId: note.id, text })}
+              onToggle={(subtaskId, done) =>
+                toggleSubtask.mutate({ noteId: note.id, subtaskId, done })
+              }
+              onRemove={(subtaskId) => removeSubtask.mutate({ noteId: note.id, subtaskId })}
+            />
+          </PanelSection>
 
-          {showZone && (
-            <PropertyRow label={t('note.zone.column')}>
+          <PanelSection className="note-detail-properties">
+            <h2 className="note-detail-section-heading">{t('note.details')}</h2>
+            <PropertyRow label={t('note.priorityLabel')}>
               <ToggleGroup
                 type="single"
                 variant="segment"
                 size="sm"
-                value={note.horizon}
-                onValueChange={handleZoneChange}
+                value={note.priority}
+                onValueChange={handlePriorityChange}
                 disabled={disabled}
                 className={SEGMENTED_GROUP}
               >
-                {noteHorizonValues.map((key) => (
-                  <ToggleGroupItem key={key} value={key}>
-                    {horizonLabels[key]}
+                {notePriorityValues.map((p) => (
+                  <ToggleGroupItem key={p} value={p} aria-label={priorityLabels[p]}>
+                    <PriorityIcon priority={p} size={12} />
+                    {priorityLabels[p]}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
             </PropertyRow>
-          )}
 
-          <PropertyRow label={t('note.dueLabel')} htmlFor="note-due">
-            <Input
-              id="note-due"
-              type="date"
-              value={note.dueDate ?? ''}
-              disabled={disabled}
-              onChange={(e) =>
-                updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
-              }
-              className="h-7 w-auto shadow-none [@media(pointer:coarse)]:h-10"
-            />
-          </PropertyRow>
-
-          {access.showsVisibilitySwitch(note) && (
-            <VisibilityRow
-              visibility={note.visibility}
-              canChange={access.canEditShared}
-              onChange={(visibility) =>
-                setVisibility.mutate({ noteId: note.id, visibility, creator: note.createdBy })
-              }
-            />
-          )}
-
-          <PropertyRow label={t('note.assigneeLabel')}>
-            {isPrivate ? (
-              // Only its creator ever opens a private note, and it is always theirs: "You".
-              // The helper wraps rather than truncating, so on a narrow screen the rule stays
-              // readable. Items align to the top so a wrapped line sits beside the avatar.
-              <span className="flex min-w-0 items-start gap-2">
-                {note.assignee && (
-                  <AssigneeAvatar user={note.assignee} isYou size="sm" className="shrink-0" />
-                )}
-                <span className="shrink-0 text-13 text-fg-1">{t('common.you')}</span>
-                <span className="min-w-0 text-12 leading-snug text-fg-3">
-                  {t('note.private.assigneeLocked')}
-                </span>
-              </span>
-            ) : (
-              <Select
-                value={note.assignee?.id ?? NO_ASSIGNEE}
-                onValueChange={handleAssigneeChange}
-                disabled={disabled}
-              >
-                <SelectTrigger
-                  aria-label={t('note.assigneeLabel')}
-                  className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+            {showZone && (
+              <PropertyRow label={t('note.zone.column')}>
+                <ToggleGroup
+                  type="single"
+                  variant="segment"
+                  size="sm"
+                  value={note.horizon}
+                  onValueChange={handleZoneChange}
+                  disabled={disabled}
+                  className={SEGMENTED_GROUP}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
-                  {assigneeOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      <span className="flex items-center gap-2">
-                        <AssigneeAvatar
-                          user={option}
-                          isYou={option.id === currentUserId}
-                          size="sm"
-                        />
-                        {option.id === currentUserId
-                          ? t('note.youSuffix', { name: displayName(option) })
-                          : displayName(option)}
-                      </span>
-                    </SelectItem>
+                  {noteHorizonValues.map((key) => (
+                    <ToggleGroupItem key={key} value={key}>
+                      {horizonLabels[key]}
+                    </ToggleGroupItem>
                   ))}
-                </SelectContent>
-              </Select>
+                </ToggleGroup>
+              </PropertyRow>
             )}
-          </PropertyRow>
 
-          <PropertyRow label={t('note.colourLabel')}>
-            <ColorSwatchPicker
-              value={note.colour}
+            <PropertyRow label={t('note.dueLabel')} htmlFor="note-due">
+              <Input
+                id="note-due"
+                type="date"
+                value={note.dueDate ?? ''}
+                disabled={disabled}
+                onChange={(e) =>
+                  updateNote.mutate({ noteId: note.id, input: { dueDate: e.target.value || null } })
+                }
+                className="h-7 w-auto shadow-none [@media(pointer:coarse)]:h-10"
+              />
+            </PropertyRow>
+
+            {access.showsVisibilitySwitch(note) && (
+              <VisibilityRow
+                visibility={note.visibility}
+                canChange={access.canEditShared}
+                onChange={(visibility) =>
+                  setVisibility.mutate({ noteId: note.id, visibility, creator: note.createdBy })
+                }
+              />
+            )}
+
+            <PropertyRow label={t('note.assigneeLabel')}>
+              {isPrivate ? (
+                // Only its creator ever opens a private note, and it is always theirs: "You".
+                // The helper wraps rather than truncating, so on a narrow screen the rule stays
+                // readable. Items align to the top so a wrapped line sits beside the avatar.
+                <span className="flex min-w-0 items-start gap-2">
+                  {note.assignee && (
+                    <AssigneeAvatar user={note.assignee} isYou size="sm" className="shrink-0" />
+                  )}
+                  <span className="shrink-0 text-13 text-fg-1">{t('common.you')}</span>
+                  <span className="min-w-0 text-12 leading-snug text-fg-3">
+                    {t('note.private.assigneeLocked')}
+                  </span>
+                </span>
+              ) : (
+                <Select
+                  value={note.assignee?.id ?? NO_ASSIGNEE}
+                  onValueChange={handleAssigneeChange}
+                  disabled={disabled}
+                >
+                  <SelectTrigger
+                    aria-label={t('note.assigneeLabel')}
+                    className="h-7 w-auto min-w-[140px] max-w-full shadow-none [@media(pointer:coarse)]:h-10"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_ASSIGNEE}>{t('note.noAssignee')}</SelectItem>
+                    {assigneeOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        <span className="flex items-center gap-2">
+                          <AssigneeAvatar
+                            user={option}
+                            isYou={option.id === currentUserId}
+                            size="sm"
+                          />
+                          {option.id === currentUserId
+                            ? t('note.youSuffix', { name: displayName(option) })
+                            : displayName(option)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </PropertyRow>
+
+            <PropertyRow label={t('note.colourLabel')}>
+              <ColorSwatchPicker
+                value={note.colour}
+                disabled={disabled}
+                onChange={(colour: NoteColour) =>
+                  updateNote.mutate({ noteId: note.id, input: { colour } })
+                }
+              />
+            </PropertyRow>
+          </PanelSection>
+
+          <PanelSection>
+            <RelatedNotes
+              note={note}
+              notes={boardNotes ?? []}
               disabled={disabled}
-              onChange={(colour: NoteColour) =>
-                updateNote.mutate({ noteId: note.id, input: { colour } })
-              }
+              onOpen={onOpenNote}
+              onAdd={(targetId) => addLink.mutate({ noteId: note.id, targetId })}
+              onRemove={(targetId) => removeLink.mutate({ noteId: note.id, targetId })}
             />
-          </PropertyRow>
-        </PanelSection>
+          </PanelSection>
+          <PanelSection>
+            <CustomFieldEditor
+              fields={note.customFields}
+              keySuggestions={fieldKeySuggestions}
+              disabled={disabled}
+              onSet={(key, value) => setCustomField.mutate({ noteId: note.id, key, value })}
+              onRemove={(key) => removeCustomField.mutate({ noteId: note.id, key })}
+            />
 
-        <PanelSection>
-          <RelatedNotes
-            note={note}
-            notes={boardNotes ?? []}
-            disabled={disabled}
-            onOpen={onOpenNote}
-            onAdd={(targetId) => addLink.mutate({ noteId: note.id, targetId })}
-            onRemove={(targetId) => removeLink.mutate({ noteId: note.id, targetId })}
-          />
-        </PanelSection>
-        <PanelSection>
-          <CustomFieldEditor
-            fields={note.customFields}
-            keySuggestions={fieldKeySuggestions}
-            disabled={disabled}
-            onSet={(key, value) => setCustomField.mutate({ noteId: note.id, key, value })}
-            onRemove={(key) => removeCustomField.mutate({ noteId: note.id, key })}
-          />
+            <TagEditor
+              tags={note.tags}
+              disabled={disabled}
+              onAdd={(tag) => addTag.mutate({ noteId: note.id, tag })}
+              onRemove={(tag) => removeTag.mutate({ noteId: note.id, tag })}
+            />
+          </PanelSection>
 
-          <TagEditor
-            tags={note.tags}
-            disabled={disabled}
-            onAdd={(tag) => addTag.mutate({ noteId: note.id, tag })}
-            onRemove={(tag) => removeTag.mutate({ noteId: note.id, tag })}
-          />
-        </PanelSection>
-
-        <PanelSection>
-          <HistoryTrail history={note.history} />
-        </PanelSection>
+          {note.history.length > 0 && (
+            <PanelSection>
+              <details className="note-detail-activity">
+                <summary>{t('note.showActivity', { count: note.history.length })}</summary>
+                <HistoryTrail history={note.history} />
+              </details>
+            </PanelSection>
+          )}
+        </article>
       </div>
 
       {/* No confirmation dialog for Delete: the note goes at once and a toast offers Undo,
           which is both faster and safer than "Are you sure?". Duplicate sits beside it and
           opens the copy straight away, the same as ⌘D. */}
       {!disabled && (
-        <footer className="flex shrink-0 items-center justify-between border-t border-border-subtle px-3 py-2">
+        <footer className="note-detail-footer flex shrink-0 items-center justify-between px-3 py-2">
           <IconTooltip label={t('note.duplicate')} shortcut={[MOD_KEY, 'D']}>
             <Button variant="ghost" size="sm" onClick={() => onDuplicate(note.id)}>
               <Copy strokeWidth={1.75} />

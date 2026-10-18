@@ -18,13 +18,16 @@ test('moving a note to a different Horizon zone persists after reload', async ({
   // role="radio" (inside a radiogroup) — not role="button".
   await page.getByRole('radio', { name: 'Später' }).click();
   await page.getByRole('button', { name: 'Schließen' }).click();
+  await expect(page.getByRole('complementary', { name: 'Notizdetails' })).toBeHidden();
 
   await page.reload();
   await page.getByLabel('Notizen durchsuchen').fill(title);
+  await expect(page).toHaveURL(/[?&]q=/);
   await page.getByText(title).click();
 
   await expect(page.getByRole('radio', { name: 'Später' })).toHaveAttribute('data-state', 'on');
   await page.getByRole('button', { name: 'Schließen' }).click();
+  await expect(page.getByRole('complementary', { name: 'Notizdetails' })).toBeHidden();
   await page.getByLabel('Notizen durchsuchen').fill('');
   await expect(page).not.toHaveURL(/[?&]q=/);
   await page.setViewportSize({ width: 1440, height: 320 });
