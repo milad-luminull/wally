@@ -12,6 +12,7 @@ import {
   FIELD_VALUE_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
   SUBTASK_TEXT_MAX_LENGTH,
+  SUGGESTION_MAX_LINKS,
   SUGGESTION_MAX_SUBTASKS,
 } from '@wally/shared';
 import type { Env } from '../../../env.js';
@@ -72,6 +73,16 @@ export const modelSuggestionWireSchema = z.object({
       reason: z.string(),
     })
     .nullable(),
+  links: z
+    .object({
+      items: z
+        .array(z.object({ noteId: z.string(), reason: z.string() }))
+        .max(SUGGESTION_MAX_LINKS)
+        .describe('One to three other notes from the list, by id, each with why.'),
+      confidence,
+      reason: z.string(),
+    })
+    .nullable(),
 });
 
 /** The longest reason the card shows (the shared `suggestionFieldsSchema` allows no more). */
@@ -96,11 +107,30 @@ const steps = z
   )
   .pipe(z.array(z.string().max(SUBTASK_TEXT_MAX_LENGTH)).min(1));
 /**
+ * The related notes as the record keeps them: ids trimmed, blank and repeated ones dropped,
+ * each reason cut like any other, the first `SUGGESTION_MAX_LINKS` kept. Whether an id is one
+ * of the rows the model was shown is the service's check; none left drops the links.
+ */
+const linkItems = z
+  .array(z.object({ noteId: z.string(), reason: z.string() }))
+  .transform((items) => {
+    const seen = new Set<string>();
+    const out: { noteId: string; reason: string }[] = [];
+    for (const item of items) {
+      const noteId = item.noteId.trim();
+      if (!noteId || seen.has(noteId)) continue;
+      seen.add(noteId);
+      out.push({ noteId, reason: item.reason.slice(0, SUGGESTION_REASON_MAX) });
+    }
+    return out.slice(0, SUGGESTION_MAX_LINKS);
+  })
+  .pipe(z.array(z.object({ noteId: z.string().min(1), reason: z.string() })).min(1));
+/**
  * What a suggestion must be once it arrives: the wire shape, plus the format and lengths. The
  * date is a real calendar day (`2026-04-31` is refused), the same check the response schema
  * makes, so a record that is stored can always be answered. A date, a priority or a person
- * that does not fit refuses the reply. The title line, the reference and the steps are
- * optional extras: one that does not fit what a note can hold reads as not proposed
+ * that does not fit refuses the reply. The title line, the reference, the steps and the links
+ * are optional extras: one that does not fit what a note can hold reads as not proposed
  * (`.catch(null)`), so it never costs the person a good date, priority or person beside it.
  */
 export const modelSuggestionSchema = z.object({
@@ -125,6 +155,7 @@ export const modelSuggestionSchema = z.object({
     .nullable()
     .catch(null),
   subtasks: z.object({ items: steps, confidence, reason }).nullable().catch(null),
+  links: z.object({ items: linkItems, confidence, reason }).nullable().catch(null),
 });
 
 /**

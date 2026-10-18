@@ -120,6 +120,7 @@ export interface ModelSuggestion {
   title: { value: string; confidence: number; reason: string } | null;
   reference: { key: string; value: string; confidence: number; reason: string } | null;
   subtasks: { items: string[]; confidence: number; reason: string } | null;
+  links: { items: { noteId: string; reason: string }[]; confidence: number; reason: string } | null;
 }
 export interface SuggestionOutput {
   /** null when the model produced nothing that validates against the schema. */

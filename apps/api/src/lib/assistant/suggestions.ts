@@ -12,6 +12,7 @@ import type {
   SuggestionFields,
 } from '@wally/shared';
 import {
+  SUGGESTION_MAX_LINKS,
   SUGGESTION_MAX_SUBTASKS,
   customFieldKeySchema,
   customFieldValueSchema,
@@ -43,7 +44,11 @@ import { canSeeNote, isValidAssignee } from '../notes.js';
 import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
-import { buildCaptureInstructions, buildCapturePrompt } from './capturePrompt.js';
+import {
+  CAPTURE_MAX_OTHER_NOTES,
+  buildCaptureInstructions,
+  buildCapturePrompt,
+} from './capturePrompt.js';
 import {
   suggestionSchemaJson,
   type ModelSuggestion,
@@ -105,13 +110,20 @@ function mintOperationIds(): SuggestionOperationIds {
 
 /**
  * Which fields may be proposed for this note: an empty one the person did not decide while
- * writing (plan R3), a cleaner title beside a title they wrote, and a reference or steps only
- * on a note that has no property and no step yet (R7).
+ * writing (plan R3), a cleaner title beside a title they wrote, a reference or steps only on a
+ * note that has no property and no step yet (R7), and links only on a note with none (L3).
  */
 function candidates(
   note: Pick<
     NoteDetailDto,
-    'dueDate' | 'priority' | 'assignee' | 'visibility' | 'title' | 'customFields' | 'subtaskSummary'
+    | 'dueDate'
+    | 'priority'
+    | 'assignee'
+    | 'visibility'
+    | 'title'
+    | 'customFields'
+    | 'subtaskSummary'
+    | 'links'
   >,
   locked: SuggestionFieldKey[],
 ): SuggestionFieldKey[] {
@@ -124,6 +136,7 @@ function candidates(
   if (Object.keys(note.customFields ?? {}).length === 0 && !locked.includes('reference'))
     open.push('reference');
   if (note.subtaskSummary.total === 0 && !locked.includes('subtasks')) open.push('subtasks');
+  if ((note.links ?? []).length === 0 && !locked.includes('links')) open.push('links');
   return open;
 }
 
@@ -152,9 +165,10 @@ const TYPED_KEYS: readonly SuggestionFieldKey[] = ['dueDate', 'priority', 'assig
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
 /**
- * Keeps a field only when it is a candidate, confident enough, and (for a person) a member. A
- * due date before the person's today is dropped: nobody writes a task that was due last week.
- * Both are YYYY-MM-DD, so the string order is the calendar order.
+ * Keeps a field only when it is a candidate, confident enough, (for a person) a member and
+ * (for a link) one of the other notes the model was shown, `others` (id to title). A due date
+ * before the person's today is dropped: nobody writes a task that was due last week. Both are
+ * YYYY-MM-DD, so the string order is the calendar order.
  */
 function accept(
   fields: ModelSuggestion,
@@ -163,6 +177,7 @@ function accept(
   today: string,
   note: { title: string },
   fieldKeys: string[],
+  others: Map<string, string>,
 ): AssistantSuggestionDoc['fields'] {
   const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
   return {
@@ -200,7 +215,10 @@ function accept(
       open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
         ? acceptSubtasks(fields.subtasks)
         : null,
-    links: null,
+    links:
+      open.includes('links') && fields.links && sure(fields.links.confidence)
+        ? acceptLinks(fields.links, others)
+        : null,
   };
 }
 
@@ -230,6 +248,21 @@ function acceptSubtasks(
 ): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
   const { items } = subtasks;
   return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
+}
+
+/**
+ * Only notes from the rows the model saw, each once, at most three: a link is never invented
+ * (L3). The rows never hold the note itself, and the runner already dropped repeated ids.
+ */
+function acceptLinks(
+  links: NonNullable<ModelSuggestion['links']>,
+  others: Map<string, string>,
+): NonNullable<AssistantSuggestionDoc['fields']['links']> | null {
+  const items = links.items
+    .filter((item) => others.has(item.noteId))
+    .slice(0, SUGGESTION_MAX_LINKS)
+    .map((item) => ({ noteId: item.noteId, reason: item.reason }));
+  return items.length ? { items, reason: links.reason } : null;
 }
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
@@ -352,16 +385,30 @@ export async function suggestForCapture(
     timeZone: request.timeZone,
     language: ctx.language,
   });
-  // Every note the caller can see, done ones too: a key in use anywhere on the board is one
-  // a reference should reuse. Read only when a reference may be proposed at all.
-  const fieldKeys = open.includes('reference')
-    ? collectKeys(await listNotes(db, actor, board.id, { status: 'ALL' }), ctx.language)
+  // Every note the caller can see, done ones too, read once and only when a reference or links
+  // may be proposed at all.
+  const needsBoard = open.includes('reference') || open.includes('links');
+  const boardNotes = needsBoard ? await listNotes(db, actor, board.id, { status: 'ALL' }) : [];
+  // A key in use anywhere on the board is one a reference should reuse.
+  const fieldKeys = open.includes('reference') ? collectKeys(boardNotes, ctx.language) : [];
+  // The other open notes, newest first, as `id: title` rows: what a link may name (L3).
+  const otherNotes = open.includes('links')
+    ? boardNotes
+        .filter((n) => n.id !== note.id && n.status === 'OPEN')
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
+        .slice(0, CAPTURE_MAX_OTHER_NOTES)
+        .map((n) => ({ id: n.id, title: n.title }))
     : [];
+  // Links are offered only when the board has another open note to name (L3): with none, a
+  // note whose other fields are all decided costs no call.
+  const proposable = otherNotes.length ? open : open.filter((key) => key !== 'links');
+  if (proposable.length === 0) return null;
   const prompt = buildCapturePrompt({
     title: note.title,
     description: note.description,
     members: memberRows,
     fieldKeys,
+    notes: otherNotes,
   });
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
@@ -428,11 +475,12 @@ export async function suggestForCapture(
   if (!output.fields) return null;
   const fields = accept(
     output.fields,
-    open,
+    proposable,
     new Set(memberRows.map((m) => m.id)),
     request.today,
     note,
     fieldKeys,
+    new Map(otherNotes.map((n) => [n.id, n.title])),
   );
   if (proposedKeys(fields).length === 0) return null;
 
