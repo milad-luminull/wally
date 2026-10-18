@@ -69,4 +69,14 @@ test('signed-in palette and appearance survive a profile save and reload', async
   await expect(page.getByRole('button', { name: 'Konto', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'minimal');
   await expect(page.locator('html')).toHaveClass(/dark/);
+  // Docked dev tools and short laptop windows must not hide the relocated account menu.
+  await page.setViewportSize({ width: 1080, height: 400 });
+  await page.locator('.board-rail').hover();
+  await page.mouse.wheel(0, 600);
+  const account = page.getByRole('button', { name: 'Konto', exact: true });
+  await expect
+    .poll(() => account.evaluate((el) => el.getBoundingClientRect().bottom))
+    .toBeLessThanOrEqual(400);
+  await account.click();
+  await expect(page.getByRole('combobox', { name: 'Farbpalette' })).toBeVisible();
 });

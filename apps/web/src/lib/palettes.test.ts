@@ -43,6 +43,10 @@ it.each(paletteValues)(
         `${palette}${mode}: secondary`,
       ).toBeGreaterThanOrEqual(4.5);
       expect(
+        contrast(t['fg-3']!, t.rail ?? t.inset!),
+        `${palette}${mode}: rail labels`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
         contrast(t['accent-foreground']!, t.accent!),
         `${palette}${mode}: accent`,
       ).toBeGreaterThanOrEqual(4.5);

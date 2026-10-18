@@ -10,6 +10,7 @@
   min-width: 0;
 }
 .board-rail {
+  overflow-y: auto;
   width: 216px;
   flex: none;
   display: flex;
@@ -17,6 +18,9 @@
   padding: 22px 12px 16px;
   background: var(--rail, var(--inset));
   color: var(--fg-1);
+}
+.board-rail > * {
+  flex-shrink: 0;
 }
 .board-rail-brand {
   display: flex;
