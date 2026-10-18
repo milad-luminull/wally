@@ -96,18 +96,18 @@ This is the whole v1 surface; adding an operation is a product decision. Each on
 adapter over one query or one command of the board operations contract, and carries the
 MCP behaviour annotations so the MCP proposal needs no second definition.
 
-| Operation                       | Command or query                   | Behaviour                                                                                                                 |
-| ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `list_notes`, `get_note`        | `listNotes`, `getNote`             | runs; read-only; `list_notes` is bounded and reports truncation                                                           |
-| `list_members`                  | `listMembers`                      | runs; read-only                                                                                                           |
-| `create_note`                   | `note.create`                      | approval, visibility always shown; named confirm if assigned to someone else                                              |
-| `update_note`                   | `note.update`, without assignment  | approval; named confirm if it makes a private note shared                                                                 |
-| `move_note`                     | `note.move`                        | approval                                                                                                                  |
-| `complete_note`, `reopen_note`  | `note.complete`, `note.reopen`     | approval                                                                                                                  |
-| `add_subtask`, `toggle_subtask` | `subtask.create`, `subtask.update` | approval                                                                                                                  |
-| `delete_subtask`                | `subtask.delete`                   | approval; marked destructive; added 2026-10-17 so a kept subtask can be undone in one step (`WALLYBOT_INLINE.md` slice 3) |
-| `assign_note`                   | `note.assign`                      | approval; named confirm if not the caller                                                                                 |
-| `delete_note`                   | `note.delete`                      | approval; named confirm; marked destructive                                                                               |
+| Operation                       | Command or query                                        | Behaviour                                                                                                                 |
+| ------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `list_notes`, `get_note`        | `listNotes`, `getNote`                                  | runs; read-only; `list_notes` is bounded and reports truncation                                                           |
+| `list_members`                  | `listMembers`                                           | runs; read-only                                                                                                           |
+| `create_note`                   | `note.create`                                           | approval, visibility always shown; named confirm if assigned to someone else                                              |
+| `update_note`                   | `note.update`, without assignment (fields, tags, links) | approval; named confirm if it makes a private note shared                                                                 |
+| `move_note`                     | `note.move`                                             | approval                                                                                                                  |
+| `complete_note`, `reopen_note`  | `note.complete`, `note.reopen`                          | approval                                                                                                                  |
+| `add_subtask`, `toggle_subtask` | `subtask.create`, `subtask.update`                      | approval                                                                                                                  |
+| `delete_subtask`                | `subtask.delete`                                        | approval; marked destructive; added 2026-10-17 so a kept subtask can be undone in one step (`WALLYBOT_INLINE.md` slice 3) |
+| `assign_note`                   | `note.assign`                                           | approval; named confirm if not the caller                                                                                 |
+| `delete_note`                   | `note.delete`                                           | approval; named confirm; marked destructive                                                                               |
 
 - The actor is always the signed-in user; operations never construct their own identity.
 - Every write to an existing note carries the revision it was computed against.
