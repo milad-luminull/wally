@@ -22,8 +22,8 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "turbo": "^2.11.7",
+    "turbo": "^2.11.8",
     "typescript": "^5.7.2",
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.10"
   }
 }
