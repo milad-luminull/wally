@@ -26,6 +26,7 @@ import type {
   AssistantConversationDoc,
   AssistantSpendDoc,
   AssistantSuggestionDoc,
+  AssistantTidyDoc,
   AssistantUsageDoc,
   HistoryEventDoc,
   MemberDoc,
@@ -112,6 +113,14 @@ export const assistantSuggestionsCol = (
     .doc(userId)
     .collection('assistantSuggestions')
     .withConverter(converter<AssistantSuggestionDoc>());
+export const assistantTidiesCol = (
+  db: Firestore,
+  userId: string,
+): CollectionReference<AssistantTidyDoc> =>
+  usersCol(db)
+    .doc(userId)
+    .collection('assistantTidies')
+    .withConverter(converter<AssistantTidyDoc>());
 /** The deployment key's monthly spend, one document per month, shared by every instance. */
 export const assistantSpendCol = (db: Firestore): CollectionReference<AssistantSpendDoc> =>
   db.collection('assistantSpend').withConverter(converter<AssistantSpendDoc>());

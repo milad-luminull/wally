@@ -329,3 +329,34 @@ export type AssistantSuggestionDoc = {
   /** createdAt + SUGGESTION_RETENTION_DAYS; the TTL field. */
   expiresAt: Timestamp;
 };
+
+/**
+ * users/{uid}/assistantTidies/{id}: the approval record for one Tidy of the horizon wall
+ * (WALLYBOT_INLINE.md §3.5, plan R5). One apply and one undo operation id per move, minted
+ * when the record is created; the id doubles as the provenance's conversation and approval
+ * id, as a suggestion's does.
+ */
+export type AssistantTidyDoc = {
+  boardId: string;
+  status: 'PENDING' | 'KEPT' | 'UNDONE' | 'DISCARDED';
+  moves: {
+    noteId: string;
+    baseRevision: number;
+    from: NoteHorizon;
+    to: NoteHorizon;
+    reason: string | null;
+    source: 'date' | 'words';
+    operationIds: { apply: string; undo: string };
+  }[];
+  decision: { source: string; noteIds: string[]; at: Timestamp } | null;
+  undone?: { source: string; at: Timestamp } | null;
+  /** Written by a keep: each note that moved with the revision the move produced, and the skipped ones. */
+  applied: { moves: { noteId: string; revision: number }[]; skipped: string[] } | null;
+  /** The model and usage of the one call, or null when every move came from the date rule. */
+  model: string | null;
+  usage: { inputTokens: number; outputTokens: number } | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  /** createdAt + SUGGESTION_RETENTION_DAYS; the TTL field. */
+  expiresAt: Timestamp;
+};
