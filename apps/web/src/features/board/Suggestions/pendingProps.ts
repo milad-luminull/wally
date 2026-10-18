@@ -67,6 +67,11 @@ const NONE: ProposedValues = {
   reference: null,
   subtasks: null,
   links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
 };
 
 /**
@@ -110,6 +115,12 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('links') && note.links.length === 0 && fields.links
         ? { ...fields.links, kept: mark.links }
         : null,
+    // The smarter-capture fields show in the proposal list while pending, never in place.
+    horizon: null,
+    visibility: null,
+    tags: null,
+    properties: null,
+    description: null,
   };
 }
 

@@ -269,6 +269,12 @@ export type SuggestionOperationIds = {
   reference?: { apply: string; undo: string };
   subtasks?: { apply: string; undo: string }[];
   links?: { apply: string; undo: string };
+  horizon?: { apply: string; undo: string };
+  /** An undo of Private is two writes: shared again, then the author's assignment taken back. */
+  visibility?: { apply: string; undo: string; undoAssignee: string };
+  tags?: { apply: string; undo: string };
+  properties?: { apply: string; undo: string };
+  description?: { apply: string; undo: string };
 };
 
 /**
@@ -295,6 +301,11 @@ export type AssistantSuggestionDoc = {
     reference?: { key: string; value: string; reason: string } | null;
     subtasks?: { items: string[]; reason: string } | null;
     links?: { items: { noteId: string; reason: string }[]; reason: string } | null;
+    horizon?: { value: 'DIESE_WOCHE' | 'SPAETER'; reason: string } | null;
+    visibility?: { value: 'PRIVATE'; reason: string } | null;
+    tags?: { items: string[]; reason: string } | null;
+    properties?: { items: { key: string; value: string }[]; reason: string } | null;
+    description?: { value: string; reason: string } | null;
   };
   /** The fields the person decided while writing (`locked` at capture); absent on slice 2 records. */
   typed?: SuggestionFieldKey[];
@@ -307,6 +318,9 @@ export type AssistantSuggestionDoc = {
     subtasks?: number[];
     /** For a keep with links: the indexes of the items the person kept. */
     links?: number[];
+    /** For a keep with tags or properties: the indexes of the items the person kept. */
+    tags?: number[];
+    properties?: number[];
     at: Timestamp;
   } | null;
   /**
@@ -332,6 +346,9 @@ export type AssistantSuggestionDoc = {
     /** The kept indexes of the proposed links, and the ids they named. */
     links?: number[];
     linkIds?: string[];
+    /** The kept indexes of the proposed tags and properties. */
+    tags?: number[];
+    properties?: number[];
     revision: number;
   } | null;
   model: string;

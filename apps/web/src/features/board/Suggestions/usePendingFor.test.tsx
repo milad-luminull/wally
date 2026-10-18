@@ -40,6 +40,11 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
     reference: null,
     subtasks: null,
     links: null,
+    horizon: null,
+    visibility: null,
+    tags: null,
+    properties: null,
+    description: null,
   },
   typed: [],
   kept: null,
@@ -163,7 +168,14 @@ beforeEach(() => {
       status: body.decision === 'keep' ? 'KEPT' : body.decision === 'undo' ? 'UNDONE' : 'DISCARDED',
       kept:
         body.decision === 'keep'
-          ? { fields: body.fields ?? [], subtasks: body.subtasks ?? [], links: [], revision: 2 }
+          ? {
+              fields: body.fields ?? [],
+              subtasks: body.subtasks ?? [],
+              links: [],
+              tags: [],
+              properties: [],
+              revision: 2,
+            }
           : null,
     }),
   }));
@@ -282,6 +294,11 @@ describe('the card and the review read one mark (§3.4)', () => {
         reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },
         subtasks: { items: ['Get prices', 'Compare', 'Approve'], reason: 'process' },
         links: null,
+        horizon: null,
+        visibility: null,
+        tags: null,
+        properties: null,
+        description: null,
       },
     });
   const row = (name: string | RegExp) =>

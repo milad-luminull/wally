@@ -27,6 +27,11 @@ const proposal: SuggestionFields = {
     reason: 'call',
   },
   links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
 };
 
 function markWith(over: Partial<SuggestionMark> = {}): SuggestionMark {

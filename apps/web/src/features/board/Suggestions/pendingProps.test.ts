@@ -81,6 +81,8 @@ describe('proposedValues, place by place', () => {
           fields: ['dueDate', 'reference', 'subtasks'],
           subtasks: [0, 1, 2],
           links: [],
+          tags: [],
+          properties: [],
           revision,
         },
       },
@@ -97,6 +99,11 @@ describe('proposedValues, place by place', () => {
       reference: null,
       subtasks: null,
       links: null,
+      horizon: null,
+      visibility: null,
+      tags: null,
+      properties: null,
+      description: null,
     };
     expect(proposedValues(note, pending(mark({ phase: 'asking' })))).toEqual(none);
     expect(proposedValues(note, pending(mark({ suggestion: null })))).toEqual(none);

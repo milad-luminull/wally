@@ -11,11 +11,7 @@ import type {
   SuggestionFieldKey,
   SuggestionFields,
 } from '@wally/shared';
-import {
-  SUGGESTION_MAX_SUBTASKS,
-  findFieldKey,
-  suggestionFieldKeys,
-} from '@wally/shared';
+import { SUGGESTION_MAX_SUBTASKS, findFieldKey, suggestionFieldKeys } from '@wally/shared';
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
@@ -47,10 +43,7 @@ import {
   captureNeedsBoard,
   type CaptureContext,
 } from './captureProposal.js';
-import {
-  suggestionSchemaJson,
-  type SuggestionRunner,
-} from './model/index.js';
+import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
@@ -174,6 +167,12 @@ async function toDto(
     subtasks: live.subtasks ?? null,
     // Nothing readable left: the field reads as empty.
     links: links && links.items.length > 0 ? links : null,
+    // A record from before smarter capture has none of these: absent reads as nothing proposed.
+    horizon: live.horizon ?? null,
+    visibility: live.visibility ?? null,
+    tags: live.tags ?? null,
+    properties: live.properties ?? null,
+    description: live.description ?? null,
   };
   return {
     id: doc.id,
@@ -188,6 +187,8 @@ async function toDto(
           fields: doc.applied.fields,
           subtasks: doc.applied.subtasks ?? [],
           links: doc.applied.links ?? [],
+          tags: doc.applied.tags ?? [],
+          properties: doc.applied.properties ?? [],
           revision: doc.applied.revision,
         }
       : null,
@@ -586,6 +587,13 @@ function stepCall(
     }
     case 'links':
       return { name: 'update_note', input: { ...at, input: { linkChanges: values.links } } };
+    case 'horizon':
+    case 'visibility':
+    case 'tags':
+    case 'properties':
+    case 'description':
+      // Never proposed until their keep and undo exist; a record naming one cannot be kept.
+      throw settled();
   }
 }
 

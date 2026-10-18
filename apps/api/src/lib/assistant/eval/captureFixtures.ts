@@ -300,8 +300,7 @@ export const CAPTURE_FIXTURES: CaptureFixture[] = [
     id: 'anti-shared-filter',
     antiGoal: true,
     note: { title: 'Doctor appointment for the knee' },
-    // The key arrives with the new fields; today's code ignores an unknown lock.
-    locked: ['visibility' as SuggestionFieldKey],
+    locked: ['visibility'],
     expect: { visibility: null },
   },
   {

@@ -37,6 +37,11 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
     reference: null,
     subtasks: null,
     links: null,
+    horizon: null,
+    visibility: null,
+    tags: null,
+    properties: null,
+    description: null,
   },
   typed: [],
   kept: null,
@@ -73,7 +78,14 @@ function holdDecide() {
                     : 'DISCARDED',
               kept:
                 body.decision === 'keep'
-                  ? { fields: body.fields ?? [], subtasks: [], links: [], revision: 5 }
+                  ? {
+                      fields: body.fields ?? [],
+                      subtasks: [],
+                      links: [],
+                      tags: [],
+                      properties: [],
+                      revision: 5,
+                    }
                   : null,
             }),
           });
@@ -110,6 +122,8 @@ beforeEach(() => {
               fields: body.fields ?? ['dueDate', 'priority'],
               subtasks: [],
               links: [],
+              tags: [],
+              properties: [],
               revision: 5,
             }
           : null,
@@ -325,6 +339,11 @@ describe('useSuggestions', () => {
           reference: null,
           subtasks: null,
           links: null,
+          horizon: null,
+          visibility: null,
+          tags: null,
+          properties: null,
+          description: null,
         },
       }),
     });
@@ -350,6 +369,11 @@ describe('useSuggestions', () => {
           reference: null,
           subtasks: null,
           links: null,
+          horizon: null,
+          visibility: null,
+          tags: null,
+          properties: null,
+          description: null,
         },
       }),
     });
@@ -643,6 +667,11 @@ describe('useSuggestions', () => {
       reference: null,
       subtasks: null,
       links: null,
+      horizon: null,
+      visibility: null,
+      tags: null,
+      properties: null,
+      description: null,
       ...over,
     });
     const DATE = { value: '2026-10-23', reason: 'Friday' };
@@ -1176,6 +1205,8 @@ describe('useSuggestions', () => {
             fields: body.fields ?? [],
             subtasks: body.subtasks ?? [],
             links: [],
+            tags: [],
+            properties: [],
             revision: 5,
           },
         },
