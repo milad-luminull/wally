@@ -155,6 +155,7 @@ export function useBoardViewState(boardId: string) {
       state.priority.length > 0 ||
       state.visibility !== DEFAULT_BOARD_PREFERENCES.visibility,
     setView: (view: BoardView) => remember({ view }),
+    setLayout: (view: BoardView, axis: BoardAxis) => remember({ view, axis }),
     setAxis: (axis: BoardAxis) => remember({ axis }),
     setPriority: (priority: NotePriority[]) => remember({ priority }),
     setMine: (mine: boolean) => remember({ mine }),

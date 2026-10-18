@@ -139,6 +139,7 @@ export function WallView({
 
   /** The note currently under the cursor, rendered into `<DragOverlay>`. */
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragWidth, setDragWidth] = useState<number>();
   const activeNote = activeId ? findNote(notes, activeId) : undefined;
 
   /**
@@ -295,6 +296,7 @@ export function WallView({
 
   function handleDragStart(event: DragStartEvent) {
     const noteId = String(event.active.id);
+    setDragWidth(event.active.rect.current.initial?.width);
     setActiveId(noteId);
     setCopying(Boolean((event.activatorEvent as KeyboardEvent | PointerEvent | null)?.altKey));
     dragRollback.current = {
@@ -508,6 +510,7 @@ export function WallView({
               selected={false}
               onOpen={() => {}}
               overlay
+              style={{ width: dragWidth }}
               relatedCount={relatedCounts?.get(activeNote.id)}
             />
           ) : null}

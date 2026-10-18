@@ -3,6 +3,12 @@ import { DEFAULT_PREFERENCES, type BoardPreferences } from '@wally/shared';
 import { applyPreferencesUpdate } from './preferences';
 
 describe('applyPreferencesUpdate', () => {
+  it('changes palette independently and preserves it through another preference update', () => {
+    const current = { ...DEFAULT_PREFERENCES, theme: 'dark' as const };
+    const next = applyPreferencesUpdate(current, { palette: 'minimal' });
+    expect(next).toEqual({ ...current, palette: 'minimal' });
+    expect(applyPreferencesUpdate(next, { canvas: 'grid' }).palette).toBe('minimal');
+  });
   it('changes the canvas pattern and leaves everything else alone', () => {
     const current = { ...DEFAULT_PREFERENCES, theme: 'dark' as const };
 

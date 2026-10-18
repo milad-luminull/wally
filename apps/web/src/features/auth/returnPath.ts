@@ -13,9 +13,9 @@ export function readReturnPath(state: unknown): string | null {
 }
 
 /**
- * Where sign-in and sign-up navigate: always the landing, which checks the return path against
+ * Where sign-in and sign-up navigate: the protected board entry, which checks the return path against
  * the board list of whoever actually signed in before following it.
  */
-export function landingWithReturn(from: string | null) {
-  return { pathname: '/' as const, state: { to: from } };
+export function boardEntryWithReturn(from: string | null) {
+  return { pathname: '/app' as const, state: { to: from } };
 }

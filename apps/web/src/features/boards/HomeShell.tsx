@@ -9,7 +9,7 @@ import { AccountMenu } from '@/features/board/AccountMenu';
  */
 export function HomeShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+    <div className="boards-home-shell flex h-[100dvh] flex-col overflow-hidden bg-background">
       <EmailVerificationBanner />
       <header className="z-header flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 lg:px-4 [@media(pointer:coarse)]:h-14">
         <BrandMark size={20} className="shrink-0" />

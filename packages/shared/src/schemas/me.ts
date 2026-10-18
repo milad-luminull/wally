@@ -8,6 +8,7 @@ import {
   notePrioritySchema,
   notePriorityValues,
   themePreferenceSchema,
+  paletteSchema,
 } from '../enums.js';
 import { userSummarySchema } from './user.js';
 
@@ -44,6 +45,7 @@ export const DEFAULT_WALLYBOT_PREFERENCES: WallybotPreferences = { autoApply: tr
 
 export const preferencesSchema = z.object({
   theme: themePreferenceSchema,
+  palette: paletteSchema.default('paper'),
   canvas: canvasPatternSchema,
   /** The board `/` opens. Not access-checked here — the client only honours it if the id is
    *  still among the caller's boards. */
@@ -56,6 +58,7 @@ export type Preferences = z.infer<typeof preferencesSchema>;
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'system',
+  palette: 'paper',
   canvas: 'dots',
   lastBoardId: null,
   boards: {},
@@ -70,6 +73,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
 export const preferencesUpdateSchema = z
   .object({
     theme: themePreferenceSchema.optional(),
+    palette: paletteSchema.optional(),
     canvas: canvasPatternSchema.optional(),
     lastBoardId: preferenceBoardIdSchema.optional(),
     wallybot: wallybotPreferencesSchema.optional(),

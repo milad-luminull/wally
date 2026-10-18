@@ -44,6 +44,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
         // other boards, the theme and the language exactly as they were.
         const update: Record<string, unknown> = { updatedAt: now() };
         if (language !== undefined) update.language = language;
+        if (preferences?.palette !== undefined) update['preferences.palette'] = preferences.palette;
         if (preferences?.theme !== undefined) update['preferences.theme'] = preferences.theme;
         if (preferences?.canvas !== undefined) update['preferences.canvas'] = preferences.canvas;
         if (preferences?.lastBoardId !== undefined) {
@@ -77,6 +78,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
           preferences: userPreferences({
             preferences: {
               ...current?.preferences,
+              ...(preferences?.palette !== undefined && { palette: preferences.palette }),
               ...(preferences?.theme !== undefined && { theme: preferences.theme }),
               ...(preferences?.canvas !== undefined && { canvas: preferences.canvas }),
               ...(preferences?.lastBoardId !== undefined && {

@@ -1,7 +1,7 @@
 import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Columns3, List, Plus, Command, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Plus, Command, RotateCcw, PanelRight } from 'lucide-react';
 import type { NoteDto, NoteVisibility, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,8 @@ import { initialsOf } from './util/noteDerived';
 import { ShareSheet } from './Share/ShareSheet';
 import { AccountMenu } from './AccountMenu';
 import { BoardSwitcher } from './BoardSwitcher';
+import { BoardViewToggle } from './BoardViewToggle';
+import { FilterBar, type FilterBarProps } from './FilterBar';
 
 /**
  * Built from `t` rather than declared at module scope: a module-level array would capture the
@@ -45,22 +47,9 @@ function buildAxisOptions(t: T): SegmentedOption<BoardAxis>[] {
   ];
 }
 
-function buildViewOptions(t: T): SegmentedOption<BoardView>[] {
-  return [
-    {
-      value: 'wand',
-      label: t('board.topBar.view.wall'),
-      icon: <Columns3 strokeWidth={1.75} aria-hidden />,
-    },
-    {
-      value: 'list',
-      label: t('board.topBar.view.list'),
-      icon: <List strokeWidth={1.75} aria-hidden />,
-    },
-  ];
-}
-
 interface TopBarProps {
+  filters?: Omit<FilterBarProps, 'displayControl'>;
+  withRail?: boolean;
   board: WhiteboardDto;
   boardId: string;
   notes: NoteDto[];
@@ -79,26 +68,19 @@ interface TopBarProps {
   onNewNote: () => void;
 }
 
-/**
- * Layout and grouping, in one place. Both used to sit in the bar side by side — a segmented
- * control next to a select — and they read as one undifferentiated row of pills. Here they
- * are named, stacked, and remembered per board (see useBoardViewState).
- */
+/** Grouping and reset remain available on small screens; layout has its own toolbar toggle. */
 function DisplayMenu({
-  view,
   axis,
-  isDesktop,
   isCustomized,
-  onSetView,
   onSetAxis,
   onResetView,
-}: Pick<
+  compact = false,
+}: { compact?: boolean } & Pick<
   TopBarProps,
-  'view' | 'axis' | 'isDesktop' | 'isCustomized' | 'onSetView' | 'onSetAxis' | 'onResetView'
+  'axis' | 'isCustomized' | 'onSetAxis' | 'onResetView'
 >) {
   const { t } = useTranslation();
   const AXES = useMemo(() => buildAxisOptions(t), [t]);
-  const VIEWS = useMemo(() => buildViewOptions(t), [t]);
 
   return (
     <Popover>
@@ -106,26 +88,14 @@ function DisplayMenu({
         <Button
           variant="ghost"
           aria-label={t('board.topBar.display.label')}
-          className={PHONE_ICON_BUTTON}
+          className={compact ? 'board-tool' : PHONE_ICON_BUTTON}
+          title={t('board.topBar.display.label')}
         >
-          <SlidersHorizontal strokeWidth={1.75} />
-          <span className="hidden md:inline">{t('board.topBar.display.label')}</span>
+          <PanelRight strokeWidth={1.9} />
+          {!compact && <span className="hidden md:inline">{t('board.topBar.display.label')}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="z-overlay flex w-72 flex-col gap-3 p-3">
-        {/* Only the wall is desktop-gated; grouping reorders both views, so it stays. */}
-        {isDesktop && (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-12 font-medium text-fg-3">{t('board.topBar.view.ariaLabel')}</p>
-            <Segmented
-              options={VIEWS}
-              value={view}
-              onChange={onSetView}
-              aria-label={t('board.topBar.view.ariaLabel')}
-              className="grid w-full grid-cols-2 [&>button]:justify-center"
-            />
-          </div>
-        )}
         <div className="flex flex-col gap-1.5">
           <p className="text-12 font-medium text-fg-3">{t('board.topBar.axis.ariaLabel')}</p>
           <Segmented
@@ -173,6 +143,8 @@ export function TopBar({
   onSetAxis,
   onResetView,
   onNewNote,
+  withRail = false,
+  filters,
 }: TopBarProps) {
   const { t } = useTranslation();
   const newNoteLabel = t(
@@ -217,23 +189,113 @@ export function TopBar({
   const visibleMembers = otherMembers.slice(0, 3);
   const overflowCount = otherMembers.length - visibleMembers.length;
 
+  const boardActions = (
+    <div className="board-toolbar-tools flex shrink-0 items-center gap-1 md:gap-1.5">
+      {/* Commands, not search: the filter row's field is the board's one search box. Hidden
+            on small screens, where there is no keyboard to make the palette worth it. */}
+      <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
+        <Button
+          variant="ghost"
+          onClick={openCommandPalette}
+          aria-label={t('palette.trigger')}
+          className="hidden text-fg-3 md:inline-flex"
+        >
+          <Command strokeWidth={1.75} />
+          <kbd aria-hidden className="kbd hidden lg:inline-flex">
+            {MOD_KEY}K
+          </kbd>
+        </Button>
+      </IconTooltip>
+
+      {!withRail && (
+        <>
+          {isDesktop && <BoardViewToggle view={view} onSetView={onSetView} />}
+          <DisplayMenu
+            axis={axis}
+            isCustomized={isCustomized}
+            onSetAxis={onSetAxis}
+            onResetView={onResetView}
+          />
+        </>
+      )}
+
+      {otherMembers.length > 0 && (
+        <div
+          className="ml-1 hidden items-center sm:flex"
+          aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
+        >
+          {visibleMembers.map((m) => (
+            <Avatar
+              key={m.id}
+              className="-ml-1.5 ring-2 ring-surface first:ml-0"
+              title={m.displayName ?? m.email}
+            >
+              <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
+            </Avatar>
+          ))}
+          {overflowCount > 0 && (
+            <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
+              +{overflowCount}
+            </span>
+          )}
+        </div>
+      )}
+
+      <ShareSheet
+        boardId={boardId}
+        ownerId={board.ownerId}
+        isOwner={isOwner}
+        isBelowTablet={isBelowTablet}
+        triggerClassName={PHONE_ICON_BUTTON}
+      />
+
+      {!withRail && (
+        <IconTooltip label={newNoteLabel} shortcut={['N']}>
+          <Button
+            variant="accent"
+            aria-label={newNoteLabel}
+            onClick={onNewNote}
+            className={PHONE_ICON_BUTTON}
+          >
+            <Plus strokeWidth={2} />
+            <span className="hidden md:inline">{newNoteLabel}</span>
+          </Button>
+        </IconTooltip>
+      )}
+
+      {/* The divider is a desktop nicety; on a phone its 15px go to the board name. */}
+      {!withRail && (
+        <div className="flex items-center md:ml-1 md:border-l md:border-border-subtle md:pl-2.5">
+          <AccountMenu />
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <header className="z-header flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-3 md:gap-1.5 lg:px-4 [@media(pointer:coarse)]:h-14">
+    <header className="board-toolbar z-header flex h-12 shrink-0 items-center gap-1 border-b border-border bg-surface px-3 md:gap-1.5 lg:px-4 [@media(pointer:coarse)]:h-14">
       {/* The one part of the bar that gives way: it takes the free space and, when there is
           none, shrinks until the board name truncates. The controls on the right never do. */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5 md:gap-2">
-        <Link
-          to="/boards"
-          aria-label={t('board.topBar.home')}
-          title={t('board.topBar.home')}
-          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
-        >
-          <BrandMark size={20} />
-        </Link>
-        {/* Decoration only: on a phone its width goes to the name instead. */}
-        <span aria-hidden className="hidden shrink-0 text-16 font-light text-fg-faint sm:inline">
-          /
-        </span>
+        {!withRail && (
+          <>
+            <Link
+              to="/boards"
+              aria-label={t('board.topBar.home')}
+              title={t('board.topBar.home')}
+              className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]"
+            >
+              <BrandMark size={20} />
+            </Link>
+            {/* Decoration only: on a phone its width goes to the name instead. */}
+            <span
+              aria-hidden
+              className="hidden shrink-0 text-16 font-light text-fg-faint sm:inline"
+            >
+              /
+            </span>
+          </>
+        )}
 
         <div className="flex min-w-0 items-center gap-0.5">
           {isOwner && editingName ? (
@@ -276,7 +338,7 @@ export function TopBar({
               )}
             </h1>
           )}
-          <BoardSwitcher boardId={boardId} />
+          {!withRail && <BoardSwitcher boardId={boardId} />}
         </div>
 
         <p className="ml-1 hidden items-center gap-1.5 whitespace-nowrap text-12 text-fg-3 sm:flex">
@@ -296,80 +358,25 @@ export function TopBar({
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 md:gap-1.5">
-        {/* Commands, not search: the filter row's field is the board's one search box. Hidden
-            on small screens, where there is no keyboard to make the palette worth it. */}
-        <IconTooltip label={t('palette.trigger')} shortcut={[MOD_KEY, 'K']}>
-          <Button
-            variant="ghost"
-            onClick={openCommandPalette}
-            aria-label={t('palette.trigger')}
-            className="hidden text-fg-3 md:inline-flex"
-          >
-            <Command strokeWidth={1.75} />
-            <kbd aria-hidden className="kbd hidden lg:inline-flex">
-              {MOD_KEY}K
-            </kbd>
-          </Button>
-        </IconTooltip>
-
-        <DisplayMenu
-          view={view}
-          axis={axis}
-          isDesktop={isDesktop}
-          isCustomized={isCustomized}
-          onSetView={onSetView}
-          onSetAxis={onSetAxis}
-          onResetView={onResetView}
+      {!withRail && boardActions}
+      {withRail && filters && (
+        <FilterBar
+          {...filters}
+          actions={boardActions}
+          displayControl={
+            <>
+              <BoardViewToggle view={view} onSetView={onSetView} />
+              <DisplayMenu
+                compact
+                axis={axis}
+                isCustomized={isCustomized}
+                onSetAxis={onSetAxis}
+                onResetView={onResetView}
+              />
+            </>
+          }
         />
-
-        {otherMembers.length > 0 && (
-          <div
-            className="ml-1 hidden items-center sm:flex"
-            aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
-          >
-            {visibleMembers.map((m) => (
-              <Avatar
-                key={m.id}
-                className="-ml-1.5 ring-2 ring-surface first:ml-0"
-                title={m.displayName ?? m.email}
-              >
-                <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
-              </Avatar>
-            ))}
-            {overflowCount > 0 && (
-              <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
-                +{overflowCount}
-              </span>
-            )}
-          </div>
-        )}
-
-        <ShareSheet
-          boardId={boardId}
-          ownerId={board.ownerId}
-          isOwner={isOwner}
-          isBelowTablet={isBelowTablet}
-          triggerClassName={PHONE_ICON_BUTTON}
-        />
-
-        <IconTooltip label={newNoteLabel} shortcut={['N']}>
-          <Button
-            variant="accent"
-            aria-label={newNoteLabel}
-            onClick={onNewNote}
-            className={PHONE_ICON_BUTTON}
-          >
-            <Plus strokeWidth={2} />
-            <span className="hidden md:inline">{newNoteLabel}</span>
-          </Button>
-        </IconTooltip>
-
-        {/* The divider is a desktop nicety; on a phone its 15px go to the board name. */}
-        <div className="flex items-center md:ml-1 md:border-l md:border-border-subtle md:pl-2.5">
-          <AccountMenu />
-        </div>
-      </div>
+      )}
     </header>
   );
 }

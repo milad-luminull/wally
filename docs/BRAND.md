@@ -1,22 +1,20 @@
 # Brand
 
-Wally's visual identity: **Graphite + Marigold**. This document is the authority on intent;
-the tokens live in `apps/web/src/styles/globals.css` and `apps/web/tailwind.config.ts`.
+Wally's current layout follows **Paper Wall**: a quiet workspace, a compact desktop navigation rail, a floating toolbar and softly elevated note cards. The public home introduces Wally and leads to the existing login and signup flows. Board behavior, saved positions and note colour identities stay unchanged.
 
-The short version: **the interface is graphite, the notes are the colour.** Cool,
-near-neutral greys step from the wall up to ink. One warm marigold does exactly three jobs.
-Everything colourful on the wall comes from the notes, and the notes belong to the user.
+The original **Graphite + Marigold** palette remains available as **Minimal**, with its original light and dark token values. The colour table below documents that baseline.
 
-## Themes
+## Palettes and appearance
 
-Light and dark are both first-class. The default follows the operating system; the user can
-pin either from the account menu or the command palette. The choice is saved to the profile
-(`preferences.theme`) so it follows them across devices, and mirrored to localStorage
-(`wally.theme`) so `index.html` can apply it before first paint — dark mode never flashes
-white.
+Palette and appearance are independent. Every palette has **Light**, **Dark** and OS-following **System** appearance. Available palettes are Minimal, Paper Wall (default), Clear Morning, Highlighter, Aurora, Daybreak, Sprout, Amber Poster and Neutral. These follow the local Luminull Brand Research and Wally Paper Wall v3 references; authored companion modes preserve each palette's hue identity with readable text.
 
-Every token has a value in `:root` and in `.dark`. Nothing outside `globals.css` branches on
-the theme; components use semantic tokens only.
+Select a palette beside appearance in account settings, or through the appearance/language menu before signing in. Signed-in choices save to `preferences.palette` and `preferences.theme`; signed-out choices stay on the device. The profile takes precedence when it loads. `wally.palette` and `wally.theme` mirror the selection so `index.html` applies it before first paint. Missing/unknown local palette IDs fall back to Paper Wall.
+
+`apps/web/src/styles/globals.css` retains the original Minimal tokens. `styles/palettes.css` overrides those same semantic tokens for the eight reference palettes, with light/dark blocks per palette; `lib/palettes.ts` defines selector swatches. Components use semantic tokens, never a palette-specific branch. A palette change does not rewrite notes or their colour identifiers. Contrast tests cover body/secondary text, action labels, metadata and status text across all 18 variants.
+
+## Layout
+
+At 1080px and wider, a 216px rail provides board switching, List, Horizon, Priority, Whiteboard, New note and account settings. Display still contains list grouping/reset. Search, filters, sharing, members, commands, rename and detail controls retain their existing behavior. Below that breakpoint, the existing list-only layout and top bar remain. Public pages and auth forms share responsive typography and appearance controls.
 
 ## Colour
 
@@ -31,18 +29,18 @@ the theme; components use semantic tokens only.
 | `--primary`           | `#18181B` | `#EDEDEF` | The everyday filled button         |
 | `--accent` (marigold) | `#FFB224` | `#FFB224` | See below                          |
 
-### Marigold has four jobs and no others
+### The palette accent has these jobs
 
 1. The single primary action on a screen — `<Button variant="accent">`. At most one at rest:
    "New note" on the board, "Invite" in the share popover.
 2. The back note of the mark.
-3. The auth backdrop's glow, as a soft tint only. Never a drag or drop state: a zone under a
+3. Public-page calls to action and the mark. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
 4. The dot and its countdown ring on a note whose Wallybot changes are still pending, never
    a fill or an edge colour, and gone the moment the changes are kept or undone
    (`rfcs/WALLYBOT_INLINE.md`).
 
-Text on marigold is near-black (`#1A1300`, 10.2:1) — never white. Focus rings and note
+Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
 is not a note colour.
 
@@ -70,8 +68,7 @@ each is the same hue at ~16% over the surface. Cards carry a `--note-border` hai
 fills never dissolve into the wall. On the wall a note is filled edge to edge; in the list it
 is a small swatch beside the title.
 
-Contrast floors, measured on every fill in both themes: body text ≥ 10:1,
-`--fg-meta-on-note` ≥ 4.9:1, each status colour ≥ 5:1.
+Minimal retains its original contrast floors: body text ≥ 10:1, metadata ≥ 4.9:1 and status text ≥ 5:1. Across all palettes, metadata, status and action labels meet at least 4.5:1; canvas body text meets 7:1.
 
 **Wally never colours a note on its own, never changes a colour, and never reads a colour as
 status.**
@@ -81,7 +78,7 @@ status.**
 **Geist** for everything, **Geist Mono** for keyboard hints and the 404. Both self-hosted from
 `public/fonts` (SIL OFL), so the app makes no third-party request.
 
-Six steps, nothing between them, nothing below 12:
+The existing app type scale remains below. The public landing page adds responsive display typography; the rail uses compact brand and supplementary labels:
 
 | Role             | Size | Weight  |
 | ---------------- | ---- | ------- |
@@ -106,7 +103,7 @@ reading as a pattern; `--canvas-mark` and `--canvas-line` carry the per-theme va
 
 ## Shape, depth and motion
 
-- Radius: 6 for controls, 8 for notes and cards, 12 for panels and popovers.
+- Radius: existing controls keep their scale; wall notes use 12px corners, desktop detail panels 18px outer corners, and the public illustration/auth surfaces 20–24px. Saved card geometry remains unchanged.
 - Elevation `e1`–`e3`: soft shadows in light mode; in dark mode a hairline plus a deep shadow.
 - Controls are 28 / 32 / 36px and grow to at least 40px on a coarse pointer.
 - Motion is 120–180ms on transform and opacity only; reduced motion turns it off.
@@ -150,7 +147,7 @@ running text write Wally. Minimum 16px on screen — below that, the wordmark al
 `BrandMark.tsx` draws it in one 24-unit viewBox; `public/favicon.svg` repeats the same numbers
 in hex and must be kept in step.
 
-**Don't**: tilt it · recolour it · add a third note · put a letter in it.
+**Don't**: tilt it · use colours outside the selected palette tokens · add a third note · put a letter in it.
 
 ## AI
 

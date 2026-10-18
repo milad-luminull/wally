@@ -3,7 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/routes/LoginPage';
 import { SignupPage } from '@/routes/SignupPage';
-import { LandingPage } from '@/routes/LandingPage';
+import { HomePage } from '@/routes/HomePage';
+import { BoardEntryPage } from '@/routes/BoardEntryPage';
 import { BoardPage } from '@/routes/BoardPage';
 import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
@@ -16,11 +17,12 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route
-          path="/"
+          path="/app"
           element={
             <ProtectedRoute>
-              <LandingPage />
+              <BoardEntryPage />
             </ProtectedRoute>
           }
         />

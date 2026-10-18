@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { z } from 'zod';
 import type { MessageKey } from '@/i18n/keys';
 import { useAuth } from './AuthProvider';
-import { landingWithReturn, readReturnPath } from './returnPath';
+import { readReturnPath } from './returnPath';
 import { Button } from '@/components/ui/button';
 import { GoogleMark } from '@/components/GoogleMark';
 import { Input } from '@/components/ui/input';
@@ -39,16 +39,11 @@ function authErrorKey(err: unknown): MessageKey {
 export function SignUpForm() {
   const { t } = useTranslation();
   const { signUpWithEmail, signInWithGoogle } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   // Carried through from ProtectedRoute, same as SignInForm. Without it a new user who
   // opens a share link and picks "Registrieren" lands on their own empty board and the
   // token is gone from history.
   const from = readReturnPath(location.state);
-  const goOn = () => {
-    const target = landingWithReturn(from);
-    navigate(target.pathname, { replace: true, state: target.state });
-  };
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,7 +68,6 @@ export function SignUpForm() {
     setLoading('email');
     try {
       await signUpWithEmail(parsed.data.email, parsed.data.password);
-      goOn();
     } catch (err) {
       setFormError(authErrorKey(err));
     } finally {
@@ -86,7 +80,6 @@ export function SignUpForm() {
     setLoading('google');
     try {
       await signInWithGoogle();
-      goOn();
     } catch (err) {
       setFormError(authErrorKey(err));
     } finally {

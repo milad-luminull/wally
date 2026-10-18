@@ -1,3 +1,4 @@
+import { BoardRail } from './BoardRail';
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -207,113 +208,134 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [access, duplicate, notes, openNote],
   );
   const openedNote = notes.find((n) => n.id === viewState.noteId);
+  const filterProps = {
+    view: viewState,
+    setQuery: viewState.setQuery,
+    setPriority: viewState.setPriority,
+    setMine: viewState.setMine,
+    setDone: viewState.setDone,
+    setFieldKey: viewState.setFieldKey,
+    setFieldValue: viewState.setFieldValue,
+    setVisibility: viewState.setVisibility,
+    resetFilters: viewState.resetFilters,
+    showVisibility: showsVisibilityFilter(notes, viewState.visibility),
+    fieldKeys,
+    fieldValues,
+    isBelowTablet,
+  };
 
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
     // visible viewport, which pushes the board's own scroll containers off-screen.
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+    <div className="board-shell flex h-[100dvh] flex-col overflow-hidden bg-background">
       <EmailVerificationBanner />
-      <TopBar
-        board={board}
-        boardId={boardId}
-        notes={boardNotes}
-        view={effectiveView}
-        axis={viewState.axis}
-        isDesktop={isDesktop}
-        isBelowTablet={isBelowTablet}
-        newNoteVisibility={access.newNoteVisibility}
-        isOwner={isOwner}
-        isCustomized={viewState.isCustomized}
-        onSetView={viewState.setView}
-        onSetAxis={viewState.setAxis}
-        onResetView={viewState.resetView}
-        onNewNote={newNote}
-      />
-      <FilterBar
-        view={viewState}
-        setQuery={viewState.setQuery}
-        setPriority={viewState.setPriority}
-        setMine={viewState.setMine}
-        setDone={viewState.setDone}
-        setFieldKey={viewState.setFieldKey}
-        setFieldValue={viewState.setFieldValue}
-        setVisibility={viewState.setVisibility}
-        resetFilters={viewState.resetFilters}
-        showVisibility={showsVisibilityFilter(notes, viewState.visibility)}
-        fieldKeys={fieldKeys}
-        fieldValues={fieldValues}
-        isBelowTablet={isBelowTablet}
-      />
-
-      {/* Focusable from code only: where the keyboard lands after a commit whose note has no
-          card on the board (useCaptureSession). */}
-      <div data-board-surface tabIndex={-1} className="relative flex min-h-0 flex-1 outline-none">
-        {notesQuery.isLoading ? (
-          <BoardSkeleton columns={isDesktop ? 3 : 1} />
-        ) : effectiveView === 'wand' ? (
-          <WallView
+      <div className="board-layout">
+        {isDesktop && (
+          <BoardRail
             boardId={boardId}
-            notes={filteredNotes}
-            totalNoteCount={boardNotes.length}
-            currentUserId={user?.uid}
+            boardName={board.name}
             axis={viewState.axis}
-            selectedNoteId={viewState.noteId}
-            onOpenNote={viewState.openNote}
-            onDuplicateNote={duplicateNote}
-            access={access}
-            capture={capture}
-            captureKey={captureKey}
-            onCapture={startCapture}
-            onCaptureDone={onCaptureDone}
-            onCaptureNoteId={onCaptureNoteId}
-            onCaptureAsk={captureAsk}
-            ask={askSlot}
-            visibility={access.newNoteVisibility}
-            pendingFor={pendingFor}
-            relatedCounts={relatedCountByNote}
-            tidyFor={tidyOn ? tidyFor : undefined}
-            tidy={tidyOn ? tidy : undefined}
-          />
-        ) : (
-          <ListView
-            notes={filteredNotes}
-            totalNoteCount={boardNotes.length}
-            axis={viewState.axis}
-            currentUserId={user?.uid}
-            onOpenNote={viewState.openNote}
-            onToggleDone={(noteId, status) =>
-              toggleStatus.mutate({ noteId, currentStatus: status })
-            }
-            access={access}
-            isBelowDesktop={isBelowDesktop}
-            capture={
-              capture && {
-                id: captureKey,
-                boardId,
-                visibility: access.newNoteVisibility,
-                onDone: onCaptureDone,
-                onNoteId: onCaptureNoteId,
-                onAsk: captureAsk,
-              }
-            }
-            ask={askSlot}
-            pendingFor={pendingFor}
-            relatedCounts={relatedCountByNote}
+            onSetAxis={viewState.setAxis}
+            onNewNote={newNote}
+            newNoteVisibility={access.newNoteVisibility}
           />
         )}
+        <div className="board-workspace">
+          <TopBar
+            withRail={isDesktop}
+            filters={filterProps}
+            board={board}
+            boardId={boardId}
+            notes={boardNotes}
+            view={effectiveView}
+            axis={viewState.axis}
+            isDesktop={isDesktop}
+            isBelowTablet={isBelowTablet}
+            newNoteVisibility={access.newNoteVisibility}
+            isOwner={isOwner}
+            isCustomized={viewState.isCustomized}
+            onSetView={viewState.setView}
+            onSetAxis={viewState.setAxis}
+            onResetView={viewState.resetView}
+            onNewNote={newNote}
+          />
+          {!isDesktop && <FilterBar {...filterProps} />}
 
-        <NoteDetailPanel
-          noteId={viewState.noteId}
-          boardId={boardId}
-          access={access}
-          axis={viewState.axis}
-          isBelowDesktop={isBelowDesktop}
-          onClose={() => viewState.openNote(null)}
-          onDuplicate={duplicateNote}
-          onOpenNote={viewState.openNote}
-          currentUserId={user?.uid}
-          pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
-        />
+          {/* Focusable from code only: where the keyboard lands after a commit whose note has no
+          card on the board (useCaptureSession). */}
+          <div
+            data-board-surface
+            tabIndex={-1}
+            className="relative flex min-h-0 flex-1 outline-none"
+          >
+            {notesQuery.isLoading ? (
+              <BoardSkeleton columns={isDesktop ? 3 : 1} />
+            ) : effectiveView === 'wand' ? (
+              <WallView
+                boardId={boardId}
+                notes={filteredNotes}
+                totalNoteCount={boardNotes.length}
+                currentUserId={user?.uid}
+                axis={viewState.axis}
+                selectedNoteId={viewState.noteId}
+                onOpenNote={viewState.openNote}
+                onDuplicateNote={duplicateNote}
+                access={access}
+                capture={capture}
+                captureKey={captureKey}
+                onCapture={startCapture}
+                onCaptureDone={onCaptureDone}
+                onCaptureNoteId={onCaptureNoteId}
+                onCaptureAsk={captureAsk}
+                ask={askSlot}
+                visibility={access.newNoteVisibility}
+                pendingFor={pendingFor}
+                relatedCounts={relatedCountByNote}
+                tidyFor={tidyOn ? tidyFor : undefined}
+                tidy={tidyOn ? tidy : undefined}
+              />
+            ) : (
+              <ListView
+                notes={filteredNotes}
+                totalNoteCount={boardNotes.length}
+                axis={viewState.axis}
+                currentUserId={user?.uid}
+                onOpenNote={viewState.openNote}
+                onToggleDone={(noteId, status) =>
+                  toggleStatus.mutate({ noteId, currentStatus: status })
+                }
+                access={access}
+                isBelowDesktop={isBelowDesktop}
+                capture={
+                  capture && {
+                    id: captureKey,
+                    boardId,
+                    visibility: access.newNoteVisibility,
+                    onDone: onCaptureDone,
+                    onNoteId: onCaptureNoteId,
+                    onAsk: captureAsk,
+                  }
+                }
+                ask={askSlot}
+                pendingFor={pendingFor}
+                relatedCounts={relatedCountByNote}
+              />
+            )}
+
+            <NoteDetailPanel
+              noteId={viewState.noteId}
+              boardId={boardId}
+              access={access}
+              axis={viewState.axis}
+              isBelowDesktop={isBelowDesktop}
+              onClose={() => viewState.openNote(null)}
+              onDuplicate={duplicateNote}
+              onOpenNote={viewState.openNote}
+              currentUserId={user?.uid}
+              pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
+            />
+          </div>
+        </div>
       </div>
 
       <BoardCommands

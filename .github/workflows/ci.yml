@@ -250,7 +250,7 @@ jobs:
       - name: Fail if the suite was vacuously green
         if: always()
         env:
-          MIN_EXECUTED: '10' # 9 under chromium-desktop + 1 under mobile-list-only
+          MIN_EXECUTED: '12' # 11 under chromium-desktop + 1 under mobile-list-only
         run: |
           set -euo pipefail
           REPORT=apps/web/playwright-results.json

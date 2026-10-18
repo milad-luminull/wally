@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListFilter, Lock, Search, X } from 'lucide-react';
+import { CircleCheck, ListFilter, Lock, Search, X } from 'lucide-react';
 import { notePriorityValues, type BoardVisibilityFilter, type NotePriority } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { RemoveButton } from '@/components/ui/remove-button';
@@ -20,7 +21,9 @@ import { cn } from '@/lib/cn';
 import { PriorityIcon } from './PriorityIcon';
 import type { BoardViewState } from './hooks/useBoardViewState';
 
-interface FilterBarProps {
+export interface FilterBarProps {
+  displayControl?: ReactNode;
+  actions?: ReactNode;
   view: BoardViewState;
   setQuery: (q: string) => void;
   setPriority: (priority: NotePriority[]) => void;
@@ -117,7 +120,7 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
   return (
     <div
       className={cn(
-        'group flex h-7 min-w-[180px] max-w-[280px] flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 shadow-e1',
+        'board-search group flex h-7 min-w-[180px] max-w-[280px] flex-1 items-center gap-2 rounded-md border border-border bg-surface px-2.5 shadow-e1',
         '[@media(pointer:coarse)]:h-10',
         'transition-[border-color,box-shadow] duration-150 ease-ds hover:border-border-strong',
         'focus-within:border-border-strong focus-within:ring-2 focus-within:ring-[color:var(--ring-alpha)]',
@@ -252,6 +255,8 @@ export function FilterBar({
   fieldKeys,
   fieldValues,
   isBelowTablet,
+  displayControl,
+  actions,
 }: FilterBarProps) {
   const { t } = useTranslation();
   const activeFilterCount =
@@ -264,7 +269,7 @@ export function FilterBar({
 
   if (isBelowTablet) {
     return (
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
+      <div className="board-filters flex shrink-0 items-center gap-2 border-b border-border-subtle bg-surface px-3 py-2">
         <SearchInput q={view.q} setQuery={setQuery} />
         <Sheet>
           <SheetTrigger asChild>
@@ -332,29 +337,74 @@ export function FilterBar({
   }
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle bg-surface px-3 py-2 lg:px-4">
+    <div className="board-filter-toolbar">
       <SearchInput q={view.q} setQuery={setQuery} />
-      <div className="flex flex-wrap items-center gap-1.5">
-        <PriorityChips priority={view.priority} setPriority={setPriority} />
-        <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-        <BooleanToggles mine={view.mine} setMine={setMine} done={view.done} setDone={setDone} />
-        {showVisibility && (
-          <VisibilityChips visibility={view.visibility} setVisibility={setVisibility} />
-        )}
-        <FieldFilter
-          view={view}
-          fieldKeys={fieldKeys}
-          fieldValues={fieldValues}
-          setFieldKey={setFieldKey}
-          setFieldValue={setFieldValue}
-        />
-      </div>
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={resetFilters}>
-          <X strokeWidth={1.75} />
-          {t('board.filter.reset')}
-        </Button>
-      )}
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="board-tool"
+            aria-label={t('board.filter.title')}
+            title={t('board.filter.title')}
+            data-active={activeFilterCount - (view.done ? 0 : 1) > 0 || undefined}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <path d="M4 7h16M7 12h10M10 17h4" />
+            </svg>
+            {activeFilterCount - (view.done ? 0 : 1) > 0 && (
+              <span className="board-filter-count" aria-hidden>
+                {activeFilterCount - (view.done ? 0 : 1)}
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="board-filter-popover" align="end" sideOffset={8}>
+          <p className="text-12 text-fg-3">{t('board.filter.priorityHeading')}</p>
+          <PriorityChips priority={view.priority} setPriority={setPriority} />
+          <div className="board-filter-secondary">
+            <Toggle variant="chip" pressed={view.mine} onPressedChange={setMine}>
+              {t('board.filter.mine')}
+            </Toggle>
+            {showVisibility && (
+              <VisibilityChips visibility={view.visibility} setVisibility={setVisibility} />
+            )}
+            <FieldFilter
+              view={view}
+              fieldKeys={fieldKeys}
+              fieldValues={fieldValues}
+              setFieldKey={setFieldKey}
+              setFieldValue={setFieldValue}
+            />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="self-start">
+              <X strokeWidth={1.75} />
+              {t('board.filter.reset')}
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+      {displayControl}
+      <button
+        type="button"
+        className="board-tool"
+        aria-label={t('board.filter.done')}
+        title={t('board.filter.done')}
+        aria-pressed={!view.done}
+        onClick={() => setDone(!view.done)}
+      >
+        <CircleCheck size={15} strokeWidth={1.9} />
+      </button>
+      {actions}
     </div>
   );
 }

@@ -10,6 +10,9 @@ import { ThemeProvider } from '@/lib/theme';
 import { Toaster } from '@/components/ui/toaster';
 import { App } from './App';
 import './styles/globals.css';
+import './styles/palettes.css';
+import './styles/welcome.css';
+import './styles/board-shell.css';
 
 // Before render, and synchronously: the first authenticated API call is the one that
 // provisions the profile and names the board, and it has to carry the right Accept-Language.

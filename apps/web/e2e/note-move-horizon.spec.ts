@@ -24,4 +24,24 @@ test('moving a note to a different Horizon zone persists after reload', async ({
   await page.getByText(title).click();
 
   await expect(page.getByRole('radio', { name: 'Später' })).toHaveAttribute('data-state', 'on');
+  await page.getByRole('button', { name: 'Schließen' }).click();
+  await page.getByLabel('Notizen durchsuchen').fill('');
+  await expect(page).not.toHaveURL(/[?&]q=/);
+  await page.setViewportSize({ width: 1440, height: 320 });
+  await expect
+    .poll(() =>
+      page.locator('.paper-zones-scroll').evaluate((el) => el.scrollHeight > el.clientHeight),
+    )
+    .toBe(true);
+  // Droppable sections must include all notes, even when the shared board scrolls.
+  await expect
+    .poll(() =>
+      page
+        .locator('.paper-zone')
+        .evaluateAll(
+          (zones) =>
+            zones.length === 3 && zones.every((zone) => zone.scrollHeight <= zone.clientHeight + 1),
+        ),
+    )
+    .toBe(true);
 });

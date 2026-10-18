@@ -137,6 +137,19 @@ describe('LanguageProvider', () => {
     expect(window.localStorage.getItem('wally.language')).toBe('de');
   });
 
+  it('keeps a signed-out language choice locally without a profile write', async () => {
+    mockUseAuth.mockReturnValue({ status: 'unauthenticated' });
+    renderWithProviders(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    await userEvent.setup().click(screen.getByRole('button', { name: 'to german' }));
+    expect(screen.getByTestId('language')).toHaveTextContent('de');
+    expect(window.localStorage.getItem('wally.language')).toBe('de');
+    expect(meApi.updateLanguage).not.toHaveBeenCalled();
+  });
+
   it('does not ask for a profile before anyone is signed in', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' });
 

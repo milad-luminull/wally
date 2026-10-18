@@ -1,3 +1,6 @@
+vi.mock('@/i18n/LanguageProvider', () => ({
+  useLanguage: () => ({ language: 'en', setLanguage: vi.fn() }),
+}));
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { Route, Routes, useNavigate } from 'react-router';

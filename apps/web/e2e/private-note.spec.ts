@@ -18,6 +18,8 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
   // "Neue private Notiz". Wait for the button in either form, so the saved view has loaded,
   // then switch the filter off before starting.
   await expect(page.getByRole('button', { name: /^Neue (private )?Notiz/ })).toBeVisible();
+  const filters = page.getByRole('button', { name: 'Filter', exact: true });
+  await filters.click();
   const leftOn = page.getByRole('radio', { name: 'Nur private' });
   if ((await leftOn.isVisible()) && (await leftOn.getAttribute('aria-checked')) === 'true') {
     const cleared = preferenceSaved();
@@ -25,6 +27,8 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
     await cleared;
     await expect(leftOn).toHaveAttribute('aria-checked', 'false');
   }
+
+  await filters.click();
 
   const title = `E2E private ${Date.now()}`;
   const panel = await captureNote(page, title, { open: true });
@@ -36,6 +40,7 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
   await panel.getByRole('button', { name: 'Schließen' }).click();
   await expect(panel).toBeHidden();
 
+  await filters.click();
   const onlyPrivate = page.getByRole('radio', { name: 'Nur private' });
   const saved = preferenceSaved();
   await onlyPrivate.click();
@@ -47,6 +52,7 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
 
   // Remembered per board, so it survives a reload.
   await page.reload();
+  await filters.click();
   await expect(onlyPrivate).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByText(title)).toBeVisible();
 
@@ -56,4 +62,5 @@ test('a note made private shows a lock and stays under "Nur private"', async ({ 
   await onlyPrivate.click();
   await reset;
   await expect(onlyPrivate).toHaveAttribute('aria-checked', 'false');
+  await filters.click();
 });

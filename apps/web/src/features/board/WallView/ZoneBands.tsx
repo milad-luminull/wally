@@ -79,23 +79,17 @@ function ZoneBand({
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
-      className={cn(
-        'group/zone flex min-w-0 flex-col rounded-xl border transition-[background-color,border-color] duration-200 ease-ds',
-        // Horizon columns share the board's width (never narrower than one card), and like
-        // priority rows they lay cards out side by side once a column is wide enough.
-        axis === 'horizon' ? 'h-full min-w-[276px] flex-1 basis-0' : 'min-h-[160px] w-full',
-        // A quiet panel on the wall rather than an invisible hit area, so the structure of
-        // the board is legible even when a column is empty. A drag target darkens a shade and
-        // firms its border — no colour, which would read as status or selection.
-        isOver
-          ? 'border-border-strong bg-[color:var(--zone-surface-over)]'
-          : 'border-border-subtle bg-[color:var(--zone-surface)]',
-      )}
+      className={cn('paper-zone group/zone', isOver && 'paper-zone-over')}
     >
-      <header className="flex h-11 shrink-0 items-center gap-2 pl-3.5 pr-2">
-        <h2 className="text-13 font-medium text-fg-1">{group.label}</h2>
-        <span className="text-12 tabular-nums text-fg-faint">{group.notes.length}</span>
+      <header className="paper-zone-header">
+        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-fg-1">{group.label}</h2>
+        {axis === 'priority' && (
+          <span className="paper-zone-subtitle">
+            {t(`board.zone.priorityHints.${group.key as 'HOCH' | 'MITTEL' | 'NIEDRIG'}`)}
+          </span>
+        )}
         <span className="flex-1" />
+        <span className="text-12 tabular-nums text-fg-faint">{group.notes.length}</span>
         <button
           type="button"
           aria-label={t('board.zone.addNote', { label: group.label })}
@@ -113,15 +107,8 @@ function ZoneBand({
         </button>
       </header>
 
-      <div
-        className={cn(
-          // Top padding leaves room for a card's hover lift and shadow, which the scroll
-          // container would otherwise clip along its top edge.
-          'wally-scroll min-h-0 flex-1 px-2.5 pb-3 pt-1',
-          axis === 'horizon' ? 'overflow-y-auto' : 'overflow-hidden',
-        )}
-      >
-        <div className="flex flex-row flex-wrap content-start gap-2">
+      <div className="paper-zone-body">
+        <div className="paper-zone-notes">
           {ask && (
             // min-w-0 lets this flex item shrink below the card's 376px, so the card's own
             // max-w-full can cap it to a narrow column instead of spilling past it.
@@ -162,7 +149,7 @@ function ZoneBand({
             className={cn(
               'flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border px-3 py-6 text-center',
               'transition-colors duration-200 ease-ds',
-              axis === 'horizon' ? 'h-full min-h-[120px]' : 'min-h-[92px]',
+              'min-h-[76px]',
               isOver && 'border-border-strong',
             )}
           >
@@ -171,6 +158,16 @@ function ZoneBand({
             </p>
             {!filteredOut && <p className="text-12 text-fg-faint">{t('board.zone.emptyHint')}</p>}
           </div>
+        )}
+        {!capture && (
+          <button
+            type="button"
+            className="paper-zone-add"
+            onClick={() => onCreateInZone(group.key)}
+          >
+            <Plus size={12} strokeWidth={2.4} />
+            {t('board.zone.add')}
+          </button>
         )}
       </div>
     </section>
@@ -207,7 +204,7 @@ interface ZoneBandsProps {
   tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
-/** Horizon → columns side by side; Priority → rows stacked. Never rendered in free mode —
+/** Time and priority groups share the open column layout. Never rendered in free mode —
  * WallCanvas swaps this out entirely for the absolute-position free canvas. */
 export function ZoneBands({
   axis,
@@ -225,44 +222,35 @@ export function ZoneBands({
   const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
   const zoneAsk = ask?.placement.kind === 'zone' && ask.placement.axis === axis ? ask : null;
   return (
-    <div
-      className={cn(
-        // A flex child of the wall's column (the bands above the Tidy bar): min-h-0 lets it
-        // shrink to the column's height, so the priority rows scroll inside it.
-        'board-surface wally-scroll min-h-0 min-w-0 flex-1',
-        // Horizon columns stretch to fill the width, so there is no leftover to centre; below
-        // three card widths the row scrolls sideways instead of squeezing the columns.
-        axis === 'horizon'
-          ? 'flex gap-3 overflow-x-auto p-4 lg:p-5'
-          : 'flex flex-col gap-3 overflow-y-auto p-4 lg:p-5',
-      )}
-    >
-      {groups.map((group) => (
-        <ZoneBand
-          key={group.key}
-          axis={axis}
-          group={group}
-          capture={
-            zoneCapture?.key === group.key
-              ? {
-                  key: captureKey,
-                  boardId,
-                  placement: zoneCapture,
-                  visibility,
-                  onDone: onCaptureDone,
-                  onNoteId: onCaptureNoteId,
-                  onAsk: onCaptureAsk,
-                }
-              : null
-          }
-          ask={
-            zoneAsk && zoneAsk.placement.kind === 'zone' && zoneAsk.placement.key === group.key
-              ? zoneAsk
-              : null
-          }
-          {...rest}
-        />
-      ))}
+    <div className="paper-zones-scroll board-surface wally-scroll min-h-0 overflow-y-auto">
+      <div className="paper-zones">
+        {groups.map((group) => (
+          <ZoneBand
+            key={group.key}
+            axis={axis}
+            group={group}
+            capture={
+              zoneCapture?.key === group.key
+                ? {
+                    key: captureKey,
+                    boardId,
+                    placement: zoneCapture,
+                    visibility,
+                    onDone: onCaptureDone,
+                    onNoteId: onCaptureNoteId,
+                    onAsk: onCaptureAsk,
+                  }
+                : null
+            }
+            ask={
+              zoneAsk && zoneAsk.placement.kind === 'zone' && zoneAsk.placement.key === group.key
+                ? zoneAsk
+                : null
+            }
+            {...rest}
+          />
+        ))}
+      </div>
     </div>
   );
 }

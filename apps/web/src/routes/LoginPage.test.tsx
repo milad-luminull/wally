@@ -9,6 +9,9 @@ vi.mock('@/features/auth/AuthProvider', async () => {
 });
 
 import { renderWithProviders } from '@/test/renderWithProviders';
+vi.mock('@/i18n/LanguageProvider', () => ({
+  useLanguage: () => ({ language: 'en', setLanguage: vi.fn() }),
+}));
 import { LoginPage } from './LoginPage';
 
 describe('LoginPage', () => {

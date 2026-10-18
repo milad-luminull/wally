@@ -31,6 +31,7 @@ export function applyPreferencesUpdate(
   }
   return {
     theme: update.theme ?? current.theme,
+    palette: update.palette ?? current.palette,
     canvas: update.canvas ?? current.canvas,
     lastBoardId: update.lastBoardId ?? current.lastBoardId,
     boards,

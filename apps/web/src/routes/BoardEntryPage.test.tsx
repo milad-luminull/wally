@@ -8,61 +8,61 @@ vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn() } }));
 import { boardsApi } from '@/lib/resources';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { LandingPage } from './LandingPage';
+import { BoardEntryPage } from './BoardEntryPage';
 
-/** Prints where the landing sent the caller, so each redirect is observable. */
+/** Prints where the board entry sent the caller, so each redirect is observable. */
 function Where() {
   const location = useLocation();
   return <p>Target: {location.pathname + location.search}</p>;
 }
 
-function renderLanding(state?: unknown) {
+function renderEntry(state?: unknown) {
   return renderWithProviders(
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/app" element={<BoardEntryPage />} />
       <Route path="/boards" element={<Where />} />
       <Route path="/boards/:boardId" element={<Where />} />
       <Route path="/share/:token" element={<Where />} />
     </Routes>,
-    { route: '/', state },
+    { route: '/app', state },
   );
 }
 
 const own: WhiteboardSummaryDto = { id: 'own', name: 'My Board', currentUserRole: 'OWNER' };
 const shared: WhiteboardSummaryDto = { id: 'shared', name: 'Team North', currentUserRole: 'EDIT' };
 
-describe('LandingPage', () => {
+describe('BoardEntryPage', () => {
   beforeEach(() => {
     vi.mocked(boardsApi.list).mockReset();
   });
 
   it('goes straight into the one board a single-board user has', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
-    renderLanding();
+    renderEntry();
     expect(await screen.findByText('Target: /boards/own')).toBeInTheDocument();
   });
 
   it('goes to the board home with two or more boards', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
-    renderLanding();
+    renderEntry();
     expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('goes to the board home with no boards at all', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([]);
-    renderLanding();
+    renderEntry();
     expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('follows a share link the visitor arrived with', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
-    renderLanding({ to: '/share/tok-1' });
+    renderEntry({ to: '/share/tok-1' });
     expect(await screen.findByText('Target: /share/tok-1')).toBeInTheDocument();
   });
 
   it('follows a board path the caller can open, keeping its query string', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
-    renderLanding({ to: '/boards/shared?view=list' });
+    renderEntry({ to: '/boards/shared?view=list' });
     expect(await screen.findByText('Target: /boards/shared?view=list')).toBeInTheDocument();
   });
 
@@ -70,19 +70,19 @@ describe('LandingPage', () => {
   // caller cannot see, must never be the place sign-in lands on.
   it('drops a board path the caller cannot open', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own]);
-    renderLanding({ to: '/boards/someone-elses' });
+    renderEntry({ to: '/boards/someone-elses' });
     expect(await screen.findByText('Target: /boards/own')).toBeInTheDocument();
   });
 
   it('drops a return path that is not an in-app path', async () => {
     vi.mocked(boardsApi.list).mockResolvedValue([own, shared]);
-    renderLanding({ to: 'https://evil.example/boards/own' });
+    renderEntry({ to: 'https://evil.example/boards/own' });
     expect(await screen.findByText('Target: /boards')).toBeInTheDocument();
   });
 
   it('offers a retry when the board list cannot be loaded', async () => {
     vi.mocked(boardsApi.list).mockRejectedValue(new Error('offline'));
-    renderLanding();
+    renderEntry();
     expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
     // It loads the list of boards, not one board.
     expect(screen.getByText('Your boards could not be loaded.')).toBeInTheDocument();
