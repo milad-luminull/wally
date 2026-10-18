@@ -21,7 +21,6 @@ import {
   subtaskDtoSchema,
   subtaskCreateSchema,
   subtaskUpdateSchema,
-  assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
   captureSuggestRequestSchema,
@@ -29,7 +28,10 @@ import {
   suggestionDecisionSchema,
   suggestionDecisionResponseSchema,
   suggestionListSchema,
-  type AssistantConversationDto,
+  tidyRequestSchema,
+  tidyResponseSchema,
+  tidyDecisionSchema,
+  tidyDecisionResponseSchema,
   type AssistantTurnRequest,
   type AssistantTurnResponse,
   type CaptureSuggestRequest,
@@ -37,6 +39,10 @@ import {
   type SuggestionDecision,
   type SuggestionDto,
   type SuggestionList,
+  type TidyRequest,
+  type TidyResponse,
+  type TidyDecision,
+  type TidyDto,
   type Language,
   type MeDto,
   type WhiteboardDto,
@@ -141,11 +147,6 @@ export const notesApi = {
 };
 
 export const assistantApi = {
-  latest: (boardId: string): Promise<AssistantConversationDto> =>
-    api.get(
-      `/whiteboards/${boardId}/assistant/conversations/latest`,
-      assistantConversationDtoSchema,
-    ),
   turn: (boardId: string, body: AssistantTurnRequest): Promise<AssistantTurnResponse> =>
     api.post(
       `/whiteboards/${boardId}/assistant/turns`,
@@ -170,6 +171,18 @@ export const assistantApi = {
     ),
   pendingSuggestions: (boardId: string): Promise<SuggestionList> =>
     api.get(`/whiteboards/${boardId}/assistant/suggestions/pending`, suggestionListSchema),
+  tidy: (boardId: string, body: TidyRequest): Promise<TidyResponse> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/tidies`,
+      tidyRequestSchema.parse(body),
+      tidyResponseSchema,
+    ),
+  decideTidy: (boardId: string, tidyId: string, body: TidyDecision): Promise<{ tidy: TidyDto }> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/tidies/${tidyId}/decision`,
+      tidyDecisionSchema.parse(body),
+      tidyDecisionResponseSchema,
+    ),
 };
 
 export const subtasksApi = {

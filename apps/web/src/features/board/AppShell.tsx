@@ -25,11 +25,18 @@ import { FilterBar } from './FilterBar';
 import { WallView } from './WallView/WallView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
-import { AssistantPanel } from './Assistant/AssistantPanel';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
+import type { AskOptions, CapturePlacement } from './Capture/useCapture';
+import { useAskSession } from './Ask/useAskSession';
+import { AskCard } from './Ask/AskCard';
+import { placementsTaken, type AskSlot } from './Ask/askSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
+import { useTidy } from './Tidy/useTidy';
+import { useTidyFor } from './Tidy/useTidyFor';
+import { tidyOnWall } from './Tidy/tidyOnWall';
+import { undoMostRecent } from './Suggestions/keptOrder';
 
 // Stable reference so `notes` doesn't change identity every render while the query is
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
@@ -88,17 +95,67 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // countdown (R3).
   const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
+  // A question typed into the capture card (WALLYBOT_INLINE.md §3.6): the shell asks the board
+  // and draws the answer where the question was written. Off means a `?` is a plain title.
+  const askController = useAskSession(boardId);
+  const { ask: askQuestion } = askController;
+  const onAsked = useCallback(
+    (question: string, placement: CapturePlacement, { takeFocus }: AskOptions) =>
+      askQuestion(question, placement, takeFocus),
+    [askQuestion],
+  );
+
   // The note being written in place (WALLYBOT_INLINE.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
-  const { capture, captureKey, startCapture, onCaptureDone, onCaptureNoteId, withoutCapturing } =
-    useCaptureSession({
-      boardId,
-      view: effectiveView,
-      axis: viewState.axis,
-      openNoteId: viewState.noteId,
-      openNote: viewState.openNote,
-      onCommitted,
-    });
+  const {
+    capture,
+    captureKey,
+    startCapture,
+    onCaptureDone,
+    onCaptureNoteId,
+    onCaptureAsk,
+    withoutCapturing,
+  } = useCaptureSession({
+    boardId,
+    view: effectiveView,
+    axis: viewState.axis,
+    openNoteId: viewState.noteId,
+    openNote: viewState.openNote,
+    onCommitted,
+    onAsked,
+  });
+  const captureAsk = board.assistantEnabled ? onCaptureAsk : undefined;
+  const askSession = askController.session;
+  const { setPinned: setAskPinned, dismiss: dismissAsk, pause: pauseAsk } = askController;
+  const askSlot = useMemo<AskSlot | null>(
+    () =>
+      askSession
+        ? {
+            key: askSession.id,
+            placement: askSession.placement,
+            card: (
+              <AskCard
+                session={askSession}
+                notes={notesQuery.data}
+                layout={effectiveView === 'list' ? 'row' : 'card'}
+                onOpenNote={viewState.openNote}
+                onSetPinned={setAskPinned}
+                onDismiss={dismissAsk}
+                onPause={pauseAsk}
+              />
+            ),
+          }
+        : null,
+    [
+      askSession,
+      dismissAsk,
+      effectiveView,
+      notesQuery.data,
+      pauseAsk,
+      setAskPinned,
+      viewState.openNote,
+    ],
+  );
   // The views, the top bar and the palette leave the note being written to its card: it is in
   // the cache from the first keystroke, and a second copy would be clickable and openable.
   const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
@@ -107,10 +164,22 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [boardNotes, viewState, user?.uid],
   );
 
+  // Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5): the shell counts, asks and decides;
+  // the wall shows the bar and the marks. It reads the notes the wall draws, so a filter's
+  // hidden notes are neither counted nor moved (R1). A note with a pending Wallybot change is
+  // left out. Anywhere else, or with the assistant off, the wall gets neither (plan R4, R10).
+  const busy = useMemo(() => new Set(suggestions.marks.keys()), [suggestions.marks]);
+  const tidyOn = tidyOnWall(board.assistantEnabled, effectiveView, viewState.axis);
+  const tidy = useTidy(boardId, tidyOn, filteredNotes, access.canEditNote, busy);
+  const tidyFor = useTidyFor(tidy);
+
+  const askPlacement = askSession?.placement;
   const newNote = useCallback(() => {
     if (effectiveView === 'list') startCapture({ kind: 'list' });
     else if (viewState.axis === 'free') {
-      const at = nextFreeNotePosition(notes);
+      // The answer card's place counts as taken: the question's draft note is gone, so the
+      // notes alone would read its point as free and the new card would land on the answer.
+      const at = nextFreeNotePosition(placementsTaken(notes, askPlacement));
       startCapture({ kind: 'free', x: at.freeX, y: at.freeY });
     } else
       startCapture({
@@ -119,7 +188,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         key: defaultZoneKey(viewState.axis),
         at: nextFreeNotePosition(notes),
       });
-  }, [effectiveView, notes, startCapture, viewState.axis]);
+  }, [askPlacement, effectiveView, notes, startCapture, viewState.axis]);
 
   const { openNote } = viewState;
   const { duplicate } = useDuplicateNote(boardId, {
@@ -159,8 +228,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onSetAxis={viewState.setAxis}
         onResetView={viewState.resetView}
         onNewNote={newNote}
-        assistantEnabled={board.assistantEnabled}
-        onOpenAssistant={() => viewState.openAsk(true)}
       />
       <FilterBar
         view={viewState}
@@ -199,9 +266,13 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onCapture={startCapture}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={captureAsk}
+            ask={askSlot}
             visibility={access.newNoteVisibility}
             pendingFor={pendingFor}
             relatedCounts={relatedCountByNote}
+            tidyFor={tidyOn ? tidyFor : undefined}
+            tidy={tidyOn ? tidy : undefined}
           />
         ) : (
           <ListView
@@ -222,8 +293,10 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 visibility: access.newNoteVisibility,
                 onDone: onCaptureDone,
                 onNoteId: onCaptureNoteId,
+                onAsk: captureAsk,
               }
             }
+            ask={askSlot}
             pendingFor={pendingFor}
             relatedCounts={relatedCountByNote}
           />
@@ -240,17 +313,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           currentUserId={user?.uid}
           pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
         />
-
-        {/* Off means nothing: no panel even when the link carries ?ask=1. */}
-        {board.assistantEnabled && (
-          <AssistantPanel
-            open={viewState.askOpen}
-            boardId={boardId}
-            isBelowDesktop={isBelowDesktop}
-            onClose={() => viewState.openAsk(false)}
-            onOpenNote={viewState.openNote}
-          />
-        )}
       </div>
 
       <BoardCommands
@@ -274,8 +336,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onSetMine={viewState.setMine}
         onResetView={viewState.resetView}
         assistantEnabled={board.assistantEnabled}
-        onOpenAssistant={() => viewState.openAsk(true)}
-        onUndoSuggestion={suggestions.undoLast}
+        onUndoSuggestion={() => undoMostRecent([suggestions, tidy])}
       />
     </div>
   );

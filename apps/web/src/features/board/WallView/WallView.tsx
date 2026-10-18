@@ -38,8 +38,13 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
+import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import type { TidyProps } from '../Tidy/tidyProps';
+import type { TidyController } from '../Tidy/useTidy';
+import { TidyBar } from '../Tidy/TidyBar';
+import { cancelFlight, useFlip } from '../Tidy/useFlip';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
@@ -68,13 +73,30 @@ interface WallViewProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: CaptureAsk;
+  /** The answer to a question, drawn where the question was written (§3.6). */
+  ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
+  /**
+   * The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). Drawn on the horizon
+   * wall only (plan R10); the shell passes it only while the board's assistant is on.
+   */
+  tidyFor?: (noteId: string) => TidyProps | undefined;
+  /**
+   * The board's Tidy; the horizon wall shows its bar and animates its batch (§3.5). The shell
+   * passes it only while the board's assistant is on, so no strip is reserved otherwise (R4).
+   */
+  tidy?: TidyController;
 }
+
+/** Stable, so the wall without a Tidy measures nothing on any render. */
+const EMPTY_IDS: readonly string[] = [];
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
   return notes.find((n) => n.id === id);
@@ -102,9 +124,13 @@ export function WallView({
   onCapture,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
+  ask,
   visibility,
   pendingFor,
   relatedCounts,
+  tidyFor,
+  tidy,
 }: WallViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
@@ -194,6 +220,19 @@ export function WallView({
     );
     if (settled) setPendingMove(null);
   }, [notes, pendingMove]);
+
+  // The batch's cards travel when they reach the zone the batch sends them to (plan R8); a card
+  // put back, a scroll or a re-render moves nothing, and no other card is measured. The horizon
+  // wall only: on any other axis nothing is tracked, so an axis switch flies no card (R10).
+  const onHorizon = axis === 'horizon';
+  const horizonOf = useMemo(
+    () => new Map(shownNotes.map((n) => [n.id, n.horizon] as const)),
+    [shownNotes],
+  );
+  useFlip(onHorizon && tidy ? tidy.trackedIds : EMPTY_IDS, {
+    zoneOf: (id) => horizonOf.get(id),
+    destinationOf: (id) => tidy?.markFor(id)?.to,
+  });
 
   // `t` belongs in these deps — see the note on ListView's identical memo.
   const groups = useMemo(
@@ -304,6 +343,9 @@ export function WallView({
     });
 
     const el = document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(noteId)}"]`);
+    // A card of a Tidy batch dropped by hand may have just started its travel in this same
+    // commit; the drop's landing is the one motion, measured from where the card really is.
+    if (el) cancelFlight(el);
     if (!el || !releaseRect || window.matchMedia('(prefers-reduced-motion: reduce)').matches)
       return;
 
@@ -417,6 +459,8 @@ export function WallView({
             captureKey={captureKey}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={onCaptureAsk}
+            ask={ask}
             visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
@@ -424,24 +468,30 @@ export function WallView({
             relatedCounts={relatedCounts}
           />
         ) : (
-          <ZoneBands
-            axis={axis}
-            groups={groups}
-            boardId={boardId}
-            capture={capture}
-            captureKey={captureKey}
-            onCaptureDone={onCaptureDone}
-            onCaptureNoteId={onCaptureNoteId}
-            visibility={visibility}
-            currentUserId={currentUserId}
-            selectedNoteId={selectedNoteId}
-            onOpenNote={onOpenNote}
-            onCreateInZone={handleCreateInZone}
-            activeDragId={activeId}
-            filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
-            pendingFor={pendingFor}
-            relatedCounts={relatedCounts}
-          />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ZoneBands
+              axis={axis}
+              groups={groups}
+              boardId={boardId}
+              capture={capture}
+              captureKey={captureKey}
+              onCaptureDone={onCaptureDone}
+              onCaptureNoteId={onCaptureNoteId}
+              onCaptureAsk={onCaptureAsk}
+              ask={ask}
+              visibility={visibility}
+              currentUserId={currentUserId}
+              selectedNoteId={selectedNoteId}
+              onOpenNote={onOpenNote}
+              onCreateInZone={handleCreateInZone}
+              activeDragId={activeId}
+              filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
+              relatedCounts={relatedCounts}
+              pendingFor={pendingFor}
+              tidyFor={onHorizon ? tidyFor : undefined}
+            />
+            {onHorizon && tidy && <TidyBar tidy={tidy} />}
+          </div>
         )}
 
         {/* The dragged card lives here rather than in its column. Both the zone body and the

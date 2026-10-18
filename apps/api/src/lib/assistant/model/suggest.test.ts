@@ -5,29 +5,11 @@ import { createGoogleVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { suggestionCallSettings } from './config.js';
 import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } from './suggest.js';
-import type { AttemptInfo, ModelRef, TurnUsage } from './types.js';
+import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
+import type { ModelRef } from './types.js';
 
-const usage = {
-  inputTokens: { total: 40, noCache: 40, cacheRead: 0, cacheWrite: 0 },
-  outputTokens: { total: 12, text: 12, reasoning: 0 },
-};
-const reply = (text: string) => ({
-  content: [{ type: 'text' as const, text }],
-  finishReason: { unified: 'stop' as const, raw: undefined },
-  usage,
-  warnings: [],
-});
 /** The fields this reply proposes nothing for. */
 const none = { title: null, reference: null, subtasks: null, links: null };
-function attempts() {
-  const seen: AttemptInfo[] = [];
-  const settled: TurnUsage[] = [];
-  const onAttempt = vi.fn(async (info: AttemptInfo) => {
-    seen.push(info);
-    return { settle: (u: TurnUsage) => void settled.push(u) };
-  });
-  return { onAttempt, seen, settled };
-}
 const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
   instructions: 'Fill in the fields.',
   prompt: 'Title: Call Müller Friday',
@@ -122,7 +104,7 @@ describe('createSuggestionRunner', () => {
     });
     // maxRetries 0: the library would otherwise call again on a retryable error.
     expect(model.doGenerateCalls).toHaveLength(1);
-    expect(a.onAttempt).toHaveBeenCalledTimes(1);
+    expect(a.seen).toHaveLength(1);
     expect(a.settled).toEqual([]);
   });
 
@@ -153,7 +135,7 @@ describe('createSuggestionRunner', () => {
     const a = attempts();
     const out = await createSuggestionRunner(model)(input(a.onAttempt));
     expect(out.usage).toBeNull();
-    expect(a.onAttempt).toHaveBeenCalledTimes(1);
+    expect(a.seen).toHaveLength(1);
     expect(a.settled).toEqual([]);
   });
 

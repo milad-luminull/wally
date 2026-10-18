@@ -15,7 +15,8 @@ const onPress = (action: () => void) => (e: KeyboardEvent) => {
 
 /**
  * One proposed field in the place it has on a normal card, in the note's own type and colour
- * (BRAND rule 3), with its reason for a screen reader and an × that removes it alone (§3.3).
+ * (BRAND rule 3), with its reason as the tooltip (none when there is no reason) and an × that
+ * removes it alone (§3.3).
  * Without `onRemove` (a kept value waiting for the refetch) it is the plain value, no ×.
  *
  * The × looks like `RemoveButton` but is a `role="button"` span, not a `<button>`: on the wall
@@ -63,7 +64,7 @@ export function ProposedField({
           aria-pressed={toggle.pressed}
           // What a press does: only while it would take the value. Pressed, the state says it.
           aria-description={toggle.pressed ? undefined : toggle.description}
-          title={t('suggest.reason', { reason })}
+          title={reason ? t('suggest.reason', { reason }) : undefined}
           onClick={toggle.onToggle}
           onKeyDown={onPress(toggle.onToggle)}
           className={cn(
@@ -75,7 +76,7 @@ export function ProposedField({
           {label}
         </span>
       ) : (
-        <span title={t('suggest.reason', { reason })}>{label}</span>
+        <span title={reason ? t('suggest.reason', { reason }) : undefined}>{label}</span>
       )}
       <span
         role="button"

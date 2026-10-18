@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -39,6 +40,7 @@ import { membersApi, notesApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { useKeyboardShortcuts } from '@/lib/shortcuts';
+import { AskCard } from '../Ask/AskCard';
 import { InlineCaptureCard } from './InlineCaptureCard';
 import { DRAFT_SAVE_MS, type CapturePlacement } from './useCapture';
 
@@ -709,5 +711,246 @@ describe('InlineCaptureCard', () => {
     expect(title).toHaveFocus();
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
+  });
+
+  describe('a question', () => {
+    function renderAsking(onAsk = vi.fn(), onDone = vi.fn()) {
+      renderWithProviders(
+        <InlineCaptureCard
+          boardId="b1"
+          placement={{ kind: 'free', x: 10, y: 20 }}
+          visibility="SHARED"
+          layout="card"
+          onDone={onDone}
+          onAsk={onAsk}
+        />,
+      );
+      return { onAsk, onDone, title: screen.getByLabelText('Title of the new note') };
+    }
+
+    it('says that Enter asks once the title ends in a question mark', async () => {
+      const { title } = renderAsking();
+      await userEvent.type(title, 'What is open today');
+      expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toBeInTheDocument();
+      await userEvent.type(title, '?');
+      expect(screen.getByText('↵ asks the wall · ⇧↵ text · Esc discard')).toBeInTheDocument();
+      expect(screen.queryByText('↵ create · ⇧↵ text · Esc discard')).not.toBeInTheDocument();
+    });
+
+    it('Enter on a question hands it over, deletes the draft note and ends the capture with no note', async () => {
+      const { onAsk, onDone, title } = renderAsking();
+      await userEvent.type(title, 'What is open today?{Enter}');
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is open today?', { takeFocus: true }),
+      );
+      await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
+      expect(onDone).toHaveBeenCalledWith(null, false, []);
+      expect(notesApi.move).not.toHaveBeenCalled();
+      expect(notesApi.assign).not.toHaveBeenCalled();
+    });
+
+    it('carries the text line with the question', async () => {
+      const { onAsk, title } = renderAsking();
+      await userEvent.type(title, 'Which are overdue?{Shift>}{Enter}{/Shift}');
+      await userEvent.type(screen.getByLabelText('Text of the new note'), 'Only mine{Enter}');
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('Which are overdue?\n\nOnly mine', {
+          takeFocus: true,
+        }),
+      );
+    });
+
+    it('a blur on a question asks it too, and the answer does not take the focus', async () => {
+      const { onAsk, title } = renderAsking();
+      await userEvent.type(title, 'What is late?');
+      await userEvent.tab();
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is late?', { takeFocus: false }),
+      );
+    });
+
+    it('without asking on, a question mark is a plain title and the hint does not change', async () => {
+      const { onDone } = renderCard();
+      const title = screen.getByLabelText('Title of the new note');
+      await userEvent.type(title, 'Call Müller?');
+      expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toBeInTheDocument();
+      await userEvent.keyboard('{Enter}');
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
+      expect(notesApi.remove).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The shell's side as plan R8 has it, with the real answer card: the answer is drawn as soon
+     * as the question is heard, the capture stays until it ends, and the answer takes the focus
+     * on mount only for a question asked with Enter, and only when the focus lies on the page.
+     */
+    function ShellStandIn({ onDone }: { onDone: () => void }) {
+      const [asked, setAsked] = useState<{ question: string; takeFocus: boolean } | null>(null);
+      const [capturing, setCapturing] = useState(true);
+      const placement = { kind: 'free', x: 10, y: 20 } as const;
+      return (
+        <>
+          {capturing && (
+            <InlineCaptureCard
+              boardId="b1"
+              placement={placement}
+              visibility="SHARED"
+              layout="card"
+              onDone={() => {
+                setCapturing(false);
+                onDone();
+              }}
+              onAsk={(question, { takeFocus }) => setAsked({ question, takeFocus })}
+            />
+          )}
+          {asked !== null && (
+            <AskCard
+              session={{
+                id: 1,
+                placement,
+                question: asked.question,
+                phase: 'asking',
+                answer: null,
+                refusal: null,
+                pinned: false,
+                paused: false,
+                takeFocus: asked.takeFocus,
+              }}
+              notes={[]}
+              layout="card"
+              onOpenNote={vi.fn()}
+              onSetPinned={vi.fn()}
+              onDismiss={vi.fn()}
+              onPause={vi.fn()}
+            />
+          )}
+          {/* Somewhere on the wall that takes no focus, as the empty canvas is. */}
+          <div data-testid="wall">wall</div>
+        </>
+      );
+    }
+
+    it('lets go of the focus before handing the question over, so the answer can take it', async () => {
+      // The draft note's create is still under way when Enter is pressed.
+      let finishCreate: (note: NoteDto) => void = () => {};
+      vi.mocked(notesApi.create).mockReturnValue(
+        new Promise<NoteDto>((resolve) => {
+          finishCreate = resolve;
+        }),
+      );
+      const onDone = vi.fn();
+      renderWithProviders(<ShellStandIn onDone={onDone} />);
+      const title = screen.getByLabelText('Title of the new note');
+      await userEvent.type(title, 'What is open today?{Enter}');
+
+      // The answer is drawn while the capture still waits for the create, and has the focus.
+      const answer = await screen.findByRole('group', { name: 'Answer from the wall' });
+      expect(answer).toHaveFocus();
+      expect(screen.getByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
+      expect(onDone).not.toHaveBeenCalled();
+
+      // The create lands, the draft note goes, the capture ends; the answer keeps the focus.
+      await act(async () => finishCreate(created({ title: 'What is open today?' })));
+      await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole('group', { name: 'Write a new note' })).not.toBeInTheDocument();
+      expect(answer).toHaveFocus();
+    });
+
+    it('a question asked by a click elsewhere leaves the focus where that click put it', async () => {
+      vi.mocked(notesApi.create).mockResolvedValue(created({ title: 'What is late?' }));
+      const onDone = vi.fn();
+      renderWithProviders(<ShellStandIn onDone={onDone} />);
+      await userEvent.type(screen.getByLabelText('Title of the new note'), 'What is late?');
+      // A click on the wall moves the focus to the page; the capture settles by its blur.
+      await userEvent.click(screen.getByTestId('wall'));
+      const answer = await screen.findByRole('group', { name: 'Answer from the wall' });
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(answer).not.toHaveFocus();
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('a question asked from the text line lets go of the focus too', async () => {
+      let focusedAtAsk: Element | null = null;
+      const onAsk = vi.fn(() => {
+        focusedAtAsk = document.activeElement;
+      });
+      const { title } = renderAsking(onAsk);
+      await userEvent.type(title, 'Which are overdue?{Shift>}{Enter}{/Shift}');
+      await userEvent.type(screen.getByLabelText('Text of the new note'), 'Only mine{Enter}');
+      await waitFor(() => expect(onAsk).toHaveBeenCalledTimes(1));
+      expect(focusedAtAsk).toBe(document.body);
+    });
+
+    it('after a blur that put the focus elsewhere, the question leaves the focus there', async () => {
+      let focusedAtAsk: Element | null = null;
+      const onAsk = vi.fn(() => {
+        focusedAtAsk = document.activeElement;
+      });
+      renderWithProviders(
+        <>
+          <InlineCaptureCard
+            boardId="b1"
+            placement={{ kind: 'free', x: 10, y: 20 }}
+            visibility="SHARED"
+            layout="card"
+            onDone={vi.fn()}
+            onAsk={onAsk}
+          />
+          <button type="button">elsewhere</button>
+        </>,
+      );
+      await userEvent.type(screen.getByLabelText('Title of the new note'), 'What is late?');
+      const elsewhere = screen.getByRole('button', { name: 'elsewhere' });
+      await userEvent.click(elsewhere);
+      await waitFor(() =>
+        expect(onAsk).toHaveBeenCalledWith('What is late?', { takeFocus: false }),
+      );
+      expect(focusedAtAsk).not.toBe(screen.getByLabelText('Title of the new note'));
+      expect(elsewhere).toHaveFocus();
+    });
+
+    it('tells a screen reader that Enter asks, once the title ends in a question mark', async () => {
+      const { title } = renderAsking();
+      const live = document.querySelector('[data-testid="capture-ask-live"]')!;
+      expect(live).toHaveAttribute('aria-live', 'polite');
+      expect(live).toHaveClass('sr-only');
+      await userEvent.type(title, 'What is open today');
+      expect(live).toHaveTextContent('');
+      await userEvent.type(title, '?');
+      expect(live).toHaveTextContent('Enter asks the wall');
+    });
+
+    it('shows no chips and marks no words while the title is a question', async () => {
+      const { title } = renderAsking();
+      await userEvent.type(title, 'urgent work for Friday');
+      expect(screen.getByRole('button', { name: 'High priority' })).toBeInTheDocument();
+      expect(screen.getAllByTestId('capture-mark')).toHaveLength(2);
+      await userEvent.type(title, ' now?');
+      expect(screen.queryByRole('button', { name: 'High priority' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Due / })).not.toBeInTheDocument();
+      expect(screen.queryAllByTestId('capture-mark')).toHaveLength(0);
+    });
+
+    it('keeps the title read-only and busy while the question settles', async () => {
+      let finishCreate: (note: NoteDto) => void = () => {};
+      vi.mocked(notesApi.create).mockReturnValue(
+        new Promise<NoteDto>((resolve) => {
+          finishCreate = resolve;
+        }),
+      );
+      const { onAsk, onDone, title } = renderAsking();
+      await userEvent.type(title, 'What is open today?{Enter}');
+      await waitFor(() => expect(onAsk).toHaveBeenCalledTimes(1));
+      expect(title).toHaveAttribute('readonly');
+      expect(title).toHaveAttribute('aria-busy', 'true');
+      await act(async () => finishCreate(created({ title: 'What is open today?' })));
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith(null, false, []));
+    });
+
+    it('caps the title at the note title length', () => {
+      renderCard();
+      expect(screen.getByLabelText('Title of the new note')).toHaveAttribute('maxlength', '200');
+    });
   });
 });

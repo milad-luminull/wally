@@ -249,6 +249,27 @@ describe('ListView', () => {
     expect(screen.getByRole('textbox', { name: 'Text of the new note' })).toHaveFocus();
   });
 
+  it('draws the answer card as the top row, above the groups', () => {
+    renderWithProviders(
+      <ListView
+        notes={notes}
+        totalNoteCount={notes.length}
+        axis="horizon"
+        currentUserId="user-1"
+        onOpenNote={vi.fn()}
+        onToggleDone={vi.fn()}
+        access={owner}
+        isBelowDesktop={false}
+        ask={{ key: 1, placement: { kind: 'list' }, card: <div data-testid="answer" /> }}
+      />,
+    );
+    const answer = screen.getByTestId('answer');
+    expect(answer.parentElement).toHaveAttribute('data-ask');
+    expect(answer.compareDocumentPosition(screen.getByText('Today note'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it('shows the mobile drag hint below desktop width', () => {
     render(
       <ListView

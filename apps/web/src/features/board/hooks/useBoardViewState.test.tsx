@@ -278,26 +278,10 @@ describe('useBoardViewState', () => {
     expect(result.current.location.search).toBe('');
   });
 
-  it('keeps the question panel and the note panel mutually exclusive in the URL', () => {
-    const { result } = setup('/boards/b1?note=n1');
-
-    act(() => result.current.view.openAsk(true));
-    expect(result.current.location.search).toBe('?ask=1');
-    expect(result.current.view.askOpen).toBe(true);
-    expect(result.current.view.noteId).toBeNull();
-    // Asking to open it again while it is open is no navigation, so Back is not doubled.
-    const openedAt = result.current.location.key;
-    act(() => result.current.view.openAsk(true));
-    expect(result.current.location.key).toBe(openedAt);
-
+  it('drops a stale ask parameter when a note opens', () => {
+    const { result } = setup('/boards/b1?ask=1');
     act(() => result.current.view.openNote('n2'));
     expect(result.current.location.search).toBe('?note=n2');
-    expect(result.current.view.askOpen).toBe(false);
-
-    const noteAt = result.current.location.key;
-    act(() => result.current.view.openAsk(false));
-    expect(result.current.location.search).toBe('?note=n2');
-    expect(result.current.location.key).toBe(noteAt);
   });
 
   it('is not customized on a default visibility', () => {

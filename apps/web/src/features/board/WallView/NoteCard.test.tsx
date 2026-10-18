@@ -5,6 +5,7 @@ import tailwindConfig from '../../../../tailwind.config';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
+import type { TidyMark } from '../Tidy/useTidy';
 import { NoteCard } from './NoteCard';
 
 /**
@@ -431,5 +432,102 @@ describe('NoteCard with a pending change', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NoteCard in a tidy batch', () => {
+  const mark = (phase: TidyMark['phase'] = 'pending'): TidyMark => ({
+    to: 'SPAETER',
+    from: 'HEUTE',
+    reason: null,
+    source: 'date',
+    phase,
+  });
+  function renderTidy(tidyMark = mark(), note = makeNote({ dueDate: '2026-10-23' })) {
+    const tidy = {
+      mark: tidyMark,
+      onKeep: vi.fn(),
+      onDiscard: vi.fn(),
+      onUndo: vi.fn(),
+      onRemove: vi.fn(),
+    };
+    render(
+      <DndContext>
+        <NoteCard
+          note={note}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          tidy={tidy}
+        />
+      </DndContext>,
+    );
+    const card = screen.getByRole('button', { name: /Approve the quote comparison/ });
+    return { ...tidy, card };
+  }
+
+  it('shows the destination with the due date as its reason, the dashed edge and the waiting dot', () => {
+    const { card } = renderTidy();
+    expect(card).toHaveClass('border-dashed');
+    expect(card).toHaveAttribute('data-tidy', 'pending');
+    const line = screen.getByText('→ Later');
+    // The suite renders in English, so the due date reads "Fri, 10/23".
+    expect(line.closest('[title]')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/^Because: Due Fri,? 10\/23$/),
+    );
+    expect(screen.getByRole('img', { name: 'To be moved, waiting for Enter' })).toBeInTheDocument();
+    expect(card.querySelector('.animate-countdown')).toBeNull();
+  });
+
+  it('a move by words shows the model’s reason', () => {
+    renderTidy({ ...mark(), reason: 'next month', source: 'words' }, makeNote({ dueDate: null }));
+    expect(screen.getByText('→ Later').closest('[title]')).toHaveAttribute(
+      'title',
+      'Because: next month',
+    );
+  });
+
+  it('a move by words without a reason has no tooltip', () => {
+    renderTidy({ ...mark(), reason: null, source: 'words' }, makeNote({ dueDate: null }));
+    expect(screen.getByText('→ Later').closest('[title]')).toBeNull();
+  });
+
+  it('Enter or Space on the × takes the note out and never keeps the batch', () => {
+    const { onRemove, onKeep } = renderTidy();
+    const x = screen.getByRole('button', { name: 'Do not move' });
+    fireEvent.keyDown(x, { key: 'Enter', code: 'Enter' });
+    fireEvent.keyDown(x, { key: ' ', code: 'Space' });
+    expect(onRemove).toHaveBeenCalledTimes(2);
+    expect(onKeep).not.toHaveBeenCalled();
+  });
+
+  it('Enter on a moved card is not the tidy’s: it reaches dnd-kit, which picks the card up', () => {
+    const { card, onKeep, onUndo } = renderTidy(mark('kept'));
+    expect(card).not.toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(card, { key: 'Enter', code: 'Enter' });
+    expect(onKeep).not.toHaveBeenCalled();
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(card).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('the × takes the note out; Enter keeps the batch; Esc discards it', () => {
+    const { card, onRemove, onKeep, onDiscard } = renderTidy();
+    fireEvent.click(screen.getByRole('button', { name: 'Do not move' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(card, { key: 'Enter' });
+    expect(onKeep).toHaveBeenCalledWith('enter');
+    fireEvent.keyDown(card, { key: 'Escape' });
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it('once moved, the edge is plain, Undo sits where the dot was and Esc undoes', () => {
+    const { card, onUndo } = renderTidy(mark('kept'));
+    expect(card).not.toHaveClass('border-dashed');
+    expect(screen.queryByText('→ Later')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
+    expect(onUndo).toHaveBeenCalledWith('click');
+    fireEvent.keyDown(card, { key: 'Escape' });
+    expect(onUndo).toHaveBeenCalledWith('esc');
   });
 });
