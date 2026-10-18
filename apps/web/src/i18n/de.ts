@@ -447,6 +447,9 @@ export const de = {
     descriptionAria: 'Text der neuen Notiz',
     hint: '↵ anlegen · ⇧↵ Text · Esc verwerfen',
     hintCoarse: 'Enter legt die Notiz an',
+    /** While the title ends in a question mark: Enter asks instead of writing a note (§3.6). */
+    hintAsk: '↵ fragt die Wand · Esc verwerfen',
+    hintAskCoarse: 'Enter fragt die Wand',
     chips: {
       due: 'Fällig {{date}}',
       assignee: 'Zuständig: {{name}}',

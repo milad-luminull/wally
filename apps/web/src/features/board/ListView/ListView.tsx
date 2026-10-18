@@ -68,6 +68,8 @@ interface ListViewProps {
     onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
     /** Hears each id the note is shown under, so the list leaves it to its row. */
     onNoteId?: (noteId: string) => void;
+    /** Hears a question typed into the row; absent when the board's assistant is off. */
+    onAsk?: (question: string) => void;
   } | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
@@ -119,6 +121,7 @@ export function ListView({
         layout="row"
         onDone={capture.onDone}
         onNoteId={capture.onNoteId}
+        onAsk={capture.onAsk}
       />
     </div>
   );

@@ -72,6 +72,7 @@ export function useCaptureSession({
   openNoteId,
   openNote,
   onCommitted,
+  onAsked,
 }: {
   boardId: string;
   view: BoardView;
@@ -80,6 +81,8 @@ export function useCaptureSession({
   openNote: (noteId: string | null) => void;
   /** Hears each committed note with the fields the person decided in it (the shell asks Wallybot). */
   onCommitted?: (noteId: string, locked: SuggestionFieldKey[]) => void;
+  /** Hears a question typed into the card, with the place it was written (§3.6); the shell answers there. */
+  onAsked?: (question: string, placement: CapturePlacement) => void;
 }) {
   const [session, setSession] = useState<Session | null>(null);
   const nextId = useRef(1);
@@ -89,6 +92,8 @@ export function useCaptureSession({
   latestOpenNote.current = openNote;
   const latestOnCommitted = useRef(onCommitted);
   latestOnCommitted.current = onCommitted;
+  const latestOnAsked = useRef(onAsked);
+  latestOnAsked.current = onAsked;
   // The note just committed, focused once the board has drawn its card in the card's place.
   const committed = useRef<string | null>(null);
 
@@ -144,6 +149,13 @@ export function useCaptureSession({
     },
     [shownId],
   );
+  const shownPlacement = shown?.placement;
+  const onCaptureAsk = useCallback(
+    (question: string) => {
+      if (shownPlacement) latestOnAsked.current?.(question, shownPlacement);
+    },
+    [shownPlacement],
+  );
 
   const hidden = shown?.noteIds ?? NO_NOTES;
   const withoutCapturing = useCallback(
@@ -154,14 +166,23 @@ export function useCaptureSession({
   return useMemo(
     () => ({
       /** Where the open capture is drawn; null when none is, or the board cannot show it. */
-      capture: shown?.placement ?? null,
+      capture: shownPlacement ?? null,
       /** Changes with every capture, so each one gets a fresh card. */
       captureKey: shownId,
       startCapture,
       onCaptureDone,
       onCaptureNoteId,
+      onCaptureAsk,
       withoutCapturing,
     }),
-    [onCaptureDone, onCaptureNoteId, shown?.placement, shownId, startCapture, withoutCapturing],
+    [
+      onCaptureAsk,
+      onCaptureDone,
+      onCaptureNoteId,
+      shownPlacement,
+      shownId,
+      startCapture,
+      withoutCapturing,
+    ],
   );
 }

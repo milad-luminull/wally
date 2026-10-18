@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 
@@ -421,5 +421,30 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
 
     await settle(release);
     expect(screen.getByRole('group', { name: 'Write a new note' })).toBe(card);
+  });
+});
+
+describe('useCaptureSession asking', () => {
+  it('hands a question to onAsked with the placement of the capture it was typed in', () => {
+    const onAsked = vi.fn();
+    const { result } = renderHook(() =>
+      useCaptureSession({
+        boardId: BOARD,
+        view: 'wand',
+        axis: 'free',
+        openNoteId: null,
+        openNote: vi.fn(),
+        onAsked,
+      }),
+    );
+    act(() => result.current.startCapture({ kind: 'free', x: 40, y: 60 }));
+    act(() => result.current.onCaptureAsk('What is open?'));
+    expect(onAsked).toHaveBeenCalledWith('What is open?', { kind: 'free', x: 40, y: 60 });
+
+    // The capture then ends with no note, as a discarded one does; nothing else is heard.
+    act(() => result.current.onCaptureDone(null, false, []));
+    expect(result.current.capture).toBeNull();
+    act(() => result.current.onCaptureAsk('Late?'));
+    expect(onAsked).toHaveBeenCalledTimes(1);
   });
 });

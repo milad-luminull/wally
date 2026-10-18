@@ -37,6 +37,8 @@ interface WallCanvasProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: (question: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
@@ -83,6 +85,7 @@ export function WallCanvas({
   captureKey,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
   visibility,
   canEditShared,
   filtered,
@@ -149,6 +152,7 @@ export function WallCanvas({
                 layout="card"
                 onDone={onCaptureDone}
                 onNoteId={onCaptureNoteId}
+                onAsk={onCaptureAsk}
               />
             </div>
           )}

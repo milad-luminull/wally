@@ -12,11 +12,12 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
-import { suggestionFieldKeys } from '@wally/shared';
+import { NOTE_TITLE_MAX_LENGTH, suggestionFieldKeys } from '@wally/shared';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
 import { parseCapture, type CaptureParse } from '@/lib/capture/parseCapture';
+import { isQuestion, questionOf } from '@/lib/capture/question';
 import { useActiveMembers } from '../hooks/useMembers';
 import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
@@ -122,6 +123,7 @@ export function InlineCaptureCard({
   layout,
   onDone,
   onNoteId,
+  onAsk,
 }: {
   boardId: string;
   placement: CapturePlacement;
@@ -137,6 +139,12 @@ export function InlineCaptureCard({
    * before the board shows it, so the board can leave that note to this card until it is done.
    */
   onNoteId?: (id: string) => void;
+  /**
+   * Set when the board's assistant is on: a title ending in `?` is a question for the wall
+   * (WALLYBOT_INLINE.md §3.6, plan R1). The card hands the question over, deletes the draft
+   * note and ends the capture with no note (R2). Without it a `?` is a plain title.
+   */
+  onAsk?: (question: string) => void;
 }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -221,6 +229,15 @@ export function InlineCaptureCard({
   async function commit(thenOpen: boolean) {
     const trimmed = title.trim();
     if (!hasWords || settling.current) return;
+    const question = onAsk ? questionOf(trimmed, description) : null;
+    if (onAsk && question) {
+      settling.current = true;
+      // The answer is not a note (BRAND AI rule 6): the shell draws it where this card stood,
+      // and the words typed so far go the way a discarded capture's do (plan R2).
+      onAsk(question);
+      await controller.cancel();
+      return;
+    }
     settling.current = true;
     try {
       await controller.commit(
@@ -307,6 +324,7 @@ export function InlineCaptureCard({
     setChips((s) => ({ ...s, kept: { ...s.kept, [kind]: !s.kept[kind] } }));
   const drop = (kind: ChipKind) =>
     setChips((s) => ({ ...s, dropped: { ...s.dropped, [kind]: true } }));
+  const asking = onAsk !== undefined && isQuestion(title);
 
   return (
     <div
@@ -339,6 +357,7 @@ export function InlineCaptureCard({
         aria-label={t('capture.titleAria')}
         aria-describedby={hintId}
         placeholder={t('note.titlePlaceholder')}
+        maxLength={NOTE_TITLE_MAX_LENGTH}
         // Read-only rather than disabled while committing: a disabled field loses focus, and
         // whether that fires blur differs by browser; read-only keeps the caret where it was.
         readOnly={controller.state === 'committing'}
@@ -367,10 +386,10 @@ export function InlineCaptureCard({
         />
       )}
       <p id={hintId} className="font-mono text-12 text-fg-faint [@media(pointer:coarse)]:hidden">
-        {t('capture.hint')}
+        {t(asking ? 'capture.hintAsk' : 'capture.hint')}
       </p>
       <p className="hidden text-12 text-fg-faint [@media(pointer:coarse)]:block">
-        {t('capture.hintCoarse')}
+        {t(asking ? 'capture.hintAskCoarse' : 'capture.hintCoarse')}
       </p>
     </div>
   );

@@ -68,6 +68,8 @@ interface WallViewProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: (question: string) => void;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
@@ -100,6 +102,7 @@ export function WallView({
   onCapture,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
   visibility,
   pendingFor,
 }: WallViewProps) {
@@ -414,6 +417,7 @@ export function WallView({
             captureKey={captureKey}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={onCaptureAsk}
             visibility={visibility}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
@@ -428,6 +432,7 @@ export function WallView({
             captureKey={captureKey}
             onCaptureDone={onCaptureDone}
             onCaptureNoteId={onCaptureNoteId}
+            onCaptureAsk={onCaptureAsk}
             visibility={visibility}
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}

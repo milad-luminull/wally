@@ -23,6 +23,7 @@ interface ZoneCapture {
   visibility: NoteVisibility;
   onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
+  onAsk: ((question: string) => void) | undefined;
 }
 
 interface ZoneBandProps {
@@ -118,6 +119,7 @@ function ZoneBand({
                 layout="card"
                 onDone={capture.onDone}
                 onNoteId={capture.onNoteId}
+                onAsk={capture.onAsk}
               />
             </div>
           )}
@@ -165,6 +167,8 @@ interface ZoneBandsProps {
   onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   /** Hears each id the note being written is shown under, so the board leaves it to its card. */
   onCaptureNoteId?: (noteId: string) => void;
+  /** Hears a question typed into the card; absent when the board's assistant is off. */
+  onCaptureAsk?: (question: string) => void;
   visibility: NoteVisibility;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
@@ -186,6 +190,7 @@ export function ZoneBands({
   captureKey,
   onCaptureDone,
   onCaptureNoteId,
+  onCaptureAsk,
   visibility,
   ...rest
 }: ZoneBandsProps) {
@@ -215,6 +220,7 @@ export function ZoneBands({
                   visibility,
                   onDone: onCaptureDone,
                   onNoteId: onCaptureNoteId,
+                  onAsk: onCaptureAsk,
                 }
               : null
           }

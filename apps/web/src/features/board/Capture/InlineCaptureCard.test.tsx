@@ -710,4 +710,68 @@ describe('InlineCaptureCard', () => {
     await user.keyboard('{Enter}');
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
   });
+
+  describe('a question', () => {
+    function renderAsking(onAsk = vi.fn(), onDone = vi.fn()) {
+      renderWithProviders(
+        <InlineCaptureCard
+          boardId="b1"
+          placement={{ kind: 'free', x: 10, y: 20 }}
+          visibility="SHARED"
+          layout="card"
+          onDone={onDone}
+          onAsk={onAsk}
+        />,
+      );
+      return { onAsk, onDone, title: screen.getByLabelText('Title of the new note') };
+    }
+
+    it('says that Enter asks once the title ends in a question mark', async () => {
+      const { title } = renderAsking();
+      await userEvent.type(title, 'What is open today');
+      expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toBeInTheDocument();
+      await userEvent.type(title, '?');
+      expect(screen.getByText('↵ asks the wall · Esc discard')).toBeInTheDocument();
+      expect(screen.queryByText('↵ create · ⇧↵ text · Esc discard')).not.toBeInTheDocument();
+    });
+
+    it('Enter on a question hands it over, deletes the draft note and ends the capture with no note', async () => {
+      const { onAsk, onDone, title } = renderAsking();
+      await userEvent.type(title, 'What is open today?{Enter}');
+      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('What is open today?'));
+      await waitFor(() => expect(notesApi.remove).toHaveBeenCalledWith('n-new', expect.anything()));
+      expect(onDone).toHaveBeenCalledWith(null, false, []);
+      expect(notesApi.move).not.toHaveBeenCalled();
+      expect(notesApi.assign).not.toHaveBeenCalled();
+    });
+
+    it('carries the text line with the question', async () => {
+      const { onAsk, title } = renderAsking();
+      await userEvent.type(title, 'Which are overdue?{Shift>}{Enter}{/Shift}');
+      await userEvent.type(screen.getByLabelText('Text of the new note'), 'Only mine{Enter}');
+      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('Which are overdue?\n\nOnly mine'));
+    });
+
+    it('a blur on a question asks it too', async () => {
+      const { onAsk, title } = renderAsking();
+      await userEvent.type(title, 'What is late?');
+      await userEvent.tab();
+      await waitFor(() => expect(onAsk).toHaveBeenCalledWith('What is late?'));
+    });
+
+    it('without asking on, a question mark is a plain title and the hint does not change', async () => {
+      const { onDone } = renderCard();
+      const title = screen.getByLabelText('Title of the new note');
+      await userEvent.type(title, 'Call Müller?');
+      expect(screen.getByText('↵ create · ⇧↵ text · Esc discard')).toBeInTheDocument();
+      await userEvent.keyboard('{Enter}');
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, []));
+      expect(notesApi.remove).not.toHaveBeenCalled();
+    });
+
+    it('caps the title at the note title length', () => {
+      renderCard();
+      expect(screen.getByLabelText('Title of the new note')).toHaveAttribute('maxlength', '200');
+    });
+  });
 });
