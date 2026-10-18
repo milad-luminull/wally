@@ -156,6 +156,7 @@ export function InlineCaptureCard({
   const [chips, setChips] = useState<ChipState>(() => initialChips(placement));
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   // Set once a commit or cancel is under way, so Enter, Esc and blur settle the capture once.
   const settling = useRef(false);
   const hintId = useId();
@@ -232,6 +233,12 @@ export function InlineCaptureCard({
     const question = onAsk ? questionOf(trimmed, description) : null;
     if (onAsk && question) {
       settling.current = true;
+      // The answer card takes the focus on mount only from the page (plan R8), and it mounts
+      // while this card still waits for its draft note's create to delete it. So the card lets
+      // go of the focus first; the blur this fires settles nothing, as the capture is settling.
+      // After a blur that already took the focus elsewhere, the focus stays where it went.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && rootRef.current?.contains(active)) active.blur();
       // The answer is not a note (BRAND AI rule 6): the shell draws it where this card stood,
       // and the words typed so far go the way a discarded capture's do (plan R2).
       onAsk(question);
@@ -328,6 +335,7 @@ export function InlineCaptureCard({
 
   return (
     <div
+      ref={rootRef}
       role="group"
       aria-label={t('capture.cardAria')}
       data-layout={layout}
