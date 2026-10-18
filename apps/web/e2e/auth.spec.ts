@@ -32,7 +32,12 @@ test('signed-in visitors still see the public root and can return to their board
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Mehr Platz im Kopf.' })).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
-  await page.getByRole('link', { name: 'Anmelden', exact: true }).click();
+  const openWally = page
+    .getByRole('banner')
+    .getByRole('link', { name: 'Wally öffnen', exact: true });
+  await expect(openWally).toHaveAttribute('href', '/boards');
+  await expect(page.getByRole('link', { name: 'Anmelden', exact: true })).toHaveCount(0);
+  await openWally.click();
   await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
