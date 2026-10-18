@@ -10,6 +10,7 @@ import { useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
 import { captureNoteMutation } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
+import { nextFreeNotePosition } from '../util/notePlacement';
 
 export type CapturePlacement =
   | { kind: 'free'; x: number; y: number }
@@ -68,16 +69,19 @@ export interface CaptureController {
 /** How long typing must pause before the words so far are saved. */
 export const DRAFT_SAVE_MS = 500;
 
-function placementInput(placement: CapturePlacement): Partial<NoteCreateInput> {
+function placementInput(placement: CapturePlacement, notes: NoteDto[]): Partial<NoteCreateInput> {
   switch (placement.kind) {
     case 'free':
       return { freeX: placement.x, freeY: placement.y };
     case 'zone':
       return placement.axis === 'horizon'
-        ? { ...placement.at, horizon: placement.key as NoteCreateInput['horizon'] }
-        : { ...placement.at, priority: placement.key as NoteCreateInput['priority'] };
+        ? { ...nextFreeNotePosition(notes), horizon: placement.key as NoteCreateInput['horizon'] }
+        : {
+            ...nextFreeNotePosition(notes),
+            priority: placement.key as NoteCreateInput['priority'],
+          };
     case 'list':
-      return {};
+      return nextFreeNotePosition(notes);
   }
 }
 
@@ -130,6 +134,8 @@ export function useCapture(
   },
 ): CaptureController {
   const { onDone, onNoteId } = callbacks;
+  const queryClient = useQueryClient();
+  const keys = useQueryKeys();
   const { mutateAsync: createNote } = useCreateNote(boardId, { onNoteId });
   const { mutateAsync: updateNote } = useUpdateNote(boardId);
   const { mutateAsync: moveNote } = useMoveNote(boardId);
@@ -147,7 +153,10 @@ export function useCapture(
   const startCreation = useCallback(
     (draft: { title: string; description: string }) => {
       setState('creating');
-      const pending = createNote({ ...placementInput(placement), ...draft, visibility });
+      // Read the full cache at creation time: view filters and a stale capture position
+      // must not reserve the same free-wall slot as another note.
+      const notes = queryClient.getQueryData<NoteDto[]>(keys.notes(boardId)) ?? [];
+      const pending = createNote({ ...placementInput(placement, notes), ...draft, visibility });
       creation.current = pending;
       savedDraft.current = draft;
       // Only the create's own state is reset: a commit (or its retry) started meanwhile owns
@@ -166,7 +175,7 @@ export function useCapture(
       );
       return pending;
     },
-    [createNote, placement, visibility],
+    [boardId, createNote, keys, placement, queryClient, visibility],
   );
 
   const onFirstKeystroke = useCallback<CaptureController['onFirstKeystroke']>(

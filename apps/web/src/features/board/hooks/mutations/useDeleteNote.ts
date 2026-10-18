@@ -19,6 +19,13 @@ export function useDeleteNote(boardId: string) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
   const notesKey = keys.notes(boardId);
+  const pendingKey = keys.pendingNoteDeletes(boardId);
+  const clearPending = useCallback(
+    (noteId: string) => {
+      queryClient.setQueryData<string[]>(pendingKey, (ids) => ids?.filter((id) => id !== noteId));
+    },
+    [pendingKey, queryClient],
+  );
 
   const mutation = useMutation({
     mutationFn: ({ noteId, ticket }: { noteId: string; ticket: MutationTicket }) =>
@@ -26,16 +33,28 @@ export function useDeleteNote(boardId: string) {
     onSuccess: (_data, { noteId }) =>
       queryClient.removeQueries({ queryKey: keys.noteDetail(noteId) }),
     // On failure the refetch brings the note back; the global handler says why.
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: notesKey }),
+    onSettled: async (_data, _error, { noteId, ticket }) => {
+      // Keep every other Undo window hidden while this delete refreshes the list.
+      await queryClient.invalidateQueries({ queryKey: notesKey });
+      if (!isCurrentSession(ticket.generation)) return;
+      if (!_error) {
+        queryClient.setQueryData<NoteDto[]>(notesKey, (notes) =>
+          notes?.filter((n) => n.id !== noteId),
+        );
+      }
+      clearPending(noteId);
+    },
   });
   const { mutate } = mutation;
 
   const deleteNote = useCallback(
     (noteId: string) => {
+      if (queryClient.getQueryData<string[]>(pendingKey)?.includes(noteId)) return;
       // The list-shaped copy, so Undo puts back exactly what the board renders from.
       const note = queryClient.getQueryData<NoteDto[]>(notesKey)?.find((n) => n.id === noteId);
       if (!note) return;
       const ticket = captureMutation(`note:${noteId}`, { revision: note.revision, pinned: true });
+      queryClient.setQueryData<string[]>(pendingKey, (ids) => [...(ids ?? []), noteId]);
       void queryClient.cancelQueries({ queryKey: notesKey });
       queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
         prev?.filter((n) => n.id !== note.id),
@@ -46,17 +65,20 @@ export function useDeleteNote(boardId: string) {
         values: { title: note.title },
         action: {
           label: 'toast.undo',
-          onClick: () =>
+          onClick: () => {
+            if (!isCurrentSession(ticket.generation)) return;
             queryClient.setQueryData<NoteDto[]>(notesKey, (prev) =>
               prev && !prev.some((n) => n.id === note.id) ? [...prev, note] : prev,
-            ),
+            );
+            clearPending(note.id);
+          },
         },
         onExpire: () => {
           if (isCurrentSession(ticket.generation)) mutate({ noteId: note.id, ticket });
         },
       });
     },
-    [mutate, notesKey, queryClient],
+    [clearPending, mutate, notesKey, pendingKey, queryClient],
   );
 
   return { deleteNote, isPending: mutation.isPending };

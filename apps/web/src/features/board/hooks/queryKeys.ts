@@ -20,6 +20,9 @@ export function scopedQueryKeys(uid: string | null) {
     profile: () => [...root, 'me', 'profile'] as const,
     board: (boardId: string) => [...root, 'boards', boardId] as const,
     notes: (boardId: string) => [...root, 'boards', boardId, 'notes'] as const,
+    /** Local undo windows, kept separately from server note-list refreshes. */
+    pendingNoteDeletes: (boardId: string) =>
+      [...root, 'boards', boardId, 'pending-deletes'] as const,
     /** One note's full detail (subtasks[], history[]) — see hooks/mutations/shared.ts. */
     noteDetail: (noteId: string) => [...root, 'notes', noteId] as const,
     members: (boardId: string) => [...root, 'boards', boardId, 'members'] as const,
