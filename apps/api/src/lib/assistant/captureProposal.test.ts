@@ -3,6 +3,7 @@ import type { ModelSuggestion } from './model/index.js';
 import {
   acceptCapture,
   buildCaptureCall,
+  captureCandidates,
   type CaptureBoardNote,
   type CaptureContext,
   type CaptureNote,
@@ -80,6 +81,9 @@ describe('buildCaptureCall', () => {
       customFields: { Customer: 'Acme' },
       subtaskSummary: { total: 1, done: 0 },
       links: ['n-2'],
+      horizon: 'DIESE_WOCHE',
+      tags: ['sales'],
+      description: 'Already written.',
     });
     expect(buildCaptureCall(full, [], { ...ctx, locked: ['title'] })).toBeNull();
   });
@@ -205,5 +209,140 @@ describe('the board context a capture sends', () => {
     expect(prompt).toContain('Customer\n  - Initech\n  - Globex\n  - Northwind\n');
     expect(prompt).toContain('Tags on this board:\nsales\n');
     expect(prompt.match(/^sales$/gim)).toHaveLength(1);
+  });
+});
+
+describe('which new fields a capture may propose', () => {
+  const opened = (n: CaptureNote, c: Partial<CaptureContext> = {}) =>
+    captureCandidates(n, { ...ctx, ...c });
+
+  it('opens each new field only while the note holds nothing there', () => {
+    expect(opened(note())).toEqual(
+      expect.arrayContaining(['horizon', 'visibility', 'tags', 'properties', 'description']),
+    );
+    expect(opened(note())).not.toContain('reference');
+    const filled = note({
+      horizon: 'DIESE_WOCHE',
+      visibility: 'PRIVATE',
+      tags: ['sales'],
+      customFields: { Customer: 'Acme' },
+      description: 'Already written.',
+    });
+    for (const key of ['horizon', 'visibility', 'tags', 'properties', 'description'] as const)
+      expect(opened(filled), key).not.toContain(key);
+    expect(
+      opened(note(), { locked: ['horizon', 'tags', 'properties', 'description'] }),
+    ).not.toEqual(expect.arrayContaining(['horizon']));
+  });
+
+  it('never opens visibility for a viewer, on a board with no other member, on a note with an assignee, or when visibility or assignee is locked', () => {
+    expect(opened(note(), { canChangeVisibility: false })).not.toContain('visibility');
+    expect(opened(note(), { members: [{ id: me.id, name: 'Me' }] })).not.toContain('visibility');
+    expect(opened(note({ assignee: me }))).not.toContain('visibility');
+    expect(opened(note(), { locked: ['visibility'] })).not.toContain('visibility');
+    expect(opened(note(), { locked: ['assignee'] })).not.toContain('visibility');
+    const someoneElses = note({
+      createdBy: { id: 'u-anna', email: 'a@example.com', displayName: 'Anna' },
+    });
+    expect(opened(someoneElses)).not.toContain('visibility');
+  });
+});
+
+describe('the rules applied to an answer', () => {
+  const board = [
+    boardNote({
+      id: 'b-1',
+      tags: ['Sales'],
+      customFields: { Customer: 'Acme', 'Contract number': '1' },
+    }),
+  ];
+  const accept = (
+    fields: Partial<ModelSuggestion>,
+    n: CaptureNote = note(),
+    c: CaptureContext = ctx,
+  ) => acceptCapture({ ...none, ...fields }, buildCaptureCall(n, board, c)!, n, c);
+  const sure = { confidence: 0.9, reason: 'r' };
+
+  it('PRIVATE drops the assignee proposal', () => {
+    const fields = accept({
+      visibility: { value: 'PRIVATE', ...sure },
+      assignee: { memberId: 'u-anna', ...sure },
+    });
+    expect(fields?.visibility?.value).toBe('PRIVATE');
+    expect(fields?.assignee).toBeNull();
+  });
+
+  it('a horizon that disagrees with the proposed date is dropped', () => {
+    // Today is Monday 2026-10-19; the week ends on Sunday the 25th.
+    const today = accept({
+      dueDate: { value: '2026-10-19', ...sure },
+      horizon: { value: 'DIESE_WOCHE', ...sure },
+    });
+    expect(today?.horizon).toBeNull();
+    const later = accept({
+      dueDate: { value: '2026-10-29', ...sure },
+      horizon: { value: 'DIESE_WOCHE', ...sure },
+    });
+    expect(later?.horizon).toBeNull();
+    const agrees = accept({
+      dueDate: { value: '2026-10-29', ...sure },
+      horizon: { value: 'SPAETER', ...sure },
+    });
+    expect(agrees?.horizon?.value).toBe('SPAETER');
+    // A date the person typed counts the same way.
+    const typed = accept(
+      { horizon: { value: 'SPAETER', ...sure } },
+      note({ dueDate: '2026-10-21' }),
+    );
+    expect(typed).toBeNull();
+  });
+
+  it('a description without a title is dropped', () => {
+    expect(accept({ description: { value: 'Detail.', ...sure } })).toBeNull();
+    const both = accept({
+      title: { value: 'Send the offer', ...sure },
+      description: { value: 'Detail.', ...sure },
+    });
+    expect(both?.description?.value).toBe('Detail.');
+  });
+
+  it("properties fold to the board's keys and drop a bad key or value per item", () => {
+    const fields = accept({
+      properties: {
+        items: [
+          { key: 'customer', value: 'Acme' },
+          { key: 'Cust.omer', value: 'bad key' },
+          { key: 'CONTRACT NUMBER', value: '4711' },
+        ],
+        ...sure,
+      },
+    });
+    expect(fields?.properties?.items).toEqual([
+      { key: 'Customer', value: 'Acme' },
+      { key: 'Contract number', value: '4711' },
+    ]);
+    expect(fields?.reference).toBeNull();
+  });
+
+  it("tags reuse the board's spelling by fold", () => {
+    const fields = accept({ tags: { items: ['sales', 'travel'], ...sure } });
+    expect(fields?.tags?.items).toEqual(['Sales', 'travel']);
+  });
+
+  it('a property or tag item past three is dropped', () => {
+    const fields = accept({
+      tags: { items: ['a', 'b', 'c', 'd'], ...sure },
+      properties: {
+        items: [
+          { key: 'A', value: '1' },
+          { key: 'B', value: '2' },
+          { key: 'C', value: '3' },
+          { key: 'D', value: '4' },
+        ],
+        ...sure,
+      },
+    });
+    expect(fields?.tags?.items).toHaveLength(3);
+    expect(fields?.properties?.items).toHaveLength(3);
   });
 });

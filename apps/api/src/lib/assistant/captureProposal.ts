@@ -1,6 +1,10 @@
 import type { Language, NoteDetailDto, NoteDto, SuggestionFieldKey } from '@wally/shared';
 import {
   SUGGESTION_MAX_LINKS,
+  SUGGESTION_MAX_PROPERTIES,
+  SUGGESTION_MAX_TAGS,
+  TAG_MAX_LENGTH,
+  horizonForDueDate,
   customFieldKeySchema,
   customFieldValueSchema,
   foldFieldKey,
@@ -75,6 +79,8 @@ export interface CaptureCall {
   others: Map<string, string>;
   /** The board's property keys the model was shown: what a property's key folds to. */
   fieldKeys: string[];
+  /** The board's tags the model was shown: what a proposed tag's spelling folds to. */
+  tags: string[];
 }
 
 /** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
@@ -84,23 +90,40 @@ export const SUGGESTION_MIN_SUBTASKS = 2;
 
 /**
  * Which fields may be proposed for this note: an empty one the person did not decide while
- * writing (plan R3), a cleaner title beside a title they wrote, a reference or steps only on a
- * note that has no property and no step yet (R7), and links only on a note with none (L3).
+ * writing (plan R3), a cleaner title and its description beside a title they wrote, properties,
+ * tags or steps only on a note that has none yet (R7), links only on a note with none (L3), a
+ * horizon only from Today, and Private only on the writer's own shared, unassigned note on a
+ * board someone else can see, when the writer may change who sees it.
  */
 export function captureCandidates(
   note: CaptureNote,
-  locked: SuggestionFieldKey[],
+  ctx: Pick<CaptureContext, 'locked' | 'actorId' | 'members' | 'canChangeVisibility'>,
 ): SuggestionFieldKey[] {
+  const { locked } = ctx;
+  const free = (key: SuggestionFieldKey) => !locked.includes(key);
   const open: SuggestionFieldKey[] = [];
-  if (note.dueDate === null && !locked.includes('dueDate')) open.push('dueDate');
-  if (note.priority === 'MITTEL' && !locked.includes('priority')) open.push('priority');
-  if (note.assignee === null && note.visibility !== 'PRIVATE' && !locked.includes('assignee'))
+  if (note.dueDate === null && free('dueDate')) open.push('dueDate');
+  if (note.priority === 'MITTEL' && free('priority')) open.push('priority');
+  if (note.assignee === null && note.visibility !== 'PRIVATE' && free('assignee'))
     open.push('assignee');
-  if (note.title.trim() && !locked.includes('title')) open.push('title');
-  if (Object.keys(note.customFields ?? {}).length === 0 && !locked.includes('reference'))
-    open.push('reference');
-  if (note.subtaskSummary.total === 0 && !locked.includes('subtasks')) open.push('subtasks');
-  if ((note.links ?? []).length === 0 && !locked.includes('links')) open.push('links');
+  if (note.title.trim() && free('title')) open.push('title');
+  if (note.subtaskSummary.total === 0 && free('subtasks')) open.push('subtasks');
+  if ((note.links ?? []).length === 0 && free('links')) open.push('links');
+  if (note.horizon === 'HEUTE' && free('horizon')) open.push('horizon');
+  if (
+    note.visibility === 'SHARED' &&
+    note.createdBy?.id === ctx.actorId &&
+    ctx.canChangeVisibility &&
+    ctx.members.some((m) => m.id !== ctx.actorId) &&
+    note.assignee === null &&
+    free('visibility') &&
+    free('assignee')
+  )
+    open.push('visibility');
+  if ((note.tags ?? []).length === 0 && free('tags')) open.push('tags');
+  if (Object.keys(note.customFields ?? {}).length === 0 && free('properties'))
+    open.push('properties');
+  if (!note.description.trim() && free('description')) open.push('description');
   return open;
 }
 
@@ -212,11 +235,12 @@ export function buildCaptureCall(
   boardNotes: CaptureBoardNote[],
   ctx: CaptureContext,
 ): CaptureCall | null {
-  const open = captureCandidates(note, ctx.locked);
+  const open = captureCandidates(note, ctx);
   if (open.length === 0) return null;
   // Keys, values, tags and habits come from the notes this note may draw on (a shared note:
   // shared notes only). A key in use there is one a property should reuse.
   const context = captureContextNotes(note, boardNotes);
+  const tags = collectTags(context, ctx.language);
   // Keys only when a property may be proposed: otherwise they are noise the call pays for.
   const keys =
     open.includes('reference') || open.includes('properties')
@@ -248,12 +272,13 @@ export function buildCaptureCall(
       description: note.description,
       members: ctx.members,
       fieldKeys: keys,
-      tags: collectTags(context, ctx.language),
+      tags,
       recent: recentRows(note, context, ctx.actorId),
       notes: otherNotes,
     }),
     others: new Map(otherNotes.map((n) => [n.id, n.title])),
     fieldKeys: keys.map((k) => k.key),
+    tags,
   };
 }
 
@@ -299,17 +324,8 @@ export function acceptCapture(
       fields.title.value.trim() !== note.title.trim()
         ? { value: fields.title.value.trim(), reason: fields.title.reason }
         : null,
-    // Until several properties can be kept, the first one proposed is the note's reference.
-    reference:
-      open.includes('reference') &&
-      fields.properties &&
-      fields.properties.items[0] &&
-      sure(fields.properties.confidence)
-        ? acceptReference(
-            { ...fields.properties.items[0], reason: fields.properties.reason },
-            call.fieldKeys,
-          )
-        : null,
+    // A record of this release never proposes the single reference; properties replace it.
+    reference: null,
     subtasks:
       open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
         ? acceptSubtasks(fields.subtasks)
@@ -319,24 +335,82 @@ export function acceptCapture(
         ? acceptLinks(fields.links, call.others)
         : null,
   };
+  const typedOrProposed = accepted.dueDate?.value ?? note.dueDate;
+  accepted.horizon =
+    open.includes('horizon') &&
+    fields.horizon &&
+    sure(fields.horizon.confidence) &&
+    // A horizon must agree with the date, proposed or typed (`horizonForDueDate`, as Tidy files).
+    (typedOrProposed === null ||
+      horizonForDueDate(typedOrProposed, ctx.today) === fields.horizon.value)
+      ? { value: fields.horizon.value, reason: fields.horizon.reason }
+      : null;
+  accepted.visibility =
+    open.includes('visibility') && fields.visibility && sure(fields.visibility.confidence)
+      ? { value: 'PRIVATE', reason: fields.visibility.reason }
+      : null;
+  // A private note is always its author's: a person beside Private is never proposed.
+  if (accepted.visibility) accepted.assignee = null;
+  accepted.tags =
+    open.includes('tags') && fields.tags && sure(fields.tags.confidence)
+      ? acceptTags(fields.tags, call.tags)
+      : null;
+  accepted.properties =
+    open.includes('properties') && fields.properties && sure(fields.properties.confidence)
+      ? acceptProperties(fields.properties, call.fieldKeys)
+      : null;
+  // The detail of a long title goes with a shorter title, never alone (it is taken with it).
+  accepted.description =
+    open.includes('description') &&
+    accepted.title &&
+    fields.description &&
+    sure(fields.description.confidence)
+      ? { value: fields.description.value, reason: fields.description.reason }
+      : null;
   return Object.values(accepted).some((value) => (value ?? null) !== null) ? accepted : null;
 }
 
+/** Each tag in the board's spelling when it has one, valid for a note, once, at most three. */
+function acceptTags(
+  tags: NonNullable<ModelSuggestion['tags']>,
+  boardTags: string[],
+): NonNullable<AssistantSuggestionDoc['fields']['tags']> | null {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const raw of tags.items) {
+    const folded = foldFieldKey(raw);
+    const tag = (boardTags.find((t) => foldFieldKey(t) === folded) ?? raw).trim();
+    if (!tag || tag.length > TAG_MAX_LENGTH || seen.has(folded)) continue;
+    seen.add(folded);
+    items.push(tag);
+  }
+  const kept = items.slice(0, SUGGESTION_MAX_TAGS);
+  return kept.length ? { items: kept, reason: tags.reason } : null;
+}
+
 /**
- * The key folds to the board's own spelling when the board already uses it ("customer" becomes
- * "Customer"), so a keep never starts a near-duplicate property. A key or value the property
- * schema refuses drops the reference.
+ * Each property under the board's key when it has one (so a keep never starts a near-duplicate
+ * property), valid for a note, each key once, at most three. A key or value the property
+ * schema refuses drops that item alone.
  */
-function acceptReference(
-  reference: { key: string; value: string; reason: string },
+function acceptProperties(
+  properties: NonNullable<ModelSuggestion['properties']>,
   fieldKeys: string[],
-): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
-  const wanted = foldFieldKey(reference.key);
-  const key = fieldKeys.find((k) => foldFieldKey(k) === wanted) ?? reference.key.trim();
-  const parsedKey = customFieldKeySchema.safeParse(key);
-  const parsedValue = customFieldValueSchema.safeParse(reference.value);
-  if (!parsedKey.success || !parsedValue.success) return null;
-  return { key: parsedKey.data, value: parsedValue.data, reason: reference.reason };
+): NonNullable<AssistantSuggestionDoc['fields']['properties']> | null {
+  const seen = new Set<string>();
+  const items: { key: string; value: string }[] = [];
+  for (const item of properties.items) {
+    const folded = foldFieldKey(item.key);
+    const key = customFieldKeySchema.safeParse(
+      fieldKeys.find((k) => foldFieldKey(k) === folded) ?? item.key.trim(),
+    );
+    const value = customFieldValueSchema.safeParse(item.value);
+    if (!key.success || !value.success || seen.has(folded)) continue;
+    seen.add(folded);
+    items.push({ key: key.data, value: value.data });
+  }
+  const kept = items.slice(0, SUGGESTION_MAX_PROPERTIES);
+  return kept.length ? { items: kept, reason: properties.reason } : null;
 }
 
 /**

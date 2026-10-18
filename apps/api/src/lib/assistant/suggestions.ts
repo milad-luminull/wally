@@ -46,7 +46,7 @@ import {
 import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
-export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
+export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 export const SUGGESTION_DEADLINE_MS = 20_000;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
@@ -216,8 +216,6 @@ export async function suggestForCapture(
   // 404 a note they cannot see gets.
   if (note.createdBy?.id !== actor.id) throw notFound();
   if (!note.title.trim() && !note.description.trim()) return null;
-  if (captureCandidates(note, request.locked).length === 0) return null;
-
   const members = (await listMembers(db, actor, board.id)).data;
   const captureCtx: CaptureContext = {
     actorId: actor.id,
@@ -230,8 +228,10 @@ export async function suggestForCapture(
     ),
     canChangeVisibility: ctx.role !== 'VIEW',
   };
+  const open = captureCandidates(note, captureCtx);
+  if (open.length === 0) return null;
   // Every note the caller can see, done ones too, read once and only when the call uses them.
-  const boardNotes = captureNeedsBoard(captureCandidates(note, request.locked))
+  const boardNotes = captureNeedsBoard(open)
     ? await listNotes(db, actor, board.id, { status: 'ALL' })
     : [];
   const call = buildCaptureCall(note, boardNotes, captureCtx);
