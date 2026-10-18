@@ -169,6 +169,18 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
         reason: 'named',
       },
     });
+  // Private beside tags, and Private beside a horizon: for the revert paths of the pair.
+  if (title.startsWith('privtags') || title.startsWith('privwhen'))
+    return settle({
+      dueDate: null,
+      priority: null,
+      assignee: null,
+      ...noProposal,
+      visibility: { value: 'PRIVATE', confidence: 0.9, reason: 'personal' },
+      ...(title.startsWith('privtags')
+        ? { tags: { items: ['ops'], confidence: 0.9, reason: 'board tag' } }
+        : { horizon: { value: 'DIESE_WOCHE', confidence: 0.9, reason: 'this week' } }),
+    });
   // A personal matter: Private (opt-in) beside a date, and a person that Private drops.
   if (title.startsWith('private'))
     return settle({
@@ -1787,6 +1799,58 @@ describe('capture suggestions', () => {
     expect((await note(n.id)).customFields).toEqual({});
   });
 
+  it("undo of a pre-release record's reference puts the key's previous value back when it held one", async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'legacy restore' })).json();
+    const now = Timestamp.now();
+    const ids = () => ({ apply: crypto.randomUUID(), undo: crypto.randomUUID() });
+    const ref = assistantSuggestionsCol(ctx.db, fx.editorId).doc();
+    await ref.set({
+      boardId: fx.boardId,
+      noteId: n.id,
+      baseRevision: n.revision,
+      fields: {
+        dueDate: null,
+        priority: null,
+        assignee: null,
+        title: null,
+        reference: { key: 'Customer', value: 'Acme', reason: 'named' },
+        subtasks: null,
+        links: null,
+      },
+      typed: [],
+      operationIds: {
+        dueDate: ids(),
+        priority: ids(),
+        assignee: ids(),
+        title: ids(),
+        reference: ids(),
+        subtasks: [ids(), ids(), ids(), ids(), ids()],
+        links: ids(),
+      },
+      status: 'PENDING',
+      decision: null,
+      undone: null,
+      applied: null,
+      model: 'vertex:gemini-2.5-flash',
+      usage: { inputTokens: 1, outputTokens: 1 },
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: Timestamp.fromMillis(now.toMillis() + 86_400_000),
+    });
+    await decide(fx.editToken, fx.boardId, ref.id, { decision: 'keep', source: 'click' });
+    expect((await note(n.id)).customFields).toEqual({ Customer: 'Acme' });
+    // No route reaches this state (a reference is proposed only on a note with no property);
+    // the record is edited to hold a previous value, so the restore branch runs for real.
+    await ref.update({ 'applied.before.reference.previous': 'Old GmbH' });
+    const undone = await decide(fx.editToken, fx.boardId, ref.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(undone.statusCode).toBe(200);
+    expect((await note(n.id)).customFields).toEqual({ Customer: 'Old GmbH' });
+  });
+
   it('keeps a horizon through move_note and the undo moves the note back to Today', async () => {
     const fx = await smartBoard();
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'smart' })).json();
@@ -1909,6 +1973,96 @@ describe('capture suggestions', () => {
     expect(fired.statusCode).toBe(200);
     expect(fired.json().suggestion).toMatchObject({ status: 'PENDING', kept: null });
     expect(await note(n.id)).toMatchObject({ visibility: 'SHARED', revision: n.revision });
+  });
+
+  it('a keep of Private refused at the tags puts the note back shared and unassigned', async () => {
+    const fx = await smartBoard();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'privtags' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const record = await stored(fx.editorId, suggestion.id);
+    // Private committed (assigning the author), then a panel edit landed before the tags.
+    await runOperation(asSuggestion(fx.editorId, fx.boardId, suggestion.id), {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: n.revision,
+        input: { visibility: 'PRIVATE' },
+      },
+      operationId: record.operationIds.visibility!.apply,
+    });
+    expect(await note(n.id)).toMatchObject({ visibility: 'PRIVATE', assigneeId: fx.editorId });
+    await assistantSuggestionsCol(ctx.db, fx.editorId)
+      .doc(suggestion.id)
+      .update({
+        status: 'KEPT',
+        decision: {
+          source: 'click',
+          fields: ['visibility', 'tags'],
+          tags: [0],
+          at: record.createdAt,
+        },
+      });
+    await patchNote(fx.editToken, n.id, { dueDate: '2026-11-02' });
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      source: 'click',
+    });
+    expect(res.statusCode).toBe(409);
+    const after = await note(n.id);
+    expect(after).toMatchObject({ visibility: 'SHARED', assigneeId: null, dueDate: '2026-11-02' });
+    expect(after.tags).toEqual([]);
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('DISCARDED');
+  });
+
+  it('an undo refused after taking Private back makes the note private again, and stays kept', async () => {
+    const fx = await smartBoard();
+    const n = (await createNote(fx.editToken, fx.boardId, { title: 'privwhen' })).json();
+    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
+    const kept = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'keep',
+      fields: ['horizon', 'visibility'],
+      source: 'click',
+    });
+    expect(kept.statusCode).toBe(200);
+    const record = await stored(fx.editorId, suggestion.id);
+    const at = record.applied!.revision;
+    // The undo's first two writes committed (shared again, then unassigned), then a panel
+    // edit landed before the horizon went back.
+    const asEditor = asSuggestion(fx.editorId, fx.boardId, suggestion.id);
+    await runOperation(asEditor, {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: at,
+        input: { visibility: 'SHARED' },
+      },
+      operationId: record.operationIds.visibility!.undo,
+    });
+    await runOperation(asEditor, {
+      name: 'assign_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: at + 1,
+        input: { assigneeId: null },
+      },
+      operationId: record.operationIds.visibility!.undoAssignee,
+    });
+    await patchNote(fx.editToken, n.id, { dueDate: '2026-11-02' });
+    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
+      decision: 'undo',
+      source: 'esc',
+    });
+    expect(res.statusCode).toBe(409);
+    expect(await note(n.id)).toMatchObject({
+      visibility: 'PRIVATE',
+      assigneeId: fx.editorId,
+      horizon: 'DIESE_WOCHE',
+      dueDate: '2026-11-02',
+    });
+    expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
   });
 
   it('a keep refused part way through the new steps puts back what it wrote', async () => {
