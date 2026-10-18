@@ -19,6 +19,8 @@ export type CapturePlacement =
       axis: 'horizon' | 'priority';
       key: string;
       at: { freeX: number; freeY: number };
+      /** The person chose this zone (a click in it), rather than the New note button's default. */
+      picked?: boolean;
     }
   | { kind: 'list' };
 

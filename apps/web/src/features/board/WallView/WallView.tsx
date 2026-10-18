@@ -79,6 +79,8 @@ interface WallViewProps {
   ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
+  /** The board's filter chose that visibility ("Shared"). */
+  visibilityChosen?: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
@@ -127,6 +129,7 @@ export function WallView({
   onCaptureAsk,
   ask,
   visibility,
+  visibilityChosen,
   pendingFor,
   relatedCounts,
   tidyFor,
@@ -436,7 +439,7 @@ export function WallView({
     // The zone decides where the card shows in this axis, but freeX/freeY still has to be
     // something sensible: it is what free mode reads once the user switches over, and the
     // schema default of {0, 0} would stack every one of them in the corner there.
-    onCapture({ kind: 'zone', axis, key, at: nextFreeNotePosition(notes) });
+    onCapture({ kind: 'zone', axis, key, at: nextFreeNotePosition(notes), picked: true });
   }
 
   return (
@@ -464,6 +467,7 @@ export function WallView({
             onCaptureAsk={onCaptureAsk}
             ask={ask}
             visibility={visibility}
+            visibilityChosen={visibilityChosen}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
             pendingFor={pendingFor}
@@ -482,6 +486,7 @@ export function WallView({
               onCaptureAsk={onCaptureAsk}
               ask={ask}
               visibility={visibility}
+              visibilityChosen={visibilityChosen}
               currentUserId={currentUserId}
               selectedNoteId={selectedNoteId}
               onOpenNote={onOpenNote}

@@ -125,6 +125,7 @@ export function InlineCaptureCard({
   boardId,
   placement,
   visibility,
+  visibilityChosen = false,
   layout,
   onDone,
   onNoteId,
@@ -133,6 +134,8 @@ export function InlineCaptureCard({
   boardId: string;
   placement: CapturePlacement;
   visibility: NoteVisibility;
+  /** The board's filter chose the visibility ("Shared"): Wallybot then never proposes one. */
+  visibilityChosen?: boolean;
   layout: 'card' | 'row';
   /**
    * `noteId` is null when the capture was cancelled; `open` asks for the note's sidebar;
@@ -219,10 +222,15 @@ export function InlineCaptureCard({
       priority: parse?.priority && applies('priority') ? parse.priority.value : null,
     };
   }
-  /** The fields the person decided here: a kept chip, or a placement on the priority wall (R3). */
+  /**
+   * The fields the person decided here: a kept chip, a placement on the priority wall (R3), a
+   * column they picked on the horizon wall, or the visibility the Shared filter chose.
+   */
   function locked(): SuggestionFieldKey[] {
     const f = fields();
     const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+    const pickedHorizon =
+      placement.kind === 'zone' && placement.axis === 'horizon' && placement.picked === true;
     return suggestionFieldKeys.filter(
       (key) =>
         key === 'dueDate'
@@ -231,7 +239,11 @@ export function InlineCaptureCard({
             ? f.priority !== null || placedByPriority
             : key === 'assignee'
               ? f.assigneeId !== null
-              : false, // title, reference, subtasks: only Wallybot proposes them, never a chip
+              : key === 'horizon'
+                ? pickedHorizon
+                : key === 'visibility'
+                  ? visibilityChosen
+                  : false, // the rest: only Wallybot proposes them, never a chip
     );
   }
   /** Words in either field make a note; whitespace alone in both does not. */

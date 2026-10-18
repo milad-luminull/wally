@@ -45,6 +45,8 @@ interface WallCanvasProps {
   ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
+  /** The board's filter chose that visibility ("Shared"). */
+  visibilityChosen?: boolean;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
   canEditShared: boolean;
   /** True when the board has notes but the active filter hides all of them. */
@@ -94,6 +96,7 @@ export function WallCanvas({
   onCaptureAsk,
   ask,
   visibility,
+  visibilityChosen,
   canEditShared,
   filtered,
   activeDragId,
@@ -161,6 +164,7 @@ export function WallCanvas({
                 boardId={boardId}
                 placement={capture}
                 visibility={visibility}
+                visibilityChosen={visibilityChosen}
                 layout="card"
                 onDone={onCaptureDone}
                 onNoteId={onCaptureNoteId}

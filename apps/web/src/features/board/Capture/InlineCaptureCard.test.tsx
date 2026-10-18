@@ -51,6 +51,7 @@ function renderCard(
   layout: 'card' | 'row' = 'card',
   visibility: NoteVisibility = 'SHARED',
   placement: CapturePlacement = { kind: 'free', x: 10, y: 20 },
+  visibilityChosen = false,
 ) {
   const onDone = vi.fn();
   const view = renderWithProviders(
@@ -58,6 +59,7 @@ function renderCard(
       boardId="b1"
       placement={placement}
       visibility={visibility}
+      visibilityChosen={visibilityChosen}
       layout={layout}
       onDone={onDone}
     />,
@@ -334,6 +336,47 @@ describe('InlineCaptureCard', () => {
       await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Report');
       await user.keyboard('{Enter}');
       await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
+    });
+  });
+
+  describe('what the placement and the filter decide', () => {
+    const write = async () => {
+      const user = userEvent.setup();
+      await user.type(screen.getByRole('textbox', { name: 'Title of the new note' }), 'Report');
+      await user.keyboard('{Enter}');
+    };
+    const horizonZone = (picked: boolean): CapturePlacement => ({
+      kind: 'zone',
+      axis: 'horizon',
+      key: 'HEUTE',
+      at: { freeX: 0, freeY: 0 },
+      picked,
+    });
+
+    it("locks horizon for a column the person picked, not for the New note button's default column", async () => {
+      const picked = renderCard('card', 'SHARED', horizonZone(true));
+      await write();
+      await waitFor(() => expect(picked.onDone).toHaveBeenCalledWith('n-new', false, ['horizon']));
+      picked.unmount();
+      const button = renderCard('card', 'SHARED', horizonZone(false));
+      await write();
+      await waitFor(() => expect(button.onDone).toHaveBeenCalledWith('n-new', false, []));
+    });
+
+    it('locks visibility for a note written under the Shared filter', async () => {
+      const { onDone } = renderCard('card', 'SHARED', { kind: 'free', x: 0, y: 0 }, true);
+      await write();
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['visibility']));
+    });
+
+    it('locks nothing new in the list or on the free canvas', async () => {
+      const list = renderCard('row', 'SHARED', { kind: 'list' });
+      await write();
+      await waitFor(() => expect(list.onDone).toHaveBeenCalledWith('n-new', false, []));
+      list.unmount();
+      const free = renderCard('card', 'SHARED', { kind: 'free', x: 0, y: 0 });
+      await write();
+      await waitFor(() => expect(free.onDone).toHaveBeenCalledWith('n-new', false, []));
     });
   });
 

@@ -322,7 +322,10 @@ describe('useCaptureSession: the note being written has one card', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Report Friday{Enter}');
-    await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-2', ['dueDate']));
+    // The column was picked on the horizon wall, so its horizon is the person's decision too.
+    await waitFor(() =>
+      expect(onCommitted).toHaveBeenCalledWith('created-2', ['dueDate', 'horizon']),
+    );
     expect(onCommitted).toHaveBeenCalledTimes(1);
   });
 
@@ -520,17 +523,18 @@ describe('useCaptureSession asking from the real views', () => {
   );
 
   it.each([
-    ['in a zone', 'wand', 'horizon', 'Add a note to “Today”'],
-    ['on the free canvas', 'wand', 'free', 'new'],
-    ['in the list', 'list', 'horizon', 'new'],
+    // A column picked on the horizon wall decides the horizon; nothing else decides a field.
+    ['in a zone', 'wand', 'horizon', 'Add a note to “Today”', ['horizon']],
+    ['on the free canvas', 'wand', 'free', 'new', []],
+    ['in the list', 'list', 'horizon', 'new', []],
   ] as const)(
     'with the assistant off, a question mark typed %s is a plain note',
-    async (_where, view, axis, opener) => {
+    async (_where, view, axis, opener, locked) => {
       const { onCommitted } = renderBoard(view, axis);
       await screen.findByText('Existing');
       await userEvent.click(screen.getByRole('button', { name: opener }));
       await userEvent.type(await titleField(), 'What is open?{Enter}');
-      await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-1', []));
+      await waitFor(() => expect(onCommitted).toHaveBeenCalledWith('created-1', [...locked]));
       expect(notesApi.remove).not.toHaveBeenCalled();
       expect(await screen.findAllByText('What is open?')).toHaveLength(1);
     },

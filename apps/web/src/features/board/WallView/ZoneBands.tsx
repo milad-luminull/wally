@@ -23,6 +23,7 @@ interface ZoneCapture {
   boardId: string;
   placement: Extract<CapturePlacement, { kind: 'zone' }>;
   visibility: NoteVisibility;
+  visibilityChosen?: boolean;
   onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
   onAsk: CaptureAsk | undefined;
@@ -122,6 +123,7 @@ function ZoneBand({
                 boardId={capture.boardId}
                 placement={capture.placement}
                 visibility={capture.visibility}
+                visibilityChosen={capture.visibilityChosen}
                 layout="card"
                 onDone={capture.onDone}
                 onNoteId={capture.onNoteId}
@@ -190,6 +192,8 @@ interface ZoneBandsProps {
   /** The answer to a question; shown at the top of its zone when its placement is a zone. */
   ask?: AskSlot | null;
   visibility: NoteVisibility;
+  /** The board's filter chose that visibility ("Shared"). */
+  visibilityChosen?: boolean;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -217,6 +221,7 @@ export function ZoneBands({
   onCaptureAsk,
   ask,
   visibility,
+  visibilityChosen,
   ...rest
 }: ZoneBandsProps) {
   const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
@@ -236,6 +241,7 @@ export function ZoneBands({
                     boardId,
                     placement: zoneCapture,
                     visibility,
+                    visibilityChosen,
                     onDone: onCaptureDone,
                     onNoteId: onCaptureNoteId,
                     onAsk: onCaptureAsk,

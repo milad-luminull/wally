@@ -289,6 +289,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 onCaptureAsk={captureAsk}
                 ask={askSlot}
                 visibility={access.newNoteVisibility}
+                visibilityChosen={access.visibilityChosen}
                 pendingFor={pendingFor}
                 relatedCounts={relatedCountByNote}
                 tidyFor={tidyOn ? tidyFor : undefined}
@@ -311,6 +312,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                     id: captureKey,
                     boardId,
                     visibility: access.newNoteVisibility,
+                    visibilityChosen: access.visibilityChosen,
                     onDone: onCaptureDone,
                     onNoteId: onCaptureNoteId,
                     onAsk: captureAsk,

@@ -67,6 +67,8 @@ interface ListViewProps {
     id?: number;
     boardId: string;
     visibility: NoteVisibility;
+    /** The board's filter chose that visibility ("Shared"). */
+    visibilityChosen?: boolean;
     onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
     /** Hears each id the note is shown under, so the list leaves it to its row. */
     onNoteId?: (noteId: string) => void;
@@ -126,6 +128,7 @@ export function ListView({
         boardId={capture.boardId}
         placement={LIST_PLACEMENT}
         visibility={capture.visibility}
+        visibilityChosen={capture.visibilityChosen}
         layout="row"
         onDone={capture.onDone}
         onNoteId={capture.onNoteId}
