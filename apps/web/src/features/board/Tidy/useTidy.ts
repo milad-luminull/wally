@@ -79,10 +79,20 @@ const activeMoves = (b: Batch) =>
 
 /**
  * The board's Tidy (WALLYBOT_INLINE.md §3.5, plan R1–R9): one batch at a time. The count is
- * the client's own (the same rule as the server's); the proposal is the server's record; a
- * keep moves the notes in the cache at once so the cards travel (R8) and tells the server,
- * which may skip a note changed since (R5); the undo window is the client's 30 s, as a
- * suggestion's. Nothing is said when the server refuses: the cards go back (BRAND rule 5).
+ * the client's own (the same rule as the server's) over the notes the caller passes, which
+ * are the notes the wall shows; the proposal is the server's record, less any move of a note
+ * not shown, so the yes approves only what the person sees (R1). A keep moves the notes in
+ * the cache at once so the cards travel (R8) and tells the server, which may skip a note
+ * changed since (R5); an undo pressed before the keep's answer waits for it. The undo window
+ * is the client's 30 s, as a suggestion's. Nothing is said when the server refuses: the cards
+ * go back (BRAND rule 5).
+ *
+ * The affordance's memory (R4) is written on an outcome only, each at a chosen moment:
+ * (a) nothing to tidy: when the notice ends; (b) a discard: at once; (c) a keep: when the
+ * server's answer has been applied and the skipped notes are back; (d) an undo: when its
+ * answer has arrived and the board's notes have caught up with it (the moves back gave the
+ * notes new revisions). A failure (the request, or a keep refused or answered otherwise) and
+ * a switch-off while asking or pending write nothing: the affordance comes back for a retry.
  */
 export function useTidy(
   boardId: string,
@@ -101,6 +111,11 @@ export function useTidy(
   const snapshots = useRef(new Map<string, NoteCacheSnapshot>());
   /** The request on its way, so a stale answer changes nothing. */
   const token = useRef<symbol | null>(null);
+  /**
+   * The keep on its way, as the server's answer (null when it failed); an undo pressed before
+   * it answers is sent after it, so it never overtakes the keep.
+   */
+  const keepAnswer = useRef<Promise<TidyDto | null> | null>(null);
   // Read by callbacks and timers that run after the render that made them.
   const latestNotes = useRef(notes);
   latestNotes.current = notes;
@@ -130,7 +145,7 @@ export function useTidy(
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   }, []);
-  /** Back to idle; the affordance remembers what the board looked like at that moment (R4). */
+  /** Back to idle. What the affordance remembers is `remember`'s, on an outcome only (R4). */
   const rest = useCallback(() => {
     clearTimer();
     token.current = null;
@@ -138,14 +153,19 @@ export function useTidy(
     snapshots.current.clear();
     setBatch(null);
     setPhase('idle');
-    const ids = tidyCandidateIds(
-      latestNotes.current,
-      localToday(),
-      latestCanMove.current,
-      latestBusy.current,
-    );
-    setLastRun(candidateSignature(latestNotes.current, ids));
   }, [clearTimer]);
+  /**
+   * The run's memory (R4): the candidates among the shown notes as the cache has them now, so
+   * a patch or a restore made a moment ago counts before the wall has drawn it.
+   */
+  const remember = useCallback(() => {
+    const cached = new Map(
+      (queryClient.getQueryData<NoteDto[]>(keys.notes(boardId)) ?? []).map((n) => [n.id, n]),
+    );
+    const shown = latestNotes.current.map((n) => cached.get(n.id) ?? n);
+    const ids = tidyCandidateIds(shown, localToday(), latestCanMove.current, latestBusy.current);
+    setLastRun(candidateSignature(shown, ids));
+  }, [boardId, keys, queryClient]);
 
   const patchAll = useCallback(
     (moves: { noteId: string; horizon: NoteHorizon }[]) => {
@@ -183,19 +203,31 @@ export function useTidy(
       .then(({ tidy: proposed }) => {
         if (token.current !== mine) return;
         token.current = null;
-        if (!proposed || proposed.moves.length === 0) {
+        // Only the notes the wall shows: a move of a note a filter hides is not offered (R1).
+        // The server's record keeps it; a keep names the notes it moves.
+        const shown = new Set(latestNotes.current.map((n) => n.id));
+        const moves = proposed?.moves.filter((m) => shown.has(m.noteId)) ?? [];
+        if (!proposed || moves.length === 0) {
+          // (a) The pending record, if any, is discarded by the next request (R9).
           setPhase('empty');
           clearTimer();
-          timer.current = setTimeout(rest, EMPTY_NOTICE_MS);
+          timer.current = setTimeout(() => {
+            remember();
+            rest();
+          }, EMPTY_NOTICE_MS);
           return;
         }
-        setBatch({ tidy: proposed, removed: new Set(), moved: null });
+        // The cache may lag an edit the server has seen: it catches up now, and a move it then
+        // shows stale leaves the batch (the effect below).
+        void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
+        setBatch({ tidy: { ...proposed, moves }, removed: new Set(), moved: null });
         setPhase('pending');
       })
       .catch(() => {
+        // A failure is no run: back to idle with the affordance, for a retry.
         if (token.current === mine) rest();
       });
-  }, [boardId, clearTimer, enabled, rest]);
+  }, [boardId, clearTimer, enabled, keys, queryClient, remember, rest]);
 
   const keep = useCallback<TidyController['keep']>(
     (source) => {
@@ -204,6 +236,9 @@ export function useTidy(
       const moves = activeMoves(b);
       if (moves.length === 0) return;
       const noteIds = moves.map((m) => m.noteId);
+      // A keep starts from the board as it is now: a snapshot an earlier batch left (its undo
+      // still on its way) would restore a state from before that batch.
+      snapshots.current.clear();
       // The cache first, so the cards travel now; the server's answer follows (R8).
       patchAll(moves.map((m) => ({ noteId: m.noteId, horizon: m.to })));
       setBatch({ ...b, moved: noteIds });
@@ -211,40 +246,44 @@ export function useTidy(
       keptStamp.current = nextKeptStamp();
       const mine = Symbol('keep');
       token.current = mine;
-      void assistantApi
+      const answer = assistantApi
         .decideTidy(boardId, b.tidy.id, { decision: 'keep', noteIds, source })
-        .then(({ tidy: decided }) => {
-          if (token.current !== mine) return;
-          token.current = null;
-          if (decided.status !== 'KEPT' || !decided.kept) {
-            restoreAll(noteIds);
-            rest();
-            return;
-          }
-          const { noteIds: movedIds, skipped } = decided.kept;
-          if (movedIds.length === 0) {
-            // Every note was skipped: nothing moved, so every card goes back, there is nothing
-            // to undo, and nothing is said (R5, R8).
-            restoreAll(noteIds);
-            rest();
-            return;
-          }
-          // A note the server skipped goes back where it was, without motion (R5, R8).
-          if (skipped.length) restoreAll(skipped);
-          for (const id of movedIds) settleNoteCaches(queryClient, keys, boardId, id);
-          setBatch((current) =>
-            current ? { ...current, tidy: decided, moved: movedIds } : current,
-          );
-          clearTimer();
-          timer.current = setTimeout(rest, UNDO_WINDOW_MS);
-        })
-        .catch(() => {
-          if (token.current !== mine) return;
+        .then(
+          ({ tidy: decided }) => decided,
+          () => null,
+        );
+      keepAnswer.current = answer;
+      void answer.then((decided) => {
+        if (keepAnswer.current === answer) keepAnswer.current = null;
+        // An undo pressed meanwhile took the batch over, and reads this answer itself.
+        if (token.current !== mine) return;
+        token.current = null;
+        if (!decided || decided.status !== 'KEPT' || !decided.kept) {
+          // Refused, failed or settled otherwise: every card goes back and, no run having
+          // happened, the affordance with them.
           restoreAll(noteIds);
           rest();
-        });
+          return;
+        }
+        const { noteIds: movedIds, skipped } = decided.kept;
+        if (movedIds.length === 0) {
+          // Every note was skipped: nothing moved, so every card goes back, there is nothing
+          // to undo, and nothing is said (R5, R8). The keep is still the run's outcome (c).
+          restoreAll(noteIds);
+          remember();
+          rest();
+          return;
+        }
+        // A note the server skipped goes back where it was, without motion (R5, R8).
+        if (skipped.length) restoreAll(skipped);
+        for (const id of movedIds) settleNoteCaches(queryClient, keys, boardId, id);
+        remember();
+        setBatch((current) => (current ? { ...current, tidy: decided, moved: movedIds } : current));
+        clearTimer();
+        timer.current = setTimeout(rest, UNDO_WINDOW_MS);
+      });
     },
-    [boardId, clearTimer, keys, patchAll, queryClient, rest, restoreAll],
+    [boardId, clearTimer, keys, patchAll, queryClient, remember, rest, restoreAll],
   );
 
   const discard = useCallback<TidyController['discard']>(
@@ -254,41 +293,77 @@ export function useTidy(
       void assistantApi
         .decideTidy(boardId, b.tidy.id, { decision: 'discard', source })
         .catch(() => {});
+      remember();
       rest();
     },
-    [boardId, rest],
+    [boardId, remember, rest],
   );
 
   const undo = useCallback<TidyController['undo']>(
     (source) => {
       const b = latestBatch.current;
       if (!b || latestPhase.current !== 'kept' || !b.moved) return;
-      const moved = b.moved;
-      const back = b.tidy.moves.filter((m) => moved.includes(m.noteId));
+      const shownMoved = b.moved;
+      const back = b.tidy.moves.filter((m) => shownMoved.includes(m.noteId));
+      // The cards go back at once (R8); the server hears the undo once the keep has answered.
       patchAll(back.map((m) => ({ noteId: m.noteId, horizon: m.from })));
-      const noteIds = back.map((m) => m.noteId);
       const mine = Symbol('undo');
       token.current = mine;
       keptStamp.current = null;
       setBatch(null);
       setPhase('idle');
       clearTimer();
-      void assistantApi
-        .decideTidy(boardId, b.tidy.id, { decision: 'undo', source })
-        .then(() => {
-          for (const id of noteIds) settleNoteCaches(queryClient, keys, boardId, id);
-        })
-        .catch(() => {
-          // The server kept the moves: the cards go back to where the keep put them.
-          if (token.current === mine)
-            patchAll(back.map((m) => ({ noteId: m.noteId, horizon: m.to })));
-          for (const id of noteIds) settleNoteCaches(queryClient, keys, boardId, id);
-        })
-        .finally(() => {
-          if (token.current === mine) rest();
+      const tidyId = b.tidy.id;
+      const settleAll = (ids: readonly string[]) => {
+        for (const id of ids) settleNoteCaches(queryClient, keys, boardId, id);
+      };
+      // (d) Remembered once the board's notes have caught up with the moves back.
+      const finish = () =>
+        void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) }).then(() => {
+          if (token.current !== mine) return;
+          remember();
+          rest();
         });
+      // A keep still on its way is waited for; otherwise `b.moved` is what the server moved.
+      const inFlight = keepAnswer.current;
+      void (async () => {
+        let moved = shownMoved;
+        if (inFlight) {
+          const decided = await inFlight;
+          if (!decided || decided.status !== 'KEPT' || !decided.kept) {
+            // The keep failed: nothing moved on the server, so there is nothing to undo, and
+            // the cards are back already. No run happened: the affordance comes back.
+            restoreAll(back.map((m) => m.noteId));
+            if (token.current === mine) rest();
+            return;
+          }
+          moved = decided.kept.noteIds;
+          // A note the keep skipped never moved: it is where the undo put it, for good.
+          restoreAll(back.filter((m) => !moved.includes(m.noteId)).map((m) => m.noteId));
+          if (moved.length === 0) {
+            if (token.current === mine) {
+              remember();
+              rest();
+            }
+            return;
+          }
+        }
+        try {
+          await assistantApi.decideTidy(boardId, tidyId, { decision: 'undo', source });
+        } catch {
+          // The server kept the moves: the moved cards go back to where the keep put them.
+          if (token.current === mine)
+            patchAll(
+              back
+                .filter((m) => moved.includes(m.noteId))
+                .map((m) => ({ noteId: m.noteId, horizon: m.to })),
+            );
+        }
+        settleAll(moved);
+        finish();
+      })();
     },
-    [boardId, clearTimer, keys, patchAll, queryClient, rest],
+    [boardId, clearTimer, keys, patchAll, queryClient, remember, rest, restoreAll],
   );
 
   const undoLast = useCallback(() => {
@@ -319,18 +394,25 @@ export function useTidy(
     [discard],
   );
 
-  // A note edited while the batch is pending leaves it: a keep would skip it anyway (R5).
+  // While the batch is pending, a move leaves it when its note is no longer shown (a filter, a
+  // delete), or when the note is past the revision the proposal read: edited since, a keep
+  // would skip it anyway (R5). A note behind that revision stays: the cache lags an edit the
+  // server had already seen, and catches up (the proposal asked it to).
   useEffect(() => {
     const b = latestBatch.current;
     if (!b || phase !== 'pending') return;
     const revisions = new Map(notes.map((n) => [n.id, n.revision]));
-    const stale = b.tidy.moves.filter(
-      (m) => !b.removed.has(m.noteId) && (revisions.get(m.noteId) ?? -1) !== m.baseRevision,
-    );
+    const stale = b.tidy.moves.filter((m) => {
+      if (b.removed.has(m.noteId)) return false;
+      const revision = revisions.get(m.noteId);
+      return revision === undefined || revision > m.baseRevision;
+    });
     if (stale.length === 0) return;
     const removed = new Set(b.removed);
     for (const m of stale) removed.add(m.noteId);
-    if (b.tidy.moves.every((m) => removed.has(m.noteId))) discard('remove');
+    // A batch emptied this way is discarded with Esc's source: the decision has no source
+    // of its own for it, and `remove` stays the ×'s alone.
+    if (b.tidy.moves.every((m) => removed.has(m.noteId))) discard('esc');
     else setBatch({ ...b, removed });
   }, [discard, notes, phase]);
 
@@ -341,9 +423,12 @@ export function useTidy(
   // on its way, a pending batch and the notice end here, as on leaving the board; the server's
   // pending record is discarded by the next request (R9, R10). A kept batch stays kept, its
   // answer still to be heard, but out of sight until the horizon wall is back.
+  // The notice was an outcome (a); asking or pending was not, so nothing is remembered then.
   useEffect(() => {
-    if (!enabled && (phase === 'asking' || phase === 'pending' || phase === 'empty')) rest();
-  }, [enabled, phase, rest]);
+    if (enabled) return;
+    if (phase === 'empty') remember();
+    if (phase === 'asking' || phase === 'pending' || phase === 'empty') rest();
+  }, [enabled, phase, remember, rest]);
 
   const markFor = useCallback<TidyController['markFor']>(
     (noteId) => {

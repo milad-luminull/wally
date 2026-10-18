@@ -108,11 +108,12 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   );
 
   // Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5): the shell counts, asks and decides;
-  // the wall shows the bar and the marks. A note with a pending Wallybot change is left out.
-  // Anywhere else, or with the assistant off, the wall gets neither (plan R4, R10).
+  // the wall shows the bar and the marks. It reads the notes the wall draws, so a filter's
+  // hidden notes are neither counted nor moved (R1). A note with a pending Wallybot change is
+  // left out. Anywhere else, or with the assistant off, the wall gets neither (plan R4, R10).
   const busy = useMemo(() => new Set(suggestions.marks.keys()), [suggestions.marks]);
   const tidyOn = tidyOnWall(board.assistantEnabled, effectiveView, viewState.axis);
-  const tidy = useTidy(boardId, tidyOn, boardNotes, access.canEditNote, busy);
+  const tidy = useTidy(boardId, tidyOn, filteredNotes, access.canEditNote, busy);
   const tidyFor = useTidyFor(tidy);
 
   const newNote = useCallback(() => {

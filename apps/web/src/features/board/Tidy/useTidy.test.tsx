@@ -141,7 +141,7 @@ describe('useTidy', () => {
     vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
     let answer!: (value: { tidy: TidyDto }) => void;
     vi.mocked(assistantApi.decideTidy).mockReturnValue(new Promise((r) => (answer = r)));
-    const { result, cached } = setup();
+    const { result, cached, rerender } = setup();
     act(() => result.current.tidy());
     await settle();
     act(() => result.current.keep('enter'));
@@ -159,6 +159,8 @@ describe('useTidy', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(result.current.phase).toBe('kept');
+    // The wall draws the cache: the list follows it, as AppShell's does.
+    rerender({ list: cached() });
     await act(() => vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS));
     expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
     expect(result.current.markFor('late')).toBeUndefined();
@@ -213,7 +215,7 @@ describe('useTidy', () => {
     expect(result.current.phase).toBe('idle');
   });
 
-  it('a note edited while the batch is pending leaves it', async () => {
+  it('a note edited while the batch is pending (its revision past the proposal’s) leaves it', async () => {
     vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
     const { result, rerender } = setup();
     act(() => result.current.tidy());
@@ -356,6 +358,292 @@ describe('useTidy', () => {
     act(() => result.current.undo('click'));
     expect(result.current.lastKeptAt()).toBeNull();
     await settle();
+  });
+
+  it('a proposal naming a note the list does not hold (a filter hides it) offers only the shown moves', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockResolvedValueOnce({ tidy: kept(['late']) });
+    // `jotted` is filtered out of the wall: the server proposed it, the person cannot see it.
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(keys.notes(BOARD), [late, jotted, placed]);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    // Every render's bar, so a count that flashes the hidden move is caught too.
+    const seen: number[] = [];
+    const shown = [late, placed];
+    const { result } = renderHook(
+      () => {
+        const controller = useTidy(BOARD, true, shown, all, none);
+        if (controller.phase === 'pending') seen.push(controller.moving);
+        return controller;
+      },
+      { wrapper },
+    );
+    expect(result.current.count).toBe(1);
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current).toMatchObject({ phase: 'pending', moving: 1, trackedIds: ['late'] });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(new Set(seen)).toEqual(new Set([1]));
+    expect(result.current.markFor('jotted')).toBeUndefined();
+    act(() => result.current.keep('enter'));
+    expect(assistantApi.decideTidy).toHaveBeenCalledWith(BOARD, 't1', {
+      decision: 'keep',
+      noteIds: ['late'],
+      source: 'enter',
+    });
+    await settle();
+  });
+
+  it('a proposal whose every move is hidden reads as nothing to tidy', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({
+      tidy: dto({ moves: [dto().moves[1]!] }),
+    });
+    const { result } = setup([late, placed]);
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current).toMatchObject({ phase: 'empty', moving: 0, trackedIds: [] });
+  });
+
+  it('a proposal asks the board’s notes to catch up', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, queryClient } = setup();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    act(() => result.current.tidy());
+    await settle();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.notes(BOARD) });
+  });
+
+  it('a note whose cached revision is behind the proposal’s stays in the batch (the cache lags)', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    rerender({ list: [{ ...late, revision: 1 }, jotted, placed] });
+    expect(result.current.markFor('late')?.phase).toBe('pending');
+    expect(result.current.moving).toBe(2);
+  });
+
+  it('a note that leaves the list while the batch is pending leaves the batch', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    rerender({ list: [jotted, placed] });
+    expect(result.current.markFor('late')).toBeUndefined();
+    expect(result.current).toMatchObject({ phase: 'pending', moving: 1 });
+  });
+
+  it('a batch every note of which was edited is discarded, with Esc’s source', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockResolvedValue({ tidy: dto({ status: 'DISCARDED' }) });
+    const { result, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    rerender({ list: [{ ...late, revision: 3 }, { ...jotted, revision: 2 }, placed] });
+    await settle();
+    expect(assistantApi.decideTidy).toHaveBeenCalledWith(BOARD, 't1', {
+      decision: 'discard',
+      source: 'esc',
+    });
+    expect(result.current.phase).toBe('idle');
+  });
+
+  it('a failed request goes back to idle with the affordance still there', async () => {
+    vi.mocked(assistantApi.tidy).mockRejectedValue(new Error('offline'));
+    const { result } = setup();
+    expect(result.current.count).toBe(2);
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+  });
+
+  it('a keep answered with a status other than KEPT puts every card back and keeps the affordance', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockResolvedValueOnce({
+      tidy: dto({ status: 'DISCARDED' }),
+    });
+    const { result, cached, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    rerender({ list: cached() });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+  });
+
+  it('a keep refused by the server keeps the affordance', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockRejectedValueOnce(new Error('offline'));
+    const { result, cached, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('click'));
+    await settle();
+    rerender({ list: cached() });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+  });
+
+  it('switched off while pending, the affordance is there again when it is back on', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, rerender } = setupSwitch();
+    act(() => result.current.tidy());
+    await settle();
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+  });
+
+  it('an undo pressed while the keep is on its way is sent after the keep’s answer, and ends undone', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    let keepAnswer!: (value: { tidy: TidyDto }) => void;
+    let undoAnswer!: (value: { tidy: TidyDto }) => void;
+    vi.mocked(assistantApi.decideTidy)
+      .mockReturnValueOnce(new Promise((r) => (keepAnswer = r)))
+      .mockReturnValueOnce(new Promise((r) => (undoAnswer = r)));
+    const { result, cached } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    act(() => result.current.undo('click'));
+    // The cards are back at once; the server has heard only the keep.
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    await settle();
+    expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      keepAnswer({ tidy: kept() });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.decideTidy).toHaveBeenCalledTimes(2);
+    expect(assistantApi.decideTidy).toHaveBeenLastCalledWith(BOARD, 't1', {
+      decision: 'undo',
+      source: 'click',
+    });
+    // The keep's answer did not put the cards on their destinations.
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    await act(async () => {
+      undoAnswer({
+        tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(result.current).toMatchObject({ phase: 'idle', moving: 0 });
+    expect(result.current.undoLast()).toBe(false);
+  });
+
+  it('an undo pressed while a keep that then fails is on its way sends nothing more', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    let keepFail!: (error: Error) => void;
+    vi.mocked(assistantApi.decideTidy).mockReturnValueOnce(
+      new Promise((_, reject) => (keepFail = reject)),
+    );
+    const { result, cached } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    act(() => result.current.undo('click'));
+    await act(async () => {
+      keepFail(new Error('offline'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(result.current.phase).toBe('idle');
+  });
+
+  it('an undo the server refuses puts the cards back on their destinations', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy)
+      .mockResolvedValueOnce({ tidy: kept() })
+      .mockRejectedValueOnce(Object.assign(new Error('settled'), { status: 409 }));
+    const { result, cached } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    act(() => result.current.undo('click'));
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    await settle();
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('SPAETER');
+    expect(result.current.phase).toBe('idle');
+  });
+
+  it('a keep is remembered when its answer is applied: a note changed in the undo window brings the affordance back', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    vi.mocked(assistantApi.decideTidy).mockResolvedValueOnce({ tidy: kept() });
+    const { result, cached, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    rerender({ list: cached() });
+    // A note jotted in Today while Undo is still offered: a new candidate.
+    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'HEUTE', dueDate: null })] });
+    await act(() => vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS));
+    expect(result.current).toMatchObject({ phase: 'idle', count: 1 });
+  });
+
+  it('an undo is remembered once its answer is in and the notes caught up with it', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    const { result, cached, rerender, queryClient } = setup();
+    vi.mocked(assistantApi.decideTidy)
+      .mockResolvedValueOnce({ tidy: kept() })
+      .mockImplementationOnce(async () => {
+        // The moves back gave the notes new revisions, as the refetch shows them.
+        queryClient.setQueryData<NoteDto[]>(keys.notes(BOARD), (list) =>
+          list?.map((n) => (n.id === 'placed' ? n : { ...n, revision: n.revision + 2 })),
+        );
+        return {
+          tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
+        };
+      });
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    act(() => result.current.undo('click'));
+    await settle();
+    rerender({ list: cached() });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
+  });
+
+  it('a keep takes its own snapshots, so a failed keep restores the board as it was just before it', async () => {
+    vi.mocked(assistantApi.tidy)
+      .mockResolvedValueOnce({ tidy: dto() })
+      .mockResolvedValueOnce({
+        tidy: dto({ id: 't2', moves: [{ ...dto().moves[0]!, from: 'HEUTE', baseRevision: 3 }] }),
+      });
+    vi.mocked(assistantApi.decideTidy)
+      .mockResolvedValueOnce({ tidy: kept() })
+      // The undo stays on its way; the second keep fails.
+      .mockReturnValueOnce(new Promise(() => {}))
+      .mockRejectedValueOnce(new Error('offline'));
+    const { result, cached, rerender, queryClient } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    act(() => result.current.undo('click'));
+    // The board catches up with a collaborator who put `late` in Today meanwhile.
+    queryClient.setQueryData<NoteDto[]>(keys.notes(BOARD), (list) =>
+      list?.map((n) => (n.id === 'late' ? { ...n, horizon: 'HEUTE', revision: 3 } : n)),
+    );
+    rerender({ list: cached() });
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current.phase).toBe('pending');
+    act(() => result.current.keep('enter'));
+    await settle();
+    // Back where it was just before this keep, not where it was before the first one.
+    expect(cached().find((n) => n.id === 'late')).toMatchObject({ horizon: 'HEUTE', revision: 3 });
   });
 
   it('keeps its callbacks and its value when the caller passes a new canMove and busy set', async () => {
