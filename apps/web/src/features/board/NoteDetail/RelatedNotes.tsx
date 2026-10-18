@@ -102,8 +102,8 @@ export function RelatedNotes({
               {t('note.related.add')}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-72 p-0">
-            <Command>
+          <PopoverContent align="start" className="z-overlay w-72 p-0">
+            <Command label={t('note.related.search')}>
               <CommandInput
                 placeholder={t('note.related.search')}
                 aria-label={t('note.related.search')}
