@@ -17,7 +17,7 @@ Slice 3 deferred links because they need a stored relation, the model reading th
 - **L1. The relation is a list of note ids on the note that links**, `links: string[]`, at most `MAX_LINKS_PER_NOTE = 10`, one direction stored. Both sides show it: a note's panel lists the notes it links to and the notes that link to it (derived from the board's notes the client already holds). No separate collection: a link is a property of the note that was written, like a tag. Cost if wrong: a migration to an edge collection later.
 - **L2. `note.update` carries `linkChanges { add?: id[], remove?: id[] }`**, applied to the note's current list on the server (as `fieldChanges` and `tagChanges` are), so two people linking at once both keep theirs. Inside the transaction each added id is read: it must be a live note of the same board the caller can see, and not the note itself; otherwise 422 `LINK_TARGET_INVALID`. Removing an id that is not there is a no-op. The target note is not written: its revision does not move. Cost if wrong: a looser rule.
 - **L3. Wallybot proposes one to three links**, a `links` field on the suggestion with per-item ticks like steps: `{ items: [{ noteId, reason }], reason }`, offered only on a note with no links yet, when the board has other open notes the person can see. The prompt gets those notes as data, `id: title`, newest first, at most 40. A reply's link is accepted when its id is among the rows, not the note itself, confident, each once, at most three. The DTO resolves each item's title at read time from the board's notes; an item whose note is gone drops out. Cost if wrong: a cap and a prompt line.
-- **L4. One write keeps every ticked link**: `update_note { linkChanges: { add: ids } }` under the field's apply id; undo is `{ remove: ids }` under the undo id. The note had no links at `baseRevision` (L3), so undo removes exactly what the keep added; `stillWritten` checks the ids are still on the note. `decision.links` names the ticked items by index, as `subtasks` does. Cost if wrong: nothing to migrate; records written before this have no `links` and read as proposing none.
+- **L4. One write keeps every ticked link**: `update_note { linkChanges: { add: ids } }` under the field's apply id; undo is `{ remove: ids }` under the undo id. The note had no links at `baseRevision` (L3), so undo removes exactly what the keep added; `stillWritten` checks the ids are still on the note. The undo runs on the kept revision like every other field (WALLYBOT_INLINE.md §4), so a link added or removed by hand after the keep refuses it with 409 `STALE_REVISION` and every link stays, as a step deleted by hand does (amended after the Task 4 review: the first draft expected the undo to succeed around a hand link, which §4 does not allow). `decision.links` names the ticked items by index, as `subtasks` does. Cost if wrong: nothing to migrate; records written before this have no `links` and read as proposing none.
 - **L5. Hairlines on the free canvas only.** An SVG layer under the cards draws a 1 px line in the note border colour between the centres of related cards (card centres from `freeX`/`freeY` and the card constants, so the lines follow a drop as the data does): dashed for a proposed link still ticked while the proposal is pending, solid for a kept link; each pair once. Zone bands and the list draw no lines (nested scroll containers, the risk slice 3 named); there the relation is read in the panel, and the card's meta row shows the count of related notes beside the subtask count. Cost if wrong: a layer to extend.
 - **L6. The panel's "Related" section** lists the related notes as rows (priority icon, title, due date, as the answer card's rows do), with an × on the note's own links; a note that links here is listed read-only with its direction said in the row's tooltip. "Link a note…" opens a searchable list of the board's other notes (the palette's components in a popover); picking one adds it. A viewer on a note they may not edit sees the rows and no controls. Cost if wrong: a picker to restyle.
 - **L7. A deleted or private-made note leaves a dangling id** on the notes that linked it; readers drop ids they cannot resolve (the web filters against the board's notes; the DTO's `links` is the raw list). No cleanup on delete in this slice. Cost if wrong: a maintenance pass later.
@@ -39,7 +39,7 @@ Slice 3 deferred links because they need a stored relation, the model reading th
 ## Review Focus
 
 1. A `linkChanges.add` naming the note itself, a note on another board, a deleted note, or another person's private note is refused with 422 and writes nothing; a valid add appears in the DTO and leaves the target's revision alone. Tests in Task 1.
-2. A keep with two of three proposed links ticked writes exactly those two ids in one `update_note`, once (a replay adds nothing); undo removes exactly them; a link the person added by hand in between stays. Tests in Task 4.
+2. A keep with two of three proposed links ticked writes exactly those two ids in one `update_note`, once (a replay adds nothing); undo removes exactly them; a link the person added by hand in between moves the revision, so the undo is refused with 409 `STALE_REVISION` (§4: the kept revision is the undo's `expectedRevision`) and every link stays, the hand link included. Tests in Task 4.
 3. The model names a note that is not on the board, the note itself, or one twice: none of those is proposed; a renamed target reads with its current title; a deleted target drops out of the proposal. Tests in Tasks 3 and 2.
 4. The panel lists a backlink read-only and an own link with an ×; the picker never offers the note itself, an already linked note, or a note the person cannot see. Tests in Task 6.
 5. On the free canvas a pending proposal draws a dashed hairline per ticked link and none for an unticked one; after the keep the line is solid; in zone mode and the list no line is drawn; the card's count says how many notes are related. Tests in Tasks 5 and 7.
@@ -714,16 +714,28 @@ it('keeps two of three proposed links in one write, replays once, and undo remov
     source: 'click',
   });
   expect((await note(n.id)).revision).toBe(n.revision + 1);
-  // A link the person added by hand meanwhile stays through the undo.
-  await patchNote(fx.ownerToken, n.id, { linkChanges: { add: [b.id] } });
   const undone = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
     decision: 'undo',
     source: 'click',
   });
   expect(undone.json().suggestion.status).toBe('UNDONE');
-  expect((await note(n.id)).links).toEqual([b.id]);
+  expect((await note(n.id)).links).toEqual([]);
+});
+
+it('a link added by hand after the keep moves the revision, so the undo is refused and every link stays', async () => {
+  // Same setup and keep of [0, 2] as above, then:
+  await patchNote(fx.ownerToken, n.id, { linkChanges: { add: [b.id] } });
+  const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+    decision: 'undo',
+    source: 'click',
+  });
+  expect(res.statusCode).toBe(409);
+  expect(res.json().error).toBe('STALE_REVISION');
+  expect((await note(n.id)).links).toEqual([c.id, a.id, b.id]);
 });
 ```
+
+The undo runs on the kept revision (WALLYBOT_INLINE.md §4, L4), as the subtask undo does ("a kept step deleted by hand moves the revision, so the undo is refused and adds nothing"); the hand link refuses it. These tests may run as the editor where the owner's captures in the file reach the capture route's limit of 30 a minute.
 
 The fake runner gains a `threelinks` branch that names the first three ids of the "Other notes" block (newest first, so `c, b, a`) with confidence 0.9. Add an `audits` helper counting `assistantAuditCol(ctx.db)` rows if the file has none. Run: FAIL (the links are not written).
 

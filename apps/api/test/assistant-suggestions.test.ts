@@ -1830,15 +1830,23 @@ describe('capture suggestions', () => {
       links: [0, 2],
       source: 'click',
     });
+    // The undo runs on the kept revision (WALLYBOT_INLINE.md §4), as for every other field, so
+    // the hand edit refuses it before anything is written: the hand link stays, and so do the
+    // kept ones.
     const linked = await patchNote(fx.editToken, n.id, { linkChanges: { add: [b.id] } });
     expect(linked.statusCode).toBe(200);
+    expect(await audits(fx.editorId)).toBe(1);
     const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'click',
     });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
-    expect((await note(n.id)).links).toEqual([c.id, a.id, b.id]);
+    expect(await note(n.id)).toMatchObject({
+      links: [c.id, a.id, b.id],
+      revision: n.revision + 2,
+    });
+    expect(await audits(fx.editorId)).toBe(1);
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
   });
 
