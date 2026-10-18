@@ -6,6 +6,7 @@ const PASSWORD = process.env.E2E_USER_PASSWORD ?? '';
 test('sign in with email/password loads the seeded board', async ({ page }) => {
   test.skip(!EMAIL || !PASSWORD, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
 
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Mehr Platz im Kopf.' })).toBeVisible();
   await page.getByRole('link', { name: 'Anmelden', exact: true }).click();
