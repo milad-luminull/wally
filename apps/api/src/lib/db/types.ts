@@ -64,6 +64,7 @@ export type UserDoc = {
 
 export type StoredPreferences = {
   theme?: ThemePreference;
+  palette?: import('@wally/shared').Palette;
   canvas?: CanvasPattern;
   lastBoardId?: string | null;
   /** `touchedAt` (epoch ms) orders the pruning past MAX_REMEMBERED_BOARDS; never sent out. */

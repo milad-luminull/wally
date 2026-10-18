@@ -32,6 +32,39 @@ describe('/me', () => {
     await ctx.app.close();
   });
 
+  it('saves a palette independently, defaults older profiles and rejects unknown names', async () => {
+    const token = registerTestUser(ctx, 'palette-user', 'palette@example.com');
+    const before = await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+    expect(before.json().preferences.palette).toBe('paper');
+    const saved = await ctx.inject({
+      method: 'PATCH',
+      url: '/me',
+      headers: ctx.authHeader(token),
+      payload: {
+        language: 'en',
+        preferences: { palette: 'minimal', theme: 'dark', canvas: 'grid' },
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    const after = await ctx.inject({
+      method: 'PATCH',
+      url: '/me',
+      headers: ctx.authHeader(token),
+      payload: { preferences: { theme: 'light' } },
+    });
+    expect(after.json()).toMatchObject({
+      language: 'en',
+      preferences: { palette: 'minimal', theme: 'light', canvas: 'grid' },
+    });
+    const bad = await ctx.inject({
+      method: 'PATCH',
+      url: '/me',
+      headers: ctx.authHeader(token),
+      payload: { preferences: { palette: 'made-up' } },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('rejects an unauthenticated caller', async () => {
     const response = await ctx.inject({ method: 'GET', url: '/me' });
     expect(response.statusCode).toBe(401);
@@ -54,6 +87,7 @@ describe('/me', () => {
       language: 'de',
       preferences: {
         theme: 'system',
+        palette: 'paper',
         canvas: 'dots',
         lastBoardId: null,
         boards: {},
@@ -388,6 +422,7 @@ describe('/me', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json().preferences).toEqual({
         theme: 'dark',
+        palette: 'paper',
         canvas: 'grid',
         lastBoardId: null,
         boards: {},
@@ -484,6 +519,7 @@ describe('/me', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json().preferences).toEqual({
         theme: 'system',
+        palette: 'paper',
         canvas: 'dots',
         lastBoardId: null,
         boards: {},

@@ -121,3 +121,18 @@ export type ThemePreference = z.infer<typeof themePreferenceSchema>;
 export const canvasPatternValues = ['dots', 'grid', 'none'] as const;
 export const canvasPatternSchema = z.enum(canvasPatternValues);
 export type CanvasPattern = z.infer<typeof canvasPatternSchema>;
+
+/** Visual palette, independent of light/dark appearance. */
+export const paletteValues = [
+  'minimal',
+  'paper',
+  'morning',
+  'highlighter',
+  'aurora',
+  'daybreak',
+  'sprout',
+  'amber',
+  'neutral',
+] as const;
+export const paletteSchema = z.enum(paletteValues);
+export type Palette = z.infer<typeof paletteSchema>;

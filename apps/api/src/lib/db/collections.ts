@@ -16,6 +16,7 @@ import {
   languageValues,
   preferenceBoardIdSchema,
   themePreferenceSchema,
+  paletteSchema,
   wallybotPreferencesSchema,
   type Language,
   type Preferences,
@@ -168,6 +169,7 @@ export function userPreferences(
 ): Preferences {
   const stored = user?.preferences;
   const theme = themePreferenceSchema.safeParse(stored?.theme);
+  const palette = paletteSchema.safeParse(stored?.palette);
   const canvas = canvasPatternSchema.safeParse(stored?.canvas);
   const lastBoardId = preferenceBoardIdSchema.safeParse(stored?.lastBoardId);
   const wallybot = wallybotPreferencesSchema.safeParse(stored?.wallybot);
@@ -178,6 +180,7 @@ export function userPreferences(
   }
   return {
     theme: theme.success ? theme.data : 'system',
+    palette: palette.success ? palette.data : 'paper',
     canvas: canvas.success ? canvas.data : 'dots',
     lastBoardId: lastBoardId.success ? lastBoardId.data : null,
     boards,
