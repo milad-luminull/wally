@@ -35,6 +35,7 @@ describe('NoteRow with a pending change', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   });
   const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
@@ -218,7 +219,7 @@ describe('NoteRow just after a keep', () => {
     suggestion: {
       ...kept.suggestion!,
       status: 'KEPT' as const,
-      kept: { fields: ['dueDate' as const], subtasks: [], revision: 2 },
+      kept: { fields: ['dueDate' as const], subtasks: [], links: [], revision: 2 },
     },
   };
   const props = {
@@ -229,6 +230,7 @@ describe('NoteRow just after a keep', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   };
   it('shows the kept date, without an ×, until the refetched note carries it', () => {
@@ -260,6 +262,30 @@ describe('NoteRow just after a keep', () => {
 });
 
 describe('NoteRow without a pending change', () => {
+  it('counts the related notes in its meta line, and says nothing without any', () => {
+    const row = (links: string[], relatedCount?: number) => (
+      <NoteRow
+        note={makeNote({ links, assignee: null })}
+        currentUserId="user-1"
+        onOpen={vi.fn()}
+        onToggleDone={vi.fn()}
+        canEdit
+        relatedCount={relatedCount}
+      />
+    );
+    const { rerender } = render(row(['b', 'c'], 2));
+    expect(screen.getByText(/2 related/)).toBeInTheDocument();
+    rerender(row([]));
+    expect(screen.queryByText(/related/)).toBeNull();
+    // The board's count, not the raw id list: a dangling id is not counted (L7), a backlink is (L1).
+    rerender(row(['b', 'gone'], 1));
+    expect(screen.getByText(/1 related/)).toBeInTheDocument();
+    rerender(row([], 1));
+    expect(screen.getByText(/1 related/)).toBeInTheDocument();
+    rerender(row(['gone'], 0));
+    expect(screen.queryByText(/related/)).toBeNull();
+  });
+
   it('still opens the note on Enter', () => {
     const onOpen = vi.fn();
     render(

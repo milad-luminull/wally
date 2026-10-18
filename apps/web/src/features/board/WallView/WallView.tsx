@@ -81,6 +81,8 @@ interface WallViewProps {
   visibility: NoteVisibility;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
   /**
    * The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). Drawn on the horizon
    * wall only (plan R10); the shell passes it only while the board's assistant is on.
@@ -126,6 +128,7 @@ export function WallView({
   ask,
   visibility,
   pendingFor,
+  relatedCounts,
   tidyFor,
   tidy,
 }: WallViewProps) {
@@ -462,6 +465,7 @@ export function WallView({
             canEditShared={access.canEditShared}
             activeDragId={activeId}
             pendingFor={pendingFor}
+            relatedCounts={relatedCounts}
           />
         ) : (
           <div className="flex min-w-0 flex-1 flex-col">
@@ -482,6 +486,7 @@ export function WallView({
               onCreateInZone={handleCreateInZone}
               activeDragId={activeId}
               filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
+              relatedCounts={relatedCounts}
               pendingFor={pendingFor}
               tidyFor={onHorizon ? tidyFor : undefined}
             />
@@ -503,6 +508,7 @@ export function WallView({
               selected={false}
               onOpen={() => {}}
               overlay
+              relatedCount={relatedCounts?.get(activeNote.id)}
             />
           ) : null}
         </DragOverlay>

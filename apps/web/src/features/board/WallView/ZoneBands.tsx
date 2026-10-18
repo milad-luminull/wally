@@ -44,6 +44,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
   tidyFor?: (noteId: string) => TidyProps | undefined;
 }
@@ -60,6 +62,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  relatedCounts,
   tidyFor,
 }: ZoneBandProps) {
   const { t } = useTranslation();
@@ -148,6 +151,7 @@ function ZoneBand({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              relatedCount={relatedCounts?.get(note.id)}
               tidy={tidyFor?.(note.id)}
             />
           ))}
@@ -197,6 +201,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
   tidyFor?: (noteId: string) => TidyProps | undefined;
 }

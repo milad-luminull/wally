@@ -4,12 +4,12 @@ import { MockLanguageModelV3 } from 'ai/test';
 import { createGoogleVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { suggestionCallSettings } from './config.js';
-import { createSuggestionRunner, suggestionSchemaJson } from './suggest.js';
+import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } from './suggest.js';
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { ModelRef } from './types.js';
 
 /** The fields this reply proposes nothing for. */
-const none = { title: null, reference: null, subtasks: null };
+const none = { title: null, reference: null, subtasks: null, links: null };
 const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
   instructions: 'Fill in the fields.',
   prompt: 'Title: Call Müller Friday',
@@ -35,6 +35,7 @@ describe('createSuggestionRunner', () => {
         confidence: 0.7,
         reason: 'two steps',
       },
+      links: null,
     };
     const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
     const a = attempts();
@@ -309,6 +310,49 @@ interface ClaudeBody {
   tools: { name: string }[];
   tool_choice: unknown;
 }
+
+describe('modelSuggestionSchema', () => {
+  /** A reply that proposes nothing at all. */
+  const nothing = { dueDate: null, priority: null, assignee: null, ...none };
+
+  it('keeps up to three links to listed ids and drops a blank one; a bad list drops alone', () => {
+    const good = modelSuggestionSchema.parse({
+      ...nothing,
+      links: {
+        items: [
+          { noteId: ' n2 ', reason: 'same customer' },
+          { noteId: '', reason: 'blank' },
+          { noteId: 'n3', reason: 'x'.repeat(200) },
+          { noteId: 'n4', reason: 'four' },
+          { noteId: 'n5', reason: 'five' },
+        ],
+        confidence: 0.8,
+        reason: 'related',
+      },
+    });
+    expect(good.links?.items.map((i) => i.noteId)).toEqual(['n2', 'n3', 'n4']);
+    expect(good.links?.items[1]!.reason).toHaveLength(120);
+    const bad = modelSuggestionSchema.parse({
+      ...nothing,
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
+      links: { items: 'not a list', confidence: 0.8, reason: 'odd' },
+    });
+    expect(bad.links).toBeNull();
+    expect(bad.dueDate?.value).toBe('2026-10-23');
+  });
+
+  it('sends maxItems on the links list and no string keywords', async () => {
+    type Node = { properties?: Record<string, Node>; anyOf?: Node[]; type?: unknown };
+    const json = JSON.parse(await suggestionSchemaJson()) as Node;
+    const links = json.properties!.links!;
+    const branch = links.anyOf?.find((n) => n.type === 'object') ?? links;
+    expect(branch.properties!.items).toMatchObject({ type: 'array', maxItems: 3 });
+    const text = JSON.stringify(links);
+    expect(text).not.toContain('minLength');
+    expect(text).not.toContain('maxLength');
+    expect(text).not.toContain('pattern');
+  });
+});
 
 /**
  * The configured settings, through the real Vertex provider with fetch stubbed (express-mode

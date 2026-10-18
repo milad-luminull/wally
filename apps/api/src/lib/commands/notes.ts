@@ -12,9 +12,11 @@ import {
 import { toNoteDto, toSubtaskDto } from '../dto.js';
 import {
   applyFieldChanges,
+  applyLinkChanges,
   applyTagChanges,
   assertPrivateAssignee,
   assertValidAssignee,
+  canSeeNote,
   computeMoveUpdate,
   isValidAssignee,
 } from '../notes.js';
@@ -190,9 +192,37 @@ export async function executeNoteCommand(
   let moveMetadata: Record<string, unknown> | undefined;
   switch (command.type) {
     case 'note.update': {
-      const { fieldChanges, tagChanges, visibility, ...fields } = command.input;
+      const { fieldChanges, tagChanges, linkChanges, visibility, ...fields } = command.input;
       if (visibility !== undefined && note.createdById !== actor.id)
         throw new AppError(403, 'FORBIDDEN', 'Only the creator can change who sees a note');
+      let links: string[] | undefined;
+      if (linkChanges) {
+        const current = note.links ?? [];
+        const requested = [...new Set(linkChanges.add ?? [])];
+        const ids = [...new Set([...current, ...requested])];
+        const targets = ids.length ? await tx.getAll(...ids.map((id) => notesCol(db).doc(id))) : [];
+        const byId = new Map(targets.map((snap) => [snap.id, snap.data()]));
+        // Validate every requested target, even an already stored edge: otherwise success
+        // reveals an inaccessible relation and lets unrelated fields bypass refusal.
+        for (const id of requested) {
+          const target = byId.get(id);
+          if (
+            !target ||
+            target.deletedAt ||
+            target.whiteboardId !== board.id ||
+            !canSeeNote(target, actor.id)
+          )
+            throw new AppError(422, 'LINK_TARGET_INVALID', 'A link must name a note on this board');
+        }
+        // Reclaim dead edges on a link edit so invisible tombstones cannot exhaust capacity.
+        // Live private targets remain stored; only response mapping hides them per reader.
+        const live = current.filter((id) => {
+          const target = byId.get(id);
+          return target && !target.deletedAt && target.whiteboardId === board.id;
+        });
+        const next = applyLinkChanges(live, linkChanges, note.id);
+        if (JSON.stringify(next) !== JSON.stringify(current)) links = next;
+      }
       changes = {
         ...fields,
         ...(visibility !== undefined ? { visibility } : {}),
@@ -202,6 +232,7 @@ export async function executeNoteCommand(
           ? { customFields: applyFieldChanges(note.customFields ?? {}, fieldChanges) }
           : {}),
         ...(tagChanges ? { tags: applyTagChanges(note.tags, tagChanges) } : {}),
+        ...(links ? { links } : {}),
       };
       break;
     }

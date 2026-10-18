@@ -408,6 +408,18 @@ export const de = {
       addPlaceholder: 'Hinzufügen',
       remove: '{{tag}} entfernen',
     },
+    related: {
+      label: 'Verwandte Notizen',
+      add: 'Notiz verknüpfen…',
+      search: 'Notiz suchen',
+      empty: 'Keine passende Notiz',
+      remove: 'Verknüpfung zu {{title}} entfernen',
+      fromOther: 'Verknüpft von {{title}}',
+      linked: 'Verknüpft mit {{title}}',
+
+      count_one: '{{count}} verwandt',
+      count_other: '{{count}} verwandt',
+    },
   },
   /** The answer card on the wall (WALLYBOT_INLINE.md §3.6). No name, no first person. */
   ask: {
@@ -464,6 +476,9 @@ export const de = {
       reference: '{{key}}: {{value}}',
       subtasks_one: '{{count}} Schritt',
       subtasks_other: '{{count}} Schritte',
+      link: 'Verwandt: {{title}}',
+      links_one: '{{count}} verwandte Notiz',
+      links_other: '{{count}} verwandte Notizen',
     },
     title: {
       /** The second line under the person's own title (BRAND rule 7). */
@@ -488,6 +503,7 @@ export const de = {
       rowAssignee: 'Zuständig: {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Schritt: {{text}}',
+      rowLink: 'Verwandt: {{title}}',
     },
   },
   /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */

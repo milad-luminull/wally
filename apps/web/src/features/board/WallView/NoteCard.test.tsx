@@ -81,10 +81,16 @@ describe('NoteCard content', () => {
   const nora = { id: 'user-1', email: 'nora.falk@example.com', displayName: 'Nora Falk' };
   const jonas = { id: 'user-2', email: 'jonas@example.com', displayName: 'Jonas Weber' };
 
-  function renderCard(note = makeNote(), currentUserId = 'user-1') {
+  function renderCard(note = makeNote(), currentUserId = 'user-1', relatedCount?: number) {
     return render(
       <DndContext>
-        <NoteCard note={note} currentUserId={currentUserId} selected={false} onOpen={vi.fn()} />
+        <NoteCard
+          note={note}
+          currentUserId={currentUserId}
+          selected={false}
+          onOpen={vi.fn()}
+          relatedCount={relatedCount}
+        />
       </DndContext>,
     );
   }
@@ -133,6 +139,31 @@ describe('NoteCard content', () => {
 
     expect(screen.queryByRole('img', { name: 'Private note' })).not.toBeInTheDocument();
   });
+
+  it('counts the related notes in the meta row, and shows nothing without any', () => {
+    const { unmount } = renderCard(makeNote({ links: ['b', 'c'] }), 'user-1', 2);
+    expect(screen.getByText('2 related')).toBeInTheDocument();
+    unmount();
+
+    renderCard(makeNote({ links: [] }));
+    expect(screen.queryByText(/related/)).not.toBeInTheDocument();
+  });
+
+  // The count is what the board resolves (relatedCounts), not the raw id list: a deleted or
+  // private-made target is not counted (L7), and a note only linked to counts its backlinks (L1).
+  it('shows the related count the board resolves, not the length of its own id list', () => {
+    const { unmount } = renderCard(makeNote({ links: ['b', 'gone'] }), 'user-1', 1);
+    expect(screen.getByText('1 related')).toBeInTheDocument();
+    expect(screen.queryByText('2 related')).not.toBeInTheDocument();
+    unmount();
+
+    const { unmount: unmountBacklinked } = renderCard(makeNote({ links: [] }), 'user-1', 1);
+    expect(screen.getByText('1 related')).toBeInTheDocument();
+    unmountBacklinked();
+
+    renderCard(makeNote({ links: ['gone'] }), 'user-1', 0);
+    expect(screen.queryByText(/related/)).not.toBeInTheDocument();
+  });
 });
 
 describe('NoteCard with a pending change', () => {
@@ -144,6 +175,7 @@ describe('NoteCard with a pending change', () => {
     onRemove: vi.fn(),
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
+    onSetLink: vi.fn(),
     onPause: vi.fn(),
   });
   const renderCard = (p = pending()) => {
@@ -341,6 +373,36 @@ describe('NoteCard with a pending change', () => {
     expect(screen.getByRole('button', { name: 'Remove suggestion: 1 step' })).toBeInTheDocument();
   });
 
+  it('shows one line per ticked proposed link, each with an × that unticks it by its index', () => {
+    const p = renderCard(
+      withProposals(
+        ['dueDate', 'links'],
+        {
+          links: {
+            items: [
+              { index: 0, noteId: 'b', title: 'Supplier list', reason: 'same supplier' },
+              { index: 1, noteId: 'c', title: 'Budget', reason: 'same budget' },
+              { index: 2, noteId: 'd', title: '', reason: 'same quote' },
+            ],
+            reason: 'related',
+          },
+        },
+        { links: [0, 2] },
+      ),
+    );
+    expect(screen.getByText('Related: Supplier list')).toBeInTheDocument();
+    expect(screen.getByText('Related: Untitled')).toBeInTheDocument();
+    // An unticked link leaves the card; the review still offers it.
+    expect(screen.queryByText('Related: Budget')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove suggestion: Related: Supplier list' }),
+    );
+    expect(p.onSetLink).toHaveBeenCalledWith(0, false);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Related: Untitled' }));
+    expect(p.onSetLink).toHaveBeenLastCalledWith(2, false);
+    expect(p.onRemove).not.toHaveBeenCalled();
+  });
+
   it('keeps showing the kept values, without an ×, until the refetch carries them', () => {
     const base = makeSuggestionMark({ phase: 'kept', countdownEndsAt: null });
     const p = pending({
@@ -350,7 +412,7 @@ describe('NoteCard with a pending change', () => {
       suggestion: {
         ...base.suggestion!,
         status: 'KEPT',
-        kept: { fields: ['dueDate', 'priority'], subtasks: [], revision: 3 },
+        kept: { fields: ['dueDate', 'priority'], subtasks: [], links: [], revision: 3 },
       },
     });
     renderCard(p);

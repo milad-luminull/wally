@@ -1,3 +1,4 @@
+import { LinkLines } from './LinkLines';
 import { useDroppable } from '@dnd-kit/core';
 import { useRef, type MouseEvent } from 'react';
 import { MousePointerClick } from 'lucide-react';
@@ -51,6 +52,8 @@ interface WallCanvasProps {
   activeDragId: string | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** How many notes each note is related to, from the whole board (`relatedCounts`). */
+  relatedCounts?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -95,6 +98,7 @@ export function WallCanvas({
   filtered,
   activeDragId,
   pendingFor,
+  relatedCounts,
 }: WallCanvasProps) {
   const { t } = useTranslation();
   const { setNodeRef } = useDroppable({ id: FREE_CANVAS_DROPPABLE_ID });
@@ -131,6 +135,7 @@ export function WallCanvas({
           className={cn(CANVAS_PATTERN_CLASS[pattern], 'relative')}
           style={{ width: FREE_CANVAS_WIDTH, height: FREE_CANVAS_HEIGHT }}
         >
+          <LinkLines notes={notes} pendingFor={pendingFor} />
           {notes.map((note) => (
             <NoteCard
               key={note.id}
@@ -140,6 +145,7 @@ export function WallCanvas({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              relatedCount={relatedCounts?.get(note.id)}
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
           ))}

@@ -22,6 +22,7 @@ import {
   toShareLinkDto,
   toWhiteboardDto,
 } from '../dto.js';
+import { visibleLinks } from '../visibleLinks.js';
 import { canSeeNote } from '../notes.js';
 import { requireAccess, notFound, revisionOf, type Actor } from './context.js';
 
@@ -108,6 +109,7 @@ export async function listNotes(db: Firestore, actor: Actor, boardId: string, ra
       let notes = docsWithId(
         await tx.get(notesCol(db).where('whiteboardId', '==', boardId)),
       ).filter((n) => !n.deletedAt && canSeeNote(n, actor.id));
+      const visibleIds = new Set(notes.map((n) => n.id));
       if (query.status !== 'ALL') notes = notes.filter((n) => n.status === query.status);
       if (query.priority?.length) {
         notes = notes.filter((n) => query.priority!.includes(n.priority));
@@ -144,7 +146,9 @@ export async function listNotes(db: Firestore, actor: Actor, boardId: string, ra
         db,
         notes.flatMap((n) => [n.assigneeId, n.createdById]),
       );
-      return notes.map((n) => toNoteDto(n, users));
+      return notes.map((n) =>
+        toNoteDto({ ...n, links: (n.links ?? []).filter((id) => visibleIds.has(id)) }, users),
+      );
     },
     { readOnly: true },
   );
@@ -169,7 +173,7 @@ export async function getNote(
       const tasks = docsWithId(await tx.get(subtasksCol(db, noteId)));
       const history = docsWithId(await tx.get(historyCol(db, noteId)));
       return toNoteDetailDto(
-        note,
+        { ...note, links: await visibleLinks(db, note, actor.id, tx) },
         tasks,
         history,
         await loadUsers(db, [note.assigneeId, note.createdById, ...history.map((h) => h.actorId)]),

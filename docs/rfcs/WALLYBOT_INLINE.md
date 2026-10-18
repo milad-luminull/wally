@@ -1,6 +1,7 @@
 # Wallybot inline — review and plan
 
 **Status:** accepted 2026-10-16. All five decisions in §6 were approved as recommended; slice 1 (§5) started the same day; slice 2 (§3.3, §4) started 2026-10-17; slice 3 started the same day (subtasks, a reference, the title line, and the note panel's review in two groups, "From what you typed" and "Added by Wallybot"); links between notes moved to a follow-up slice (slice 3 plan, R1); slice 4 shipped 2026-10-18 (questions answered as a card where they were written, the question panel retired); slice 5 (Tidy) started 2026-10-18, as an explicit action that waits for Enter (plan R1).
+Links follow-up (slice 3's R1) implemented 2026-10-18: stored relations, proposals kept one by one, a panel picker, and hairlines on the free canvas.
 **Last revised:** 2026-10-18.
 **Sources:** the first customer feedback (write the title and text on the board itself, the
 sidebar only for details); the Claude Design page "Wallybot Inline" and its notes document
@@ -117,7 +118,7 @@ This slice has no AI in it and is where the customer feedback is answered. It sh
   GmbH"), links to related notes on the wall. On the card these fields show with a small source
   mark; expanding the card during review shows two groups, **From what you typed** and
   **Added by Wallybot**, each row with a checkbox, the card updating as rows are ticked.
-- A link to a related note is drawn on the wall as a hairline while the proposal is pending,
+- A link to a related note is drawn on the free canvas as a hairline (the zone bands and the list show the relation in the note panel) while the proposal is pending,
   and stays only if kept.
 
 ### 3.5 Tidy after a pause (3c) becomes an explicit action

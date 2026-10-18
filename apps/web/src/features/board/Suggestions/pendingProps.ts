@@ -16,6 +16,8 @@ export interface PendingProps {
   onSetField: (field: SuggestionFieldKey, on: boolean) => void;
   /** Ticks one proposed step in or out, by its index. */
   onSetSubtask: (index: number, on: boolean) => void;
+  /** Ticks one proposed link in or out, by its stored index. */
+  onSetLink: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
 }
 
@@ -50,10 +52,12 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
 
 type Proposed<K extends SuggestionFieldKey> = NonNullable<SuggestionFields[K]>;
 type ProposedValues = {
-  [K in Exclude<SuggestionFieldKey, 'subtasks'>]: Proposed<K> | null;
+  [K in Exclude<SuggestionFieldKey, 'subtasks' | 'links'>]: Proposed<K> | null;
 } & {
   /** The proposed steps, with the indexes still ticked. */
   subtasks: (Proposed<'subtasks'> & { kept: number[] }) | null;
+  /** The proposed links, with the indexes still ticked. */
+  links: (Proposed<'links'> & { kept: number[] }) | null;
 };
 const NONE: ProposedValues = {
   dueDate: null,
@@ -62,6 +66,7 @@ const NONE: ProposedValues = {
   title: null,
   reference: null,
   subtasks: null,
+  links: null,
 };
 
 /**
@@ -69,8 +74,9 @@ const NONE: ProposedValues = {
  * and only where the note has nothing of its own (plan R3), so a value the person set is never
  * covered. A done note shows no due date or priority, so none is proposed there; a private
  * note shows a lock, never an assignee. The reference shows only on a note without properties
- * and the steps only on a note without subtasks (R7). The title is a second line beside the
- * person's own, so it shows whatever the note's title is, once ticked (R2).
+ * and the steps only on a note without subtasks (R7); the links only on a note without links
+ * of its own (the links plan's L3). The title is a second line beside the person's own, so it
+ * shows whatever the note's title is, once ticked (R2).
  *
  * Once kept, the kept values stay in their places until the refetched note carries them (its
  * revision reaches the one the keep produced), so a date, a priority or a person never blinks
@@ -99,6 +105,10 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
     subtasks:
       has('subtasks') && note.subtaskSummary.total === 0 && fields.subtasks
         ? { ...fields.subtasks, kept: mark.subtasks }
+        : null,
+    links:
+      has('links') && note.links.length === 0 && fields.links
+        ? { ...fields.links, kept: mark.links }
         : null,
   };
 }

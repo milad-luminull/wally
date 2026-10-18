@@ -386,6 +386,18 @@ export const en = {
       addPlaceholder: 'Add',
       remove: 'Remove {{tag}}',
     },
+    related: {
+      label: 'Related notes',
+      add: 'Link a note…',
+      search: 'Search notes',
+      empty: 'No matching note',
+      remove: 'Remove the link to {{title}}',
+      fromOther: 'Linked from {{title}}',
+      linked: 'Linked to {{title}}',
+
+      count_one: '{{count}} related',
+      count_other: '{{count}} related',
+    },
   },
   ask: {
     cardAria: 'Answer from the wall',
@@ -439,6 +451,9 @@ export const en = {
       reference: '{{key}}: {{value}}',
       subtasks_one: '{{count}} step',
       subtasks_other: '{{count}} steps',
+      link: 'Related: {{title}}',
+      links_one: '{{count}} related note',
+      links_other: '{{count}} related notes',
     },
     title: {
       proposed: 'Suggested: {{title}}',
@@ -461,6 +476,7 @@ export const en = {
       rowAssignee: 'Assigned to {{name}}',
       rowReference: '{{key}}: {{value}}',
       rowStep: 'Step: {{text}}',
+      rowLink: 'Related: {{title}}',
     },
   },
   tidy: {

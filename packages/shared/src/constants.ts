@@ -23,6 +23,8 @@ export const SUBTASK_TEXT_MAX_LENGTH = 300;
 export const FIELD_KEY_MAX_LENGTH = 40;
 export const FIELD_VALUE_MAX_LENGTH = 200;
 export const MAX_FIELDS_PER_NOTE = 20;
+/** Related notes one note may link to (WALLYBOT_INLINE.md §3.4; the plan's L1). */
+export const MAX_LINKS_PER_NOTE = 10;
 export const BOARD_NAME_MAX_LENGTH = 120;
 
 /** Default free-canvas size in px — fixed so positions survive window resizes. */

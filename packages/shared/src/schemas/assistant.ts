@@ -61,11 +61,14 @@ export const suggestionFieldKeys = [
   'title',
   'reference',
   'subtasks',
+  'links',
 ] as const;
 export const suggestionFieldKeySchema = z.enum(suggestionFieldKeys);
 export type SuggestionFieldKey = z.infer<typeof suggestionFieldKeySchema>;
 /** Steps a proposal may carry; more would be a plan, not a note. */
 export const SUGGESTION_MAX_SUBTASKS = 5;
+/** Related notes a proposal may name; more would be a map of the board, not a note. */
+export const SUGGESTION_MAX_LINKS = 3;
 
 const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 
@@ -115,6 +118,27 @@ export const suggestionFieldsSchema = z.object({
       reason: reasonSchema,
     })
     .nullable(),
+  /**
+   * Related notes on the board, one to three, each with the words that relate them (§3.4); the
+   * title is the target's current one, read when the record is read (the plan's L3).
+   */
+  links: z
+    .object({
+      items: z
+        .array(
+          z.object({
+            /** The item's index in the stored proposal: what a keep names, even when others dropped out. */
+            index: z.number().int().nonnegative(),
+            noteId: z.string(),
+            title: z.string(),
+            reason: reasonSchema,
+          }),
+        )
+        .min(1)
+        .max(SUGGESTION_MAX_LINKS),
+      reason: reasonSchema,
+    })
+    .nullable(),
 });
 export type SuggestionFields = z.infer<typeof suggestionFieldsSchema>;
 
@@ -137,6 +161,8 @@ export const suggestionDtoSchema = z.object({
       fields: z.array(suggestionFieldKeySchema),
       /** Which of the proposed subtasks were written, by index. */
       subtasks: z.array(z.number().int().nonnegative()),
+      /** Which of the proposed links were written, by index. */
+      links: z.array(z.number().int().nonnegative()),
       revision: z.number().int().nonnegative(),
     })
     .nullable(),
@@ -176,6 +202,17 @@ export const suggestionDecisionSchema = z
           .max(SUGGESTION_MAX_SUBTASKS - 1),
       )
       .max(SUGGESTION_MAX_SUBTASKS)
+      .optional(),
+    /** For `keep` with `links` among the fields: the items to write, by index; omitted means all. */
+    links: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(SUGGESTION_MAX_LINKS - 1),
+      )
+      .max(SUGGESTION_MAX_LINKS)
       .optional(),
     source: suggestionDecisionSourceSchema,
   })

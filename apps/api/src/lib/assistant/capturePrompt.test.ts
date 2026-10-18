@@ -56,6 +56,7 @@ describe('the capture prompt', () => {
         { id: 'u-ben', name: 'ben@example.com' },
       ],
       fieldKeys: [],
+      notes: [],
     });
     expect(prompt).toContain('Title: Call Müller Friday');
     expect(prompt).toContain('u-anna: Anna Berg');
@@ -69,6 +70,7 @@ describe('the capture prompt', () => {
       description: 'by the end of the week',
       members: [],
       fieldKeys: [],
+      notes: [],
     });
     expect(prompt).toContain('Text: by the end of the week');
     expect(prompt).toContain('Members: none');
@@ -94,10 +96,16 @@ describe('the capture prompt', () => {
       description: '',
       members: [{ id: 'u-anna', name: 'Anna Berg' }],
       fieldKeys: ['Customer', 'Contract number'],
+      notes: [],
     });
     // One key per line, as the members are: a key may itself hold a comma.
     expect(prompt).toContain('Properties on this board:\nCustomer\nContract number');
-    expect(prompt.endsWith('Properties on this board:\nCustomer\nContract number')).toBe(true);
+    // The properties block is followed by the other notes, the prompt's last block.
+    expect(
+      prompt.endsWith(
+        'Properties on this board:\nCustomer\nContract number\nOther notes on this board: none',
+      ),
+    ).toBe(true);
     expect(prompt.indexOf('u-anna: Anna Berg')).toBeLessThan(
       prompt.indexOf('Properties on this board:'),
     );
@@ -120,8 +128,38 @@ describe('the capture prompt', () => {
   });
 
   it('says so when the board has no properties yet', () => {
-    const prompt = buildCapturePrompt({ title: 'A', description: '', members: [], fieldKeys: [] });
+    const prompt = buildCapturePrompt({
+      title: 'A',
+      description: '',
+      members: [],
+      fieldKeys: [],
+      notes: [],
+    });
     expect(prompt).toContain('Properties on this board: none');
     expect(prompt).toContain('Members: none');
+  });
+
+  it('lists the other notes as data, one per line, or says there are none', () => {
+    const prompt = buildCapturePrompt({
+      title: 'Call Müller about the quote',
+      description: '',
+      members: [],
+      fieldKeys: [],
+      notes: [
+        { id: 'n2', title: 'Quote for Müller GmbH' },
+        { id: 'n3', title: 'Team lunch' },
+      ],
+    });
+    expect(prompt).toContain(
+      'Other notes on this board:\nn2: Quote for Müller GmbH\nn3: Team lunch',
+    );
+    expect(
+      buildCapturePrompt({ title: 'x', description: '', members: [], fieldKeys: [], notes: [] }),
+    ).toContain('Other notes on this board: none');
+  });
+
+  it('tells the model what a link is and that it names ids from the list only', () => {
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toContain('links:');
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toContain('Only ids from the list of other notes');
   });
 });

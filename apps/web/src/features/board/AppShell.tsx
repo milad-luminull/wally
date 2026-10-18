@@ -17,6 +17,7 @@ import {
   collectFieldValues,
   filterNotes,
   defaultZoneKey,
+  relatedCounts,
   showsVisibilityFilter,
 } from './util/noteDerived';
 import { TopBar } from './TopBar';
@@ -65,6 +66,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     () => (viewState.fieldKey ? collectFieldValues(notes, viewState.fieldKey, language) : []),
     [notes, viewState.fieldKey, language],
   );
+  // Each card's related count, resolved against the whole board as the panel resolves it, so
+  // a filter never changes it and a dangling id never counts (the links plan's L1, L7).
+  const relatedCountByNote = useMemo(() => relatedCounts(notes), [notes]);
 
   // Below 1080px the canvas/drag surface is desktop-only (SPEC §11 + the plan's
   // reconciled decision) — force list view there instead of just hiding the tab, and
@@ -266,6 +270,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             ask={askSlot}
             visibility={access.newNoteVisibility}
             pendingFor={pendingFor}
+            relatedCounts={relatedCountByNote}
             tidyFor={tidyOn ? tidyFor : undefined}
             tidy={tidyOn ? tidy : undefined}
           />
@@ -293,6 +298,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             }
             ask={askSlot}
             pendingFor={pendingFor}
+            relatedCounts={relatedCountByNote}
           />
         )}
 
@@ -304,6 +310,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           isBelowDesktop={isBelowDesktop}
           onClose={() => viewState.openNote(null)}
           onDuplicate={duplicateNote}
+          onOpenNote={viewState.openNote}
           currentUserId={user?.uid}
           pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
         />

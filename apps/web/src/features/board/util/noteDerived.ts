@@ -234,3 +234,52 @@ export function showsVisibilityFilter(
 ): boolean {
   return filter !== 'all' || notes.some((n) => n.visibility === 'PRIVATE');
 }
+
+/**
+ * What a note is related to, both ways (the plan's L1, L6): the notes it links to, in its own
+ * order, then the notes that link to it. Resolved against the board's notes, so an id whose
+ * note is gone or out of sight is dropped (L7).
+ */
+export function relatedNotes(
+  note: Pick<NoteDto, 'id' | 'links'>,
+  notes: readonly NoteDto[],
+): { note: NoteDto; direction: 'out' | 'in' }[] {
+  const byId = new Map(notes.map((n) => [n.id, n]));
+  const out = note.links.flatMap((id) => {
+    const target = byId.get(id);
+    return target ? [{ note: target, direction: 'out' as const }] : [];
+  });
+  const seen = new Set(note.links);
+  const incoming = notes
+    .filter((n) => n.id !== note.id && n.links.includes(note.id) && !seen.has(n.id))
+    .map((n) => ({ note: n, direction: 'in' as const }));
+  return [...out, ...incoming];
+}
+
+/**
+ * How many notes each note of the board is related to: `relatedNotes(note, notes).length` for
+ * every note at once, in one pass over the links rather than one per card. The card and the
+ * row show this count (L5), so a deleted or private-made target is not counted (L7) and a
+ * note that is only linked to counts its backlinks (L1).
+ */
+export function relatedCounts(notes: readonly NoteDto[]): Map<string, number> {
+  const ids = new Set(notes.map((n) => n.id));
+  const linkedFrom = new Map<string, Set<string>>();
+  for (const source of notes) {
+    for (const id of source.links) {
+      if (id === source.id || !ids.has(id)) continue;
+      const sources = linkedFrom.get(id) ?? new Set<string>();
+      sources.add(source.id);
+      linkedFrom.set(id, sources);
+    }
+  }
+  const counts = new Map<string, number>();
+  for (const note of notes) {
+    const own = new Set(note.links);
+    const out = note.links.filter((id) => ids.has(id)).length;
+    let incoming = 0;
+    for (const source of linkedFrom.get(note.id) ?? []) if (!own.has(source)) incoming += 1;
+    if (out + incoming > 0) counts.set(note.id, out + incoming);
+  }
+  return counts;
+}

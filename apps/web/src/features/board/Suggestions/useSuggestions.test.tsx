@@ -36,6 +36,7 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
     title: null,
     reference: null,
     subtasks: null,
+    links: null,
   },
   typed: [],
   kept: null,
@@ -72,7 +73,7 @@ function holdDecide() {
                     : 'DISCARDED',
               kept:
                 body.decision === 'keep'
-                  ? { fields: body.fields ?? [], subtasks: [], revision: 5 }
+                  ? { fields: body.fields ?? [], subtasks: [], links: [], revision: 5 }
                   : null,
             }),
           });
@@ -105,7 +106,12 @@ beforeEach(() => {
       status: body.decision === 'keep' ? 'KEPT' : body.decision === 'undo' ? 'UNDONE' : 'DISCARDED',
       kept:
         body.decision === 'keep'
-          ? { fields: body.fields ?? ['dueDate', 'priority'], subtasks: [], revision: 5 }
+          ? {
+              fields: body.fields ?? ['dueDate', 'priority'],
+              subtasks: [],
+              links: [],
+              revision: 5,
+            }
           : null,
     }),
   }));
@@ -318,6 +324,7 @@ describe('useSuggestions', () => {
           title: null,
           reference: null,
           subtasks: null,
+          links: null,
         },
       }),
     });
@@ -342,6 +349,7 @@ describe('useSuggestions', () => {
           title: null,
           reference: null,
           subtasks: null,
+          links: null,
         },
       }),
     });
@@ -634,6 +642,7 @@ describe('useSuggestions', () => {
       title: null,
       reference: null,
       subtasks: null,
+      links: null,
       ...over,
     });
     const DATE = { value: '2026-10-23', reason: 'Friday' };
@@ -681,6 +690,27 @@ describe('useSuggestions', () => {
         fields: ['dueDate', 'title'],
         source: 'enter',
       });
+    });
+
+    it('the proposed links in the change are the stored indexes, even when an earlier target dropped out', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 1, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 2, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      expect(result.current.marks.get('n1')?.links).toEqual([1, 2]);
     });
 
     it('a title alone runs no countdown and keeps only when ticked', async () => {
@@ -778,6 +808,157 @@ describe('useSuggestions', () => {
         fields: ['dueDate', 'subtasks'],
         subtasks: [0, 1],
         source: 'enter',
+      });
+    });
+
+    it('links are kept one by one', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 0, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 1, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = () => result.current.marks.get('n1')!;
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([0, 1]);
+      act(() => result.current.setLink('n1', 0, false));
+      expect(mark().links).toEqual([1]);
+      // An index the proposal does not hold changes nothing.
+      act(() => result.current.setLink('n1', 2, true));
+      expect(mark().links).toEqual([1]);
+      act(() => result.current.setLink('n1', 1, false));
+      expect(mark().fields).toEqual(['dueDate']);
+      expect(mark().links).toEqual([]);
+      act(() => result.current.setLink('n1', 0, true));
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([0]);
+      act(() => result.current.keep('n1', 'enter'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [0],
+        source: 'enter',
+      });
+    });
+
+    it('a link is named by its stored index, and the links tick back all at once', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 1, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 2, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      wallybot.autoApply = false;
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      const mark = () => result.current.marks.get('n1')!;
+      // Index 0 dropped out on the server (its target is gone): it cannot be ticked.
+      act(() => result.current.setLink('n1', 0, true));
+      expect(mark().links).toEqual([1, 2]);
+      act(() => result.current.setLink('n1', 2, false));
+      expect(mark().links).toEqual([1]);
+      act(() => result.current.setLink('n1', 1, false));
+      expect(mark().fields).toEqual(['dueDate']);
+      act(() => result.current.setField('n1', 'links', true));
+      expect(mark().fields).toEqual(['dueDate', 'links']);
+      expect(mark().links).toEqual([1, 2]);
+      act(() => result.current.setLink('n1', 1, false));
+      act(() => result.current.keep('n1', 'click'));
+      await flush();
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [2],
+        source: 'click',
+      });
+    });
+
+    // A target deleted or made private after the proposal loaded: the server refuses the keep
+    // with 422 LINK_TARGET_INVALID, puts back what it wrote and discards the record (Task 4's
+    // completeKeep). A refusal is not sent again; the dot goes and the note is read afresh.
+    it('drops the dot without a second try when a ticked link target is refused', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [{ index: 0, noteId: 'b', title: 'B', reason: 'same customer' }],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      vi.mocked(assistantApi.decide).mockRejectedValueOnce(
+        Object.assign(new Error('422'), { status: 422, code: 'LINK_TARGET_INVALID' }),
+      );
+      wallybot.autoApply = false;
+      const { result, queryClient } = setup();
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.keep('n1', 'enter'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledTimes(1);
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['dueDate', 'links'],
+        links: [0],
+        source: 'enter',
+      });
+      expect(result.current.marks.has('n1')).toBe(false);
+      expect(invalidate).toHaveBeenCalled();
+    });
+
+    it("the countdown's keep carries the ticked links", async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            links: {
+              items: [
+                { index: 0, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 1, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      act(() => result.current.setLink('n1', 0, false));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+      });
+      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+        decision: 'keep',
+        fields: ['links'],
+        links: [1],
+        source: 'countdown',
       });
     });
 
@@ -991,7 +1172,12 @@ describe('useSuggestions', () => {
         suggestion: {
           ...restored,
           status: 'KEPT',
-          kept: { fields: body.fields ?? [], subtasks: body.subtasks ?? [], revision: 5 },
+          kept: {
+            fields: body.fields ?? [],
+            subtasks: body.subtasks ?? [],
+            links: [],
+            revision: 5,
+          },
         },
       }));
       const { result } = setup();

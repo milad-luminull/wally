@@ -1,3 +1,5 @@
+import { RelatedNotes } from './RelatedNotes';
+import { useAddLink, useRemoveLink } from '../hooks/mutations/useLinkMutations';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
@@ -81,6 +83,7 @@ interface NoteDetailPanelProps {
   isBelowDesktop: boolean;
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
+  onOpenNote: (noteId: string) => void;
   currentUserId: string | undefined;
   /** The open note's pending change, reviewed at the top of the panel (plan R3). */
   pending?: PendingProps;
@@ -94,6 +97,7 @@ export function NoteDetailPanel({
   isBelowDesktop,
   onClose,
   onDuplicate,
+  onOpenNote,
   currentUserId,
   pending,
 }: NoteDetailPanelProps) {
@@ -112,6 +116,7 @@ export function NoteDetailPanel({
               axis={axis}
               onClose={onClose}
               onDuplicate={onDuplicate}
+              onOpenNote={onOpenNote}
               currentUserId={currentUserId}
               pending={pending}
               autoFocusTitle={false}
@@ -142,6 +147,7 @@ export function NoteDetailPanel({
         axis={axis}
         onClose={onClose}
         onDuplicate={onDuplicate}
+        onOpenNote={onOpenNote}
         currentUserId={currentUserId}
         pending={pending}
         autoFocusTitle
@@ -157,6 +163,7 @@ interface ContentProps {
   axis: BoardAxis;
   onClose: () => void;
   onDuplicate: (noteId: string) => void;
+  onOpenNote: (noteId: string) => void;
   currentUserId: string | undefined;
   pending: PendingProps | undefined;
   autoFocusTitle: boolean;
@@ -169,6 +176,7 @@ function NoteDetailContent({
   axis,
   onClose,
   onDuplicate,
+  onOpenNote,
   currentUserId,
   pending,
   autoFocusTitle,
@@ -185,6 +193,8 @@ function NoteDetailContent({
     [boardNotes, language],
   );
 
+  const addLink = useAddLink(boardId);
+  const removeLink = useRemoveLink(boardId);
   const updateNote = useUpdateNote(boardId);
   const moveNote = useMoveNote(boardId);
   const toggleStatus = useToggleNoteStatus(boardId);
@@ -572,6 +582,16 @@ function NoteDetailContent({
           </PropertyRow>
         </PanelSection>
 
+        <PanelSection>
+          <RelatedNotes
+            note={note}
+            notes={boardNotes ?? []}
+            disabled={disabled}
+            onOpen={onOpenNote}
+            onAdd={(targetId) => addLink.mutate({ noteId: note.id, targetId })}
+            onRemove={(targetId) => removeLink.mutate({ noteId: note.id, targetId })}
+          />
+        </PanelSection>
         <PanelSection>
           <CustomFieldEditor
             fields={note.customFields}

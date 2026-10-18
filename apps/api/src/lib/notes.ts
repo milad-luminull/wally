@@ -1,6 +1,7 @@
 import {
   findFieldKey,
   MAX_FIELDS_PER_NOTE,
+  MAX_LINKS_PER_NOTE,
   MAX_TAGS_PER_NOTE,
   type CustomFields,
   type NoteHorizon,
@@ -143,5 +144,31 @@ export function applyTagChanges(
   if (next.length > MAX_TAGS_PER_NOTE) {
     throw new AppError(400, 'BAD_REQUEST', `A note may carry at most ${MAX_TAGS_PER_NOTE} tags`);
   }
+  return next;
+}
+
+/**
+ * The same for `linkChanges`: removals, then additions not already present, in order, never
+ * the note itself. Whether an added id is a live, visible note of the board is checked in the
+ * command's transaction, where the notes can be read.
+ */
+export function applyLinkChanges(
+  current: string[],
+  changes: NonNullable<NoteUpdateInput['linkChanges']>,
+  noteId: string,
+): string[] {
+  const removed = new Set(changes.remove ?? []);
+  const next = current.filter((id) => !removed.has(id));
+  for (const id of changes.add ?? []) {
+    if (id === noteId)
+      throw new AppError(422, 'LINK_TARGET_INVALID', 'A note cannot link to itself');
+    if (!next.includes(id)) next.push(id);
+  }
+  if (next.length > MAX_LINKS_PER_NOTE)
+    throw new AppError(
+      400,
+      'BAD_REQUEST',
+      `A note may link to at most ${MAX_LINKS_PER_NOTE} notes`,
+    );
   return next;
 }
