@@ -24,4 +24,11 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
   await page.locator('[data-note-id]', { hasText: title }).click();
   await expect(page.getByRole('complementary', { name: 'Notizdetails' })).toBeVisible();
   await expect(page.locator('[data-pending-review]')).toHaveCount(0);
+
+  // Tidy belongs to the assistant (WALLYBOT_INLINE.md §3.5): with it off, the horizon wall has
+  // no bar under its bands, and a jotted note shows no destination.
+  await expect(page.locator('[data-tidy-bar]')).toHaveCount(0);
+  await expect(
+    page.locator('[data-note-id]', { hasText: title }).locator('[data-tidy]'),
+  ).toHaveCount(0);
 });

@@ -154,14 +154,14 @@ in hex and must be kept in step.
 
 ## AI
 
-Wally's AI is two things on the board: the question panel beside it
+Wally's AI is three things on the board: the question panel beside it
 (`features/board/Assistant`), which answers questions about the wall from the notes it reads,
 and the fill-in on a note written in place (`features/board/Suggestions`), which proposes a due
 date, a priority, a person, subtasks or a reference as a pending change, reviewed in the note
 panel in two groups ("From what you typed", "Added by Wallybot"; `suggest.review.typed` and
 `suggest.review.added`) and offering a cleaner title on the card's title line as a second
-version beside the original, which is rule 7's instance. These rules are the contract both
-follow, and `brandGuards.test.ts` enforces the first one.
+version beside the original, which is rule 7's instance, and Tidy on the horizon wall (`features/board/Tidy`), which proposes where jotted notes belong and moves them only on the person's yes, every moved card carrying the Undo for a while. These rules are the contract all
+three follow, and `brandGuards.test.ts` enforces the first one.
 
 > The AI is the wall's good manners. It fills in what you'd have typed anyway, puts things
 > where you'd have put them, and gets out of the way.
