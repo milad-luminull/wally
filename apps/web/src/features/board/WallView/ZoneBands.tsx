@@ -116,7 +116,9 @@ function ZoneBand({
       >
         <div className="flex flex-row flex-wrap content-start gap-2">
           {ask && (
-            <div key={ask.key} data-ask>
+            // min-w-0 lets this flex item shrink below the card's 376px, so the card's own
+            // max-w-full can cap it to a narrow column instead of spilling past it.
+            <div key={ask.key} data-ask className="min-w-0 max-w-full">
               {ask.card}
             </div>
           )}

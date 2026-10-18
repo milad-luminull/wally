@@ -224,6 +224,14 @@ describe('WallView answer card', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('lets the answer card shrink to a column narrower than the card', () => {
+    // A flex item keeps min-width:auto, so without min-w-0 the 376px card would never
+    // shrink and its own max-w-full could not cap it to the zone column.
+    renderWithAnswer();
+    const wrapper = screen.getByTestId('answer').parentElement;
+    expect(wrapper).toHaveClass('min-w-0', 'max-w-full');
+  });
+
   it('does not start a note when a word in the answer is double-clicked', async () => {
     const onCapture = vi.fn();
     renderWithAnswer(onCapture);
