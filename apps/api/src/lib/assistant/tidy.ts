@@ -26,7 +26,12 @@ import {
 import { acceptModelMoves, mayMoveFor, tidyCandidates, type PlannedMove } from './tidyPlan.js';
 import { buildTidyInstructions, buildTidyPrompt } from './tidyPrompt.js';
 
-export const TIDY_MAX_OUTPUT_TOKENS = 512;
+/**
+ * The answer's allowance, sized per call: room for the object itself, and for one move (an id,
+ * a zone, a confidence and a reason of ten words) per undated note listed.
+ */
+export const TIDY_OUTPUT_TOKENS_BASE = 128;
+export const TIDY_OUTPUT_TOKENS_PER_MOVE = 64;
 export const TIDY_DEADLINE_MS = 20_000;
 
 /** A tidy also calls the model (for the undated notes); a decision never does. */
@@ -180,7 +185,7 @@ export async function proposeTidy(
       output = await deps.runner({
         instructions,
         prompt,
-        maxOutputTokens: TIDY_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
         abortSignal: controller.signal,
         onAttempt: async (info) => {
           const reservation = await reserveAttempt(db, {

@@ -11,6 +11,7 @@ import {
   notesCol,
 } from '../src/lib/db/collections.js';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
+import { TIDY_OUTPUT_TOKENS_BASE, TIDY_OUTPUT_TOKENS_PER_MOVE } from '../src/lib/assistant/tidy.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 const PROJECT_ID = 'wally-test-assistant-tidies';
@@ -27,7 +28,11 @@ let calls = 0;
 const fakeRunner: TidyRunner = async (input): Promise<TidyOutput> => {
   lastInput = input;
   calls++;
-  const lease = await input.onAttempt({ stepNumber: 0, messageCount: 1, maxOutputTokens: 512 });
+  const lease = await input.onAttempt({
+    stepNumber: 0,
+    messageCount: 1,
+    maxOutputTokens: input.maxOutputTokens,
+  });
   const rows = input.prompt
     .split('\n')
     .slice(1)
@@ -170,6 +175,10 @@ describe('tidies', () => {
     );
     expect(lastInput?.prompt).not.toContain('placed');
     expect(lastInput?.instructions).toContain('This week ends on Sunday 2026-10-18.');
+    // The allowance grows with the rows: room for one move per undated note listed.
+    expect(TIDY_OUTPUT_TOKENS_BASE).toBe(128);
+    expect(TIDY_OUTPUT_TOKENS_PER_MOVE).toBe(64);
+    expect(lastInput?.maxOutputTokens).toBe(128 + 64 * 2);
     const usageDoc = (
       await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
     ).data();
@@ -326,6 +335,73 @@ describe('tidies', () => {
     expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
     expect((await note(c.id)).horizon).toBe('SPAETER');
     expect(await audits(fx.ownerId)).toBe(1);
+  });
+
+  it('a keep of all three with the middle one edited since moves the other two; an undo moves back exactly those', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, b, c, dto } = await threeDated(fx);
+    // The record's order is c, a, b (earliest due first): a is the middle move.
+    expect(dto.moves.map((m: { noteId: string }) => m.noteId)).toEqual([c.id, a.id, b.id]);
+    await patchTitle(fx.ownerToken, a.id, 'Monday, edited');
+    const edited = await note(a.id);
+    const auditsOf = async (noteId: string) =>
+      (await assistantAuditCol(ctx.db).where('targetId', '==', noteId).get()).size;
+
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'enter',
+      noteIds: [c.id, a.id, b.id],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tidy).toMatchObject({
+      status: 'KEPT',
+      kept: { noteIds: [c.id, b.id], skipped: [a.id] },
+    });
+    expect((await stored(fx.ownerId, dto.id)).status).toBe('KEPT');
+    expect((await note(c.id)).horizon).toBe('HEUTE');
+    expect((await note(b.id)).horizon).toBe('SPAETER');
+    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
+    expect(await movedByAssistant(c.id)).toBe(1);
+    expect(await movedByAssistant(b.id)).toBe(1);
+    expect(await movedByAssistant(a.id)).toBe(0);
+    const afterKeep = await audits(fx.ownerId);
+    expect(afterKeep).toBeLessThanOrEqual(3);
+    expect(afterKeep).toBe(2);
+    expect(await auditsOf(a.id)).toBe(0);
+
+    // A repeated keep replays: no audit row, nothing moves.
+    const again = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'click',
+      noteIds: [c.id, a.id, b.id],
+    });
+    expect(again.json().tidy.kept).toEqual({ noteIds: [c.id, b.id], skipped: [a.id] });
+    expect(await audits(fx.ownerId)).toBe(afterKeep);
+    expect((await note(c.id)).revision).toBe(c.revision + 1);
+    expect((await note(b.id)).revision).toBe(b.revision + 1);
+
+    const undone = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(undone.json().tidy.status).toBe('UNDONE');
+    expect((await stored(fx.ownerId, dto.id)).status).toBe('UNDONE');
+    expect((await note(c.id)).horizon).toBe('SPAETER');
+    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
+    const untouched = await note(a.id);
+    expect(untouched.horizon).toBe(edited.horizon);
+    expect(untouched.revision).toBe(edited.revision);
+    expect(await auditsOf(a.id)).toBe(0);
+    const afterUndo = await audits(fx.ownerId);
+    expect(afterUndo).toBe(afterKeep + 2);
+
+    // A second undo replays.
+    const twice = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'undo',
+      source: 'shortcut',
+    });
+    expect(twice.json().tidy.status).toBe('UNDONE');
+    expect(await audits(fx.ownerId)).toBe(afterUndo);
   });
 
   it('an undo puts the moved notes back on the revisions the keep produced, and leaves one edited since', async () => {
