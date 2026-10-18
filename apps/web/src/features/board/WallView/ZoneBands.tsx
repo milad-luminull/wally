@@ -200,11 +200,13 @@ export function ZoneBands({
   return (
     <div
       className={cn(
-        'board-surface wally-scroll min-w-0 flex-1',
+        // A flex child of the wall's column (the bands above the Tidy bar): min-h-0 lets it
+        // shrink to the column's height, so the priority rows scroll inside it.
+        'board-surface wally-scroll min-h-0 min-w-0 flex-1',
         // Horizon columns stretch to fill the width, so there is no leftover to centre; below
         // three card widths the row scrolls sideways instead of squeezing the columns.
         axis === 'horizon'
-          ? 'flex h-full gap-3 overflow-x-auto p-4 lg:p-5'
+          ? 'flex gap-3 overflow-x-auto p-4 lg:p-5'
           : 'flex flex-col gap-3 overflow-y-auto p-4 lg:p-5',
       )}
     >

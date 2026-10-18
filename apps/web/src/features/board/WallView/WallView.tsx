@@ -41,6 +41,9 @@ import { groupByAxis } from '../util/noteDerived';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
+import type { TidyController } from '../Tidy/useTidy';
+import { TidyBar } from '../Tidy/TidyBar';
+import { useFlip } from '../Tidy/useFlip';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
@@ -75,7 +78,12 @@ interface WallViewProps {
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** The note's part in a Tidy batch, if any; the horizon wall only (WALLYBOT_INLINE.md §3.5). */
   tidyFor?: (noteId: string) => TidyProps | undefined;
+  /** The board's Tidy; the horizon wall shows its bar and animates its batch (§3.5). */
+  tidy?: TidyController;
 }
+
+/** Stable, so the wall without a Tidy measures nothing on any render. */
+const EMPTY_IDS: readonly string[] = [];
 
 function findNote(notes: NoteDto[], id: string): NoteDto | undefined {
   return notes.find((n) => n.id === id);
@@ -106,11 +114,14 @@ export function WallView({
   visibility,
   pendingFor,
   tidyFor,
+  tidy,
 }: WallViewProps) {
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
   const { t } = useTranslation();
   const moveNote = useMoveNote(boardId);
+  // The batch's cards travel when they change place (plan R8); no other card is measured.
+  useFlip(tidy?.trackedIds ?? EMPTY_IDS);
 
   /** The note currently under the cursor, rendered into `<DragOverlay>`. */
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -424,24 +435,27 @@ export function WallView({
             pendingFor={pendingFor}
           />
         ) : (
-          <ZoneBands
-            axis={axis}
-            groups={groups}
-            boardId={boardId}
-            capture={capture}
-            captureKey={captureKey}
-            onCaptureDone={onCaptureDone}
-            onCaptureNoteId={onCaptureNoteId}
-            visibility={visibility}
-            currentUserId={currentUserId}
-            selectedNoteId={selectedNoteId}
-            onOpenNote={onOpenNote}
-            onCreateInZone={handleCreateInZone}
-            activeDragId={activeId}
-            filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
-            pendingFor={pendingFor}
-            tidyFor={tidyFor}
-          />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ZoneBands
+              axis={axis}
+              groups={groups}
+              boardId={boardId}
+              capture={capture}
+              captureKey={captureKey}
+              onCaptureDone={onCaptureDone}
+              onCaptureNoteId={onCaptureNoteId}
+              visibility={visibility}
+              currentUserId={currentUserId}
+              selectedNoteId={selectedNoteId}
+              onOpenNote={onOpenNote}
+              onCreateInZone={handleCreateInZone}
+              activeDragId={activeId}
+              filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
+              pendingFor={pendingFor}
+              tidyFor={tidyFor}
+            />
+            {axis === 'horizon' && tidy && <TidyBar tidy={tidy} />}
+          </div>
         )}
 
         {/* The dragged card lives here rather than in its column. Both the zone body and the

@@ -87,7 +87,10 @@ interface BoardCommandsProps {
   /** The board's question panel is on; without it there is no entry, no key, no help row. */
   assistantEnabled: boolean;
   onOpenAssistant: () => void;
-  /** Undoes the last kept Wallybot change still in its window; false when there is none. */
+  /**
+   * Undoes the last kept Wallybot change still in its window, else the kept tidy batch; false
+   * when there is none.
+   */
   onUndoSuggestion: () => boolean;
 }
 

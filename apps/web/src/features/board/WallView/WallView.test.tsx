@@ -6,6 +6,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { boardAccess } from '../util/permissions';
 import type { CapturePlacement } from '../Capture/useCapture';
+import type { TidyController } from '../Tidy/useTidy';
 import { WallView } from './WallView';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
@@ -51,9 +52,11 @@ beforeEach(() => {
 function Wall({
   axis,
   access,
+  tidy,
 }: {
   axis: 'horizon' | 'priority' | 'free';
   access: ReturnType<typeof boardAccess>;
+  tidy?: TidyController;
 }) {
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
@@ -72,12 +75,34 @@ function Wall({
       onCapture={setCapture}
       onCaptureDone={() => setCapture(null)}
       visibility={access.newNoteVisibility}
+      tidy={tidy}
     />
   );
 }
 
-function renderWall(axis: 'horizon' | 'priority' | 'free', access: ReturnType<typeof boardAccess>) {
-  return renderWithProviders(<Wall axis={axis} access={access} />);
+function renderWall(
+  axis: 'horizon' | 'priority' | 'free',
+  access: ReturnType<typeof boardAccess>,
+  tidy?: TidyController,
+) {
+  return renderWithProviders(<Wall axis={axis} access={access} tidy={tidy} />);
+}
+
+/** A board's Tidy with two candidates and nothing asked yet. */
+function idleTidy(): TidyController {
+  return {
+    phase: 'idle',
+    count: 2,
+    moving: 0,
+    trackedIds: [],
+    markFor: () => undefined,
+    tidy: vi.fn(),
+    keep: vi.fn(),
+    discard: vi.fn(),
+    undo: vi.fn(),
+    undoLast: vi.fn(() => false),
+    remove: vi.fn(),
+  };
 }
 
 /** A create path opens the capture and sends nothing; the first keystroke creates the note. */
@@ -175,5 +200,31 @@ describe('WallView: every create path writes the note in place, with its visibil
         expect.objectContaining({ visibility: 'SHARED', freeX: 300, freeY: 200 }),
       );
     });
+  });
+});
+
+describe('WallView: the Tidy bar', () => {
+  const owner = boardAccess('OWNER', 'me', 'all');
+
+  it('sits under the bands of the horizon wall', () => {
+    renderWall('horizon', owner, idleTidy());
+    const bar = screen.getByRole('toolbar', { name: 'Tidy' });
+    expect(screen.getByRole('button', { name: 'Tidy 2 notes' })).toBeInTheDocument();
+    // The bands come first in the same column, so the strip is below them, never between.
+    const bands = bar.previousElementSibling;
+    expect(bands).not.toBeNull();
+    expect(bands).toContainElement(screen.getByRole('region', { name: /^Today/ }));
+  });
+
+  it('is not on the priority wall, whose rows still scroll inside the column', () => {
+    const { container } = renderWall('priority', owner, idleTidy());
+    expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
+    // jsdom lays nothing out: min-h-0 is what lets a flex child of the column scroll.
+    expect(container.querySelector('.wally-scroll')).toHaveClass('min-h-0', 'overflow-y-auto');
+  });
+
+  it('is not on the free canvas', () => {
+    renderWall('free', owner, idleTidy());
+    expect(screen.queryByRole('toolbar', { name: 'Tidy' })).toBeNull();
   });
 });
