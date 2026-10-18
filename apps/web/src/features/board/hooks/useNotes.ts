@@ -1,5 +1,5 @@
 import { useNoteDrafts, withNoteDraft } from '@/lib/noteDrafts';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import { notesApi } from '@/lib/resources';
 import { useQueryKeys } from './queryKeys';
 
@@ -11,10 +11,21 @@ import { useQueryKeys } from './queryKeys';
 export function useNotes(boardId: string | undefined) {
   const keys = useQueryKeys();
   useNoteDrafts();
+  const { data: pendingDeletes = [] } = useQuery<string[]>({
+    queryKey: keys.pendingNoteDeletes(boardId ?? ''),
+    initialData: [],
+    queryFn: skipToken,
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
   const query = useQuery({
     queryKey: keys.notes(boardId ?? ''),
     queryFn: () => notesApi.list(boardId!, { status: 'ALL' }),
     enabled: Boolean(boardId),
   });
-  return { ...query, data: query.data?.map(withNoteDraft) };
+  return {
+    ...query,
+    data: query.data?.filter((note) => !pendingDeletes.includes(note.id)).map(withNoteDraft),
+  };
 }
