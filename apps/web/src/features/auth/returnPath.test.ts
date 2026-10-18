@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { landingWithReturn, readReturnPath } from './returnPath';
+import { boardEntryWithReturn, readReturnPath } from './returnPath';
 
 describe('readReturnPath', () => {
   it('accepts share links and board paths', () => {
@@ -26,12 +26,12 @@ describe('readReturnPath', () => {
   });
 });
 
-describe('landingWithReturn', () => {
-  it('always sends sign-in to the landing, carrying the return path for it to check', () => {
-    expect(landingWithReturn('/boards/abc')).toEqual({
-      pathname: '/',
+describe('boardEntryWithReturn', () => {
+  it('sends sign-in to the protected board entry, carrying the return path for it to check', () => {
+    expect(boardEntryWithReturn('/boards/abc')).toEqual({
+      pathname: '/app',
       state: { to: '/boards/abc' },
     });
-    expect(landingWithReturn(null)).toEqual({ pathname: '/', state: { to: null } });
+    expect(boardEntryWithReturn(null)).toEqual({ pathname: '/app', state: { to: null } });
   });
 });

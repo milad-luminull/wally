@@ -319,7 +319,7 @@ export const en = {
       home: 'To your boards',
       axis: {
         ariaLabel: 'Grouping',
-        horizon: { label: 'Horizon', hint: 'Order by time frame' },
+        horizon: { label: 'This Week', hint: 'Order by time frame' },
         priority: { label: 'Priority', hint: 'Order by urgency' },
         free: { label: 'Free', hint: 'Place notes anywhere on the board' },
       },
@@ -387,6 +387,12 @@ export const en = {
       dismiss: 'Hide hint',
     },
     zone: {
+      priorityHints: {
+        HOCH: 'Do these first',
+        MITTEL: 'When there’s room',
+        NIEDRIG: 'Nice to have',
+      },
+      add: 'Add a note',
       aria_one: '{{label}}, {{count}} note',
       aria_other: '{{label}}, {{count}} notes',
       addNote: 'Add a note to “{{label}}”',

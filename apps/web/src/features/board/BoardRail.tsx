@@ -1,51 +1,68 @@
-import { CalendarRange, Columns3, LayoutGrid, List, Plus } from 'lucide-react';
+import { ChartNoAxesColumn, Columns3, Plus } from 'lucide-react';
+import type { SVGProps } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility } from '@wally/shared';
 import { BrandMark } from '@/components/BrandMark';
 import { AccountMenu } from './AccountMenu';
 import { BoardSwitcher } from './BoardSwitcher';
-import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
+import type { BoardAxis } from './hooks/useBoardViewState';
+
+function WhiteboardIcon(props: SVGProps<SVGSVGElement> & { size?: number }) {
+  const { size = 15, ...rest } = props;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...rest}
+    >
+      <rect x="3" y="3" width="8" height="7" rx="1.5" transform="rotate(-4 7 6.5)" />
+      <rect x="13" y="6" width="8" height="7" rx="1.5" transform="rotate(5 17 9.5)" />
+      <rect x="6" y="14" width="8" height="7" rx="1.5" />
+    </svg>
+  );
+}
 
 interface Props {
   boardId: string;
   boardName: string;
-  view: BoardView;
   axis: BoardAxis;
-  onSetLayout: (view: BoardView, axis: BoardAxis) => void;
+  onSetAxis: (axis: BoardAxis) => void;
   onNewNote: () => void;
   newNoteVisibility: NoteVisibility;
 }
 export function BoardRail({
   boardId,
   boardName,
-  view,
   axis,
-  onSetLayout,
+  onSetAxis,
   onNewNote,
   newNoteVisibility,
 }: Props) {
   const { t } = useTranslation();
   const links = [
-    { key: 'list', icon: List, view: 'list' as const, axis, label: t('board.topBar.view.list') },
     {
       key: 'horizon',
-      icon: CalendarRange,
-      view: 'wand' as const,
+      icon: Columns3,
       axis: 'horizon' as const,
       label: t('board.topBar.axis.horizon.label'),
     },
     {
       key: 'priority',
-      icon: Columns3,
-      view: 'wand' as const,
+      icon: ChartNoAxesColumn,
       axis: 'priority' as const,
       label: t('board.topBar.axis.priority.label'),
     },
     {
       key: 'free',
-      icon: LayoutGrid,
-      view: 'wand' as const,
+      icon: WhiteboardIcon,
       axis: 'free' as const,
       label: t('board.rail.whiteboard'),
     },
@@ -56,27 +73,19 @@ export function BoardRail({
   return (
     <aside className="board-rail">
       <Link to="/boards" className="board-rail-brand" aria-label={t('board.topBar.home')}>
-        <BrandMark size={23} />
+        <BrandMark size={20} />
         <span>{t('welcome.brand')}</span>
       </Link>
-      <div className="board-rail-switcher">
-        <div className="min-w-0 flex-1">
-          <span>{t('board.rail.wall')}</span>
-          <p title={boardName}>{boardName}</p>
-        </div>
-        <BoardSwitcher boardId={boardId} />
-      </div>
+      <BoardSwitcher boardId={boardId} boardName={boardName} variant="rail" />
       <nav aria-label={t('board.rail.views')} className="board-rail-nav">
-        {links.map(({ key, icon: Icon, view: nextView, axis: nextAxis, label }) => (
+        {links.map(({ key, icon: Icon, axis: nextAxis, label }) => (
           <button
             key={key}
             type="button"
-            aria-current={
-              view === nextView && (view === 'list' || axis === nextAxis) ? 'page' : undefined
-            }
-            onClick={() => onSetLayout(nextView, nextAxis)}
+            aria-current={axis === nextAxis ? 'page' : undefined}
+            onClick={() => onSetAxis(nextAxis)}
           >
-            <Icon size={17} strokeWidth={1.6} />
+            <Icon size={15} strokeWidth={1.8} aria-hidden />
             <span>{label}</span>
           </button>
         ))}

@@ -252,7 +252,7 @@ describe('WallView: the Tidy bar', () => {
     expect(bands).toContainElement(screen.getByRole('region', { name: /^Today/ }));
   });
 
-  it('is not on the priority wall, whose rows still scroll inside the column', () => {
+  it('is not on the priority wall, whose columns share a scroll container', () => {
     const { container } = renderWall('priority', owner, idleTidy());
     // The strip itself, which is a toolbar only while it holds a control.
     expect(container.querySelector('[data-tidy-bar]')).toBeNull();

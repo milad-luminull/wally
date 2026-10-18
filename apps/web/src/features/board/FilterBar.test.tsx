@@ -70,6 +70,10 @@ describe('FilterBar', () => {
       />,
     );
 
+    expect(
+      screen.queryByRole('button', { name: 'Filter by High priority' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
     await userEvent.click(screen.getByRole('button', { name: 'Filter by High priority' }));
     expect(setPriority).toHaveBeenCalledWith(['HOCH']);
 
@@ -115,11 +119,11 @@ describe('FilterBar', () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Only mine' }));
-    expect(setMine).toHaveBeenCalledWith(true);
-
     await userEvent.click(screen.getByRole('button', { name: 'Hide completed' }));
     expect(setDone).toHaveBeenCalledWith(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Only mine' }));
+    expect(setMine).toHaveBeenCalledWith(true);
   });
 
   it('collapses filters into a single Filter button below 720px', () => {
@@ -179,12 +183,14 @@ describe('FilterBar', () => {
 
     it('sets the filter on click', async () => {
       const setVisibility = renderBar({}, { showVisibility: true });
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
       await userEvent.click(screen.getByRole('radio', { name: 'Only private' }));
       expect(setVisibility).toHaveBeenCalledWith('private');
     });
 
     it('clears the filter when the active chip is clicked again', async () => {
       const setVisibility = renderBar({ visibility: 'private' }, { showVisibility: true });
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
       await userEvent.click(screen.getByRole('radio', { name: 'Only private' }));
       expect(setVisibility).toHaveBeenCalledWith('all');
     });
@@ -205,12 +211,13 @@ describe('FilterBar', () => {
       expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    it('resets every filter with one call from the inline Reset button', async () => {
+    it('resets every filter with one call from the popover Reset button', async () => {
       const resetFilters = vi.fn();
       const setVisibility = renderBar(
         { visibility: 'shared', mine: true, done: false, priority: ['HOCH'] },
         { showVisibility: true, resetFilters },
       );
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
       await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
       expect(resetFilters).toHaveBeenCalledTimes(1);
       expect(setVisibility).not.toHaveBeenCalled();

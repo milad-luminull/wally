@@ -333,7 +333,7 @@ export const de = {
       home: 'Zu deinen Wänden',
       axis: {
         ariaLabel: 'Organisation',
-        horizon: { label: 'Horizont', hint: 'Nach Zeitraum ordnen' },
+        horizon: { label: 'Diese Woche', hint: 'Nach Zeitraum ordnen' },
         priority: { label: 'Priorität', hint: 'Nach Dringlichkeit ordnen' },
         free: { label: 'Frei', hint: 'Notizen frei auf der Wand platzieren' },
       },
@@ -403,6 +403,8 @@ export const de = {
       dismiss: 'Hinweis ausblenden',
     },
     zone: {
+      priorityHints: { HOCH: 'Das zuerst', MITTEL: 'Wenn Zeit bleibt', NIEDRIG: 'Wäre schön' },
+      add: 'Notiz hinzufügen',
       aria_one: '{{label}}, {{count}} Notiz',
       aria_other: '{{label}}, {{count}} Notizen',
       // Deliberately NOT "Neue Notiz …": that phrase is the top bar's add button, and the

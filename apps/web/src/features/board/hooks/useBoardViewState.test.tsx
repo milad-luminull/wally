@@ -148,6 +148,38 @@ describe('useBoardViewState', () => {
     });
   });
 
+  it('keeps layout, grouping and filters independent across a complete navigation round trip', async () => {
+    const { result, queryClient } = setup('/boards/b1?view=wand&axis=priority&q=report');
+    await act(async () => {
+      result.current.view.setView('list');
+      // React Query batches cache notifications for the next timer tick.
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.view).toMatchObject({
+      view: 'list',
+      axis: 'priority',
+      q: 'report',
+      mine: true,
+      done: false,
+      priority: ['HOCH'],
+    });
+    await act(async () => {
+      result.current.view.setAxis('horizon');
+      // React Query batches cache notifications for the next timer tick.
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.view).toMatchObject({ view: 'list', axis: 'horizon', q: 'report' });
+    await act(async () => {
+      result.current.view.setView('wand');
+      // React Query batches cache notifications for the next timer tick.
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.view).toMatchObject({ view: 'wand', axis: 'horizon', q: 'report' });
+    expect(
+      queryClient.getQueryData<MeDto>(queryKeys.profile())?.preferences.boards.b1,
+    ).toMatchObject({ view: 'wand', axis: 'horizon', mine: true, done: false, priority: ['HOCH'] });
+  });
+
   it('reset forgets the board and clears every filter', async () => {
     const { result } = setup('/boards/b1?q=report&field=Customer');
 

@@ -15,6 +15,24 @@ describe('BoardSwitcher', () => {
     vi.clearAllMocks();
   });
 
+  it('uses the entire named wall tile as the rail trigger and closes after selecting a board', async () => {
+    vi.mocked(boardsApi.list).mockResolvedValue([
+      makeBoard({ id: 'own', name: 'My Board' }),
+      makeBoard({ id: 'shared', name: 'Team North', currentUserRole: 'VIEW' }),
+    ]);
+    renderWithProviders(<BoardSwitcher boardId="own" boardName="My Board" variant="rail" />, {
+      route: '/boards/own?view=list&axis=priority',
+    });
+    const trigger = await screen.findByRole('button', { name: 'Switch board' });
+    expect(trigger).toHaveTextContent('My Board');
+    await userEvent.click(trigger);
+    const shared = screen.getByRole('link', { name: /Team North/ });
+    expect(shared).toHaveAttribute('href', '/boards/shared');
+    await userEvent.click(shared);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: /Team North/ })).not.toBeInTheDocument();
+  });
+
   // RFC BOARD_HOME §11: even with one board, the switcher is the way to the board home and
   // the only hint on a board that more boards are possible.
   it('offers all boards and a new board even when the caller has only one', async () => {

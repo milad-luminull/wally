@@ -49,7 +49,7 @@ export function ShareRedeemPage() {
               {t('routes.redeem.gone.body')}
             </p>
             <Button asChild variant="outline" size="lg" className="w-full">
-              <Link to="/">{t('routes.redeem.toBoard')}</Link>
+              <Link to="/app">{t('routes.redeem.toBoard')}</Link>
             </Button>
           </div>
         </AuthLayout>
@@ -77,7 +77,7 @@ export function ShareRedeemPage() {
             {t('common.retry')}
           </Button>
           <Button asChild variant="ghost" size="lg" className="w-full">
-            <Link to="/">{t('routes.redeem.toBoard')}</Link>
+            <Link to="/app">{t('routes.redeem.toBoard')}</Link>
           </Button>
         </div>
       </AuthLayout>

@@ -1,10 +1,6 @@
-import { useAuth } from '@/features/auth/AuthProvider';
-import { AppSkeleton } from '@/components/AppSkeleton';
-import { LandingPage } from './LandingPage';
 import { WelcomePage } from './WelcomePage';
 
+/** The public home stays available regardless of authentication state. */
 export function HomePage() {
-  const { status } = useAuth();
-  if (status === 'loading') return <AppSkeleton />;
-  return status === 'authenticated' ? <LandingPage /> : <WelcomePage />;
+  return <WelcomePage />;
 }

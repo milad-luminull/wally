@@ -208,6 +208,21 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [access, duplicate, notes, openNote],
   );
   const openedNote = notes.find((n) => n.id === viewState.noteId);
+  const filterProps = {
+    view: viewState,
+    setQuery: viewState.setQuery,
+    setPriority: viewState.setPriority,
+    setMine: viewState.setMine,
+    setDone: viewState.setDone,
+    setFieldKey: viewState.setFieldKey,
+    setFieldValue: viewState.setFieldValue,
+    setVisibility: viewState.setVisibility,
+    resetFilters: viewState.resetFilters,
+    showVisibility: showsVisibilityFilter(notes, viewState.visibility),
+    fieldKeys,
+    fieldValues,
+    isBelowTablet,
+  };
 
   return (
     // dvh rather than vh: on iOS Safari the dynamic toolbar makes 100vh taller than the
@@ -219,9 +234,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           <BoardRail
             boardId={boardId}
             boardName={board.name}
-            view={effectiveView}
             axis={viewState.axis}
-            onSetLayout={viewState.setLayout}
+            onSetAxis={viewState.setAxis}
             onNewNote={newNote}
             newNoteVisibility={access.newNoteVisibility}
           />
@@ -229,6 +243,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         <div className="board-workspace">
           <TopBar
             withRail={isDesktop}
+            filters={filterProps}
             board={board}
             boardId={boardId}
             notes={boardNotes}
@@ -244,21 +259,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             onResetView={viewState.resetView}
             onNewNote={newNote}
           />
-          <FilterBar
-            view={viewState}
-            setQuery={viewState.setQuery}
-            setPriority={viewState.setPriority}
-            setMine={viewState.setMine}
-            setDone={viewState.setDone}
-            setFieldKey={viewState.setFieldKey}
-            setFieldValue={viewState.setFieldValue}
-            setVisibility={viewState.setVisibility}
-            resetFilters={viewState.resetFilters}
-            showVisibility={showsVisibilityFilter(notes, viewState.visibility)}
-            fieldKeys={fieldKeys}
-            fieldValues={fieldValues}
-            isBelowTablet={isBelowTablet}
-          />
+          {!isDesktop && <FilterBar {...filterProps} />}
 
           {/* Focusable from code only: where the keyboard lands after a commit whose note has no
           card on the board (useCaptureSession). */}

@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CheckCircle2, Link2, ListChecks, Plus } from 'lucide-react';
+import { Check, CheckCircle2, Link2, ListChecks, Plus } from 'lucide-react';
 import { useContext, type CSSProperties, type ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
@@ -114,9 +114,12 @@ export function NoteCard({
 
   const body = (
     <>
+      <span className={cn('paper-note-status', isDone && 'paper-note-status-done')} aria-hidden>
+        {isDone && <Check size={11} strokeWidth={3} />}
+      </span>
       <span
         className={cn(
-          'line-clamp-3 text-14 font-medium leading-snug text-fg-1',
+          'paper-note-title line-clamp-3 text-14 font-medium leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
           // Room for the dot, or the Undo after it, in the card's top-right corner.
           (corner === 'dot' || tidyCorner === 'dot') && 'pr-4',
@@ -154,7 +157,7 @@ export function NoteCard({
       )}
 
       {description && (
-        <span className="-mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
+        <span className="paper-note-description -mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
           {description}
         </span>
       )}
@@ -341,6 +344,7 @@ export function NoteCard({
           </span>
         )}
         <div
+          style={style}
           className={cn(
             surface,
             noteColourFillClass[note.colour],

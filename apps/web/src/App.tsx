@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { LoginPage } from '@/routes/LoginPage';
 import { SignupPage } from '@/routes/SignupPage';
 import { HomePage } from '@/routes/HomePage';
+import { BoardEntryPage } from '@/routes/BoardEntryPage';
 import { BoardPage } from '@/routes/BoardPage';
 import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
@@ -17,6 +18,14 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/" element={<HomePage />} />
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <BoardEntryPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/boards"
           element={

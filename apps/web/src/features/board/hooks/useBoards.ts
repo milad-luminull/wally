@@ -2,9 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { boardsApi } from '@/lib/resources';
 import { useQueryKeys } from './queryKeys';
 
-/** All boards the caller owns or is an active member of — resolves `/`'s redirect target
- * (owned board first, else first membership) and backs the BoardSwitcher, which is the only
- * route to a board you do not own. */
+/** Boards available to the caller, used by the post-login entry, board home and switcher. */
 export function useBoards() {
   const keys = useQueryKeys();
   return useQuery({

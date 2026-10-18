@@ -157,8 +157,8 @@ export function ListView({
   // note arriving under it (or a filter change) never remounts it and loses what is typed.
   // An empty board makes way for the row; a filter that hides every note still says so above it.
   return (
-    <div className="wally-scroll flex-1 overflow-auto bg-background px-4 pb-10 pt-4 lg:px-6 lg:pt-6">
-      <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6">
+    <div className="paper-list board-surface wally-scroll flex-1 overflow-auto">
+      <div className="paper-list-content">
         {notes.length === 0 && totalNoteCount > 0 && (
           <EmptyState
             icon={<StickyNote strokeWidth={1.75} />}
@@ -184,13 +184,15 @@ export function ListView({
         )}
 
         {groups.map((group) => (
-          <section key={group.key} className="flex flex-col gap-1.5">
-            <header className="flex items-center gap-2 px-1">
-              <h2 className="text-13 font-medium text-fg-1">{group.label}</h2>
+          <section key={group.key} className="paper-list-group">
+            <header className="paper-list-heading">
+              <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-fg-1">
+                {group.label}
+              </h2>
               <span className="text-12 tabular-nums text-fg-faint">{group.notes.length}</span>
             </header>
 
-            <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-e1">
+            <div className="paper-list-notes">
               {group.notes.map((note) => (
                 <NoteRow
                   key={note.id}

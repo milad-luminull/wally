@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -142,5 +142,53 @@ describe('TopBar at phone width', () => {
     }
     // The name lives in the other, shrinking slot.
     expect(barSlot(screen.getByRole('heading', { level: 1 }))).not.toBe(cluster);
+  });
+});
+
+describe('independent board layout toggle', () => {
+  it('offers List and Board beside Filters without changing grouping', async () => {
+    const onSetView = vi.fn();
+    const onSetAxis = vi.fn();
+    renderTopBar({
+      withRail: true,
+      axis: 'priority',
+      onSetView,
+      onSetAxis,
+      filters: {
+        view: {
+          view: 'wand',
+          axis: 'priority',
+          q: '',
+          priority: [],
+          mine: false,
+          done: true,
+          visibility: 'all',
+          fieldKey: null,
+          fieldValue: null,
+          noteId: null,
+        },
+        setQuery: vi.fn(),
+        setPriority: vi.fn(),
+        setMine: vi.fn(),
+        setDone: vi.fn(),
+        setFieldKey: vi.fn(),
+        setFieldValue: vi.fn(),
+        setVisibility: vi.fn(),
+        resetFilters: vi.fn(),
+        showVisibility: false,
+        fieldKeys: [],
+        fieldValues: [],
+        isBelowTablet: false,
+      },
+    });
+    const toolbar = screen.getByRole('button', { name: 'Filters' }).parentElement!;
+    const layout = within(toolbar).getByRole('group', { name: 'View' });
+    expect(within(layout).getByRole('button', { name: 'Board' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await userEvent.click(within(layout).getByRole('button', { name: 'List' }));
+    expect(onSetView).toHaveBeenCalledWith('list');
+    expect(onSetAxis).not.toHaveBeenCalled();
   });
 });

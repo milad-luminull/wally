@@ -87,7 +87,7 @@ describe('ShareRedeemPage', () => {
     renderWithProviders(routes(), { route: '/share/tok-gone' });
 
     expect(await screen.findByText('This link no longer works')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Go to your boards' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to your boards' })).toHaveAttribute('href', '/app');
   });
 
   it('offers a retry when redemption fails for an unexpected reason', async () => {

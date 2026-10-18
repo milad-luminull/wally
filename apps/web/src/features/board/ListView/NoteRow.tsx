@@ -115,10 +115,10 @@ export function NoteRow({
       }}
       {...pause}
       className={cn(
-        'group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
-        'border-b border-border-subtle last:border-b-0',
-        'transition-colors duration-100 hover:bg-surface-alt',
-        'focus-visible:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
+        'paper-note-row group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
+        noteColourFillClass[note.colour],
+        'transition-shadow duration-100',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
         '[@media(pointer:coarse)]:min-h-12',
         // A pending change: a dashed left edge in the note's border colour, never marigold
         // (BRAND job 4). Only the left edge's style changes, so the divider below stays
@@ -132,35 +132,27 @@ export function NoteRow({
         onClick={handleCheckboxClick}
         disabled={!canEdit}
         aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
-        className="shrink-0"
+        className="paper-row-status shrink-0"
       />
-
-      {/* The note's colour as a swatch: the same note is the same object in both views,
-          without painting a whole row of the list. White notes need no marker. */}
-      {note.colour !== 'WEISS' && (
-        <span
-          aria-hidden
-          className={cn(
-            'h-2.5 w-2.5 shrink-0 rounded-[3px] border border-[color:var(--note-border)]',
-            noteColourFillClass[note.colour],
-          )}
-        />
-      )}
 
       <div
         className={cn(
-          'flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1',
+          'paper-row-body flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1',
           isDone && 'opacity-55',
         )}
       >
         <span
           className={cn(
-            'min-w-0 truncate text-13 font-medium text-fg-1',
+            'paper-row-title min-w-0 text-14 font-medium text-fg-1',
             isDone && 'line-through decoration-fg-faint',
           )}
         >
           {note.title || t('common.untitled')}
         </span>
+
+        {note.description.trim() && (
+          <span className="paper-row-description text-fg-meta-on-note">{note.description}</span>
+        )}
 
         {/* A cleaner title is a full-width second line under the person's own, never a
             replacement (BRAND rule 7): a tap takes it into the change, its × keeps theirs. */}
@@ -172,7 +164,7 @@ export function NoteRow({
               <span
                 className={cn(
                   'line-clamp-2 text-12 leading-snug',
-                  titleTaken ? 'text-fg-1' : 'text-fg-3',
+                  titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
                 )}
               >
                 {offeredTitleLabel}
@@ -189,13 +181,13 @@ export function NoteRow({
           />
         )}
 
-        {isPrivate && <PrivateBadge className="text-fg-3" />}
+        {isPrivate && <PrivateBadge className="text-fg-meta-on-note" />}
 
         {/* The proposed reference and steps sit where the note's own property and checklist
             count would: the note has neither while they are proposed (R7). */}
         {proposed.reference && referenceLabel && (
           <ProposedField
-            className="text-12 text-fg-3"
+            className="text-12 text-fg-meta-on-note"
             name={referenceLabel}
             label={referenceLabel}
             reason={proposed.reference.reason}
@@ -203,11 +195,11 @@ export function NoteRow({
           />
         )}
         {metaParts.length > 0 && (
-          <span className="truncate text-12 text-fg-3">{metaParts.join(' · ')}</span>
+          <span className="truncate text-12 text-fg-meta-on-note">{metaParts.join(' · ')}</span>
         )}
         {proposed.assignee && (
           <ProposedField
-            className="text-12 text-fg-3"
+            className="text-12 text-fg-meta-on-note"
             name={t('suggest.fields.assignee', {
               name: proposed.assignee.value.displayName ?? proposed.assignee.value.email,
             })}
@@ -222,7 +214,7 @@ export function NoteRow({
         )}
         {proposed.subtasks && stepsLabel && (
           <ProposedField
-            className="text-12 tabular-nums text-fg-3"
+            className="text-12 tabular-nums text-fg-meta-on-note"
             name={stepsLabel}
             label={stepsLabel}
             reason={proposed.subtasks.reason}
@@ -239,7 +231,9 @@ export function NoteRow({
         ))}
       </div>
 
-      <div className={cn('flex shrink-0 items-center gap-2.5', isDone && 'opacity-55')}>
+      <div
+        className={cn('paper-row-meta flex shrink-0 items-center gap-2.5', isDone && 'opacity-55')}
+      >
         <span
           className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])}
           style={{ fontWeight: due.weight }}

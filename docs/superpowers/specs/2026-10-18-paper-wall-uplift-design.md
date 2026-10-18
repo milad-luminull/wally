@@ -52,11 +52,11 @@ Do not add the prototype's Focus mode, inbox semantics, calendar, timers, Daily 
 
 ## Public landing page and authentication
 
-Serve the marketing landing page at `/` for signed-out visitors, on the existing app host. Signed-in visitors keep the current home resolver: accepted return destinations, the single-board shortcut and the boards home. Keep `/login`, `/signup`, protected board URLs and share redemption working, including return-path validation and account isolation.
+Serve the marketing landing page at `/` for every visitor, regardless of authentication state, on the existing app host. Login and signup lead through the protected `/app` entry route, which retains accepted return destinations, the single-board shortcut and the boards home. Keep `/login`, `/signup`, protected board URLs and share redemption working, including return-path validation and account isolation.
 
 The landing page presents **Wally by Luminull**. Use a strong, concise heading about getting thoughts onto one wall, a product illustration made from representative note cards, primary Sign up and secondary Log in actions, and a short section showing existing capture, organise and review workflows. Repeat the signup action at the end. The illustration is clearly sample content and does not call the assistant or create data. No fabricated testimonials, prices, integrations, guarantees or claims that AI changes always need approval; describe the actual review/undo behavior.
 
-Both English and German copy ship in the existing catalogue. Offer language, palette and appearance controls before login. Login and signup keep their current validation and providers, with matching visual styling and a link back to the public home. Loading auth must not flash the signed-out landing page to an authenticated user.
+Both English and German copy ship in the existing catalogue. Offer language, palette and appearance controls before login. Login and signup keep their current validation and providers, with matching visual styling and a link back to the public home. The public root renders immediately without waiting for authentication. Protected routes keep their authentication loading state.
 
 ## Palette and token system
 
@@ -96,3 +96,16 @@ This iteration does not add sidebar collapse/resize persistence, change card pos
 - Typecheck, lint, formatting, builds, appropriate automated tests and actual full-stack CI before ready.
 - Work only in the isolated checkout. Never switch the live `/Users/mr_user/development/apps/wally` branch, run `docker compose down`, remove volumes or clear the user's emulator data.
 - Deliver a PR with screenshots and validation. Merging, release tags and production deployment remain owner actions unless explicitly requested.
+
+## Visual review revisions — 18 October 2026
+
+The user requested closer fidelity after reviewing the initial implementation and approved these refinements in the local preview before any PR update:
+
+- Match the reference's 212px rail, 60px header, compact floating toolbar, open dotted lanes, paper colours and Geist sizing. Priority and time groups both use fluid columns; stored free-canvas positions remain unchanged.
+- Keep Search, Filters, Hide completed, Commands and Share in the same floating toolbar. Priority and the other existing filters live in its popover.
+- The sidebar contains only This Week, Priority and Whiteboard. List / Board is a separate, always-visible desktop toggle beside Filters. Switching layout preserves grouping and filters; choosing a sidebar group preserves layout. Both layouts continue to use the same fetched notes and grouping function. Whiteboard's list is the ungrouped list of those notes.
+- The whole wall-selector tile is clickable, with a matching anchored dropdown, stable colour swatches, the selected-wall check, and existing membership roles, All boards and New board actions retained.
+- List rows use the same paper colours, rounded corners, title/description typography and spacing, preserving completion, note-opening, metadata and suggestion actions.
+- Hold changes locally until the user approves the visual preview; do not push or update PR #60 before that approval.
+
+The owner also confirmed that the public root must always show the landing page. It does not need a preview query parameter or signed-out session. Authentication enters the boards through `/app`; the existing account-isolated return-path checks remain in place. The owner authorized updating PR #60 after verification.
