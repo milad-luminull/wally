@@ -109,7 +109,8 @@ export function ProposalList({ pending }: { pending: PendingProps }) {
             <span
               role="button"
               tabIndex={0}
-              aria-pressed={row.on}
+              // The label says what a press does ("Leave out" / "Bring back"); a pressed state
+              // beside it would contradict it, so there is none.
               aria-label={t(row.on ? 'suggest.rows.leaveOut' : 'suggest.rows.bringBack', {
                 label: name,
               })}

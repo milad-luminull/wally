@@ -36,9 +36,10 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
 2. The back note of the mark.
 3. Public-page calls to action and the mark. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
-4. The dot and its countdown ring on a note whose Wallybot changes are still pending, never
-   a fill or an edge colour, and gone the moment the changes are kept or undone
-   (`rfcs/WALLYBOT_INLINE.md`).
+4. The dot and its countdown ring on a note whose Wallybot changes are still pending (in the
+   card's corner and in its review footer), and the small dot before each line of the pending
+   card's list of proposed fields; never a fill or an edge colour, and gone the moment the
+   changes are kept or undone (`rfcs/WALLYBOT_INLINE.md`).
 
 Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
