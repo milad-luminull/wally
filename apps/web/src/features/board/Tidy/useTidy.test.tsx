@@ -623,8 +623,10 @@ describe('useTidy', () => {
       });
     vi.mocked(assistantApi.decideTidy)
       .mockResolvedValueOnce({ tidy: kept() })
-      // The undo stays on its way; the second keep fails.
-      .mockReturnValueOnce(new Promise(() => {}))
+      .mockResolvedValueOnce({
+        tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
+      })
+      // The second keep fails.
       .mockRejectedValueOnce(new Error('offline'));
     const { result, cached, rerender, queryClient } = setup();
     act(() => result.current.tidy());
@@ -632,6 +634,7 @@ describe('useTidy', () => {
     act(() => result.current.keep('enter'));
     await settle();
     act(() => result.current.undo('click'));
+    await settle();
     // The board catches up with a collaborator who put `late` in Today meanwhile.
     queryClient.setQueryData<NoteDto[]>(keys.notes(BOARD), (list) =>
       list?.map((n) => (n.id === 'late' ? { ...n, horizon: 'HEUTE', revision: 3 } : n)),
@@ -644,6 +647,91 @@ describe('useTidy', () => {
     await settle();
     // Back where it was just before this keep, not where it was before the first one.
     expect(cached().find((n) => n.id === 'late')).toMatchObject({ horizon: 'HEUTE', revision: 3 });
+  });
+
+  it('a Tidy pressed while an undo waits for its keep is ignored; the next batch keeps its cards and its snapshots', async () => {
+    const second = dto({
+      id: 't2',
+      moves: [{ ...dto().moves[1]!, to: 'DIESE_WOCHE', reason: 'by Friday' }],
+    });
+    vi.mocked(assistantApi.tidy)
+      .mockResolvedValueOnce({ tidy: dto() })
+      .mockResolvedValueOnce({ tidy: second });
+    let keepOneFail!: (error: Error) => void;
+    let keepTwoFail!: (error: Error) => void;
+    vi.mocked(assistantApi.decideTidy)
+      .mockReturnValueOnce(new Promise((_, reject) => (keepOneFail = reject)))
+      .mockReturnValueOnce(new Promise((_, reject) => (keepTwoFail = reject)));
+    const { result, cached } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    // Keep 1 on its way, then Undo: the cards are back and the bar is idle.
+    act(() => result.current.keep('enter'));
+    act(() => result.current.undo('click'));
+    // A Tidy before keep 1 answers starts no batch 2 that keep 1's answer could overtake.
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
+    expect(assistantApi.tidy).toHaveBeenCalledTimes(1);
+    // Keep 1 fails: nothing to undo; the cards are back and the affordance with them.
+    await act(async () => {
+      keepOneFail(new Error('offline'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+    // Batch 2: `jotted` was in batch 1 too.
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current.phase).toBe('pending');
+    act(() => result.current.keep('click'));
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('DIESE_WOCHE');
+    await settle();
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('DIESE_WOCHE');
+    // Keep 2's snapshot is there: its refusal puts the card back where it was before keep 2.
+    await act(async () => {
+      keepTwoFail(new Error('offline'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(result.current.phase).toBe('idle');
+  });
+
+  it('while an undo is on its way the bar offers nothing and a Tidy is ignored; then the count follows the rule', async () => {
+    vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
+    let undoAnswer!: (value: { tidy: TidyDto }) => void;
+    vi.mocked(assistantApi.decideTidy)
+      .mockResolvedValueOnce({ tidy: kept() })
+      .mockReturnValueOnce(new Promise((r) => (undoAnswer = r)));
+    const { result, cached, rerender } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    act(() => result.current.keep('enter'));
+    await settle();
+    rerender({ list: cached() });
+    act(() => result.current.undo('click'));
+    // The cards are back, and so are the candidates; the undo has not been answered yet.
+    rerender({ list: cached() });
+    await settle();
+    expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
+    act(() => result.current.tidy());
+    expect(result.current.phase).toBe('idle');
+    expect(assistantApi.tidy).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      undoAnswer({
+        tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // The undo is the run's outcome: remembered, so the same candidates are not offered again.
+    rerender({ list: cached() });
+    expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
+    // A note jotted in Today since is a new candidate: the affordance is back.
+    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'HEUTE', dueDate: null })] });
+    expect(result.current.count).toBe(3);
+    act(() => result.current.tidy());
+    expect(result.current.phase).toBe('asking');
+    await settle();
   });
 
   it('the count follows the date: at midnight a note due that day joins it', async () => {

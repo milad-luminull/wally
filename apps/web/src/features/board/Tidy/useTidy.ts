@@ -86,7 +86,8 @@ const activeMoves = (b: Batch) =>
  * (a) nothing to tidy: when the notice ends; (b) a discard: at once; (c) a keep: when the
  * server's answer has been applied and the skipped notes are back; (d) an undo: when its
  * answer has arrived and the board's notes have caught up with it (the moves back gave the
- * notes new revisions). A failure (the request, or a keep refused or answered otherwise) and
+ * notes new revisions); until then the bar offers nothing and a Tidy is ignored, so no request
+ * races the undo. A failure (the request, or a keep refused or answered otherwise) and
  * a switch-off while asking or pending write nothing: the affordance comes back for a retry.
  */
 export function useTidy(
@@ -113,6 +114,13 @@ export function useTidy(
    * it answers is sent after it, so it never overtakes the keep.
    */
   const keepAnswer = useRef<Promise<TidyDto | null> | null>(null);
+  /**
+   * The undo on its way, from the press until its answer and the board's notes have landed:
+   * meanwhile the bar offers nothing and a Tidy is ignored, so no request races it. The state
+   * redraws the bar; the ref is what `tidy` reads, current even before that redraw.
+   */
+  const undoing = useRef<symbol | null>(null);
+  const [undoPending, setUndoPending] = useState(false);
   // Read by callbacks and timers that run after the render that made them.
   const latestNotes = useRef(notes);
   latestNotes.current = notes;
@@ -138,7 +146,7 @@ export function useTidy(
     [busy, canMove, enabled, notes, today],
   );
   const signature = candidateSignature(notes, candidates);
-  const count = phase === 'idle' && signature !== lastRun ? candidates.length : 0;
+  const count = phase === 'idle' && !undoPending && signature !== lastRun ? candidates.length : 0;
 
   const clearTimer = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -195,7 +203,7 @@ export function useTidy(
   );
 
   const tidy = useCallback(() => {
-    if (!enabled || latestPhase.current !== 'idle') return;
+    if (!enabled || latestPhase.current !== 'idle' || undoing.current) return;
     const mine = Symbol('tidy');
     token.current = mine;
     setPhase('asking');
@@ -313,6 +321,8 @@ export function useTidy(
       patchAll(back.map((m) => ({ noteId: m.noteId, horizon: m.from })));
       const mine = Symbol('undo');
       token.current = mine;
+      undoing.current = mine;
+      setUndoPending(true);
       keptStamp.current = null;
       setBatch(null);
       setPhase('idle');
@@ -321,31 +331,29 @@ export function useTidy(
       const settleAll = (ids: readonly string[]) => {
         for (const id of ids) settleNoteCaches(queryClient, keys, boardId, id);
       };
-      // (d) Remembered once the board's notes have caught up with the moves back.
-      const finish = () =>
-        void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) }).then(() => {
-          if (token.current !== mine) return;
-          remember();
-          rest();
-        });
       // A keep still on its way is waited for; otherwise `b.moved` is what the server moved.
       const inFlight = keepAnswer.current;
-      void (async () => {
+      // Every cache write below is this undo's only while it holds the token: a continuation a
+      // later batch has overtaken touches nothing, so that batch's cards and snapshots stay.
+      const current = () => token.current === mine;
+      const run = async () => {
         let moved = shownMoved;
         if (inFlight) {
           const decided = await inFlight;
           if (!decided || decided.status !== 'KEPT' || !decided.kept) {
             // The keep failed: nothing moved on the server, so there is nothing to undo, and
             // the cards are back already. No run happened: the affordance comes back.
+            if (!current()) return;
             restoreAll(back.map((m) => m.noteId));
-            if (token.current === mine) rest();
+            rest();
             return;
           }
           moved = decided.kept.noteIds;
           // A note the keep skipped never moved: it is where the undo put it, for good.
-          restoreAll(back.filter((m) => !moved.includes(m.noteId)).map((m) => m.noteId));
+          if (current())
+            restoreAll(back.filter((m) => !moved.includes(m.noteId)).map((m) => m.noteId));
           if (moved.length === 0) {
-            if (token.current === mine) {
+            if (current()) {
               remember();
               rest();
             }
@@ -353,19 +361,30 @@ export function useTidy(
           }
         }
         try {
+          // Sent even when overtaken: the person asked for this undo.
           await assistantApi.decideTidy(boardId, tidyId, { decision: 'undo', source });
         } catch {
           // The server kept the moves: the moved cards go back to where the keep put them.
-          if (token.current === mine)
+          if (current())
             patchAll(
               back
                 .filter((m) => moved.includes(m.noteId))
                 .map((m) => ({ noteId: m.noteId, horizon: m.to })),
             );
         }
+        if (!current()) return;
         settleAll(moved);
-        finish();
-      })();
+        // (d) Remembered once the board's notes have caught up with the moves back.
+        await queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
+        if (!current()) return;
+        remember();
+        rest();
+      };
+      void run().finally(() => {
+        if (undoing.current !== mine) return;
+        undoing.current = null;
+        setUndoPending(false);
+      });
     },
     [boardId, clearTimer, keys, patchAll, queryClient, remember, rest, restoreAll],
   );
