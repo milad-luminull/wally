@@ -376,13 +376,68 @@ describe('capture suggestions', () => {
     const read = await pending(fx.ownerToken, fx.boardId);
     expect(read.statusCode).toBe(200);
     expect(read.json().suggestions[0].fields.links).toEqual({
-      items: [{ noteId: renamed.id, title: 'Quote for Müller', reason: 'same customer' }],
+      items: [{ index: 0, noteId: renamed.id, title: 'Quote for Müller', reason: 'same customer' }],
       reason: 'related',
     });
     // With every target gone the field reads as nothing proposed.
     await notesCol(ctx.db).doc(renamed.id).update({ deletedAt: Timestamp.now() });
     const empty = await pending(fx.ownerToken, fx.boardId);
     expect(empty.json().suggestions[0].fields.links).toBeNull();
+  });
+
+  it('numbers each readable link by its stored index when targets dropped out, and hides a target another member made private', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const a = (await createNote(fx.ownerToken, fx.boardId, { title: 'A' })).json();
+    const b = (await createNote(fx.ownerToken, fx.boardId, { title: 'B' })).json();
+    const c = (await createNote(fx.ownerToken, fx.boardId, { title: 'C' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const proposeLinks = (...ids: string[]) =>
+      assistantSuggestionsCol(ctx.db, fx.ownerId)
+        .doc(suggestion.id)
+        .update({
+          'fields.links': {
+            items: ids.map((noteId) => ({ noteId, reason: `why ${noteId}` })),
+            reason: 'related',
+          },
+        });
+    const readLinks = async () =>
+      (await pending(fx.ownerToken, fx.boardId)).json().suggestions[0].fields.links;
+
+    // The first target is gone: B and C keep stored indexes 1 and 2, not 0 and 1.
+    await proposeLinks(a.id, b.id, c.id);
+    await notesCol(ctx.db).doc(a.id).update({ deletedAt: Timestamp.now() });
+    expect((await readLinks()).items).toEqual([
+      { index: 1, noteId: b.id, title: 'B', reason: `why ${b.id}` },
+      { index: 2, noteId: c.id, title: 'C', reason: `why ${c.id}` },
+    ]);
+
+    // A target another member turns private after the proposal is not shown to the owner, title
+    // included; the others keep their stored indexes.
+    const theirs = (await createNote(fx.editToken, fx.boardId, { title: 'Secret plans' })).json();
+    await proposeLinks(b.id, theirs.id, c.id);
+    expect((await readLinks()).items.map((i: { index: number }) => i.index)).toEqual([0, 1, 2]);
+    await notesCol(ctx.db)
+      .doc(theirs.id)
+      .update({ visibility: 'PRIVATE', assigneeId: fx.editorId });
+    const hidden = await readLinks();
+    expect(hidden.items).toEqual([
+      { index: 0, noteId: b.id, title: 'B', reason: `why ${b.id}` },
+      { index: 2, noteId: c.id, title: 'C', reason: `why ${c.id}` },
+    ]);
+    expect(JSON.stringify(hidden)).not.toContain('Secret plans');
+
+    // A note the owner made private is still theirs to see.
+    const mine = (await createNote(fx.ownerToken, fx.boardId, { title: 'Mine' })).json();
+    await proposeLinks(mine.id);
+    await notesCol(ctx.db).doc(mine.id).update({ visibility: 'PRIVATE', assigneeId: fx.ownerId });
+    expect((await readLinks()).items).toEqual([
+      { index: 0, noteId: mine.id, title: 'Mine', reason: `why ${mine.id}` },
+    ]);
+
+    // Only private targets of others left: the field reads as nothing proposed.
+    await proposeLinks(theirs.id);
+    expect(await readLinks()).toBeNull();
   });
 
   it('drops low confidence, unknown members and an empty reply without a record', async () => {

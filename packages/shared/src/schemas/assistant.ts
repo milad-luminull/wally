@@ -136,6 +136,8 @@ export const suggestionFieldsSchema = z.object({
       items: z
         .array(
           z.object({
+            /** The item's index in the stored proposal: what a keep names, even when others dropped out. */
+            index: z.number().int().nonnegative(),
             noteId: z.string(),
             title: z.string(),
             reason: reasonSchema,

@@ -254,7 +254,9 @@ export function useSuggestions(
         subtasks: suggestion.fields.subtasks
           ? suggestion.fields.subtasks.items.map((_, i) => i)
           : [],
-        links: suggestion.fields.links ? suggestion.fields.links.items.map((_, i) => i) : [],
+        links: suggestion.fields.links
+          ? suggestion.fields.links.items.map((item) => item.index)
+          : [],
         titleDismissed: false,
         countdownEndsAt: endsAt,
         countdownMs: COUNTDOWN_MS,

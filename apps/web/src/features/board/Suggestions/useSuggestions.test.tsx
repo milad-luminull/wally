@@ -671,6 +671,27 @@ describe('useSuggestions', () => {
       });
     });
 
+    it('the proposed links in the change are the stored indexes, even when an earlier target dropped out', async () => {
+      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+        suggestion: dto({
+          fields: fields({
+            dueDate: DATE,
+            links: {
+              items: [
+                { index: 1, noteId: 'b', title: 'B', reason: 'same customer' },
+                { index: 2, noteId: 'c', title: 'C', reason: 'same topic' },
+              ],
+              reason: 'related',
+            },
+          }),
+        }),
+      });
+      const { result } = setup();
+      act(() => result.current.request('n1', []));
+      await flush();
+      expect(result.current.marks.get('n1')?.links).toEqual([1, 2]);
+    });
+
     it('a title alone runs no countdown and keeps only when ticked', async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
         suggestion: dto({ fields: fields({ title: TITLE }) }),

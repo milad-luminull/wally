@@ -33,12 +33,13 @@ import {
 } from '../db/collections.js';
 import type {
   AssistantSuggestionDoc,
+  NoteDoc,
   SuggestionOperationIds,
   WhiteboardDoc,
   WithId,
 } from '../db/types.js';
 import { AppError } from '../errors.js';
-import { isValidAssignee } from '../notes.js';
+import { canSeeNote, isValidAssignee } from '../notes.js';
 import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
@@ -252,33 +253,36 @@ function liveFields(
 async function toDto(
   db: Firestore,
   board: WithId<WhiteboardDoc>,
+  ownerId: string,
   doc: WithId<AssistantSuggestionDoc>,
 ): Promise<SuggestionDto> {
   const live = liveFields(board, doc.fields);
   const users = await loadUsers(db, [live.assignee?.value]);
   const assignee = live.assignee ? users.get(live.assignee.value) : undefined;
-  // A proposed link reads with its target's current title; a target gone from the board drops out (L3, L7).
+  // A proposed link reads with its target's current title. A target the record's owner cannot
+  // see (gone, on another board, or made private by someone else since) drops out (L2, L3, L7).
+  // Each item keeps the index it has in the stored record, so a keep and its echo (`kept.links`)
+  // name the same items however many dropped out.
   const linkIds = live.links?.items.map((item) => item.noteId) ?? [];
   const targets = linkIds.length
     ? await db.getAll(...linkIds.map((id) => notesCol(db).doc(id)))
     : [];
   const titles = new Map(
     targets.flatMap((snap) => {
-      const data = snap.data();
-      return data && !data.deletedAt && data.whiteboardId === board.id
+      const data = snap.data() as NoteDoc | undefined;
+      return data && !data.deletedAt && data.whiteboardId === board.id && canSeeNote(data, ownerId)
         ? [[snap.id, data.title]]
         : [];
     }),
   );
-  const links =
-    live.links && live.links.items.some((item) => titles.has(item.noteId))
-      ? {
-          items: live.links.items.flatMap((item) =>
-            titles.has(item.noteId) ? [{ ...item, title: titles.get(item.noteId)! }] : [],
-          ),
-          reason: live.links.reason,
-        }
-      : null;
+  const links = live.links
+    ? {
+        items: live.links.items.flatMap((item, index) =>
+          titles.has(item.noteId) ? [{ ...item, index, title: titles.get(item.noteId)! }] : [],
+        ),
+        reason: live.links.reason,
+      }
+    : null;
   const fields: SuggestionFields = {
     dueDate: live.dueDate,
     priority: live.priority,
@@ -293,7 +297,8 @@ async function toDto(
     title: live.title ?? null,
     reference: live.reference ?? null,
     subtasks: live.subtasks ?? null,
-    links,
+    // Nothing readable left: the field reads as empty.
+    links: links && links.items.length > 0 ? links : null,
   };
   return {
     id: doc.id,
@@ -459,7 +464,7 @@ export async function suggestForCapture(
   };
   const ref = assistantSuggestionsCol(db, actor.id).doc();
   await ref.create(doc);
-  return toDto(db, board, { ...doc, id: ref.id });
+  return toDto(db, board, actor.id, { ...doc, id: ref.id });
 }
 
 /** The caller's own record on this board, or 404 (the access recheck of WALLY_AGENT.md §3.4). */
@@ -925,12 +930,13 @@ export async function decideSuggestion(
       { source: decision.source, fields: [] },
       now,
     );
-    return toDto(db, board, doc);
+    return toDto(db, board, actor.id, doc);
   }
 
   if (decision.decision === 'keep') {
     const current = await loadSuggestion(db, actor, board.id, suggestionId);
-    if (current.status === 'KEPT') return toDto(db, board, await completeKeep(deps, ctx, current));
+    if (current.status === 'KEPT')
+      return toDto(db, board, actor.id, await completeKeep(deps, ctx, current));
     // What can still be kept: an assignee who left the board since drops out here.
     const proposed = proposedKeys(liveFields(board, current.fields));
     // Each field once, in the one order the chain and its receipts use: a field named twice
@@ -958,7 +964,7 @@ export async function decideSuggestion(
       proposed.includes('title') &&
       current.status === 'PENDING'
     )
-      return toDto(db, board, current);
+      return toDto(db, board, actor.id, current);
     if (fields.length === 0) {
       const { doc } = await claim(
         db,
@@ -970,7 +976,7 @@ export async function decideSuggestion(
         { source: decision.source, fields: [] },
         now,
       );
-      return toDto(db, board, doc);
+      return toDto(db, board, actor.id, doc);
     }
     // Whoever wins the claim, every keep then runs the same chain: the loser's writes replay
     // the winner's receipts, and both answer with the record's one outcome.
@@ -984,16 +990,16 @@ export async function decideSuggestion(
       { source: decision.source, fields, subtasks },
       now,
     );
-    return toDto(db, board, await completeKeep(deps, ctx, doc));
+    return toDto(db, board, actor.id, await completeKeep(deps, ctx, doc));
   }
 
   // undo
   let current = await loadSuggestion(db, actor, board.id, suggestionId);
-  if (current.status === 'UNDONE') return toDto(db, board, current);
+  if (current.status === 'UNDONE') return toDto(db, board, actor.id, current);
   if (current.status !== 'KEPT') throw settled();
   // A keep still running or cut short finishes first, so the undo has its receipts to invert.
   current = await completeKeep(deps, ctx, current);
-  if (current.status === 'UNDONE') return toDto(db, board, current);
+  if (current.status === 'UNDONE') return toDto(db, board, actor.id, current);
   const { applied } = current;
   if (current.status !== 'KEPT' || !applied) throw settled();
   // Inverse order, so each revision check sees exactly the state the keep left behind: the
@@ -1033,7 +1039,7 @@ export async function decideSuggestion(
     { source: decision.source, fields: [...applied.fields].reverse() },
     now,
   );
-  return toDto(db, board, doc);
+  return toDto(db, board, actor.id, doc);
 }
 
 /**
@@ -1084,5 +1090,5 @@ export async function pendingSuggestions(
     });
   }
   live.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
-  return Promise.all(live.map((doc) => toDto(db, board, doc)));
+  return Promise.all(live.map((doc) => toDto(db, board, actor.id, doc)));
 }
