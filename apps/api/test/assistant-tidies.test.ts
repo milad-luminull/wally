@@ -3,7 +3,13 @@ import type { TidyInput, TidyOutput, TidyRunner } from '../src/lib/assistant/mod
 import { modelTidySchema } from '../src/lib/assistant/model/tidy.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import { TIDY_MAX_MOVES } from '@wally/shared';
-import { assistantTidiesCol, assistantUsageCol, notesCol } from '../src/lib/db/collections.js';
+import {
+  assistantAuditCol,
+  assistantTidiesCol,
+  assistantUsageCol,
+  historyCol,
+  notesCol,
+} from '../src/lib/db/collections.js';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
@@ -79,6 +85,20 @@ describe('tidies', () => {
       url: `/whiteboards/${boardId}/assistant/tidies`,
       headers: ctx.authHeader(token),
       payload: { timeZone: 'Europe/Berlin', today: TODAY },
+    });
+  const decide = (token: string, boardId: string, id: string, body: Record<string, unknown>) =>
+    ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${boardId}/assistant/tidies/${id}/decision`,
+      headers: ctx.authHeader(token),
+      payload: body,
+    });
+  const patchTitle = (token: string, noteId: string, title: string) =>
+    ctx.inject({
+      method: 'PATCH',
+      url: `/notes/${noteId}`,
+      headers: ctx.authHeader(token),
+      payload: { title },
     });
   const note = async (id: string) => (await notesCol(ctx.db).doc(id).get()).data()!;
   const stored = async (userId: string, id: string) =>
@@ -229,5 +249,147 @@ describe('tidies', () => {
       payload: { enabled: false },
     });
     expect((await tidy(fx.ownerToken, fx.boardId)).statusCode).toBe(404);
+  });
+
+  /** A dated batch of three: Monday and Tuesday in This week (both to Later), an overdue one in Later (to Today). */
+  async function threeDated(fx: Awaited<ReturnType<typeof createBoardFixture>>) {
+    const a = (
+      await createNote(fx.ownerToken, fx.boardId, {
+        title: 'Monday',
+        dueDate: '2026-10-19',
+        horizon: 'DIESE_WOCHE',
+      })
+    ).json();
+    const b = (
+      await createNote(fx.ownerToken, fx.boardId, {
+        title: 'Tuesday',
+        dueDate: '2026-10-20',
+        horizon: 'DIESE_WOCHE',
+      })
+    ).json();
+    const c = (
+      await createNote(fx.ownerToken, fx.boardId, {
+        title: 'Overdue',
+        dueDate: '2026-10-01',
+        horizon: 'SPAETER',
+      })
+    ).json();
+    const dto = (await tidy(fx.ownerToken, fx.boardId)).json().tidy;
+    return { a, b, c, dto };
+  }
+  /** Every audit row in the test project: each test starts from an empty database. */
+  const audits = async (_userId: string) => (await assistantAuditCol(ctx.db).get()).size;
+  const movedByAssistant = async (noteId: string) =>
+    (await historyCol(ctx.db, noteId).where('type', '==', 'MOVED').get()).docs.filter(
+      (snap) => (snap.data().metadata as { via?: string }).via === 'assistant',
+    ).length;
+
+  it('a keep moves every note through the command layer, once, with an audit row each', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, b, c, dto } = await threeDated(fx);
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'enter',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tidy).toMatchObject({
+      status: 'KEPT',
+      // The record's order: dated moves earliest due first.
+      kept: { noteIds: [c.id, a.id, b.id], skipped: [] },
+    });
+    expect((await note(a.id)).horizon).toBe('SPAETER');
+    expect((await note(b.id)).horizon).toBe('SPAETER');
+    expect((await note(c.id)).horizon).toBe('HEUTE');
+    expect(await movedByAssistant(a.id)).toBe(1);
+    expect(await audits(fx.ownerId)).toBe(3);
+    // A repeat replays the receipts: nothing moves twice, nothing is audited twice.
+    const again = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'click',
+    });
+    expect(again.json().tidy.status).toBe('KEPT');
+    expect(await audits(fx.ownerId)).toBe(3);
+    expect((await note(a.id)).revision).toBe(a.revision + 1);
+  });
+
+  it('a keep of a subset moves those notes only; a note edited meanwhile is skipped', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, b, c, dto } = await threeDated(fx);
+    await patchTitle(fx.ownerToken, b.id, 'Tuesday, edited');
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'keep',
+      source: 'click',
+      noteIds: [a.id, b.id],
+    });
+    expect(res.json().tidy.kept).toEqual({ noteIds: [a.id], skipped: [b.id] });
+    expect((await note(a.id)).horizon).toBe('SPAETER');
+    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(c.id)).horizon).toBe('SPAETER');
+    expect(await audits(fx.ownerId)).toBe(1);
+  });
+
+  it('an undo puts the moved notes back on the revisions the keep produced, and leaves one edited since', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, b, c, dto } = await threeDated(fx);
+    await decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'keep', source: 'enter' });
+    await patchTitle(fx.ownerToken, c.id, 'Overdue, edited after the keep');
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'undo',
+      source: 'click',
+    });
+    expect(res.json().tidy.status).toBe('UNDONE');
+    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(c.id)).horizon).toBe('HEUTE');
+    expect(await audits(fx.ownerId)).toBe(5);
+    // A second undo replays.
+    expect(
+      (
+        await decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'undo', source: 'shortcut' })
+      ).json().tidy.status,
+    ).toBe('UNDONE');
+    expect(await audits(fx.ownerId)).toBe(5);
+  });
+
+  it('two tabs keeping at once move the notes once and both see the kept record', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, dto } = await threeDated(fx);
+    const [one, two] = await Promise.all([
+      decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'keep', source: 'enter' }),
+      decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'keep', source: 'click' }),
+    ]);
+    expect([one.statusCode, two.statusCode]).toEqual([200, 200]);
+    expect(one.json().tidy.status).toBe('KEPT');
+    expect(two.json().tidy.status).toBe('KEPT');
+    expect((await note(a.id)).revision).toBe(a.revision + 1);
+    expect(await audits(fx.ownerId)).toBe(3);
+  });
+
+  it('a discard decides the record and moves nothing; a keep after it is refused', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { a, dto } = await threeDated(fx);
+    const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
+      decision: 'discard',
+      source: 'esc',
+    });
+    expect(res.json().tidy.status).toBe('DISCARDED');
+    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
+    expect(
+      (await decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'keep', source: 'enter' }))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (await decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'undo', source: 'esc' }))
+        .statusCode,
+    ).toBe(409);
+  });
+
+  it('another member’s record is not found', async () => {
+    const fx = await createBoardFixture(ctx);
+    const { dto } = await threeDated(fx);
+    expect(
+      (await decide(fx.editToken, fx.boardId, dto.id, { decision: 'keep', source: 'enter' }))
+        .statusCode,
+    ).toBe(404);
   });
 });

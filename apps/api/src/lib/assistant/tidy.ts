@@ -17,6 +17,7 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { tidySchemaJson, type TidyRunner } from './model/index.js';
+import { runOperation, type OperationContext } from './run.js';
 import {
   SUGGESTION_RETENTION_DAYS,
   type SuggestionContext,
@@ -256,5 +257,195 @@ export async function proposeTidy(
   return toTidyDto({ ...doc, id: ref.id });
 }
 
-/** Task 4 adds `decideTidy` below. */
-export type { TidyDecision };
+function operationContext(
+  deps: SuggestionDeps,
+  ctx: SuggestionContext,
+  id: string,
+): OperationContext {
+  return {
+    db: deps.db,
+    actor: ctx.actor,
+    boardId: ctx.board.id,
+    assistantEnabled: true,
+    // The tidy is the approval record; a tidy has no conversation (as a suggestion, plan R2 of slice 2).
+    provenance: { via: 'assistant', conversationId: id, approvalId: id },
+    logger: deps.logger,
+  };
+}
+
+/** A refusal that a retry under the same id cannot change (stale, gone, forbidden, invalid). */
+const isFinal = (error: unknown): error is AppError =>
+  error instanceof AppError && error.statusCode < 500;
+
+type TidyMoveDoc = AssistantTidyDoc['moves'][number];
+
+/**
+ * Moves the notes, each under its own operation id on the revision given, skipping the ones
+ * the command layer refuses for good (changed since, gone, not the caller's to move) and
+ * throwing on anything else, so the caller can resume later under the same ids. Returns what
+ * moved, with the revision each move produced, and what was skipped (plan R5).
+ */
+async function moveEach(
+  opCtx: OperationContext,
+  moves: {
+    move: TidyMoveDoc;
+    to: TidyMoveDoc['to'];
+    expectedRevision: number;
+    operationId: string;
+  }[],
+): Promise<{ moved: { noteId: string; revision: number }[]; skipped: string[] }> {
+  const moved: { noteId: string; revision: number }[] = [];
+  const skipped: string[] = [];
+  for (const { move, to, expectedRevision, operationId } of moves) {
+    try {
+      const result = await runOperation(opCtx, {
+        name: 'move_note',
+        input: {
+          boardId: opCtx.boardId,
+          noteId: move.noteId,
+          expectedRevision,
+          input: { mode: 'HORIZON', horizon: to },
+        },
+        operationId,
+      });
+      moved.push({ noteId: move.noteId, revision: result.revision ?? expectedRevision });
+    } catch (error) {
+      if (!isFinal(error)) throw error;
+      skipped.push(move.noteId);
+    }
+  }
+  return { moved, skipped };
+}
+
+/**
+ * Finishes a claimed keep: every keep of a KEPT record with nothing applied comes here (the
+ * claiming tab, a second tab, a repeat after a cut-short keep) and runs the same moves under
+ * the record's apply ids, so each note moves once and each move leaves one audit row.
+ */
+async function completeKeep(
+  deps: SuggestionDeps,
+  ctx: SuggestionContext,
+  doc: WithId<AssistantTidyDoc>,
+): Promise<WithId<AssistantTidyDoc>> {
+  if (doc.applied) return doc;
+  const chosen = new Set(doc.decision?.noteIds ?? []);
+  const { moved, skipped } = await moveEach(
+    operationContext(deps, ctx, doc.id),
+    doc.moves
+      .filter((move) => chosen.has(move.noteId))
+      .map((move) => ({
+        move,
+        to: move.to,
+        expectedRevision: move.baseRevision,
+        operationId: move.operationIds.apply,
+      })),
+  );
+  const ref = assistantTidiesCol(deps.db, ctx.actor.id).doc(doc.id);
+  const now = deps.now?.() ?? new Date();
+  return deps.db.runTransaction(async (tx) => {
+    const current = withId(await tx.get(ref));
+    if (!current) throw notFound();
+    if (current.status !== 'KEPT' || current.applied) return current;
+    const next: WithId<AssistantTidyDoc> = {
+      ...current,
+      applied: { moves: moved, skipped },
+      updatedAt: Timestamp.fromDate(now),
+    };
+    tx.set(ref, stripId(next));
+    return next;
+  });
+}
+
+/**
+ * Keep, discard or undo the batch (WALLYBOT_INLINE.md §3.5, plan R5, R7). A keep moves the
+ * chosen notes through the command layer under the record's own operation ids; a note changed
+ * since the proposal is skipped and the rest moves. An undo moves each applied note back on
+ * the revision its move produced, under the undo ids, skipping a note changed since.
+ */
+export async function decideTidy(
+  deps: SuggestionDeps,
+  ctx: SuggestionContext,
+  tidyId: string,
+  decision: TidyDecision,
+): Promise<TidyDto> {
+  const { db } = deps;
+  const { actor, board } = ctx;
+  const now = deps.now?.() ?? new Date();
+
+  if (decision.decision === 'discard') {
+    const { doc } = await claimTidy(
+      db,
+      actor,
+      board.id,
+      tidyId,
+      'PENDING',
+      'DISCARDED',
+      { source: decision.source, noteIds: [] },
+      now,
+    );
+    return toTidyDto(doc);
+  }
+
+  if (decision.decision === 'keep') {
+    const current = await loadTidy(db, actor, board.id, tidyId);
+    if (current.status === 'KEPT') return toTidyDto(await completeKeep(deps, ctx, current));
+    // Each proposed note once, in the record's order; a note the record never proposed is ignored.
+    const requested = decision.noteIds ? new Set(decision.noteIds) : null;
+    const noteIds = current.moves
+      .map((m) => m.noteId)
+      .filter((id) => !requested || requested.has(id));
+    if (noteIds.length === 0) {
+      const { doc } = await claimTidy(
+        db,
+        actor,
+        board.id,
+        tidyId,
+        'PENDING',
+        'DISCARDED',
+        { source: decision.source, noteIds: [] },
+        now,
+      );
+      return toTidyDto(doc);
+    }
+    const { doc } = await claimTidy(
+      db,
+      actor,
+      board.id,
+      tidyId,
+      'PENDING',
+      'KEPT',
+      { source: decision.source, noteIds },
+      now,
+    );
+    return toTidyDto(await completeKeep(deps, ctx, doc));
+  }
+
+  // undo
+  let current = await loadTidy(db, actor, board.id, tidyId);
+  if (current.status === 'UNDONE') return toTidyDto(current);
+  if (current.status !== 'KEPT') throw settled();
+  current = await completeKeep(deps, ctx, current);
+  const { applied } = current;
+  if (current.status !== 'KEPT' || !applied) throw settled();
+  const byId = new Map(current.moves.map((m) => [m.noteId, m]));
+  await moveEach(
+    operationContext(deps, ctx, current.id),
+    [...applied.moves].reverse().flatMap(({ noteId, revision }) => {
+      const move = byId.get(noteId);
+      return move
+        ? [{ move, to: move.from, expectedRevision: revision, operationId: move.operationIds.undo }]
+        : [];
+    }),
+  );
+  const { doc } = await claimTidy(
+    db,
+    actor,
+    board.id,
+    tidyId,
+    'KEPT',
+    'UNDONE',
+    { source: decision.source, noteIds: applied.moves.map((m) => m.noteId) },
+    now,
+  );
+  return toTidyDto(doc);
+}

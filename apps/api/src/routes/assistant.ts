@@ -10,6 +10,8 @@ import {
   suggestionDecisionResponseSchema,
   suggestionDecisionSchema,
   suggestionListSchema,
+  tidyDecisionResponseSchema,
+  tidyDecisionSchema,
   tidyRequestSchema,
   tidyResponseSchema,
 } from '@wally/shared';
@@ -34,7 +36,7 @@ import {
   suggestForCapture,
 } from '../lib/assistant/suggestions.js';
 import { assistantEnabledFor } from '../lib/assistant/switch.js';
-import { proposeTidy } from '../lib/assistant/tidy.js';
+import { decideTidy, proposeTidy } from '../lib/assistant/tidy.js';
 import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
 import { liveWhiteboard, userLanguage, whiteboardsCol } from '../lib/db/collections.js';
@@ -254,6 +256,28 @@ export default async function assistantRoutes(
             .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
         throw error;
       }
+    },
+  );
+
+  app.post(
+    '/whiteboards/:id/assistant/tidies/:tidyId/decision',
+    {
+      schema: {
+        params: z.object({ id: z.string().min(1).max(128), tidyId: z.string().min(1).max(128) }),
+        body: tidyDecisionSchema,
+        response: { 200: tidyDecisionResponseSchema },
+      },
+    },
+    async (request) => {
+      const { board, role } = await boardFor(request);
+      // A decision never calls the model, so it never builds the runner either.
+      const tidy = await decideTidy(
+        { db: request.server.db, env, logger: request.log },
+        { actor: request.user, language: userLanguage(request.user), board, role },
+        request.params.tidyId,
+        request.body,
+      );
+      return { tidy };
     },
   );
 }
