@@ -109,12 +109,23 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   );
   // The words edited in place on a card or a row, one note at a time; a finished edit asks
   // again exactly as one in the sidebar does.
-  const editFor = useInlineEdit({
+  const { editFor, openFromCard } = useInlineEdit({
     boardId,
     canEdit: access.canEditNote,
     onEdited: onTextEdited,
     onOpen: viewState.openNote,
   });
+  // A click on a card or a row: it opens the sidebar once a double-click (an edit) can no
+  // longer follow.
+  const { openNote: openNoteNow } = viewState;
+  const openNoteFromCard = useCallback(
+    (noteId: string) => {
+      const note = latestNotes.current.find((n) => n.id === noteId);
+      if (note) openFromCard(note);
+      else openNoteNow(noteId);
+    },
+    [openFromCard, openNoteNow],
+  );
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
   openNoteId.current = viewState.noteId;
@@ -304,7 +315,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 currentUserId={user?.uid}
                 axis={viewState.axis}
                 selectedNoteId={viewState.noteId}
-                onOpenNote={viewState.openNote}
+                onOpenNote={openNoteFromCard}
                 onDuplicateNote={duplicateNote}
                 access={access}
                 capture={capture}
@@ -328,7 +339,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 totalNoteCount={boardNotes.length}
                 axis={viewState.axis}
                 currentUserId={user?.uid}
-                onOpenNote={viewState.openNote}
+                onOpenNote={openNoteFromCard}
                 onToggleDone={(noteId, status) =>
                   toggleStatus.mutate({ noteId, currentStatus: status })
                 }

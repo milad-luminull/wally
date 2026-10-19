@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import type { EditResult } from './InlineNoteEditor';
 
@@ -13,32 +13,68 @@ export interface InlineEditProps {
 }
 
 /**
+ * How long a click on a card the person may edit waits before it opens the sidebar: long
+ * enough for the second click of a double-click, which edits in place instead. Without the
+ * wait the sidebar opens on the first click and slides over the card (or, below desktop, the
+ * sheet's backdrop takes the second click), so the double-click never reaches the card.
+ */
+export const OPEN_AFTER_CLICK_MS = 250;
+
+/**
  * The board's one edit in place at a time (the smarter-capture spec, revision "editing the text
  * asks again"). Only a note the person may edit gets one. A finished edit that changed the
  * words is handed on with the fields its chips set; ⌘/Ctrl+Enter also opens the sidebar.
+ * `openFromCard` is the card's and the row's click: it opens the sidebar once a double-click
+ * can no longer follow.
  */
 export function useInlineEdit(options: {
   boardId: string;
   canEdit: (note: NoteDto) => boolean;
   onEdited: (noteId: string, locked: SuggestionFieldKey[]) => void;
   onOpen: (noteId: string) => void;
-}): (note: NoteDto) => InlineEditProps | undefined {
+}): {
+  editFor: (note: NoteDto) => InlineEditProps | undefined;
+  openFromCard: (note: NoteDto) => void;
+} {
   const { boardId, canEdit, onEdited, onOpen } = options;
   const [editingId, setEditingId] = useState<string | null>(null);
-  return useCallback(
+  const pendingOpen = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelOpen = useCallback(() => {
+    if (pendingOpen.current) clearTimeout(pendingOpen.current);
+    pendingOpen.current = null;
+  }, []);
+  useEffect(() => cancelOpen, [cancelOpen]);
+
+  const openFromCard = useCallback(
+    (note: NoteDto) => {
+      cancelOpen();
+      if (!canEdit(note)) return onOpen(note.id);
+      pendingOpen.current = setTimeout(() => {
+        pendingOpen.current = null;
+        onOpen(note.id);
+      }, OPEN_AFTER_CLICK_MS);
+    },
+    [canEdit, cancelOpen, onOpen],
+  );
+
+  const editFor = useCallback(
     (note: NoteDto) =>
       canEdit(note)
         ? {
             boardId,
             editing: editingId === note.id,
-            start: () => setEditingId(note.id),
-            done: (result) => {
+            start: () => {
+              cancelOpen();
+              setEditingId(note.id);
+            },
+            done: (result: EditResult | null) => {
               setEditingId((id) => (id === note.id ? null : id));
               if (result?.changed) onEdited(note.id, result.locked);
               if (result?.open) onOpen(note.id);
             },
           }
         : undefined,
-    [boardId, canEdit, editingId, onEdited, onOpen],
+    [boardId, canEdit, cancelOpen, editingId, onEdited, onOpen],
   );
+  return { editFor, openFromCard };
 }
