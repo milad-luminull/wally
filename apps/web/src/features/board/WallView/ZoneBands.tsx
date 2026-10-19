@@ -11,6 +11,7 @@ import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 /** Droppable-region id convention consumed by WallView's onDragEnd. */
 export function zoneDroppableId(axis: BoardAxis, key: string) {
@@ -45,6 +46,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
@@ -63,6 +66,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  editFor,
   relatedCounts,
   tidyFor,
 }: ZoneBandProps) {
@@ -74,9 +78,9 @@ function ZoneBand({
     <section
       ref={setNodeRef}
       onDoubleClick={(e) => {
-        // Selecting a word in the note being written, or in an answer, is not a request for
-        // another note.
-        if ((e.target as HTMLElement).closest('[data-capture], [data-ask]')) return;
+        // A double-click on a card edits it; selecting a word in the note being written, or in
+        // an answer, is not a request for another note either.
+        if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
@@ -140,6 +144,7 @@ function ZoneBand({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              edit={editFor?.(note)}
               relatedCount={relatedCounts?.get(note.id)}
               tidy={tidyFor?.(note.id)}
             />
@@ -202,6 +207,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */

@@ -35,6 +35,7 @@ import { placementsTaken, type AskSlot } from './Ask/askSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
 import { EDIT_LOCKED, afterNoteSaves, editAskAllowed } from './Suggestions/editAsk';
+import { useInlineEdit } from './Capture/inlineEdit';
 import { useTidy } from './Tidy/useTidy';
 import { useTidyFor } from './Tidy/useTidyFor';
 import { tidyOnWall } from './Tidy/tidyOnWall';
@@ -106,6 +107,14 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     },
     [board.assistantEnabled, requestSuggestion, user?.uid],
   );
+  // The words edited in place on a card or a row, one note at a time; a finished edit asks
+  // again exactly as one in the sidebar does.
+  const editFor = useInlineEdit({
+    boardId,
+    canEdit: access.canEditNote,
+    onEdited: onTextEdited,
+    onOpen: viewState.openNote,
+  });
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
   openNoteId.current = viewState.noteId;
@@ -308,6 +317,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 visibility={access.newNoteVisibility}
                 visibilityChosen={access.visibilityChosen}
                 pendingFor={pendingFor}
+                editFor={editFor}
                 relatedCounts={relatedCountByNote}
                 tidyFor={tidyOn ? tidyFor : undefined}
                 tidy={tidyOn ? tidy : undefined}
@@ -337,6 +347,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 }
                 ask={askSlot}
                 pendingFor={pendingFor}
+                editFor={editFor}
                 relatedCounts={relatedCountByNote}
               />
             )}

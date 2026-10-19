@@ -12,6 +12,7 @@ import type { CaptureAsk } from '../Capture/useCapture';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { AskSlot } from '../Ask/askSlot';
 import { NoteRow } from './NoteRow';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 const FREE_MOVE_HINT_KEY = 'wally:hint:free-move-desktop';
 
@@ -79,6 +80,8 @@ interface ListViewProps {
   ask?: AskSlot | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
 }
@@ -111,6 +114,7 @@ export function ListView({
   capture,
   ask,
   pendingFor,
+  editFor,
   relatedCounts,
 }: ListViewProps) {
   const { t } = useTranslation();
@@ -205,6 +209,7 @@ export function ListView({
                   onToggleDone={() => onToggleDone(note.id, note.status)}
                   canEdit={access.canEditNote(note)}
                   pending={pendingFor?.(note.id)}
+                  edit={editFor?.(note)}
                   relatedCount={relatedCounts?.get(note.id)}
                 />
               ))}

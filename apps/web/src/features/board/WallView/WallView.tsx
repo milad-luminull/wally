@@ -50,6 +50,7 @@ import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
 import { CopyDragContext } from './copyDrag';
 import { useQueryKeys } from '../hooks/queryKeys';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 interface WallViewProps {
   boardId: string;
@@ -83,6 +84,8 @@ interface WallViewProps {
   visibilityChosen?: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /**
@@ -131,6 +134,7 @@ export function WallView({
   visibility,
   visibilityChosen,
   pendingFor,
+  editFor,
   relatedCounts,
   tidyFor,
   tidy,
@@ -471,6 +475,7 @@ export function WallView({
             canEditShared={access.canEditShared}
             activeDragId={activeId}
             pendingFor={pendingFor}
+            editFor={editFor}
             relatedCounts={relatedCounts}
           />
         ) : (
@@ -495,6 +500,7 @@ export function WallView({
               filteredOut={shownNotes.length === 0 && totalNoteCount > 0}
               relatedCounts={relatedCounts}
               pendingFor={pendingFor}
+              editFor={editFor}
               tidyFor={onHorizon ? tidyFor : undefined}
             />
             {onHorizon && tidy && <TidyBar tidy={tidy} />}

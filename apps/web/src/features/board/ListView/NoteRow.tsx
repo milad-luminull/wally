@@ -20,6 +20,8 @@ import {
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
+import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -31,6 +33,8 @@ interface NoteRowProps {
   pending?: PendingProps;
   /** How many notes of the board this one is related to, both ways (`relatedCounts`, L1, L7). */
   relatedCount?: number;
+  /** Editing the note's words in place; absent for a note the person may not edit. */
+  edit?: InlineEditProps;
 }
 
 export function NoteRow({
@@ -41,6 +45,7 @@ export function NoteRow({
   canEdit,
   pending,
   relatedCount = 0,
+  edit,
 }: NoteRowProps) {
   const { t, i18n } = useTranslation();
   const { language } = useLanguage();
@@ -117,7 +122,15 @@ export function NoteRow({
       data-note-id={note.id}
       data-pending={pending?.mark.phase}
       onClick={onOpen}
+      onDoubleClick={edit?.start}
       onKeyDown={(e) => {
+        // F2 edits the words in place, as in a file list.
+        if (edit && e.key === 'F2' && e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          edit.start();
+          return;
+        }
         // Enter keeps and Esc discards while a change is pending, instead of opening.
         if (pendingKeys(e, pending)) return;
         // A key meant for a control inside the row (the checkbox, the Undo) is not "open".
@@ -158,8 +171,19 @@ export function NoteRow({
         )}
       >
         <span
+          // Under review the title is where an edit starts: one click, as on the words just
+          // written (the smarter-capture spec, revision "editing the text asks again").
+          onClick={
+            reviewing && edit
+              ? (e) => {
+                  e.stopPropagation();
+                  edit.start();
+                }
+              : undefined
+          }
           className={cn(
             'paper-row-title min-w-0 text-14 font-medium text-fg-1',
+            reviewing && edit && 'cursor-text',
             isDone && 'line-through decoration-fg-faint',
             thinking && 'capture-shimmer',
             offered && 'proposal-row',
@@ -288,6 +312,20 @@ export function NoteRow({
       )}
     </div>
   );
+  if (edit?.editing)
+    // The words edited in place: the capture row's field where the row stood. It holds a
+    // waiting change's countdown while it has focus or the pointer.
+    return (
+      <div data-note-id={note.id} {...pause}>
+        <InlineNoteEditor
+          boardId={edit.boardId}
+          note={note}
+          pending={pending}
+          layout="row"
+          onDone={edit.done}
+        />
+      </div>
+    );
   if (!reviewing) return row;
   // The same card as on the wall (Paper Wall v3): inside the moving border, the row's own
   // button and, beside it, the rows and the footer; nothing nests in the button role.

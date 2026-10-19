@@ -8,6 +8,8 @@ import { boardAccess } from '../util/permissions';
 import type { CapturePlacement } from '../Capture/useCapture';
 import type { TidyController } from '../Tidy/useTidy';
 import type { TidyProps } from '../Tidy/tidyProps';
+import type { NoteDto } from '@wally/shared';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 import { WallView } from './WallView';
 
 // The free canvas reads its backdrop from the profile; signed out, that query never runs.
@@ -56,12 +58,14 @@ function Wall({
   relatedCounts,
   tidy,
   tidyFor,
+  editFor,
 }: {
   axis: 'horizon' | 'priority' | 'free';
   access: ReturnType<typeof boardAccess>;
   relatedCounts?: ReadonlyMap<string, number>;
   tidy?: TidyController;
   tidyFor?: (noteId: string) => TidyProps | undefined;
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
 }) {
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
@@ -83,6 +87,7 @@ function Wall({
       relatedCounts={relatedCounts}
       tidy={tidy}
       tidyFor={tidyFor}
+      editFor={editFor}
     />
   );
 }
@@ -194,6 +199,22 @@ describe('WallView: every create path writes the note in place, with its visibil
         expect.objectContaining({ visibility: 'PRIVATE', freeX: 300, freeY: 200 }),
       );
     });
+  });
+
+  describe('a double-click on a card', () => {
+    it.each(['priority', 'horizon', 'free'] as const)(
+      'edits the card on the %s wall and opens no new note',
+      async (axis) => {
+        const start = vi.fn();
+        const editFor = () => ({ boardId: 'board-1', editing: false, start, done: vi.fn() });
+        renderWithProviders(
+          <Wall axis={axis} access={boardAccess('OWNER', 'me', 'all')} editFor={editFor} />,
+        );
+        await userEvent.dblClick(screen.getByText('Existing'));
+        expect(start).toHaveBeenCalled();
+        expect(screen.queryByRole('group', { name: 'Write a new note' })).not.toBeInTheDocument();
+      },
+    );
   });
 
   describe('an owner (control: new notes stay shared)', () => {

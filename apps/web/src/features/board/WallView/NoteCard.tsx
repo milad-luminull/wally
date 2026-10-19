@@ -23,6 +23,8 @@ import {
 import { usePendingPause } from '../Suggestions/usePendingPause';
 import { tidyKeys, type TidyProps } from '../Tidy/tidyProps';
 import { CopyDragContext } from './copyDrag';
+import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 interface NoteCardProps {
   note: NoteDto;
@@ -53,6 +55,8 @@ interface NoteCardProps {
   relatedCount?: number;
   /** The note's part in a Tidy batch, pending or just moved (WALLYBOT_INLINE.md §3.5). */
   tidy?: TidyProps;
+  /** Editing the note's words in place; absent for a note the person may not edit. */
+  edit?: InlineEditProps;
 }
 
 /**
@@ -75,6 +79,7 @@ export function NoteCard({
   pending,
   relatedCount = 0,
   tidy,
+  edit,
 }: NoteCardProps) {
   const { t, i18n } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
@@ -142,8 +147,19 @@ export function NoteCard({
         </span>
       )}
       <span
+        // Under review the title is where an edit starts: one click, as on the words just
+        // written (the smarter-capture spec, revision "editing the text asks again").
+        onClick={
+          reviewing && edit && !overlay
+            ? (e) => {
+                e.stopPropagation();
+                edit.start();
+              }
+            : undefined
+        }
         className={cn(
           'paper-note-title line-clamp-3 text-14 font-medium leading-snug text-fg-1',
+          reviewing && edit && 'cursor-text',
           isDone && 'line-through decoration-fg-faint',
           thinking && 'capture-shimmer',
           offered && 'proposal-row',
@@ -393,6 +409,7 @@ export function NoteCard({
       review={review || null}
       pending={pending}
       tidy={tidy}
+      edit={edit}
     />
   );
 }
@@ -411,6 +428,7 @@ interface RestingProps {
   review: ReactNode;
   pending?: PendingProps;
   tidy?: TidyProps;
+  edit?: InlineEditProps;
 }
 
 /** Split out so the overlay variant above never calls `useDraggable`. */
@@ -427,6 +445,7 @@ function RestingNoteCard({
   review,
   pending,
   tidy,
+  edit,
 }: RestingProps) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
@@ -445,12 +464,40 @@ function RestingNoteCard({
   };
 
   const keyDown = (e: KeyboardEvent<HTMLElement>) => {
+    // F2 edits the words in place, as in a file list.
+    if (edit && !isDragging && e.key === 'F2') {
+      e.preventDefault();
+      e.stopPropagation();
+      edit.start();
+      return;
+    }
     // Enter keeps and Esc discards while a change or a tidy is pending (Esc undoes a moved
     // tidy); every other key, every key on a card with nothing pending, and every key
     // mid-drag (Esc cancels the drag, not the change) still reaches dnd-kit's keyboard sensor.
     if (!isDragging && (pendingKeys(e, pending) || tidyKeys(e, tidy))) return;
     listeners?.onKeyDown?.(e);
   };
+
+  if (edit?.editing)
+    // The words edited in place: the capture card's field where the card stood, above its
+    // neighbours. It holds a waiting change's countdown while it has focus or the pointer.
+    return (
+      <div
+        ref={setNodeRef}
+        style={{ ...wrapperStyle, zIndex: 25 }}
+        data-note-id={note.id}
+        className="relative"
+        {...pause}
+      >
+        <InlineNoteEditor
+          boardId={edit.boardId}
+          note={note}
+          pending={pending}
+          layout="card"
+          onDone={edit.done}
+        />
+      </div>
+    );
 
   if (review)
     // A change under review (Paper Wall v3): one card inside the moving border, holding the
@@ -486,6 +533,7 @@ function RestingNoteCard({
               {...attributes}
               data-pending={pending?.mark.phase}
               onClick={onOpen}
+              onDoubleClick={edit?.start}
               onKeyDown={keyDown}
               className="capture-card-button flex w-full cursor-grab flex-col gap-2 text-left focus-visible:outline-none"
             >
@@ -521,6 +569,7 @@ function RestingNoteCard({
         data-pending={pending?.mark.phase}
         data-tidy={tidy?.mark.phase}
         onClick={onOpen}
+        onDoubleClick={edit?.start}
         onKeyDown={keyDown}
         className={cn(
           surface,

@@ -21,6 +21,7 @@ import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
 import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
 
@@ -54,6 +55,8 @@ interface WallCanvasProps {
   activeDragId: string | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
 }
@@ -101,6 +104,7 @@ export function WallCanvas({
   filtered,
   activeDragId,
   pendingFor,
+  editFor,
   relatedCounts,
 }: WallCanvasProps) {
   const { t } = useTranslation();
@@ -148,6 +152,7 @@ export function WallCanvas({
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
               pending={pendingFor?.(note.id)}
+              edit={editFor?.(note)}
               relatedCount={relatedCounts?.get(note.id)}
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
