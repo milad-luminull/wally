@@ -59,4 +59,3 @@ describe('error bodies on the wire', () => {
     expect(apiErrorSchema.parse(invalid.json())).toMatchObject({ error: 'UNAUTHORIZED' });
   });
 });
-
