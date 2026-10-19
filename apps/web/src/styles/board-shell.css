@@ -730,13 +730,18 @@
 .capture-row-card {
   border-radius: 11px;
 }
-.capture-row-card > .paper-note-row {
+/* `[data-pending]` outranks the dashed edge a pending row draws on its own: under review the
+   moving border is the only edge. */
+.capture-row-card > .paper-note-row[data-pending] {
   border: 0;
   box-shadow: none;
   background: transparent;
+  min-height: 0;
   padding-bottom: 6px;
-  /* No done box under review: the title takes its column, on the rows' left edge. */
-  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: 14px;
+  /* No done box and no meta column under review: the title spans the card, on the same
+     left and right edges as the rows and the footer. */
+  grid-template-columns: minmax(0, 1fr);
 }
 .capture-row-review {
   display: flex;
