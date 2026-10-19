@@ -1,6 +1,6 @@
 # Error handling, technically and for the person — design
 
-Date: 2026-10-19. Status: proposed, waiting for the owner's approval.
+Date: 2026-10-19. Status: approved by the owner 2026-10-19; built on `fix/ai-reliability`.
 
 ## Intent
 
@@ -176,3 +176,16 @@ the German wording, within the rules above.
 
 - That Gemini 3.8 Flash on `eu` produces fewer 429s than europe-west1 for this project: Google
   documents single-region endpoints as the most likely to 429, but no measurement exists yet.
+
+## Changed while building
+
+- **Session expiry** (an automated security review): the API cannot tell a revoked session
+  from its own token check failing, so a 401 that survives a fresh token is a temporary
+  failure with Try again and never signs anyone out. A session that really ended is signed
+  out by Firebase itself; the sign-in page then says the session ended (and how many unsaved
+  changes went with it). No return path is kept across it, so nothing carries over to another
+  account.
+- **Turns are not retried**: a question to the wall may already have read or written before
+  failing; replaying it could repeat a write. Capture and Tidy are retried once.
+- **Tidy's Try again after a failed keep runs Tidy again**: the batch is gone once the cards
+  are back.

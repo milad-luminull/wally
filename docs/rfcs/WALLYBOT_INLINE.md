@@ -45,8 +45,9 @@ retired as the main surface (§3.6).
 - One controller and state machine (`idle → typing → thinking → review → applied | undone`)
   shared by the variants; only the UI differs.
 - A fast local parse with no AI for dates, people and urgency, keeping up with every keystroke.
-- Strict JSON out of the model, validated, low-confidence fields dropped; silent failure, the
-  note stays as written; a newer edit cancels the request in flight.
+- Strict JSON out of the model, validated, low-confidence fields dropped; on failure the note
+  stays as written and the card says why in one line (amended 2026-10-19); a newer edit
+  cancels the request in flight.
 
 **Conflicts to resolve.** Four points contradict accepted rules; each gets a recommendation
 in §6:
@@ -116,6 +117,9 @@ This slice has no AI in it and is where the customer feedback is answered. It sh
 - When kept, the dashed edge and the dot fade over 180 ms and the card folds back to its compact
   form. For the next 30 s a faint "Undo" sits where the dot was; `⌘Z` works too. No toast.
 - When the model fails or times out, the card simply stops showing the dot. Nothing is said.
+  Amended 2026-10-19 (error handling spec): the card says it in one line instead: "Nothing to
+  add", "Busy right now · Try again", a limit with its reset time, or "Couldn’t save · Try
+  again". Still no toast.
 
 ### 3.4 Review grouped by source (3b, the AI half)
 

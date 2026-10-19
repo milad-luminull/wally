@@ -338,13 +338,13 @@ export const de = {
     conflict:
       'Dieser Eintrag wurde während der Bearbeitung geändert. Deine Änderung bleibt erhalten. Prüfe den aktuellen Stand, bevor du sie anwendest.',
     failed:
-      'Das Speichern konnte nicht bestätigt werden. Ein erneuter Versuch verwendet dieselbe Anfrage und erzeugt kein Duplikat.',
+      'Konnte das Speichern nicht bestätigen. Erneut versuchen sendet dieselbe Änderung, nichts wird doppelt angelegt.',
     latest: 'Aktuell gespeicherter Stand',
     proposed: 'Deine Änderung',
     apply: 'Geprüfte Änderung anwenden',
     discard: 'Änderung verwerfen',
     keep: 'Für später behalten',
-    unavailable: 'Der aktuelle Stand konnte nicht geladen werden. Deine Änderung bleibt erhalten.',
+    unavailable: 'Konnte den aktuellen Stand nicht laden. Deine Änderung bleibt erhalten.',
     reload:
       'Bitte lade Wally neu, um die aktualisierten Schutzfunktionen beim Speichern zu nutzen.',
     empty: 'Leer',
@@ -429,7 +429,7 @@ export const de = {
       label: 'Sprache',
       review: 'Prüfe dieses Beispiel',
       saving: 'Wird gespeichert…',
-      saveFailed: 'Sprache konnte nicht gespeichert werden.',
+      saveFailed: 'Konnte die Sprache nicht speichern',
     },
     wallybot: {
       label: 'Wallybot',
@@ -488,18 +488,18 @@ export const de = {
       openBoard: 'Wand öffnen',
       sent: 'E-Mail gesendet. Schau auch im Spam-Ordner nach.',
       notYet: 'Noch nicht bestätigt. Klicke zuerst den Link in der E-Mail.',
-      tooMany: 'Zu viele Versuche. Bitte warte einen Moment.',
-      sendFailed: 'Die E-Mail konnte nicht gesendet werden. Bitte erneut versuchen.',
-      confirmFailed: 'Das hat nicht geklappt. Bitte erneut versuchen.',
+      tooMany: 'Zu viele Versuche. Warte einen Moment und versuch es dann erneut.',
+      sendFailed: 'Konnte die E-Mail nicht senden. Versuch es erneut.',
+      confirmFailed: 'Konnte das nicht prüfen. Versuch es erneut.',
     },
     errors: {
       invalidCredential: 'E-Mail oder Passwort ist falsch.',
-      tooManyRequests: 'Zu viele Versuche. Bitte später erneut versuchen.',
+      tooManyRequests: 'Zu viele Versuche. Versuch es später erneut.',
       popupClosed: 'Anmeldung abgebrochen.',
-      signInFailed: 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.',
+      signInFailed: 'Konnte dich nicht anmelden. Versuch es erneut.',
       emailInUse: 'Für diese E-Mail-Adresse besteht bereits ein Konto.',
       weakPassword: 'Das Passwort ist zu schwach.',
-      signUpFailed: 'Registrierung fehlgeschlagen. Bitte erneut versuchen.',
+      signUpFailed: 'Konnte dich nicht registrieren. Versuch es erneut.',
     },
   },
   errors: {
@@ -525,8 +525,8 @@ export const de = {
     },
   },
   toast: {
-    saveFailed: 'Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
-    prefsFailed: 'Ansicht konnte nicht gespeichert werden.',
+    saveFailed: 'Konnte die Änderung nicht speichern',
+    prefsFailed: 'Konnte deine Einstellungen nicht speichern',
     noteDeleted: '„{{title}}“ gelöscht',
     noteDeletedUntitled: 'Notiz gelöscht',
     noteDuplicated: '„{{title}}“ dupliziert',
@@ -957,7 +957,7 @@ export const de = {
       nameLabel: 'Name',
       submit: 'Anlegen',
       limitReached: 'Du hast die Grenze von {{max}} Wänden erreicht.',
-      failed: 'Die Wand konnte nicht angelegt werden. Bitte versuche es noch einmal.',
+      failed: 'Konnte die Wand nicht anlegen. Versuch es erneut.',
     },
     delete: {
       action: 'Wand löschen',
@@ -979,7 +979,7 @@ export const de = {
   },
   routes: {
     home: {
-      loadFailed: 'Deine Wände konnten nicht geladen werden.',
+      loadFailed: 'Konnte deine Wände nicht laden',
     },
     login: {
       title: 'Willkommen zurück',
@@ -1001,9 +1001,9 @@ export const de = {
         body: 'Bitte die Person, die dir den Link geschickt hat, um einen neuen.',
       },
       failed: {
-        title: 'Das hat nicht geklappt',
+        title: 'Konnte den Link nicht öffnen',
         subtitle: 'Der Link konnte nicht eingelöst werden.',
-        body: 'Bitte versuche es noch einmal.',
+        body: 'Versuch es erneut.',
       },
       pending: {
         title: 'Einen Moment',
@@ -1012,7 +1012,7 @@ export const de = {
       toBoard: 'Zu deinen Wänden',
     },
     board: {
-      loadFailed: 'Die Wand konnte nicht geladen werden.',
+      loadFailed: 'Konnte diese Wand nicht laden',
     },
   },
   share: {

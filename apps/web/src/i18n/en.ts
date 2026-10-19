@@ -326,14 +326,13 @@ export const en = {
     title: 'Review unsaved change',
     conflict:
       'This item changed while you were editing. Your change has been kept. Review the latest version before applying it.',
-    failed:
-      'The save could not be confirmed. Retry uses the same request so it will not create a duplicate.',
+    failed: 'Couldn’t confirm the save. Try again sends the same change, so nothing is doubled.',
     latest: 'Latest saved version',
     proposed: 'Your change',
     apply: 'Apply reviewed change',
     discard: 'Discard change',
     keep: 'Keep for later',
-    unavailable: 'The latest version could not be loaded. Your change is still kept.',
+    unavailable: 'Couldn’t load the latest version. Your change is still kept.',
     reload: 'Please reload Wally to use the updated saving protections.',
     empty: 'Empty',
     none: 'None',
@@ -416,7 +415,7 @@ export const en = {
       label: 'Language',
       review: 'Review this example',
       saving: 'Saving…',
-      saveFailed: 'Could not save your language.',
+      saveFailed: 'Couldn’t save your language',
     },
     wallybot: {
       label: 'Wallybot',
@@ -472,18 +471,18 @@ export const en = {
       openBoard: 'Open board',
       sent: 'Email sent. Check your spam folder too.',
       notYet: 'Not confirmed yet. Follow the link in the email first.',
-      tooMany: 'Too many attempts. Please wait a moment.',
-      sendFailed: 'The email could not be sent. Please try again.',
-      confirmFailed: 'That did not work. Please try again.',
+      tooMany: 'Too many attempts. Wait a moment, then try again.',
+      sendFailed: 'Couldn’t send the email. Try again.',
+      confirmFailed: 'Couldn’t check that. Try again.',
     },
     errors: {
       invalidCredential: 'That email or password is wrong.',
-      tooManyRequests: 'Too many attempts. Please try again later.',
+      tooManyRequests: 'Too many attempts. Try again later.',
       popupClosed: 'Sign-in cancelled.',
-      signInFailed: 'Sign-in failed. Please try again.',
+      signInFailed: 'Couldn’t sign in. Try again.',
       emailInUse: 'An account already exists for this email address.',
       weakPassword: 'That password is too weak.',
-      signUpFailed: 'Sign-up failed. Please try again.',
+      signUpFailed: 'Couldn’t sign up. Try again.',
     },
   },
   errors: {
@@ -509,8 +508,8 @@ export const en = {
     },
   },
   toast: {
-    saveFailed: 'Couldn’t save that change. Please try again.',
-    prefsFailed: 'Couldn’t save your view.',
+    saveFailed: 'Couldn’t save that change',
+    prefsFailed: 'Couldn’t save your settings',
     noteDeleted: '“{{title}}” deleted',
     noteDeletedUntitled: 'Note deleted',
     noteDuplicated: '“{{title}}” duplicated',
@@ -923,7 +922,7 @@ export const en = {
       nameLabel: 'Name',
       submit: 'Create',
       limitReached: 'You have reached the limit of {{max}} boards.',
-      failed: 'The board could not be created. Please try again.',
+      failed: 'Couldn’t create the board. Try again.',
     },
     delete: {
       action: 'Delete board',
@@ -945,7 +944,7 @@ export const en = {
   },
   routes: {
     home: {
-      loadFailed: 'Your boards could not be loaded.',
+      loadFailed: 'Couldn’t load your boards',
     },
     login: {
       title: 'Welcome back',
@@ -967,9 +966,9 @@ export const en = {
         body: 'Ask whoever sent you the link for a new one.',
       },
       failed: {
-        title: 'That did not work',
-        subtitle: 'The link could not be redeemed.',
-        body: 'Please try once more.',
+        title: 'Couldn’t open the link',
+        subtitle: 'The link couldn’t be redeemed.',
+        body: 'Try again.',
       },
       pending: {
         title: 'One moment',
@@ -978,7 +977,7 @@ export const en = {
       toBoard: 'Go to your boards',
     },
     board: {
-      loadFailed: 'This board could not be loaded.',
+      loadFailed: 'Couldn’t load this board',
     },
   },
   share: {

@@ -88,7 +88,7 @@ describe('AccountMenu', () => {
 
     await openMenu();
 
-    expect(screen.getByRole('status')).toHaveTextContent('Could not save your language.');
+    expect(screen.getByRole('status')).toHaveTextContent('Couldn’t save your language');
   });
 
   it('offers "always ask me" for Wallybot and saves the switch', async () => {

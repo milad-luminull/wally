@@ -78,7 +78,7 @@ describe('NewBoardDialog', () => {
     renderDialog();
 
     await user.click(await screen.findByRole('button', { name: 'Create' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('The board could not be created.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t create the board.');
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(boardsApi.create).toHaveBeenCalledTimes(2));
