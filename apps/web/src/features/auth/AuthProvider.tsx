@@ -65,6 +65,8 @@ interface AuthContextValue {
    * be kept; null otherwise. The sign-in screen says so. No return path is kept across it.
    */
   expired: { unsaved: number } | null;
+  /** The verification email at sign-up did not go out; the banner says so, with Resend. */
+  verificationSendFailed: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -87,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailVerified, setEmailVerified] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const [expired, setExpired] = useState<{ unsaved: number } | null>(null);
+  const [verificationSendFailed, setVerificationSendFailed] = useState(false);
   /** The person asked to sign out: the sign-out that follows is theirs, not an ended session. */
   const signingOut = useRef(false);
   // Firebase can fire onAuthStateChanged before the token is attached; track it so we
@@ -178,10 +181,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // address (see apps/api/src/plugins/auth.ts), and Firebase does not send this by
       // itself on sign-up — without it an invited colleague could never be let in.
       await sendEmailVerification(credential.user, verificationSettings());
+      setVerificationSendFailed(false);
     } catch {
-      // A failed send must never fail the sign-up: the account exists either way, and the
-      // banner in AppShell offers a manual resend. `auth/too-many-requests` is the common
-      // case when signing up repeatedly from one address.
+      // A failed send must never fail the sign-up: the account exists either way. The banner
+      // in AppShell says it did not go out and offers Resend. `auth/too-many-requests` is the
+      // common case when signing up repeatedly from one address.
+      setVerificationSendFailed(true);
     }
   }, []);
 
@@ -189,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error('resendVerificationEmail requires a signed-in user');
     await sendEmailVerification(current, verificationSettings());
+    setVerificationSendFailed(false);
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -229,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emailVerified,
       signedOut,
       expired,
+      verificationSendFailed,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,
@@ -243,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emailVerified,
       signedOut,
       expired,
+      verificationSendFailed,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,

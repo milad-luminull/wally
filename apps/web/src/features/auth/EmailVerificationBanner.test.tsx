@@ -62,6 +62,16 @@ describe('EmailVerificationBanner', () => {
     expect(screen.getByText(/you have been invited to/)).toBeInTheDocument();
   });
 
+  it('says the email could not be sent at sign-up, never that it is on its way', () => {
+    arrange({ verificationSendFailed: true });
+    renderWithProviders(<EmailVerificationBanner />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The email could not be sent. Please try again.',
+    );
+    expect(screen.queryByText(/is on its way/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Resend email' })).toBeInTheDocument();
+  });
+
   it('sends another verification email and confirms it went out', async () => {
     const user = userEvent.setup();
     renderWithProviders(<EmailVerificationBanner />);

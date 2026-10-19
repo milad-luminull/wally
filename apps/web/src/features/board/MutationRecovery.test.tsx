@@ -72,3 +72,30 @@ it('shows a visibility change in words, not as the stored value', async () => {
   expect(screen.queryByText('PRIVATE')).not.toBeInTheDocument();
   expect(screen.queryByText('SHARED')).not.toBeInTheDocument();
 });
+
+it('stays open and says so when the reviewed change still cannot be saved', async () => {
+  rememberResource('note:b', 1);
+  let calls = 0;
+  await enqueueMutation(
+    captureMutation('note:b'),
+    async () => {
+      calls++;
+      if (calls === 1) throw Object.assign(new Error('stale'), { code: 'STALE_REVISION' });
+      throw new TypeError('Failed to fetch');
+    },
+    {
+      action: 'update',
+      input: { title: 'My draft' },
+      loadLatest: async () => ({ data: { title: 'Colleague title' }, revision: 4 }),
+    },
+  ).catch(() => {});
+  renderWithProviders(<MutationRecovery />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /Unsaved changes/ }));
+  await screen.findByText('Colleague title');
+  await act(async () => {
+    await user.click(screen.getByRole('button', { name: 'Apply reviewed change' }));
+  });
+  expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save that change');
+  expect(screen.getByText('My draft')).toBeInTheDocument();
+});
