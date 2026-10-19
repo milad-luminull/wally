@@ -1,6 +1,8 @@
 import { useEffect, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
+import { X } from 'lucide-react';
+import { formatWhen } from '@/lib/formatWhen';
 import { CountdownRing } from './CountdownRing';
 import { footerAction } from './footerAction';
 import type { SuggestionMark } from './useSuggestions';
@@ -37,12 +39,18 @@ export function ReviewFooter({
   mark,
   onKeep,
   onUndo,
+  onRetry,
+  onDismiss,
 }: {
   mark: SuggestionMark;
   onKeep: () => void;
   onUndo: () => void;
+  /** An outcome line's Try again. */
+  onRetry?: () => void;
+  /** An outcome line's ×. */
+  onDismiss?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const seconds = useSecondsLeft(mark.phase === 'pending' ? mark.countdownEndsAt : null);
   const shell = 'flex items-center gap-2 pt-1';
   if (mark.phase === 'asking')
@@ -60,6 +68,68 @@ export function ReviewFooter({
         </span>
       </span>
     );
+  if (mark.phase === 'outcome' && mark.outcome) {
+    // What the AI could not do, said on its own card (the error handling spec, BRAND rule 5):
+    // never a toast, never focus taken.
+    const { outcome } = mark;
+    const daily = outcome.code === 'ASSISTANT_DAILY_CAP';
+    const when = outcome.resetsAt ? formatWhen(outcome.resetsAt, i18n.language, daily) : null;
+    const line =
+      outcome.kind === 'nothing'
+        ? t('suggest.outcome.nothing')
+        : outcome.kind === 'busy'
+          ? t('suggest.outcome.busy')
+          : outcome.kind === 'saveFailed'
+            ? t('suggest.outcome.saveFailed')
+            : outcome.kind === 'changed'
+              ? t('suggest.outcome.changed')
+              : !when
+                ? t('suggest.outcome.limit')
+                : t(daily ? 'suggest.outcome.limitDaily' : 'suggest.outcome.limitMonthly', {
+                    when,
+                  });
+    const fades = outcome.kind === 'nothing' || outcome.kind === 'changed';
+    return (
+      <span
+        data-review-footer
+        data-outcome={outcome.kind}
+        className={cn(shell, fades && 'capture-outcome-fade')}
+        onPointerDown={stop}
+        onMouseDown={stop}
+        onClick={stop}
+      >
+        <span role="status" className="min-w-0 flex-1 text-12 text-fg-meta-on-note">
+          {line}
+        </span>
+        {outcome.canRetry && onRetry && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={onRetry}
+            onKeyDown={onPress(onRetry)}
+            className={cn(footerAction, 'bg-primary text-primary-foreground hover:opacity-90')}
+          >
+            {t('suggest.outcome.tryAgain')}
+          </span>
+        )}
+        {!fades && onDismiss && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={t('suggest.outcome.dismiss')}
+            onClick={onDismiss}
+            onKeyDown={onPress(onDismiss)}
+            className={cn(
+              footerAction,
+              'w-6 justify-center px-0 text-fg-faint hover:bg-inset-hover hover:text-fg-1',
+            )}
+          >
+            <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+          </span>
+        )}
+      </span>
+    );
+  }
   if (mark.phase !== 'pending') return null;
   const status =
     seconds !== null

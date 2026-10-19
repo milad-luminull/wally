@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn';
 import { noteColourFillClass } from '../util/noteDerived';
 import { AnswerNotes } from './AnswerNotes';
 import type { AskSession } from './useAskSession';
+import { formatWhen } from '@/lib/formatWhen';
 
 /** Wider than a note: an answer is a paragraph, a note is a line (plan R3). */
 export const ASK_CARD_WIDTH = 376;
@@ -19,15 +20,6 @@ const BOARD_SURFACE = '[data-board-surface]';
 
 /** The reset moment for a cap line: date and time for the daily cap, the date alone for the
  *  monthly one. Null when the API sent something that does not parse, so the busy line shows. */
-function formatWhen(iso: string, locale: string, withTime: boolean): string | null {
-  const at = Date.parse(iso);
-  if (Number.isNaN(at)) return null;
-  return new Intl.DateTimeFormat(
-    locale,
-    withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' },
-  ).format(at);
-}
-
 /**
  * The answer to a question typed into the capture card, drawn where the question was written
  * (WALLYBOT_INLINE.md §3.6): the note's type, the pending look's dashed edge and nothing else,
@@ -152,7 +144,13 @@ export function AskCard({
   // Said as a failure, it is the failure alone: no cut-short or partial line beside it.
   const emptyAnswer =
     phase === 'answered' && (!answer || (!answer.text.trim() && rows.length === 0));
-  if (emptyAnswer) outcomeLine = t('ask.failed');
+  // Stopped by the time or the read limit, an empty answer says which: a narrower question
+  // helps, which "No answer" alone would not tell.
+  if (emptyAnswer)
+    outcomeLine =
+      answer?.stopped === 'TIMEOUT' || answer?.stopped === 'TOOL_LIMIT'
+        ? t(`ask.stopped.${answer.stopped}`)
+        : t('ask.failed');
   const pinLabel = t(session.pinned ? 'ask.unpin' : 'ask.pin');
 
   return (

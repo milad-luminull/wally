@@ -22,6 +22,10 @@ export interface PendingProps {
   onSetTag: (index: number, on: boolean) => void;
   onSetProperty: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
+  /** An outcome line's Try again: the ask, or the decision, once more. */
+  onRetry?: () => void;
+  /** An outcome line's × (and Esc). */
+  onDismiss?: () => void;
 }
 
 /**
@@ -42,6 +46,12 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
     event.preventDefault();
     event.stopPropagation();
     pending.onDiscard();
+    return true;
+  }
+  if (event.key === 'Escape' && phase === 'outcome') {
+    event.preventDefault();
+    event.stopPropagation();
+    pending.onDismiss?.();
     return true;
   }
   if (event.key === 'Escape' && phase === 'kept') {

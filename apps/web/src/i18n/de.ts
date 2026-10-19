@@ -851,6 +851,17 @@ export const de = {
       steps: 'Vorgeschlagene Schritte',
     },
     /** The pending card's footer: the countdown, Undo and Keep. */
+    outcome: {
+      nothing: 'Nichts zu ergänzen',
+      busy: 'Gerade ausgelastet',
+      limit: 'Limit erreicht',
+      limitDaily: 'Tageslimit erreicht · wieder verfügbar ab {{when}}',
+      limitMonthly: 'Monatslimit erreicht · wieder verfügbar ab {{when}}',
+      saveFailed: 'Konnte nicht speichern',
+      changed: 'Hat sich inzwischen geändert',
+      tryAgain: 'Erneut versuchen',
+      dismiss: 'Schließen',
+    },
     footer: {
       asking: 'Wird ausgefüllt',
       saving: 'Speichert in {{count}} s',
@@ -877,6 +888,11 @@ export const de = {
   },
   /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */
   tidy: {
+    failed: {
+      saveFailed: 'Konnte die Notizen nicht verschieben',
+      changed: 'Die Notizen haben sich inzwischen geändert',
+      undoFailed: 'Konnte das Verschieben nicht rückgängig machen',
+    },
     action_one: '{{count}} Notiz aufräumen',
     action_other: '{{count}} Notizen aufräumen',
     asking: 'Wird sortiert…',

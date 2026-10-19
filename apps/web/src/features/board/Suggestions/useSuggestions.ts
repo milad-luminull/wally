@@ -7,6 +7,12 @@ import { assistantApi } from '@/lib/resources';
 import { settleNoteCaches } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
 import { nextKeptStamp } from './keptOrder';
+import { failureOf } from '@/lib/errors';
+
+/** What an outcome line's Try again repeats. */
+type OutcomeRetry =
+  | { kind: 'ask'; locked: SuggestionFieldKey[] }
+  | { kind: 'decide'; body: DecideBody; phase: 'pending' | 'kept' };
 
 /**
  * The ring: how long a proposal waits before it is kept (WALLYBOT_INLINE.md §3.3), long
@@ -18,9 +24,28 @@ export const UNDO_WINDOW_MS = 30_000;
 /** A keep that failed on the way (offline, a 5xx) is sent once more after this long. */
 export const KEEP_RETRY_MS = 1500;
 
-export type SuggestionPhase = 'asking' | 'pending' | 'kept';
+/** How long a line that needs nothing from the person ("Nothing to add") stays on the card. */
+export const OUTCOME_FADE_MS = 2000;
+
+export type SuggestionPhase = 'asking' | 'pending' | 'kept' | 'outcome';
+
+/**
+ * What the card says when the AI could not help or a decision did not go through (the error
+ * handling spec, 2026-10-19): said on the card itself, never as a toast.
+ */
+export interface SuggestionOutcome {
+  kind: 'nothing' | 'busy' | 'limit' | 'saveFailed' | 'changed';
+  code?: string;
+  /** When a limit lifts. */
+  resetsAt?: string;
+  /** Try again can repeat what failed. */
+  canRetry: boolean;
+}
+
 export interface SuggestionMark {
   phase: SuggestionPhase;
+  /** Set in the `outcome` phase. */
+  outcome?: SuggestionOutcome;
   suggestion: SuggestionDto | null;
   fields: SuggestionFieldKey[];
   /** The proposed steps still in the change, by index; all of them at first. */
@@ -54,6 +79,10 @@ export interface SuggestionsController {
   discard: (noteId: string, source: 'esc') => void;
   undo: (noteId: string, source: 'esc' | 'click' | 'shortcut') => void;
   undoLast: () => boolean;
+  /** Takes an outcome line off the card (its ×, or Esc). */
+  dismissOutcome: (noteId: string) => void;
+  /** Repeats what an outcome line's Try again stands for: the ask, or the decision. */
+  retryOutcome: (noteId: string) => void;
   /** When the change `undoLast` would undo was kept (a `nextKeptStamp`), or null when none is. */
   lastKeptAt: () => number | null;
   /**
@@ -184,6 +213,10 @@ export function useSuggestions(
    * forgetting it here alone would bring it back on the next visit.
    */
   const dismissed = useRef(new Set<symbol>());
+  /** The fade of an outcome line that needs nothing from the person. */
+  const fadeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  /** What each outcome line's Try again repeats. */
+  const retries = useRef(new Map<string, OutcomeRetry>());
   /** Each note's revision as the cache last showed it (`syncNotes`). */
   const revisions = useRef(new Map<string, number>());
   // Read by timers that fire long after the render that armed them.
@@ -219,8 +252,47 @@ export function useSuggestions(
       stopUndo(noteId);
       deciding.current.delete(noteId);
       asking.current.delete(noteId);
+      const fade = fadeTimers.current.get(noteId);
+      if (fade) clearTimeout(fade);
+      fadeTimers.current.delete(noteId);
     },
     [stopClock, stopUndo],
+  );
+  /**
+   * Puts an outcome line on the card in place of whatever it showed. `retry` is what Try again
+   * repeats; a line that asks nothing of the person fades on its own.
+   */
+  const showOutcome = useCallback(
+    (noteId: string, outcome: Omit<SuggestionOutcome, 'canRetry'>, retry?: OutcomeRetry) => {
+      const base = latestMarks.current.get(noteId);
+      reset(noteId);
+      if (retry) retries.current.set(noteId, retry);
+      else retries.current.delete(noteId);
+      patch(noteId, {
+        phase: 'outcome',
+        outcome: { ...outcome, canRetry: retry !== undefined },
+        suggestion: base?.suggestion ?? null,
+        fields: base?.fields ?? [],
+        subtasks: base?.subtasks ?? [],
+        links: base?.links ?? [],
+        tags: base?.tags ?? [],
+        properties: base?.properties ?? [],
+        titleDismissed: false,
+        countdownEndsAt: null,
+        countdownMs: COUNTDOWN_MS,
+        paused: false,
+      });
+      if (outcome.kind === 'nothing' || outcome.kind === 'changed')
+        fadeTimers.current.set(
+          noteId,
+          setTimeout(() => {
+            fadeTimers.current.delete(noteId);
+            retries.current.delete(noteId);
+            patch(noteId, null);
+          }, OUTCOME_FADE_MS),
+        );
+    },
+    [patch, reset],
   );
   const forget = useCallback(
     (noteId: string) => {
@@ -363,14 +435,29 @@ export function useSuggestions(
               retryTimers.current.add(timer);
               return;
             }
-            syncPending(record, false);
-            if (current()) forget(noteId);
             refetch(noteId);
+            if (!current()) {
+              syncPending(record, false);
+              return;
+            }
+            // Said on the card: a refusal (the note changed, the record was settled) closes
+            // on its own; a failure that a moment may fix offers Try again with the same
+            // decision, and an undo that did not land leaves the kept values in place.
+            const failure = failureOf(error);
+            if (failure === null) return forget(noteId);
+            if (failure.kind === 'temporary' || failure.kind === 'session')
+              return showOutcome(
+                noteId,
+                { kind: 'saveFailed', code: failure.code },
+                { kind: 'decide', body, phase: mark.phase === 'kept' ? 'kept' : 'pending' },
+              );
+            syncPending(record, false);
+            showOutcome(noteId, { kind: 'changed', code: failure.code });
           });
       };
       send(false);
     },
-    [boardId, forget, patch, refetch, reset, stopClock, stopUndo, syncPending],
+    [boardId, forget, patch, refetch, reset, showOutcome, stopClock, stopUndo, syncPending],
   );
   decideRef.current = decide;
 
@@ -429,14 +516,26 @@ export function useSuggestions(
           if (suggestion) {
             showPending(suggestion, 'capture');
             syncPending(suggestion, true);
-          } else forget(noteId);
+          } else showOutcome(noteId, { kind: 'nothing' });
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           dismissed.current.delete(token);
-          if (asking.current.get(noteId) === token) forget(noteId);
+          if (asking.current.get(noteId) !== token) return;
+          // The card says why nothing came: busy (Try again asks once more, with the same
+          // locks) or a limit (with the time it lifts). Anything else ends quietly.
+          const failure = failureOf(error);
+          if (failure?.kind === 'temporary')
+            showOutcome(noteId, { kind: 'busy', code: failure.code }, { kind: 'ask', locked });
+          else if (failure?.kind === 'limit')
+            showOutcome(noteId, {
+              kind: 'limit',
+              code: failure.code,
+              ...(failure.resetsAt ? { resetsAt: failure.resetsAt } : {}),
+            });
+          else forget(noteId);
         });
     },
-    [boardId, enabled, forget, patch, reset, showPending, syncPending],
+    [boardId, enabled, forget, patch, reset, showOutcome, showPending, syncPending],
   );
 
   const keep = useCallback<SuggestionsController['keep']>(
@@ -714,13 +813,40 @@ export function useSuggestions(
       for (const clock of clocks.current.values()) if (clock.timer) clearTimeout(clock.timer);
       for (const t of undoTimers.current.values()) clearTimeout(t);
       for (const t of retryTimers.current) clearTimeout(t);
+      for (const t of fadeTimers.current.values()) clearTimeout(t);
     },
     [],
+  );
+
+  const dismissOutcome = useCallback<SuggestionsController['dismissOutcome']>(
+    (noteId) => {
+      if (latestMarks.current.get(noteId)?.phase !== 'outcome') return;
+      retries.current.delete(noteId);
+      forget(noteId);
+    },
+    [forget],
+  );
+  const retryOutcome = useCallback<SuggestionsController['retryOutcome']>(
+    (noteId) => {
+      const mark = latestMarks.current.get(noteId);
+      const retry = retries.current.get(noteId);
+      if (mark?.phase !== 'outcome' || !retry) return;
+      retries.current.delete(noteId);
+      if (retry.kind === 'ask') return request(noteId, retry.locked);
+      // Back to where the decision was made, then the same decision again.
+      reset(noteId);
+      patch(noteId, { ...mark, phase: retry.phase, outcome: undefined });
+      // The outcome mark still holds the record, which is all the decision needs.
+      decide(noteId, retry.body);
+    },
+    [decide, patch, request, reset],
   );
 
   return useMemo(
     () => ({
       marks,
+      dismissOutcome,
+      retryOutcome,
       request,
       keep,
       discard,
@@ -738,8 +864,10 @@ export function useSuggestions(
     }),
     [
       discard,
+      dismissOutcome,
       keep,
       lastKeptAt,
+      retryOutcome,
       marks,
       remove,
       request,

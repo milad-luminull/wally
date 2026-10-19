@@ -128,6 +128,9 @@ function idleTidy(): TidyController {
     undoLast: vi.fn(() => false),
     lastKeptAt: () => null,
     remove: vi.fn(),
+    failure: null,
+    retry: vi.fn(),
+    dismissFailure: vi.fn(),
   };
 }
 

@@ -21,6 +21,7 @@ import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
 import { localToday, useToday } from './useToday';
+import { failureOf } from '@/lib/errors';
 
 /** The most notes a tidy request may name (`tidyRequestSchema.only`). */
 const TIDY_MAX_ONLY = TIDY_MAX_MOVES * 4;
@@ -28,7 +29,20 @@ const TIDY_MAX_ONLY = TIDY_MAX_MOVES * 4;
 /** How long "All in its place." stays in the bar (plan R4). */
 export const EMPTY_NOTICE_MS = 4000;
 
-export type TidyPhase = 'idle' | 'asking' | 'pending' | 'kept' | 'empty';
+export type TidyPhase = 'idle' | 'asking' | 'pending' | 'kept' | 'empty' | 'failed';
+
+/**
+ * What the bar says when a Tidy could not help (the error handling spec, 2026-10-19): busy, a
+ * limit, a keep that did not get through, a refusal because the notes changed, or an undo
+ * that did not happen. Said on the bar, never as a toast.
+ */
+export interface TidyFailure {
+  kind: 'busy' | 'limit' | 'saveFailed' | 'changed' | 'undoFailed';
+  code?: string;
+  resetsAt?: string;
+  /** Try again runs Tidy again. */
+  canRetry: boolean;
+}
 
 /** What a card draws for a note in the batch (plan R6). */
 export interface TidyMark {
@@ -41,6 +55,12 @@ export interface TidyMark {
 
 export interface TidyController {
   phase: TidyPhase;
+  /** Set in the `failed` phase. */
+  failure: TidyFailure | null;
+  /** The failure's Try again: Tidy runs again. */
+  retry: () => void;
+  /** The failure's ×: back to the affordance. */
+  dismissFailure: () => void;
   /** Candidates on the board now; 0 hides the affordance (R4). */
   count: number;
   /** Moves still in the batch (pending), or moved (kept). */
@@ -112,6 +132,9 @@ export function useTidy(
   // Once per render, renewed at midnight: the count follows the date.
   const today = useToday();
   const [phase, setPhase] = useState<TidyPhase>('idle');
+  const [failure, setFailure] = useState<TidyFailure | null>(null);
+  /** Why the keep on its way failed, read when its answer is applied. */
+  const keepError = useRef<unknown>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
   /** The candidates as they were when the last run ended; the affordance waits for a change (R4). */
   const [lastRun, setLastRun] = useState<string | null>(null);
@@ -169,8 +192,30 @@ export function useTidy(
     keptStamp.current = null;
     snapshots.current.clear();
     setBatch(null);
+    setFailure(null);
     setPhase('idle');
   }, [clearTimer]);
+  /**
+   * Says what went wrong on the bar. A refusal (the notes changed) needs nothing from the
+   * person and goes after the notice's time; the rest stay until Try again or ×.
+   */
+  const fail = useCallback(
+    (next: Omit<TidyFailure, 'canRetry'>) => {
+      clearTimer();
+      token.current = null;
+      keptStamp.current = null;
+      snapshots.current.clear();
+      setBatch(null);
+      setFailure({ ...next, canRetry: next.kind === 'busy' || next.kind === 'saveFailed' });
+      setPhase('failed');
+      if (next.kind === 'changed')
+        timer.current = setTimeout(() => {
+          setFailure(null);
+          setPhase('idle');
+        }, EMPTY_NOTICE_MS);
+    },
+    [clearTimer],
+  );
   /**
    * The run's memory (R4): the candidates among the shown notes as the cache has them now, so
    * a patch or a restore made a moment ago counts before the wall has drawn it.
@@ -250,11 +295,21 @@ export function useTidy(
         setBatch({ tidy: { ...proposed, moves }, removed: new Set(), moved: null });
         setPhase('pending');
       })
-      .catch(() => {
-        // A failure is no run: back to idle with the affordance, for a retry.
-        if (token.current === mine) rest();
+      .catch((error: unknown) => {
+        if (token.current !== mine) return;
+        // Said on the bar: busy (Try again runs it again) or a limit with the time it lifts.
+        // Anything else is no run: back to idle with the affordance.
+        const failed = failureOf(error);
+        if (failed?.kind === 'temporary') fail({ kind: 'busy', code: failed.code });
+        else if (failed?.kind === 'limit')
+          fail({
+            kind: 'limit',
+            code: failed.code,
+            ...(failed.resetsAt ? { resetsAt: failed.resetsAt } : {}),
+          });
+        else rest();
       });
-  }, [boardId, clearTimer, enabled, keys, queryClient, remember, rest]);
+  }, [boardId, clearTimer, enabled, fail, keys, queryClient, remember, rest]);
 
   const keep = useCallback<TidyController['keep']>(
     (source) => {
@@ -277,8 +332,12 @@ export function useTidy(
         .decideTidy(boardId, b.tidy.id, { decision: 'keep', noteIds, source })
         .then(
           ({ tidy: decided }) => decided,
-          () => null,
+          (error: unknown) => {
+            keepError.current = error;
+            return null;
+          },
         );
+      keepError.current = null;
       keepAnswer.current = answer;
       void answer.then((decided) => {
         if (keepAnswer.current === answer) keepAnswer.current = null;
@@ -286,10 +345,13 @@ export function useTidy(
         if (token.current !== mine) return;
         token.current = null;
         if (!decided || decided.status !== 'KEPT' || !decided.kept) {
-          // Refused, failed or settled otherwise: every card goes back and, no run having
-          // happened, the affordance with them.
+          // Refused, failed or settled otherwise: every card goes back, and the bar says
+          // why: a keep that did not get through offers Try again; a refusal closes itself.
           restoreAll(noteIds);
-          rest();
+          const failed = decided ? null : failureOf(keepError.current);
+          if (failed?.kind === 'temporary' || failed?.kind === 'session')
+            fail({ kind: 'saveFailed', code: failed.code });
+          else fail({ kind: 'changed', ...(failed?.code ? { code: failed.code } : {}) });
           return;
         }
         const { noteIds: movedIds, skipped } = decided.kept;
@@ -310,7 +372,7 @@ export function useTidy(
         timer.current = setTimeout(rest, UNDO_WINDOW_MS);
       });
     },
-    [boardId, clearTimer, keys, patchAll, queryClient, remember, rest, restoreAll],
+    [boardId, clearTimer, fail, keys, patchAll, queryClient, remember, rest, restoreAll],
   );
 
   const discard = useCallback<TidyController['discard']>(
@@ -375,10 +437,12 @@ export function useTidy(
             return;
           }
         }
+        let undoFailed = false;
         try {
           // Sent even when overtaken: the person asked for this undo.
           await assistantApi.decideTidy(boardId, tidyId, { decision: 'undo', source });
         } catch {
+          undoFailed = true;
           // The server kept the moves: the moved cards go back to where the keep put them.
           if (current())
             patchAll(
@@ -393,7 +457,9 @@ export function useTidy(
         await queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
         if (!current()) return;
         remember();
-        rest();
+        // An undo the person asked for that did not happen is said; there is nothing to retry.
+        if (undoFailed) fail({ kind: 'undoFailed' });
+        else rest();
       };
       void run().finally(() => {
         if (undoing.current !== mine) return;
@@ -401,7 +467,7 @@ export function useTidy(
         setUndoPending(false);
       });
     },
-    [boardId, clearTimer, keys, patchAll, queryClient, remember, rest, restoreAll],
+    [boardId, clearTimer, fail, keys, patchAll, queryClient, remember, rest, restoreAll],
   );
 
   const undoLast = useCallback(() => {
@@ -491,9 +557,23 @@ export function useTidy(
     [batch, enabled, phase],
   );
 
+  const retry = useCallback<TidyController['retry']>(() => {
+    if (latestPhase.current !== 'failed') return;
+    setFailure(null);
+    setPhase('idle');
+    latestPhase.current = 'idle';
+    tidy();
+  }, [tidy]);
+  const dismissFailure = useCallback<TidyController['dismissFailure']>(() => {
+    if (latestPhase.current === 'failed') rest();
+  }, [rest]);
+
   return useMemo(
     () => ({
       phase,
+      failure,
+      retry,
+      dismissFailure,
       count,
       moving: trackedIds.length,
       trackedIds,
@@ -506,6 +586,21 @@ export function useTidy(
       lastKeptAt,
       remove,
     }),
-    [count, discard, keep, lastKeptAt, markFor, phase, remove, tidy, trackedIds, undo, undoLast],
+    [
+      count,
+      discard,
+      dismissFailure,
+      failure,
+      keep,
+      lastKeptAt,
+      markFor,
+      phase,
+      remove,
+      retry,
+      tidy,
+      trackedIds,
+      undo,
+      undoLast,
+    ],
   );
 }

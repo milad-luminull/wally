@@ -822,6 +822,17 @@ export const en = {
       list: 'Suggested fields',
       steps: 'Suggested steps',
     },
+    outcome: {
+      nothing: 'Nothing to add',
+      busy: 'Busy right now',
+      limit: 'Limit reached',
+      limitDaily: 'Daily limit reached · available again from {{when}}',
+      limitMonthly: 'Monthly limit reached · available again from {{when}}',
+      saveFailed: 'Couldn’t save',
+      changed: 'This changed meanwhile',
+      tryAgain: 'Try again',
+      dismiss: 'Dismiss',
+    },
     footer: {
       asking: 'Filling in',
       saving: 'Saves in {{count}} s',
@@ -846,6 +857,11 @@ export const en = {
     },
   },
   tidy: {
+    failed: {
+      saveFailed: 'Couldn’t move the notes',
+      changed: 'The notes changed meanwhile',
+      undoFailed: 'Couldn’t undo the move',
+    },
     action_one: 'Tidy {{count}} note',
     action_other: 'Tidy {{count}} notes',
     asking: 'Sorting…',

@@ -1121,3 +1121,23 @@ textarea.capture-shimmer:focus {
     height: 36px;
   }
 }
+
+/* An outcome line that asks nothing of the person ("Nothing to add") fades out with the card's
+   last moment on screen; under reduced motion it simply goes. */
+@keyframes capture-outcome-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.capture-outcome-fade {
+  animation: capture-outcome-fade 2s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-outcome-fade {
+    animation: none;
+  }
+}

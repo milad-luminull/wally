@@ -694,3 +694,45 @@ it('identifies the card shown in the detail panel and clears that state when clo
   );
   expect(card).not.toHaveAttribute('aria-current');
 });
+
+describe('NoteCard with an outcome line', () => {
+  it('says why nothing came on the card, and Try again, × and Esc reach the controller', () => {
+    const onRetry = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <DndContext>
+        <NoteCard
+          note={makeNote()}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          pending={{
+            mark: makeSuggestionMark({
+              phase: 'outcome',
+              outcome: { kind: 'busy', canRetry: true },
+            }),
+            onKeep: vi.fn(),
+            onDiscard: vi.fn(),
+            onUndo: vi.fn(),
+            onRemove: vi.fn(),
+            onSetField: vi.fn(),
+            onSetSubtask: vi.fn(),
+            onSetLink: vi.fn(),
+            onSetTag: vi.fn(),
+            onSetProperty: vi.fn(),
+            onPause: vi.fn(),
+            onRetry,
+            onDismiss,
+          }}
+        />
+      </DndContext>,
+    );
+    expect(screen.getByText('Busy right now')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    fireEvent.keyDown(screen.getAllByRole('button')[0]!, { key: 'Escape' });
+    expect(onDismiss).toHaveBeenCalledTimes(2);
+  });
+});

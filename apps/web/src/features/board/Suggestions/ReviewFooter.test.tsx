@@ -87,4 +87,81 @@ describe('ReviewFooter', () => {
     fireEvent.click(keep);
     expect(onKeep).toHaveBeenCalledTimes(1);
   });
+
+  describe('an outcome line', () => {
+    const outcome = (o: Parameters<typeof makeSuggestionMark>[0]['outcome']) =>
+      makeSuggestionMark({ phase: 'outcome', outcome: o });
+
+    it('says "Nothing to add" and asks nothing of the person', () => {
+      render(
+        <ReviewFooter
+          mark={outcome({ kind: 'nothing', canRetry: false })}
+          onKeep={vi.fn()}
+          onUndo={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('Nothing to add');
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('says the AI is busy, with Try again and ×', () => {
+      const onRetry = vi.fn();
+      const onDismiss = vi.fn();
+      render(
+        <ReviewFooter
+          mark={outcome({ kind: 'busy', canRetry: true })}
+          onKeep={vi.fn()}
+          onUndo={vi.fn()}
+          onRetry={onRetry}
+          onDismiss={onDismiss}
+        />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('Busy right now');
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it('says when a daily limit lifts', () => {
+      render(
+        <ReviewFooter
+          mark={outcome({
+            kind: 'limit',
+            code: 'ASSISTANT_DAILY_CAP',
+            resetsAt: '2026-10-20T00:00:00Z',
+            canRetry: false,
+          })}
+          onKeep={vi.fn()}
+          onUndo={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent(
+        /^Daily limit reached · available again from /,
+      );
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('says a decision could not be saved, and that a changed note closed it', () => {
+      const { rerender } = render(
+        <ReviewFooter
+          mark={outcome({ kind: 'saveFailed', canRetry: true })}
+          onKeep={vi.fn()}
+          onUndo={vi.fn()}
+          onRetry={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('Couldn’t save');
+      rerender(
+        <ReviewFooter
+          mark={outcome({ kind: 'changed', canRetry: false })}
+          onKeep={vi.fn()}
+          onUndo={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('This changed meanwhile');
+    });
+  });
 });
