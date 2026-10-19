@@ -45,6 +45,19 @@ const emit = () => {
   for (const listener of listeners) listener();
 };
 export const isMutationPending = (resource: string) => (lanes.get(resource)?.pending ?? 0) > 0;
+/**
+ * Resolves once every write queued on `resource` so far, and every write queued behind them
+ * meanwhile, has settled (failed ones included): what the server holds is then the last write.
+ */
+export async function whenSettled(resource: string): Promise<void> {
+  for (;;) {
+    const lane = lanes.get(resource);
+    if (!lane || lane.pending === 0) return;
+    await lane.tail;
+    // The lane's own `finally` counts the write out a moment after its tail settles.
+    await Promise.resolve();
+  }
+}
 export const sessionGeneration = () => generation;
 export const sessionSignal = () => controller.signal;
 export const isCurrentSession = (value: number) => value === generation;

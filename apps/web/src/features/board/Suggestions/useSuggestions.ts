@@ -41,7 +41,15 @@ export interface SuggestionMark {
 }
 export interface SuggestionsController {
   marks: ReadonlyMap<string, SuggestionMark>;
-  request: (noteId: string, locked: SuggestionFieldKey[]) => void;
+  /**
+   * Asks about a note: at once after a capture, or once `after` resolves for an edit whose
+   * saves are still on their way. The mark shows "asking" from the start either way.
+   */
+  request: (
+    noteId: string,
+    locked: SuggestionFieldKey[],
+    options?: { after?: () => Promise<unknown> },
+  ) => void;
   keep: (noteId: string, source: 'enter' | 'countdown' | 'click') => void;
   discard: (noteId: string, source: 'esc') => void;
   undo: (noteId: string, source: 'esc' | 'click' | 'shortcut') => void;
@@ -367,7 +375,7 @@ export function useSuggestions(
   decideRef.current = decide;
 
   const request = useCallback<SuggestionsController['request']>(
-    (noteId, locked) => {
+    (noteId, locked, options) => {
       if (!enabled) return;
       // A note asked about again starts over: no old countdown, undo window or answer applies.
       reset(noteId);
@@ -386,14 +394,28 @@ export function useSuggestions(
         countdownMs: COUNTDOWN_MS,
         paused: false,
       });
-      void assistantApi
-        .suggest(boardId, {
+      // `after` holds the call back (an edit's saves still on their way); the mark shows
+      // "asking" meanwhile, and Esc or a newer ask during the wait means no call at all.
+      const call = () =>
+        assistantApi.suggest(boardId, {
           noteId,
           locked,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           today: localToday(),
-        })
-        .then(({ suggestion }) => {
+        });
+      const { after } = options ?? {};
+      void (
+        after
+          ? after().then(() =>
+              dismissed.current.delete(token) || asking.current.get(noteId) !== token
+                ? null
+                : call(),
+            )
+          : call()
+      )
+        .then((answer) => {
+          if (answer === null) return;
+          const { suggestion } = answer;
           if (dismissed.current.delete(token)) {
             // Esc came first: what the server stored for this call is discarded as Esc's.
             if (suggestion)

@@ -551,6 +551,44 @@ describe('useSuggestions', () => {
     });
   });
 
+  it('shows "asking" at once and calls only once `after` resolves', async () => {
+    let release!: () => void;
+    const after = () =>
+      new Promise<void>((r) => {
+        release = r;
+      });
+    const { result } = setup();
+    act(() => result.current.request('n1', ['title'], { after }));
+    expect(result.current.marks.get('n1')?.phase).toBe('asking');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.suggest).not.toHaveBeenCalled();
+    await act(async () => {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(1);
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+  });
+
+  it('sends nothing when Esc dismisses a call still waiting for `after`', async () => {
+    let release!: () => void;
+    const after = () =>
+      new Promise<void>((r) => {
+        release = r;
+      });
+    const { result } = setup();
+    act(() => result.current.request('n1', [], { after }));
+    act(() => result.current.discard('n1', 'esc'));
+    await act(async () => {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.suggest).not.toHaveBeenCalled();
+    expect(result.current.marks.has('n1')).toBe(false);
+  });
+
   it('discards on the server what a call dismissed with Esc proposes when it lands', async () => {
     let answer: () => void = () => {};
     vi.mocked(assistantApi.suggest).mockImplementationOnce(

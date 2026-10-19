@@ -6,6 +6,7 @@ import {
   resetMutationSession,
   retryMutation,
   getRecoveries,
+  whenSettled,
 } from './mutationQueue';
 
 beforeEach(() => resetMutationSession());
@@ -145,4 +146,37 @@ it('preserves an uncertain request when blur resubmits its ticket to a blocked l
   expect(getRecoveries()[0]!.description?.input).toEqual({ title: 'Original draft' });
   await retryMutation(ticket.operationId);
   expect(attempts).toBe(2);
+});
+
+describe('whenSettled', () => {
+  it('resolves at once for an idle lane, and after every queued write of a busy one', async () => {
+    await expect(whenSettled('note:idle')).resolves.toBeUndefined();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const order: string[] = [];
+    void enqueueMutation(captureMutation('note:b'), async () => {
+      await gate;
+      order.push('first');
+      return { data: null, revision: 2 };
+    });
+    void enqueueMutation(captureMutation('note:b'), async () => {
+      order.push('second');
+      return { data: null, revision: 3 };
+    });
+    const settled = whenSettled('note:b').then(() => order.push('settled'));
+    await Promise.resolve();
+    expect(order).toEqual([]);
+    release();
+    await settled;
+    expect(order).toEqual(['first', 'second', 'settled']);
+  });
+
+  it('resolves after a failed write too', async () => {
+    void enqueueMutation(captureMutation('note:c'), async () => {
+      throw new Error('offline');
+    }).catch(() => {});
+    await expect(whenSettled('note:c')).resolves.toBeUndefined();
+  });
 });
