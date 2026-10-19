@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { api } from './apiClient';
+import { api, REQUEST_TIMEOUT_MS, RequestTimeoutError } from './apiClient';
 import { getFreshIdToken } from '@/features/auth/AuthProvider';
 import {
   captureMutation,
@@ -222,4 +222,25 @@ it('reviews a stale board deletion with the board name and the change spelled ou
 
   expect(reviewed.revision).toBe(4);
   expect(reviewed.proposed).toEqual({ name: 'Project North', change: 'Delete board' });
+});
+
+it('gives up on a request that hangs, as a timeout the person can retry', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          ),
+      ),
+    );
+    const pending = api.get('/me', z.unknown());
+    const settled = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    await settled;
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -17,12 +17,29 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 export type ApiErrorKind =
   'unauthorized' | 'forbidden' | 'not_found' | 'validation' | 'conflict' | 'other';
 
+/** How long an ordinary request may take before it counts as failed (and can be retried). */
+export const REQUEST_TIMEOUT_MS = 30_000;
+/** The AI routes: the server's 20 s deadline plus its one retry. */
+export const AI_REQUEST_TIMEOUT_MS = 45_000;
+
+/** A request that got no answer within its time limit; sending it again may work. */
+export class RequestTimeoutError extends Error {
+  constructor() {
+    super('The request took too long');
+    this.name = 'RequestTimeoutError';
+  }
+}
+
 /** Typed error the TanStack Query hooks can branch on (e.g. redirect to /login on 401). */
 export class ApiError extends Error {
   readonly status: number;
   readonly kind: ApiErrorKind;
   readonly body: unknown;
   readonly code: string | undefined;
+  /** The server says sending the same request again can help (the API's error body). */
+  readonly retryable: boolean;
+  /** When a budget cap lifts. */
+  readonly resetsAt: string | undefined;
 
   constructor(status: number, body: unknown, message?: string) {
     super(message ?? `Request failed with status ${status}`);
@@ -32,6 +49,37 @@ export class ApiError extends Error {
     this.code =
       body && typeof body === 'object' && 'error' in body ? String(body.error) : undefined;
     this.kind = classify(status);
+    const fields = (body && typeof body === 'object' ? body : {}) as {
+      retryable?: unknown;
+      resetsAt?: unknown;
+    };
+    this.retryable = fields.retryable === true;
+    this.resetsAt = typeof fields.resetsAt === 'string' ? fields.resetsAt : undefined;
+  }
+}
+
+/**
+ * The session's signal joined with a time limit: the request is cancelled when the account
+ * changes, and fails as a RequestTimeoutError when it takes longer than `ms`.
+ */
+async function fetchWithin(url: string, init: RequestInit, session: AbortSignal, ms: number) {
+  const controller = new AbortController();
+  const forward = () => controller.abort(session.reason);
+  if (session.aborted) forward();
+  else session.addEventListener('abort', forward, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new RequestTimeoutError());
+  }, ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new RequestTimeoutError();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    session.removeEventListener('abort', forward);
   }
 }
 
@@ -151,7 +199,12 @@ async function request<T>(
         )
           headers['X-Expected-Revision'] = String(metadata.expectedRevision);
       }
-      return fetch(buildUrl(path, options.query), { method, headers, body: encodedBody, signal });
+      return fetchWithin(
+        buildUrl(path, options.query),
+        { method, headers, body: encodedBody },
+        signal,
+        asksAssistant ? AI_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+      );
     };
     let res = await doFetch(false);
     if (res.status === 401) res = await doFetch(true);
