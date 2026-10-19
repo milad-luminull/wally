@@ -44,6 +44,7 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
           setEmail('');
           toast({ title: 'toast.inviteSent', values: { email: parsed.data } });
         },
+        onError: () => setError('share.inviteFailed'),
       },
     );
   }

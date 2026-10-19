@@ -79,6 +79,8 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
             mark={mark}
             onKeep={() => pending.onKeep('click')}
             onUndo={pending.onDiscard}
+            onRetry={pending.onRetry}
+            onDismiss={pending.onDismiss}
           />
         </div>
       </div>

@@ -28,6 +28,8 @@ import { FilterBar } from './FilterBar';
 import { WallView } from './WallView/WallView';
 import { ListView } from './ListView/ListView';
 import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
+import { BoardLoadError } from './BoardLoadError';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { BoardCommands } from './BoardCommands';
 import { useCaptureSession } from './Capture/useCaptureSession';
 import type { AskOptions, CapturePlacement } from './Capture/useCapture';
@@ -315,6 +317,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           >
             {notesQuery.isLoading ? (
               <BoardSkeleton columns={isDesktop ? 3 : 1} />
+            ) : notesQuery.isError && !notesQuery.data ? (
+              // Never drawn as an empty board: the notes did not load, and that is said.
+              <BoardLoadError onRetry={() => void notesQuery.refetch()} />
             ) : effectiveView === 'wand' ? (
               <WallView
                 boardId={boardId}
@@ -425,22 +430,32 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         </div>
       </div>
 
-      <NoteDetailPanel
-        noteId={viewState.noteId}
-        boardId={boardId}
-        boardName={board.name}
-        expanded={detailExpanded}
-        onExpandedChange={setDetailExpanded}
-        access={access}
-        axis={viewState.axis}
-        isBelowDesktop={isBelowDesktop}
-        onClose={() => viewState.openNote(null)}
-        onDuplicate={duplicateNote}
-        onOpenNote={viewState.openNote}
-        currentUserId={user?.uid}
-        pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
-        onTextEdited={onTextEdited}
-      />
+      {/* A failure inside the sidebar replaces the sidebar alone; the board stays usable. */}
+      <ErrorBoundary
+        key={viewState.noteId ?? 'none'}
+        inline
+        onClose={() => {
+          setDetailExpanded(false);
+          viewState.openNote(null);
+        }}
+      >
+        <NoteDetailPanel
+          noteId={viewState.noteId}
+          boardId={boardId}
+          boardName={board.name}
+          expanded={detailExpanded}
+          onExpandedChange={setDetailExpanded}
+          access={access}
+          axis={viewState.axis}
+          isBelowDesktop={isBelowDesktop}
+          onClose={() => viewState.openNote(null)}
+          onDuplicate={duplicateNote}
+          onOpenNote={viewState.openNote}
+          currentUserId={user?.uid}
+          pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
+          onTextEdited={onTextEdited}
+        />
+      </ErrorBoundary>
 
       <BoardCommands
         boardId={boardId}

@@ -73,7 +73,7 @@ describe('createTidyRunner', () => {
     expect(a.settled).toHaveLength(1);
   });
 
-  it('rethrows a provider error that is not a bad reply, settling nothing', async () => {
+  it('rethrows a provider error status, settling it at zero so the slot is free', async () => {
     const model = new MockLanguageModelV3({
       doGenerate: async () => {
         throw new APICallError({
@@ -91,7 +91,9 @@ describe('createTidyRunner', () => {
     });
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(a.seen).toHaveLength(1);
-    expect(a.settled).toEqual([]);
+    expect(a.settled).toEqual([
+      { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+    ]);
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {

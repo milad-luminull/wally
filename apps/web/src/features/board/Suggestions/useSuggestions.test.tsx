@@ -15,9 +15,16 @@ vi.mock('@/lib/preferences', async (importOriginal) => ({
 }));
 
 import { assistantApi } from '@/lib/resources';
+import { captureMutation, enqueueMutation } from '@/lib/mutationQueue';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
-import { COUNTDOWN_MS, KEEP_RETRY_MS, UNDO_WINDOW_MS, useSuggestions } from './useSuggestions';
+import {
+  COUNTDOWN_MS,
+  KEEP_RETRY_MS,
+  OUTCOME_FADE_MS,
+  UNDO_WINDOW_MS,
+  useSuggestions,
+} from './useSuggestions';
 import { nextKeptStamp } from './keptOrder';
 
 const BOARD = 'board-1';
@@ -431,23 +438,70 @@ describe('useSuggestions', () => {
     expect(undone).toBe(false);
   });
 
-  it('shows nothing when the server has nothing, refuses, or fails', async () => {
+  it('says "nothing to add" for an empty answer, briefly, then the card is ordinary again', async () => {
     vi.mocked(assistantApi.suggest).mockResolvedValueOnce({ suggestion: null });
     const { result } = setup();
     act(() => result.current.request('n1', []));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(result.current.marks.has('n1')).toBe(false);
-    vi.mocked(assistantApi.suggest).mockRejectedValueOnce(new Error('502'));
-    act(() => result.current.request('n2', []));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
+    expect(result.current.marks.get('n1')).toMatchObject({
+      phase: 'outcome',
+      outcome: { kind: 'nothing', canRetry: false },
     });
-    expect(result.current.marks.has('n2')).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(OUTCOME_FADE_MS);
+    });
+    expect(result.current.marks.has('n1')).toBe(false);
   });
 
-  it('drops the dot quietly when the keep finds the note changed', async () => {
+  it('says the AI is busy when the call fails, until Try again asks once more', async () => {
+    vi.mocked(assistantApi.suggest).mockRejectedValueOnce(
+      Object.assign(new Error('502'), { status: 502, code: 'ASSISTANT_PROVIDER_ERROR' }),
+    );
+    const { result } = setup();
+    act(() => result.current.request('n1', ['dueDate']));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(OUTCOME_FADE_MS * 3);
+    });
+    expect(result.current.marks.get('n1')).toMatchObject({
+      phase: 'outcome',
+      outcome: { kind: 'busy', canRetry: true },
+    });
+    act(() => result.current.retryOutcome('n1'));
+    // Try again first waits for the note's saves (none here), then asks.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(assistantApi.suggest).mock.calls[1]![1]).toMatchObject({
+      locked: ['dueDate'],
+    });
+    expect(result.current.marks.get('n1')?.phase).toBe('pending');
+  });
+
+  it('says when the limit lifts, and × takes the line away', async () => {
+    vi.mocked(assistantApi.suggest).mockRejectedValueOnce(
+      Object.assign(new Error('429'), {
+        status: 429,
+        code: 'ASSISTANT_DAILY_CAP',
+        resetsAt: '2026-10-20T00:00:00Z',
+      }),
+    );
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.outcome).toEqual({
+      kind: 'limit',
+      code: 'ASSISTANT_DAILY_CAP',
+      resetsAt: '2026-10-20T00:00:00Z',
+      canRetry: false,
+    });
+    act(() => result.current.dismissOutcome('n1'));
+    expect(result.current.marks.has('n1')).toBe(false);
+  });
+
+  it('says "this changed meanwhile" when the keep finds the note changed, then goes', async () => {
     vi.mocked(assistantApi.decide).mockRejectedValueOnce(
       Object.assign(new Error('409'), { status: 409, code: 'STALE_REVISION' }),
     );
@@ -457,8 +511,12 @@ describe('useSuggestions', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
     });
-    expect(result.current.marks.has('n1')).toBe(false);
+    expect(result.current.marks.get('n1')?.outcome).toMatchObject({ kind: 'changed' });
     expect(invalidate).toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(OUTCOME_FADE_MS);
+    });
+    expect(result.current.marks.has('n1')).toBe(false);
   });
 
   it('shows the pending records of the board again after a reload, waiting for Enter', async () => {
@@ -640,7 +698,7 @@ describe('useSuggestions', () => {
     expect(result.current.marks.get('n1')?.phase).toBe('kept');
   });
 
-  it('tries a failing keep twice at most, and never retries a refusal', async () => {
+  it('tries a failing keep twice at most, then says it could not save; Try again resends it', async () => {
     vi.mocked(assistantApi.decide)
       .mockRejectedValueOnce(Object.assign(new Error('503'), { status: 503 }))
       .mockRejectedValueOnce(Object.assign(new Error('503'), { status: 503 }));
@@ -652,8 +710,17 @@ describe('useSuggestions', () => {
       await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
     });
     expect(assistantApi.decide).toHaveBeenCalledTimes(2);
-    expect(result.current.marks.has('n1')).toBe(false);
+    expect(result.current.marks.get('n1')?.outcome).toMatchObject({
+      kind: 'saveFailed',
+      canRetry: true,
+    });
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(assistantApi.decide).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(assistantApi.decide).mock.calls[2]![2]).toMatchObject({ decision: 'keep' });
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
 
+    // A refusal is never retried: it says the note changed.
     vi.mocked(assistantApi.decide).mockRejectedValueOnce(
       Object.assign(new Error('409'), { status: 409, code: 'STALE_REVISION' }),
     );
@@ -663,10 +730,72 @@ describe('useSuggestions', () => {
     act(() => result.current.request('n2', []));
     await flush();
     act(() => result.current.keep('n2', 'enter'));
+    await flush();
+    expect(result.current.marks.get('n2')?.outcome?.kind).toBe('changed');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
     });
-    expect(assistantApi.decide).toHaveBeenCalledTimes(3);
+    expect(assistantApi.decide).toHaveBeenCalledTimes(4);
+  });
+
+  it('Try again on a busy line waits for the note’s saves still on their way', async () => {
+    vi.mocked(assistantApi.suggest).mockRejectedValueOnce(
+      Object.assign(new Error('502'), { status: 502, code: 'ASSISTANT_PROVIDER_ERROR' }),
+    );
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    let land!: () => void;
+    void enqueueMutation(captureMutation('note:n1'), async () => {
+      await new Promise<void>((resolve) => (land = resolve));
+      return { data: null, revision: 4 };
+    });
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(2);
+  });
+
+  it('a second failed undo still retries as an undo, from the kept state', async () => {
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.keep('n1', 'enter'));
+    await flush();
+    vi.mocked(assistantApi.decide)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockReturnValueOnce(new Promise(() => {}));
+    act(() => result.current.undo('n1', 'click'));
+    await flush();
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(result.current.marks.get('n1')?.outcome?.kind).toBe('saveFailed');
+    act(() => result.current.retryOutcome('n1'));
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
+  });
+
+  it('says it could not undo, and keeps the values marked until Try again works', async () => {
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.keep('n1', 'enter'));
+    await flush();
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
+    vi.mocked(assistantApi.decide).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    act(() => result.current.undo('n1', 'click'));
+    await flush();
+    expect(result.current.marks.get('n1')?.outcome).toMatchObject({ kind: 'saveFailed' });
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(vi.mocked(assistantApi.decide).mock.calls.at(-1)![2]).toMatchObject({
+      decision: 'undo',
+    });
+    expect(result.current.marks.has('n1')).toBe(false);
   });
 
   it('stops every running countdown when the person switches to always ask me', async () => {

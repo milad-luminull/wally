@@ -346,6 +346,8 @@ export function NoteRow({
             mark={reviewing.mark}
             onKeep={() => reviewing.onKeep('click')}
             onUndo={reviewing.onDiscard}
+            onRetry={reviewing.onRetry}
+            onDismiss={reviewing.onDismiss}
           />
         </div>
       </div>

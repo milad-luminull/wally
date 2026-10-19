@@ -40,6 +40,8 @@ export function usePendingFor(
         onSetLink: (index, on) => suggestions.setLink(noteId, index, on),
         onSetTag: (index, on) => suggestions.setTag(noteId, index, on),
         onSetProperty: (index, on) => suggestions.setProperty(noteId, index, on),
+        onRetry: () => suggestions.retryOutcome(noteId),
+        onDismiss: () => suggestions.dismissOutcome(noteId),
         onPause: (paused) => {
           if (paused) cardHolds.current.add(noteId);
           else cardHolds.current.delete(noteId);

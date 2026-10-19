@@ -20,7 +20,7 @@ describe('GET /health', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       status: 'ok',
-      assistant: { enabled: false, model: 'vertex:gemini-2.5-flash' },
+      assistant: { enabled: false, model: 'vertex:gemini-3.8-flash' },
     });
   });
 

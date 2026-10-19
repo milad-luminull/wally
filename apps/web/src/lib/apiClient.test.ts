@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { api } from './apiClient';
+import {
+  AI_REQUEST_TIMEOUT_MS,
+  api,
+  REQUEST_TIMEOUT_MS,
+  RequestTimeoutError,
+  TURN_REQUEST_TIMEOUT_MS,
+} from './apiClient';
 import { getFreshIdToken } from '@/features/auth/AuthProvider';
+import { failureOf } from './errors';
 import {
   captureMutation,
   getRecoveries,
@@ -11,7 +18,10 @@ import {
   retryMutation,
 } from './mutationQueue';
 import { boardsApi } from './resources';
-vi.mock('@/features/auth/AuthProvider', () => ({ getFreshIdToken: vi.fn() }));
+vi.mock('@/features/auth/AuthProvider', () => ({
+  getFreshIdToken: vi.fn(),
+  expireSession: vi.fn(),
+}));
 const response = (data: unknown, revision = 1) =>
   new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json', 'X-Resource-Revision': String(revision) },
@@ -222,4 +232,63 @@ it('reviews a stale board deletion with the board name and the change spelled ou
 
   expect(reviewed.revision).toBe(4);
   expect(reviewed.proposed).toEqual({ name: 'Project North', change: 'Delete board' });
+});
+
+it('gives up on a request that hangs, as a timeout the person can retry', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          ),
+      ),
+    );
+    const pending = api.get('/me', z.unknown());
+    const settled = expect(pending).rejects.toBeInstanceOf(RequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    await settled;
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('never signs anyone out when a fresh token is still refused: it is a failure to retry', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), { status: 401 })),
+  );
+  const error = await api.get('/me', z.unknown()).catch((e: unknown) => e);
+  expect(error).toMatchObject({ status: 401 });
+  expect(failureOf(error)?.kind).toBe('temporary');
+  expect(getFreshIdToken).toHaveBeenCalledWith(true);
+});
+
+it('waits longer for a question to the wall than the server allows it', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          ),
+      ),
+    );
+    expect(TURN_REQUEST_TIMEOUT_MS).toBeGreaterThan(60_000);
+    let settled = false;
+    const pending = api.post('/whiteboards/b1/assistant/turns', {}, z.unknown()).catch((e) => {
+      settled = true;
+      return e;
+    });
+    await vi.advanceTimersByTimeAsync(AI_REQUEST_TIMEOUT_MS + 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(TURN_REQUEST_TIMEOUT_MS);
+    expect(await pending).toBeInstanceOf(RequestTimeoutError);
+  } finally {
+    vi.useRealTimers();
+  }
 });

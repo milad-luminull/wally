@@ -31,7 +31,8 @@ function friendlyResendError(err: unknown): MessageKey {
  */
 export function EmailVerificationBanner() {
   const { t } = useTranslation();
-  const { user, emailVerified, resendVerificationEmail, refreshUser } = useAuth();
+  const { user, emailVerified, resendVerificationEmail, refreshUser, verificationSendFailed } =
+    useAuth();
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
 
@@ -137,15 +138,22 @@ export function EmailVerificationBanner() {
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="text-13 font-medium text-status-warning">{t('auth.verify.title')}</p>
-          <p className="text-12 text-fg-3">
-            {/* <Trans>, not interpolation: the <span> sits mid-sentence and moves clause
-                position in English, so the markup has to travel with the words. */}
-            <Trans
-              i18nKey="auth.verify.sentTo"
-              values={{ email: user.email ?? '' }}
-              components={{ strong: <span className="font-medium" /> }}
-            />
-          </p>
+          {/* The email at sign-up did not go out: said, never "on its way". Resend is below. */}
+          {verificationSendFailed && !feedback ? (
+            <p role="alert" className="text-12 font-medium text-status-danger">
+              {t('auth.verify.sendFailed')}
+            </p>
+          ) : (
+            <p className="text-12 text-fg-3">
+              {/* <Trans>, not interpolation: the <span> sits mid-sentence and moves clause
+                  position in English, so the markup has to travel with the words. */}
+              <Trans
+                i18nKey="auth.verify.sentTo"
+                values={{ email: user.email ?? '' }}
+                components={{ strong: <span className="font-medium" /> }}
+              />
+            </p>
+          )}
           {feedback && (
             <p
               role={feedback.tone === 'error' ? 'alert' : 'status'}

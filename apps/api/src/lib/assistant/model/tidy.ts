@@ -82,6 +82,14 @@ const replySchema = jsonSchema<z.output<typeof modelTidySchema>>(
  * through the lease, the library's retries off, thinking room added to the allowance so the
  * ledger reserves what can be billed. A reply that does not validate is "nothing to move".
  */
+/** What a call the provider refused with an error status costs: nothing. */
+const NOTHING_BILLED = {
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+};
+
 export function createTidyRunner(
   model: LanguageModel,
   options: Partial<SuggestionCallSettings> = {},
@@ -110,6 +118,11 @@ export function createTidyRunner(
         if (usage) await lease.settle(usage);
         return { moves: null, usage, finishReason: error.finishReason ?? 'other' };
       }
+      // The provider answered with an error status (busy, a fault): nothing was processed or
+      // billed, so the attempt settles at zero and its in-flight slot is free at once. A
+      // dropped connection leaves the usage unknown, and the reservation stays (R7).
+      if (typeof (error as { statusCode?: unknown } | null)?.statusCode === 'number')
+        await lease.settle(NOTHING_BILLED);
       throw error;
     }
   };

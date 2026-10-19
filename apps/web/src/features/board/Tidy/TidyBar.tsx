@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatWhen } from '@/lib/formatWhen';
 import { PendingDot } from '../Suggestions/PendingDot';
 import type { TidyController } from './useTidy';
 
@@ -13,12 +15,25 @@ import type { TidyController } from './useTidy';
  * (BRAND rule 5).
  */
 export function TidyBar({ tidy }: { tidy: TidyController }) {
-  const { t } = useTranslation();
-  const { phase, count, moving } = tidy;
+  const { t, i18n } = useTranslation();
+  const { phase, count, moving, failure } = tidy;
   const offer = phase === 'idle' && count > 0;
-  const controls = offer || phase === 'pending' || phase === 'kept';
-  const said =
-    phase === 'asking'
+  const failed = phase === 'failed' && failure !== null;
+  const controls = offer || phase === 'pending' || phase === 'kept' || failed;
+  const failureLine = (): string => {
+    if (!failure) return '';
+    if (failure.kind === 'limit') {
+      const daily = failure.code === 'ASSISTANT_DAILY_CAP';
+      const when = failure.resetsAt ? formatWhen(failure.resetsAt, i18n.language, daily) : null;
+      return when
+        ? t(daily ? 'suggest.outcome.limitDaily' : 'suggest.outcome.limitMonthly', { when })
+        : t('suggest.outcome.limit');
+    }
+    return failure.kind === 'busy' ? t('suggest.outcome.busy') : t(`tidy.failed.${failure.kind}`);
+  };
+  const said = failed
+    ? failureLine()
+    : phase === 'asking'
       ? t('tidy.asking')
       : phase === 'pending'
         ? t('tidy.pending', { count: moving })
@@ -68,6 +83,22 @@ export function TidyBar({ tidy }: { tidy: TidyController }) {
       {phase === 'kept' && (
         <Button variant="ghost" size="sm" onClick={() => tidy.undo('click')}>
           {t('tidy.undo')}
+        </Button>
+      )}
+      {failed && failure.canRetry && (
+        <Button variant="ghost" size="sm" onClick={tidy.retry}>
+          {t('suggest.outcome.tryAgain')}
+        </Button>
+      )}
+      {failed && failure.kind !== 'changed' && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-fg-3"
+          aria-label={t('suggest.outcome.dismiss')}
+          onClick={tidy.dismissFailure}
+        >
+          <X aria-hidden />
         </Button>
       )}
     </div>

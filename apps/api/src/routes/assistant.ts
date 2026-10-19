@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
+  apiErrorSchema,
   assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
@@ -16,7 +17,6 @@ import {
   tidyResponseSchema,
 } from '@wally/shared';
 import { loadEnv } from '../env.js';
-import { BudgetError } from '../lib/assistant/budget/ledger.js';
 import {
   latestOpenConversation,
   loadConversation,
@@ -58,11 +58,7 @@ const tidyParams = z.object({
  * A budget refusal carries the reset time; the per-route rate limit answers the same status
  * through the error handler without one, so `resetsAt` is optional here.
  */
-const refused = z.object({
-  error: z.string(),
-  message: z.string(),
-  resetsAt: z.string().nullable().optional(),
-});
+const refused = apiErrorSchema;
 
 export interface AssistantRouteOptions {
   runner?: TurnRunner;
@@ -112,33 +108,25 @@ export default async function assistantRoutes(
       },
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },
-    async (request, reply) => {
+    async (request) => {
       const { board, role } = await boardFor(request);
-      try {
-        const conversation = await runAssistantTurn(
-          {
-            db: request.server.db,
-            env,
-            runner: getRunner(),
-            logger: request.log,
-            deadlineMs: options.deadlineMs,
-          },
-          {
-            actor: request.user,
-            language: userLanguage(request.user),
-            board,
-            role,
-            request: request.body,
-          },
-        );
-        return { conversation };
-      } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
-        throw error;
-      }
+      const conversation = await runAssistantTurn(
+        {
+          db: request.server.db,
+          env,
+          runner: getRunner(),
+          logger: request.log,
+          deadlineMs: options.deadlineMs,
+        },
+        {
+          actor: request.user,
+          language: userLanguage(request.user),
+          board,
+          role,
+          request: request.body,
+        },
+      );
+      return { conversation };
     },
   );
 
@@ -184,22 +172,20 @@ export default async function assistantRoutes(
       },
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },
-    async (request, reply) => {
+    async (request) => {
       const { board, role } = await boardFor(request);
-      try {
-        const suggestion = await suggestForCapture(
-          { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
-          { actor: request.user, language: userLanguage(request.user), board, role },
-          request.body,
-        );
-        return { suggestion };
-      } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
-        throw error;
-      }
+      const suggestion = await suggestForCapture(
+        {
+          db: request.server.db,
+          env,
+          runner: getSuggestionRunner(),
+          logger: request.log,
+          deadlineMs: options.deadlineMs,
+        },
+        { actor: request.user, language: userLanguage(request.user), board, role },
+        request.body,
+      );
+      return { suggestion };
     },
   );
 
@@ -244,22 +230,20 @@ export default async function assistantRoutes(
       },
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
     },
-    async (request, reply) => {
+    async (request) => {
       const { board, role } = await boardFor(request);
-      try {
-        const tidy = await proposeTidy(
-          { db: request.server.db, env, runner: getTidyRunner(), logger: request.log },
-          { actor: request.user, language: userLanguage(request.user), board, role },
-          request.body,
-        );
-        return { tidy };
-      } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
-        throw error;
-      }
+      const tidy = await proposeTidy(
+        {
+          db: request.server.db,
+          env,
+          runner: getTidyRunner(),
+          logger: request.log,
+          deadlineMs: options.deadlineMs,
+        },
+        { actor: request.user, language: userLanguage(request.user), board, role },
+        request.body,
+      );
+      return { tidy };
     },
   );
 

@@ -75,12 +75,25 @@ function ChangeValues({ value, field }: { value: unknown; field?: string }) {
   return <span className="whitespace-pre-wrap break-words">{label || t('safety.empty')}</span>;
 }
 
-function ReviewChange({ recovery, onClose }: { recovery: Recovery; onClose: () => void }) {
+function ReviewChange({
+  recovery,
+  onClose,
+  retryFailed: retriedBefore = false,
+  onRetryFailed,
+}: {
+  recovery: Recovery;
+  onClose: () => void;
+  /** The change was sent from this dialog and did not save; the dialog follows its new entry. */
+  retryFailed?: boolean;
+  onRetryFailed?: (resource: string) => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [latest, setLatest] = useState<{ data: unknown; revision: number; proposed?: unknown }>();
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** The reviewed change was sent and still did not save: said here, the dialog stays. */
+  const [retryFailed, setRetryFailed] = useState(retriedBefore);
   const expired = !recovery.conflict && Date.now() - recovery.ticket.createdAt >= 7 * 86400000;
   useEffect(() => {
     let active = true;
@@ -99,17 +112,23 @@ function ReviewChange({ recovery, onClose }: { recovery: Recovery; onClose: () =
   }, [recovery]);
   async function apply() {
     setBusy(true);
+    setRetryFailed(false);
+    let saved = false;
     try {
       await retryMutation(
         recovery.ticket.operationId,
         recovery.conflict ? latest?.revision : undefined,
       );
+      saved = true;
     } catch {
-      /* The queue preserves the failed or newly stale action for another review. */
+      // The queue keeps the action for another try (a reviewed change under a new entry); the
+      // dialog stays on it and says it did not go through.
+      setRetryFailed(true);
+      onRetryFailed?.(recovery.ticket.resource);
     } finally {
       setBusy(false);
       void queryClient.invalidateQueries();
-      onClose();
+      if (saved) onClose();
     }
   }
   function discard() {
@@ -161,6 +180,11 @@ function ReviewChange({ recovery, onClose }: { recovery: Recovery; onClose: () =
             {t('safety.expired')}
           </p>
         )}
+        {retryFailed && !expired && (
+          <p role="alert" className="text-13 text-fg-2">
+            {t('errors.saveFailed')}
+          </p>
+        )}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" disabled={busy} onClick={onClose}>
             {t('safety.keep')}
@@ -185,6 +209,7 @@ export function MutationRecovery() {
   const { t } = useTranslation();
   const recoveries = useSyncExternalStore(subscribeRecoveries, getRecoveries);
   const [selected, setSelected] = useState<string>();
+  const [retryFailedFor, setRetryFailedFor] = useState<string>();
   if (recoveries.length === 0) return null;
   const recovery = recoveries.find((item) => item.ticket.operationId === selected);
   return (
@@ -200,7 +225,17 @@ export function MutationRecovery() {
         <ReviewChange
           key={recovery.ticket.operationId}
           recovery={recovery}
-          onClose={() => setSelected(undefined)}
+          onClose={() => {
+            setSelected(undefined);
+            setRetryFailedFor(undefined);
+          }}
+          retryFailed={retryFailedFor === recovery.ticket.operationId}
+          onRetryFailed={(resource) => {
+            const next = getRecoveries().find((item) => item.ticket.resource === resource);
+            if (!next) return;
+            setRetryFailedFor(next.ticket.operationId);
+            setSelected(next.ticket.operationId);
+          }}
         />
       )}
     </>

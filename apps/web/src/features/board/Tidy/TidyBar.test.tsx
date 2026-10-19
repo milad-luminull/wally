@@ -19,6 +19,9 @@ function controller(over: Partial<TidyController> = {}): TidyController {
     undoLast: vi.fn(() => false),
     lastKeptAt: () => null,
     remove: vi.fn(),
+    failure: null,
+    retry: vi.fn(),
+    dismissFailure: vi.fn(),
     ...over,
   };
 }
@@ -70,5 +73,34 @@ describe('TidyBar', () => {
     rerender(<TidyBar tidy={controller({ phase: 'empty' })} />);
     expect(screen.getByRole('status')).toHaveTextContent('All in its place.');
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+  });
+
+  it('says why a Tidy could not help, with Try again and ×, as a toolbar', async () => {
+    const tidy = controller({
+      phase: 'failed',
+      failure: { kind: 'busy', canRetry: true },
+    });
+    renderWithProviders(<TidyBar tidy={tidy} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Busy right now');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(tidy.retry).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(tidy.dismissFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('says a keep did not get through, and an undo that did not happen, in its own words', () => {
+    const { rerender } = renderWithProviders(
+      <TidyBar
+        tidy={controller({ phase: 'failed', failure: { kind: 'saveFailed', canRetry: true } })}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Couldn’t move the notes');
+    rerender(
+      <TidyBar
+        tidy={controller({ phase: 'failed', failure: { kind: 'undoFailed', canRetry: false } })}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Couldn’t undo the move');
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 });

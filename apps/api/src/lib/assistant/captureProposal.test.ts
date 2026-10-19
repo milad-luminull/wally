@@ -3,6 +3,7 @@ import type { ModelSuggestion } from './model/index.js';
 import {
   acceptCapture,
   buildCaptureCall,
+  judgeCapture,
   captureCandidates,
   type CaptureBoardNote,
   type CaptureContext,
@@ -344,5 +345,73 @@ describe('the rules applied to an answer', () => {
     });
     expect(fields?.tags?.items).toHaveLength(3);
     expect(fields?.properties?.items).toHaveLength(3);
+  });
+});
+
+describe('judgeCapture: why each proposed field was kept or dropped', () => {
+  const board = [boardNote({ id: 'b-1', tags: ['Sales'], customFields: { Customer: 'Acme' } })];
+  const judge = (
+    fields: Partial<ModelSuggestion>,
+    n: CaptureNote = note(),
+    c: CaptureContext = ctx,
+  ) => judgeCapture({ ...none, ...fields }, buildCaptureCall(n, board, c)!, n, c);
+  const sure = { confidence: 0.9, reason: 'r' };
+  const unsure = { confidence: 0.4, reason: 'r' };
+
+  it('names each rule that dropped a field, and leaves out what the model did not propose', () => {
+    const { fields, outcomes } = judge(
+      {
+        dueDate: { value: '2026-10-01', ...sure },
+        priority: { value: 'HOCH', ...unsure },
+        assignee: { memberId: 'u-stranger', ...sure },
+        title: { value: 'Send the offer to Acme', ...sure },
+        tags: { items: ['Sales'], ...sure },
+      },
+      note(),
+    );
+    expect(outcomes).toEqual({
+      dueDate: 'past',
+      priority: 'unsure',
+      assignee: 'not_member',
+      title: 'same',
+      tags: 'kept',
+    });
+    expect(fields?.tags?.items).toEqual(['Sales']);
+  });
+
+  it('says a field was not open when the note already has it or the person typed it', () => {
+    const { outcomes } = judge(
+      { dueDate: { value: '2026-10-23', ...sure }, priority: { value: 'HOCH', ...sure } },
+      note({ dueDate: '2026-10-21' }),
+      { ...ctx, locked: ['priority'] },
+    );
+    expect(outcomes).toEqual({ dueDate: 'not_open', priority: 'not_open' });
+  });
+
+  it('says why a horizon, a text, a person beside Private, and an empty list were dropped', () => {
+    const { outcomes } = judge({
+      dueDate: { value: '2026-10-19', ...sure },
+      horizon: { value: 'SPAETER', ...sure },
+      description: { value: 'Detail', ...sure },
+      visibility: { value: 'PRIVATE', ...sure },
+      assignee: { memberId: 'u-anna', ...sure },
+      subtasks: { items: ['Only one'], ...sure },
+    });
+    expect(outcomes).toMatchObject({
+      dueDate: 'kept',
+      horizon: 'disagrees',
+      description: 'no_title',
+      visibility: 'kept',
+      assignee: 'private',
+      subtasks: 'empty',
+    });
+  });
+
+  it('keeps acceptCapture as it was: the fields, or null when nothing survived', () => {
+    const n = note();
+    const answer = { ...none, priority: { value: 'HOCH' as const, ...unsure } };
+    const call = buildCaptureCall(n, board, ctx)!;
+    expect(acceptCapture(answer, call, n, ctx)).toBeNull();
+    expect(judgeCapture(answer, call, n, ctx).fields).toBeNull();
   });
 });

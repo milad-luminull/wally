@@ -89,6 +89,7 @@ import { HistoryTrail } from './HistoryTrail';
 import { CustomFieldEditor } from './CustomFieldEditor';
 import { VisibilityRow } from './VisibilityRow';
 import { useLiveNoteText } from './useLiveNoteText';
+import { failureOf } from '@/lib/errors';
 import { PendingReview } from './PendingReview';
 
 const NO_ASSIGNEE = '__none__';
@@ -262,7 +263,7 @@ function NoteDetailContent({
 }: ContentProps) {
   const { t } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
-  const { data: note, isLoading } = useNoteDetail(noteId);
+  const { data: note, isLoading, error: loadError, refetch } = useNoteDetail(noteId);
   const { activeMembers } = useActiveMembers(boardId);
   // Same cached query the board renders from — no extra fetch.
   const { data: boardNotes } = useNotes(boardId);
@@ -413,6 +414,29 @@ function NoteDetailContent({
     if (reviewHadFocus.current && lost) closeRef.current?.focus({ preventScroll: true });
     reviewHadFocus.current = false;
   }, [showReview]);
+
+  // A note that cannot be shown says why, instead of a skeleton that never resolves (the error
+  // handling spec, 2026-10-19): gone or hidden, or a load that failed and can be tried again.
+  if (!note && loadError) {
+    const gone = failureOf(loadError)?.kind === 'refused';
+    return (
+      <div role="alert" className="flex flex-col items-start gap-3 p-5">
+        <p className="text-14 font-medium text-fg-1">
+          {t(gone ? 'errors.noteGone' : 'errors.noteFailed')}
+        </p>
+        <div className="flex gap-2">
+          {!gone && (
+            <Button size="sm" onClick={() => void refetch()}>
+              {t('common.retry')}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !note) {
     return (

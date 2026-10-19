@@ -12,6 +12,8 @@ export function useCreateInvite(boardId: string) {
   const keys = useQueryKeys();
 
   return useMutation({
+    // The form says a failed invite under its field: no second message from the global toast.
+    meta: { silentError: true },
     mutationFn: (input: InviteCreateInput) =>
       membersApi.invite(
         boardId,

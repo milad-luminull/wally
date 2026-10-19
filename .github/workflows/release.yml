@@ -239,7 +239,7 @@ jobs:
             --image="${IMAGE}" \
             --region="${{ vars.GCP_REGION }}" \
             --service-account="wally-api@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
-            --set-env-vars="^@^FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@NODE_ENV=production@CORS_ORIGIN=${{ vars.WEB_ORIGIN }}@FIRESTORE_DATABASE_ID=wally@ASSISTANT_ENABLED=${{ vars.ASSISTANT_ENABLED || 'false' }}@ASSISTANT_MODEL=${{ vars.ASSISTANT_MODEL || 'vertex:gemini-2.5-flash' }}@ASSISTANT_VERTEX_LOCATION=${{ vars.ASSISTANT_VERTEX_LOCATION || 'europe-west1' }}" \
+            --set-env-vars="^@^FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@NODE_ENV=production@CORS_ORIGIN=${{ vars.WEB_ORIGIN }}@FIRESTORE_DATABASE_ID=wally@ASSISTANT_ENABLED=${{ vars.ASSISTANT_ENABLED || 'false' }}@ASSISTANT_MODEL=${{ vars.ASSISTANT_MODEL || 'vertex:gemini-3.8-flash' }}@ASSISTANT_VERTEX_LOCATION=${{ vars.ASSISTANT_VERTEX_LOCATION || 'eu' }}" \
             --tag="rel-${{ steps.ver.outputs.short }}" \
             --revision-suffix="rel-${{ steps.ver.outputs.short }}" \
             --no-traffic

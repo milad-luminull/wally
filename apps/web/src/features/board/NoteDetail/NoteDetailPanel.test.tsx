@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { enumLabels } from '@/i18n/enumLabels';
 import { i18n } from '@/i18n';
+import { ApiError } from '@/lib/apiClient';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeMember, makeNote, makeNoteDetail, makeSuggestionMark } from '@/test/fixtures';
 import type { PendingProps } from '../Suggestions/pendingProps';
@@ -712,6 +713,29 @@ describe('NoteDetailPanel', () => {
           }),
         ),
       );
+    });
+  });
+
+  describe('a note that cannot be shown', () => {
+    it('says a deleted or hidden note is gone instead of loading forever, and Close closes', async () => {
+      vi.mocked(notesApi.get).mockRejectedValue(
+        new ApiError(404, { error: 'NOT_FOUND', message: 'x', retryable: false }),
+      );
+      const { onClose } = renderPanel();
+      expect(
+        await screen.findByText('This note was deleted or isn’t shared with you'),
+      ).toBeInTheDocument();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]!);
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('says a note that failed to load can be tried again', async () => {
+      vi.mocked(notesApi.get).mockRejectedValue(new TypeError('Failed to fetch'));
+      renderPanel();
+      expect(
+        await screen.findByText('Couldn’t load this note', {}, { timeout: 4000 }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     });
   });
 
