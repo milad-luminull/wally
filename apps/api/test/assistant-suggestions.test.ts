@@ -701,7 +701,11 @@ describe('capture suggestions', () => {
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'fail' })).json();
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(502);
-    expect(res.json()).toEqual({ error: 'ASSISTANT_PROVIDER_ERROR', message: expect.any(String) });
+    expect(res.json()).toEqual({
+      error: 'ASSISTANT_PROVIDER_ERROR',
+      message: expect.any(String),
+      retryable: true,
+    });
     expect(JSON.stringify(res.json())).not.toContain('secret-project');
     expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
     // Usage is unknown after a failed call, so its reservation stays charged (R7).

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
+  apiErrorSchema,
   assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
@@ -41,6 +42,7 @@ import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
 import { liveWhiteboard, userLanguage, whiteboardsCol } from '../lib/db/collections.js';
 import { AppError } from '../lib/errors.js';
+import { errorReplyFor } from '../lib/errorBody.js';
 
 const params = z.object({
   id: z.string().min(1).max(128),
@@ -58,11 +60,7 @@ const tidyParams = z.object({
  * A budget refusal carries the reset time; the per-route rate limit answers the same status
  * through the error handler without one, so `resetsAt` is optional here.
  */
-const refused = z.object({
-  error: z.string(),
-  message: z.string(),
-  resetsAt: z.string().nullable().optional(),
-});
+const refused = apiErrorSchema;
 
 export interface AssistantRouteOptions {
   runner?: TurnRunner;
@@ -133,10 +131,7 @@ export default async function assistantRoutes(
         );
         return { conversation };
       } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+        if (error instanceof BudgetError) return reply.code(429).send(errorReplyFor(error).body);
         throw error;
       }
     },
@@ -194,10 +189,7 @@ export default async function assistantRoutes(
         );
         return { suggestion };
       } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+        if (error instanceof BudgetError) return reply.code(429).send(errorReplyFor(error).body);
         throw error;
       }
     },
@@ -254,10 +246,7 @@ export default async function assistantRoutes(
         );
         return { tidy };
       } catch (error) {
-        if (error instanceof BudgetError)
-          return reply
-            .code(429)
-            .send({ error: error.code, message: error.message, resetsAt: error.resetsAt });
+        if (error instanceof BudgetError) return reply.code(429).send(errorReplyFor(error).body);
         throw error;
       }
     },
