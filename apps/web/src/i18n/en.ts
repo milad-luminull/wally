@@ -437,6 +437,11 @@ export const en = {
     },
   },
   auth: {
+    sessionEnded: 'Your session ended. Sign in again to carry on.',
+    sessionEndedUnsaved_one:
+      'Your session ended, and {{count}} unsaved change couldn’t be kept. Sign in again to carry on.',
+    sessionEndedUnsaved_other:
+      'Your session ended, and {{count}} unsaved changes couldn’t be kept. Sign in again to carry on.',
     emailLabel: 'Email',
     passwordLabel: 'Password',
     passwordConfirmLabel: 'Confirm password',

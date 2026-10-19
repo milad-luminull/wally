@@ -451,6 +451,11 @@ export const de = {
     },
   },
   auth: {
+    sessionEnded: 'Deine Sitzung ist abgelaufen. Melde dich erneut an, um weiterzumachen.',
+    sessionEndedUnsaved_one:
+      'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderung ging verloren. Melde dich erneut an, um weiterzumachen.',
+    sessionEndedUnsaved_other:
+      'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderungen gingen verloren. Melde dich erneut an, um weiterzumachen.',
     emailLabel: 'E-Mail',
     passwordLabel: 'Passwort',
     passwordConfirmLabel: 'Passwort bestätigen',

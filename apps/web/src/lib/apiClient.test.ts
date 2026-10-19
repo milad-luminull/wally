@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { api, REQUEST_TIMEOUT_MS, RequestTimeoutError } from './apiClient';
-import { getFreshIdToken } from '@/features/auth/AuthProvider';
+import { expireSession, getFreshIdToken } from '@/features/auth/AuthProvider';
 import {
   captureMutation,
   getRecoveries,
@@ -11,7 +11,10 @@ import {
   retryMutation,
 } from './mutationQueue';
 import { boardsApi } from './resources';
-vi.mock('@/features/auth/AuthProvider', () => ({ getFreshIdToken: vi.fn() }));
+vi.mock('@/features/auth/AuthProvider', () => ({
+  getFreshIdToken: vi.fn(),
+  expireSession: vi.fn(),
+}));
 const response = (data: unknown, revision = 1) =>
   new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json', 'X-Resource-Revision': String(revision) },
@@ -243,4 +246,26 @@ it('gives up on a request that hangs, as a timeout the person can retry', async 
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('ends the session when a fresh token is still refused, so the person signs in again', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ error: 'UNAUTHORIZED' }), { status: 401 })),
+  );
+  await expect(api.get('/me', z.unknown())).rejects.toMatchObject({ status: 401 });
+  expect(getFreshIdToken).toHaveBeenCalledWith(true);
+  expect(expireSession).toHaveBeenCalledTimes(1);
+});
+
+it('does not end the session when the refreshed token is accepted', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+      .mockResolvedValueOnce(response({ id: 'me' })),
+  );
+  await api.get('/me', z.unknown());
+  expect(expireSession).not.toHaveBeenCalled();
 });
