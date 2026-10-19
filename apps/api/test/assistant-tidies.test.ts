@@ -185,7 +185,7 @@ describe('tidies', () => {
     ).data();
     expect(usageDoc?.tokens).toBe(70);
     expect(usageDoc?.inFlight).toEqual({});
-    expect((await stored(fx.ownerId, dto.id)).model).toBe('vertex:gemini-2.5-flash');
+    expect((await stored(fx.ownerId, dto.id)).model).toBe('vertex:gemini-3.8-flash');
   });
 
   it('answers null and writes nothing when there is nothing worth moving', async () => {

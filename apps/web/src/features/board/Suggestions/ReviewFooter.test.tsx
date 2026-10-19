@@ -89,7 +89,7 @@ describe('ReviewFooter', () => {
   });
 
   describe('an outcome line', () => {
-    const outcome = (o: Parameters<typeof makeSuggestionMark>[0]['outcome']) =>
+    const outcome = (o: NonNullable<Parameters<typeof makeSuggestionMark>[0]>['outcome']) =>
       makeSuggestionMark({ phase: 'outcome', outcome: o });
 
     it('says "Nothing to add" and asks nothing of the person', () => {
