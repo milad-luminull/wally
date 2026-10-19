@@ -183,7 +183,13 @@ export default async function assistantRoutes(
       const { board, role } = await boardFor(request);
       try {
         const suggestion = await suggestForCapture(
-          { db: request.server.db, env, runner: getSuggestionRunner(), logger: request.log },
+          {
+            db: request.server.db,
+            env,
+            runner: getSuggestionRunner(),
+            logger: request.log,
+            deadlineMs: options.deadlineMs,
+          },
           { actor: request.user, language: userLanguage(request.user), board, role },
           request.body,
         );
@@ -240,7 +246,13 @@ export default async function assistantRoutes(
       const { board, role } = await boardFor(request);
       try {
         const tidy = await proposeTidy(
-          { db: request.server.db, env, runner: getTidyRunner(), logger: request.log },
+          {
+            db: request.server.db,
+            env,
+            runner: getTidyRunner(),
+            logger: request.log,
+            deadlineMs: options.deadlineMs,
+          },
           { actor: request.user, language: userLanguage(request.user), board, role },
           request.body,
         );

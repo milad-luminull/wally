@@ -51,10 +51,13 @@ import {
   type CaptureContext,
 } from './captureProposal.js';
 import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
+import { retryDelayMs, withOneRetry } from './model/retry.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 export const SUGGESTION_DEADLINE_MS = 20_000;
+/** A retry starts only when at least this much of the deadline is left for it. */
+export const MIN_ATTEMPT_MS = 4_000;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -273,41 +276,61 @@ export async function suggestForCapture(
     monthlyMicroUsd: env.ASSISTANT_MONTHLY_CAP_MICRO_USD,
   };
   const controller = new AbortController();
-  const deadline = setTimeout(() => controller.abort(), deps.deadlineMs ?? SUGGESTION_DEADLINE_MS);
+  const deadlineMs = deps.deadlineMs ?? SUGGESTION_DEADLINE_MS;
+  const deadline = setTimeout(() => controller.abort(), deadlineMs);
   const startedAt = Date.now();
   let output;
   try {
-    output = await deps.runner({
-      instructions,
-      prompt,
-      maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-      abortSignal: controller.signal,
-      onAttempt: async (info) => {
-        const reservation = await reserveAttempt(db, {
-          userId: actor.id,
-          now: clock(),
-          estimate: {
-            inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-            // The runner's allowance, thinking room included: everything the call may bill.
-            outputTokens: info.maxOutputTokens,
+    // A busy or failing provider gets one more try after a short pause, within the deadline.
+    output = await withOneRetry(
+      () =>
+        deps.runner({
+          instructions,
+          prompt,
+          maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
+          abortSignal: controller.signal,
+          onAttempt: async (info) => {
+            const reservation = await reserveAttempt(db, {
+              userId: actor.id,
+              now: clock(),
+              estimate: {
+                inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                // The runner's allowance, thinking room included: everything the call may bill.
+                outputTokens: info.maxOutputTokens,
+              },
+              price,
+              caps,
+            });
+            return {
+              settle: (usage) =>
+                settleAttempt(
+                  db,
+                  actor.id,
+                  reservation.attemptId,
+                  { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+                  clock(),
+                ),
+            };
           },
-          price,
-          caps,
-        });
-        return {
-          settle: (usage) =>
-            settleAttempt(
-              db,
-              actor.id,
-              reservation.attemptId,
-              { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
-              clock(),
-            ),
-        };
+        }),
+      {
+        signal: controller.signal,
+        deadlineAt: startedAt + deadlineMs,
+        minAttemptMs: MIN_ATTEMPT_MS,
+        delayMs: retryDelayMs,
       },
-    });
+    );
   } catch (error) {
     if (error instanceof AppError) throw error;
+    // Our own deadline, not the provider's fault: said as a timeout.
+    if (controller.signal.aborted) {
+      deps.logger?.warn({
+        type: 'assistant.timeout',
+        boardId: board.id,
+        ms: Date.now() - startedAt,
+      });
+      throw new AppError(504, 'ASSISTANT_TIMEOUT', 'The model did not answer in time');
+    }
     deps.logger?.warn({
       type: 'assistant.provider_error',
       boardId: board.id,
