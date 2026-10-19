@@ -23,7 +23,7 @@ import { usePendingPause } from '../Suggestions/usePendingPause';
 import { tidyKeys, type TidyProps } from '../Tidy/tidyProps';
 import { CopyDragContext } from './copyDrag';
 import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
-import type { InlineEditProps } from '../Capture/inlineEdit';
+import { useReturnFocus, type InlineEditProps } from '../Capture/inlineEdit';
 
 interface NoteCardProps {
   note: NoteDto;
@@ -454,7 +454,14 @@ function RestingNoteCard({
   const tidyDot: DotMark | null = tidy
     ? { phase: tidy.mark.phase, countdownEndsAt: null, countdownMs: 0, paused: false }
     : null;
-  const pause = usePendingPause(pending);
+  const pause = usePendingPause(pending, edit?.editing ?? false);
+  // An edit in place that ends (Enter, Esc) takes its field away: the keyboard goes back to the
+  // card, unless the person already put it somewhere else.
+  useReturnFocus(edit?.editing ?? false, () =>
+    document.querySelector<HTMLElement>(
+      `[data-note-id="${CSS.escape(note.id)}"] > button, [data-note-id="${CSS.escape(note.id)}"] .capture-card-button`,
+    ),
+  );
 
   const wrapperStyle: CSSProperties = {
     ...style,

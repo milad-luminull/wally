@@ -39,8 +39,12 @@ export function textChanged(before: NoteText, after: NoteText): boolean {
  */
 export async function afterNoteSaves(noteId: string): Promise<void> {
   const resource = `note:${noteId}`;
-  do {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  for (;;) {
+    await tick();
     await whenSettled(resource);
-  } while (isMutationPending(resource));
+    // A field whose save was in flight on blur queues its last words once that save lands.
+    await tick();
+    if (!isMutationPending(resource)) return;
+  }
 }

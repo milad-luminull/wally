@@ -5,7 +5,8 @@ import { captureNote, hasE2eCredentials, signIn } from './support';
  * The review card of smarter capture (docs/superpowers/specs/2026-10-18-smarter-capture-design.md
  * §5). CI runs with the assistant off and no model, so the second test stubs the board's switch
  * and the capture and decision calls at the network: what it checks is the card, not the model.
- * Both Playwright projects run it, so the wall (desktop) and the list (phone width) are covered.
+ * Only the desktop project runs it (the phone project runs mobile-list-only.spec.ts alone), so
+ * these cover the wall; the list row's review and edit are covered by the unit tests.
  */
 
 test('with the assistant off, a written note shows no review and stays checkable', async ({
@@ -28,7 +29,9 @@ function proposal(noteId: string, boardId: string) {
     boardId,
     noteId,
     status: 'PENDING',
-    baseRevision: 1,
+    // Never behind the note: the board drops a proposal made for an older revision, and the
+    // real note moves on with every write (the capture's commit, an edit).
+    baseRevision: 1_000_000,
     fields: {
       dueDate: { value: '2026-10-23', reason: 'Freitag' },
       priority: null,

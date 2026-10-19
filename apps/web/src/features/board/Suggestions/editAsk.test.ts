@@ -56,3 +56,25 @@ describe('afterNoteSaves', () => {
     expect(order).toEqual(['save', 'ask']);
   });
 });
+
+describe('afterNoteSaves, with a save still in flight when the field lets go', () => {
+  it('waits for the words the field queues once that save has landed', async () => {
+    const order: string[] = [];
+    // The save from the last pause in typing is on its way.
+    void enqueueMutation(captureMutation('note:n7'), async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      order.push('earlier save');
+      // As useLiveNoteText does: the newer words go once the earlier save settles.
+      setTimeout(() => {
+        void enqueueMutation(captureMutation('note:n7'), async () => {
+          order.push('last words');
+          return { data: null, revision: 3 };
+        });
+      }, 0);
+      return { data: null, revision: 2 };
+    });
+    await afterNoteSaves('n7');
+    order.push('ask');
+    expect(order).toEqual(['earlier save', 'last words', 'ask']);
+  });
+});

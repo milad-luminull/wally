@@ -20,7 +20,7 @@ import {
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
 import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
-import type { InlineEditProps } from '../Capture/inlineEdit';
+import { useReturnFocus, type InlineEditProps } from '../Capture/inlineEdit';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -83,7 +83,12 @@ export function NoteRow({
     });
   const stepsLabel =
     proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
-  const pause = usePendingPause(pending);
+  const pause = usePendingPause(pending, edit?.editing ?? false);
+  // An edit in place that ends (Enter, Esc) takes its field away: the keyboard goes back to the
+  // row, unless the person already put it somewhere else.
+  useReturnFocus(edit?.editing ?? false, () =>
+    document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(note.id)}"][role="button"]`),
+  );
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
   // exactly like "assigned to nobody".

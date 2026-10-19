@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import type { EditResult } from './InlineNoteEditor';
 
@@ -77,4 +77,21 @@ export function useInlineEdit(options: {
     [boardId, canEdit, cancelOpen, editingId, onEdited, onOpen],
   );
   return { editFor, openFromCard };
+}
+
+/**
+ * When an edit in place ends, the focus that was in its field goes back to the card or row it
+ * stood for; focus the person moved elsewhere (a click away) stays where they put it.
+ */
+export function useReturnFocus(editing: boolean, target: () => HTMLElement | null) {
+  const wasEditing = useRef(editing);
+  const find = useRef(target);
+  find.current = target;
+  useLayoutEffect(() => {
+    const ended = wasEditing.current && !editing;
+    wasEditing.current = editing;
+    if (!ended) return;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (lost) find.current()?.focus({ preventScroll: true });
+  }, [editing]);
 }

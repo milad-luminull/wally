@@ -114,6 +114,35 @@ describe.each([
     expect(document.querySelector('[data-note-id="n1"]')).not.toBeNull();
   });
 
+  it('gives the focus back to the card or row when the edit ends', () => {
+    const view = renderIt({ edit: edit({ editing: true }) });
+    expect(screen.getByRole('textbox', { name: 'Title of the note' })).toHaveFocus();
+    view.rerender(
+      _kind === 'card' ? (
+        <DndContext>
+          <NoteCard
+            note={makeNote({ id: 'n1', title: 'Call Müller' })}
+            currentUserId="user-1"
+            selected={false}
+            onOpen={vi.fn()}
+            edit={edit()}
+          />
+        </DndContext>
+      ) : (
+        <NoteRow
+          note={makeNote({ id: 'n1', title: 'Call Müller' })}
+          currentUserId="user-1"
+          onOpen={vi.fn()}
+          onToggleDone={vi.fn()}
+          canEdit
+          edit={edit()}
+        />
+      ),
+    );
+    const target = screen.getByText('Call Müller').closest('button, [role="button"]');
+    expect(target).toHaveFocus();
+  });
+
   it('starts nothing without an edit (a viewer)', () => {
     const onOpen = vi.fn();
     renderIt({ edit: undefined as unknown as InlineEditProps, onOpen });
