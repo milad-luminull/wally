@@ -560,7 +560,7 @@ export const en = {
       steps: 'Suggested steps',
     },
     footer: {
-      asking: 'Filling in…',
+      asking: 'Filling in',
       saving: 'Saves in {{count}} s',
       paused: 'Paused',
       keep: 'Keep',

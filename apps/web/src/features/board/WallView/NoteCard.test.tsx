@@ -195,12 +195,13 @@ describe('NoteCard with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed edge, the dot, and the proposed fields as a list with an × each', () => {
+  it('wraps the card in the moving border, with the proposed fields as rows with an × each', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
-    expect(card.className).toContain('border-dashed');
-    expect(card.className).not.toMatch(/\banimate-/);
-    expect(screen.getByRole('img', { name: /Proposed changes/ })).toBeInTheDocument();
+    const shell = card.closest('[data-capture-card]')!;
+    expect(shell.className).toContain('capture-glow');
+    // The border and the rows mark the change; there is no corner dot any more.
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     const list = screen.getByRole('list', { name: 'Suggested fields' });
     expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
@@ -208,6 +209,8 @@ describe('NoteCard with a pending change', () => {
     ).toBeInTheDocument();
     fireEvent.click(within(list).getByRole('button', { name: 'Leave out: Person Anna' }));
     expect(p.onSetField).toHaveBeenCalledWith('assignee', false);
+    // Everything is in the rows: the card's own meta line waits until the decision.
+    expect(card.querySelector('[data-note-meta]')).toBeNull();
   });
 
   it('a pending change shows the list and the footer and hides the done checkbox', () => {
@@ -241,10 +244,12 @@ describe('NoteCard with a pending change', () => {
     expect(p.onDiscard).toHaveBeenCalledTimes(1);
   });
 
-  it('while the call runs the footer says so, with no list', () => {
+  it('while the call runs the words shimmer, the card says it is filling in, and there is no list', () => {
     renderCard(pending({ phase: 'asking', suggestion: null, countdownEndsAt: null }));
-    expect(screen.getByText('Filling in…')).toBeInTheDocument();
+    expect(screen.getByText('Approve the quote comparison').className).toContain('capture-shimmer');
+    expect(screen.getByText('Filling in')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
   });
 
   it('keeps on Enter, discards on Esc, and never opens the note for those keys', () => {
@@ -314,7 +319,6 @@ describe('NoteCard with a pending change', () => {
     renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     expect(card).toHaveAccessibleName(/Proposed changes, applied in a moment/);
-    expect(card).toContainElement(screen.getByRole('img', { name: /Proposed changes/ }));
   });
 
   it('names the card as waiting for Enter when nothing counts down', () => {
@@ -338,45 +342,44 @@ describe('NoteCard with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
-    const onOpen = vi.fn();
-    const p = withProposals(['dueDate'], { title: TITLE });
-    const card = (q: typeof p) => (
+  it("shows the cleaned title in place; its row's × brings the person's words back", () => {
+    const description = { value: 'For the Müller quote.', reason: 'moved out' };
+    const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
+    const { rerender } = render(
       <DndContext>
         <NoteCard
           note={makeNote({ dueDate: null })}
           currentUserId="user-1"
           selected={false}
-          onOpen={onOpen}
-          pending={q}
+          onOpen={vi.fn()}
+          pending={on}
         />
-      </DndContext>
+      </DndContext>,
     );
-    const { rerender } = render(card(p));
-    // The person's own title stays; the offer is a line of its own beside it (BRAND rule 7).
-    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(line).toHaveAttribute('aria-pressed', 'false');
-    // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
-    fireEvent.click(line);
-    expect(p.onSetField).toHaveBeenCalledWith('title', true);
-    // Enter on the line takes the title; it neither keeps the change nor opens the note.
-    fireEvent.keyDown(line, { key: 'Enter' });
-    expect(p.onSetField).toHaveBeenCalledTimes(2);
-    expect(p.onKeep).not.toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
+    const card = () => screen.getAllByRole('button')[0]!.closest('[data-capture-card]')!;
+    expect(within(card() as HTMLElement).getAllByText('Quote for Müller')[0]).toBeInTheDocument();
+    expect(screen.getByText('For the Müller quote.')).toBeInTheDocument();
+    expect(screen.queryByText('Approve the quote comparison')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Quote for Müller' }));
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
 
-    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
-    rerender(card(taken));
-    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
-    expect(takenLine).not.toHaveAttribute('aria-description');
-    fireEvent.click(takenLine);
-    expect(taken.onSetField).toHaveBeenCalledWith('title', false);
-    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
-    expect(taken.onRemove).toHaveBeenCalledWith('title');
-    expect(onOpen).not.toHaveBeenCalled();
+    const off = withProposals(['dueDate'], { title: TITLE, description });
+    rerender(
+      <DndContext>
+        <NoteCard
+          note={makeNote({ dueDate: null })}
+          currentUserId="user-1"
+          selected={false}
+          onOpen={vi.fn()}
+          pending={off}
+        />
+      </DndContext>,
+    );
+    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
+    expect(screen.queryByText('For the Müller quote.')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Bring back: Title Quote for Müller' }),
+    ).toBeInTheDocument();
   });
 
   it('shows the reference and each step as rows with an × each', () => {

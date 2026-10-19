@@ -15,7 +15,7 @@ describe('ReviewFooter', () => {
         onUndo={vi.fn()}
       />,
     );
-    expect(screen.getByText('Filling in…')).toBeInTheDocument();
+    expect(screen.getByText('Filling in')).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
 

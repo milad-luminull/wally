@@ -53,8 +53,17 @@ export function ReviewFooter({
   const shell = 'flex items-center gap-2 border-t border-[color:var(--note-border)] pt-2';
   if (mark.phase === 'asking')
     return (
-      <span className={cn(shell, 'text-12 text-fg-meta-on-note')} role="status">
-        {t('suggest.footer.asking')}
+      <span role="status" className="flex items-center gap-2 text-12 font-medium">
+        <span className="capture-shimmer">{t('suggest.footer.asking')}</span>
+        <span aria-hidden className="inline-flex gap-[3px]">
+          {[0, 150, 300].map((delay) => (
+            <span
+              key={delay}
+              className="capture-dot h-1 w-1 rounded-full bg-accent"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </span>
       </span>
     );
   if (mark.phase !== 'pending') return null;

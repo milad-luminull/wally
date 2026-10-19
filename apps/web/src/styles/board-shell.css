@@ -643,31 +643,86 @@
   }
 }
 
-/* A pending change's list and footer sit under the wall card as its continuation, not inside
-   the card's <button> (controls cannot nest in a button). The card squares its bottom edge
-   and the review carries the dashed edge, the fill and the shadow on to the bottom. */
-.board-shell .paper-note[data-reviewing] {
-  border-bottom-width: 0;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+/* Smarter capture under review (Paper Wall v3): one card inside a moving gradient border. The
+   wrapper's padding is the border; the card inside drops its own edge and shadow. The angle
+   turns every 3 s; under reduced motion the border stands still. */
+@property --capture-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes capture-spin {
+  to {
+    --capture-angle: 360deg;
+  }
+}
+.capture-glow {
+  padding: 1.5px;
+  border-radius: 12.5px;
+  background: conic-gradient(
+    from var(--capture-angle),
+    var(--accent),
+    color-mix(in oklab, var(--accent) 35%, white),
+    color-mix(in oklab, var(--accent) 80%, #e5484d),
+    color-mix(in oklab, var(--accent) 15%, white),
+    var(--accent)
+  );
+  box-shadow: 0 12px 30px color-mix(in oklab, var(--accent) 22%, transparent);
+  animation: capture-spin 3s linear infinite;
+}
+.board-shell .capture-glow > .paper-note {
   box-shadow: none;
-  padding-bottom: 8px;
 }
-.paper-note-review {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 248px;
-  padding: 0 14px 12px 42px;
-  border: 1px dashed var(--note-border);
-  border-top: 0;
-  border-radius: 0 0 11px 11px;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 8px 16px -12px rgba(0, 0, 0, 0.23);
-}
-.paper-zone-notes .paper-note-review {
+.paper-zone-notes .capture-glow {
   width: 100%;
+}
+.capture-glow:has(.capture-card-button:focus-visible) {
+  outline: 2px solid var(--ring-alpha);
+  outline-offset: 2px;
+}
+/* The rows and footer start at the card's edge, as in the mockup, not under the title. */
+.board-shell .capture-card-review {
+  margin-left: -28px;
+}
+/* While the call runs: the person's words shimmer, and three dots pulse after "Filling in". */
+@keyframes capture-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.capture-shimmer {
+  background: linear-gradient(90deg, var(--fg-1) 35%, var(--accent) 50%, var(--fg-1) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: capture-shimmer 1.3s linear infinite;
+}
+@keyframes capture-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.capture-dot {
+  animation: capture-dot 1s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-glow,
+  .capture-dot {
+    animation: none;
+  }
+  .capture-shimmer {
+    animation: none;
+    color: var(--fg-1);
+    background: none;
+  }
 }
 
 /* The list row's review, under the row as its continuation (see .paper-note-review). */

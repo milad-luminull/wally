@@ -14,10 +14,13 @@ export function RingCircle({
   mark,
   size,
   stroke,
+  tone = 'accent',
 }: {
   mark: RingMark;
   size: number;
   stroke: number;
+  /** The footer's ring is ink, as in Paper Wall v3; the corner dot's stays the accent. */
+  tone?: 'accent' | 'ink';
 }) {
   if (mark.countdownEndsAt === null && !mark.paused) return null;
   const r = (size - stroke) / 2;
@@ -33,7 +36,8 @@ export function RingCircle({
       transform={`rotate(-90 ${size / 2} ${size / 2})`}
       style={{ '--ring-length': `${length}px`, '--ring-ms': `${mark.countdownMs}ms` } as never}
       className={cn(
-        'stroke-accent animate-countdown motion-reduce:[animation-timing-function:steps(6,end)]',
+        tone === 'ink' ? 'stroke-[color:var(--fg-1)]' : 'stroke-accent',
+        'animate-countdown motion-reduce:[animation-timing-function:steps(6,end)]',
         // globals.css cuts every animation to 0.001ms under reduced motion, which would
         // empty the ring at once; this one keeps its length and steps instead.
         'motion-reduce:![animation-duration:var(--ring-ms)]',
@@ -62,7 +66,7 @@ export function CountdownRing({ mark, size = 16 }: { mark: RingMark; size?: numb
         strokeWidth={stroke}
         className="stroke-[color:var(--note-border)]"
       />
-      <RingCircle mark={mark} size={size} stroke={stroke} />
+      <RingCircle mark={mark} size={size} stroke={stroke} tone="ink" />
     </svg>
   );
 }

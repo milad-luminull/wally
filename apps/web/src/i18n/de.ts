@@ -584,7 +584,7 @@ export const de = {
     },
     /** The pending card's footer: the countdown, Undo and Keep. */
     footer: {
-      asking: 'Wird ausgefüllt …',
+      asking: 'Wird ausgefüllt',
       saving: 'Speichert in {{count}} s',
       paused: 'Pausiert',
       keep: 'Behalten',

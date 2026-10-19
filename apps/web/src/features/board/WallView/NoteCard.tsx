@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Check, CheckCircle2, Link2, ListChecks, Plus } from 'lucide-react';
-import { useContext, type CSSProperties, type ReactNode } from 'react';
+import { useContext, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
@@ -16,7 +16,6 @@ import { ReviewFooter } from '../Suggestions/ReviewFooter';
 import {
   pendingKeys,
   proposedDateLabel,
-  proposedTitle,
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
@@ -96,13 +95,23 @@ export function NoteCard({
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
-  // The offered title shows ticked or not, and only while the change is pending (R2).
-  const offeredTitle = !overlay && removable ? proposedTitle(pending.mark) : null;
-  const titleTaken = pending?.mark.fields.includes('title') ?? false;
-  const offeredTitleLabel =
-    offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
-  // The detail moved out of a long title rides with the offered title, in its state (R2).
-  const offeredDescription = offeredTitle ? pending?.mark.suggestion?.fields.description : null;
+  // Under review the card shows the cleaned title and its description in place while the
+  // title row is in the change (Paper Wall v3); crossed out, the person's own words come back.
+  const offered = reviewing?.mark.phase === 'pending' ? reviewing.mark.suggestion?.fields : null;
+  const titleOn = Boolean(offered?.title && reviewing?.mark.fields.includes('title'));
+  const shownTitle = titleOn ? offered!.title!.value : note.title;
+  const shownDescription =
+    titleOn && offered?.description ? offered.description.value : description;
+  const thinking = reviewing?.mark.phase === 'asking';
+  // What the corner dot used to say, for a screen reader on the focused card.
+  const reviewStatus =
+    reviewing?.mark.phase === 'pending'
+      ? t(
+          reviewing.mark.countdownEndsAt !== null || reviewing.mark.paused
+            ? 'suggest.dotAria'
+            : 'suggest.dotAriaWaiting',
+        )
+      : null;
   const referenceLabel =
     proposed.reference &&
     t('suggest.fields.reference', {
@@ -111,7 +120,9 @@ export function NoteCard({
     });
   const stepsLabel =
     proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
-  const corner = overlay || !pending ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
+  // Under review the moving border is the marker: no corner dot.
+  const corner =
+    overlay || !pending || reviewing ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
   // A tidy's corner: the waiting dot while the batch is pending, Undo once it moved (R6, R7).
   const tidyCorner = overlay || !tidy ? null : tidy.mark.phase === 'kept' ? 'undo' : 'dot';
   const tidyLine =
@@ -142,55 +153,25 @@ export function NoteCard({
         className={cn(
           'paper-note-title line-clamp-3 text-14 font-medium leading-snug text-fg-1',
           isDone && 'line-through decoration-fg-faint',
+          thinking && 'capture-shimmer',
+          offered && 'proposal-row',
           // Room for the dot, or the Undo after it, in the card's top-right corner.
           (corner === 'dot' || tidyCorner === 'dot') && 'pr-4',
           (corner === 'undo' || tidyCorner === 'undo') && 'pr-[4.5rem]',
         )}
       >
-        {note.title || t('common.untitled')}
+        {shownTitle || t('common.untitled')}
       </span>
+      {reviewStatus && <span className="sr-only">{reviewStatus}</span>}
 
-      {/* A cleaner title is a second line beside the person's own, never a replacement
-          (BRAND rule 7): a tap takes it into the change, its × keeps the person's. */}
-      {offeredTitle && offeredTitleLabel && pending && (
-        <ProposedField
-          className="-mt-1 items-start"
-          name={offeredTitleLabel}
-          label={
-            <span
-              className={cn(
-                'line-clamp-2 text-12 leading-snug',
-                titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
-              )}
-            >
-              {offeredTitleLabel}
-            </span>
-          }
-          reason={offeredTitle.reason}
-          toggle={{
-            pressed: titleTaken,
-            onToggle: () => pending.onSetField('title', !titleTaken),
-            description: t('suggest.title.take'),
-          }}
-          removeLabel={t('suggest.title.mine')}
-          onRemove={() => pending.onRemove('title')}
-        />
-      )}
-
-      {offeredDescription && (
+      {shownDescription && (
         <span
           className={cn(
-            '-mt-1 line-clamp-2 text-12 leading-snug',
-            titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
+            'paper-note-description -mt-1 text-12 leading-snug text-fg-meta-on-note',
+            offered ? 'line-clamp-2' : 'line-clamp-1',
           )}
         >
-          {offeredDescription.value}
-        </span>
-      )}
-
-      {description && (
-        <span className="paper-note-description -mt-1 line-clamp-1 text-12 leading-snug text-fg-meta-on-note">
-          {description}
+          {shownDescription}
         </span>
       )}
 
@@ -246,126 +227,127 @@ export function NoteCard({
         );
       })}
 
-      {/* Wraps when a full proposal (date, steps, priority, person, each with its ×) is
-          wider than the card, so the last values move down a line instead of being clipped. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span
-          className={cn(
-            'flex items-center gap-1 whitespace-nowrap text-12 tabular-nums',
-            dueToneClass[due.tone],
-          )}
-          style={{ fontWeight: due.weight }}
-        >
-          {isDone && <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
-          {proposed.dueDate && proposedDate ? (
+      {/* The meta line; under review every value is in the rows instead (Paper Wall v3). */}
+      {!reviewing && (
+        <div data-note-meta className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span
+            className={cn(
+              'flex items-center gap-1 whitespace-nowrap text-12 tabular-nums',
+              dueToneClass[due.tone],
+            )}
+            style={{ fontWeight: due.weight }}
+          >
+            {isDone && <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.2} />}
+            {proposed.dueDate && proposedDate ? (
+              <ProposedField
+                name={t('suggest.fields.dueDate', { date: proposedDate })}
+                label={
+                  <span
+                    className={cn(
+                      'text-12 tabular-nums',
+                      dueToneClass[
+                        dueInfo({ status: 'OPEN', dueDate: proposed.dueDate.value }, t).tone
+                      ],
+                    )}
+                  >
+                    {proposedDate}
+                  </span>
+                }
+                reason={proposed.dueDate.reason}
+                onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
+              />
+            ) : (
+              due.label
+            )}
+          </span>
+
+          {proposed.subtasks && stepsLabel ? (
             <ProposedField
-              name={t('suggest.fields.dueDate', { date: proposedDate })}
+              name={stepsLabel}
               label={
-                <span
-                  className={cn(
-                    'text-12 tabular-nums',
-                    dueToneClass[
-                      dueInfo({ status: 'OPEN', dueDate: proposed.dueDate.value }, t).tone
-                    ],
-                  )}
-                >
-                  {proposedDate}
+                <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
+                  <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+                  {stepsLabel}
                 </span>
               }
-              reason={proposed.dueDate.reason}
-              onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
+              reason={proposed.subtasks.reason}
+              onRemove={removable ? () => pending?.onRemove('subtasks') : undefined}
             />
           ) : (
-            due.label
-          )}
-        </span>
-
-        {proposed.subtasks && stepsLabel ? (
-          <ProposedField
-            name={stepsLabel}
-            label={
+            checklistLabel && (
               <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
                 <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
-                {stepsLabel}
+                {checklistLabel}
               </span>
-            }
-            reason={proposed.subtasks.reason}
-            onRemove={removable ? () => pending?.onRemove('subtasks') : undefined}
-          />
-        ) : (
-          checklistLabel && (
+            )
+          )}
+
+          {relatedCount > 0 && (
             <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
-              <ListChecks className="h-3 w-3 shrink-0" strokeWidth={1.9} />
-              {checklistLabel}
+              <Link2 className="h-3 w-3 shrink-0" strokeWidth={1.9} />
+              {t('note.related.count', { count: relatedCount })}
             </span>
-          )
-        )}
+          )}
 
-        {relatedCount > 0 && (
-          <span className="flex items-center gap-1 text-12 font-medium tabular-nums text-fg-meta-on-note">
-            <Link2 className="h-3 w-3 shrink-0" strokeWidth={1.9} />
-            {t('note.related.count', { count: relatedCount })}
-          </span>
-        )}
+          <span className="flex-1" />
 
-        <span className="flex-1" />
-
-        {proposed.priority ? (
-          <ProposedField
-            name={t(
-              proposed.priority.value === 'HOCH'
-                ? 'suggest.fields.priorityHigh'
-                : 'suggest.fields.priorityLow',
-            )}
-            label={
-              <PriorityIcon
-                priority={proposed.priority.value}
-                label={t('board.priorityPrefix', {
-                  label: priorityLabels[proposed.priority.value],
-                })}
-              />
-            }
-            reason={proposed.priority.reason}
-            onRemove={removable ? () => pending?.onRemove('priority') : undefined}
-          />
-        ) : (
-          !isDone && (
-            <PriorityIcon
-              priority={note.priority}
-              label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
+          {proposed.priority ? (
+            <ProposedField
+              name={t(
+                proposed.priority.value === 'HOCH'
+                  ? 'suggest.fields.priorityHigh'
+                  : 'suggest.fields.priorityLow',
+              )}
+              label={
+                <PriorityIcon
+                  priority={proposed.priority.value}
+                  label={t('board.priorityPrefix', {
+                    label: priorityLabels[proposed.priority.value],
+                  })}
+                />
+              }
+              reason={proposed.priority.reason}
+              onRemove={removable ? () => pending?.onRemove('priority') : undefined}
             />
-          )
-        )}
-
-        {note.visibility === 'PRIVATE' ? (
-          <PrivateBadge className="text-fg-meta-on-note" />
-        ) : proposed.assignee ? (
-          <ProposedField
-            name={t('suggest.fields.assignee', {
-              name: proposed.assignee.value.displayName ?? proposed.assignee.value.email,
-            })}
-            label={
-              <AssigneeAvatar
-                user={proposed.assignee.value}
-                isYou={proposed.assignee.value.id === currentUserId}
+          ) : (
+            !isDone && (
+              <PriorityIcon
+                priority={note.priority}
+                label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
               />
-            }
-            reason={proposed.assignee.reason}
-            onRemove={removable ? () => pending?.onRemove('assignee') : undefined}
-          />
-        ) : (
-          note.assignee && (
-            <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
-          )
-        )}
-      </div>
+            )
+          )}
+
+          {note.visibility === 'PRIVATE' ? (
+            <PrivateBadge className="text-fg-meta-on-note" />
+          ) : proposed.assignee ? (
+            <ProposedField
+              name={t('suggest.fields.assignee', {
+                name: proposed.assignee.value.displayName ?? proposed.assignee.value.email,
+              })}
+              label={
+                <AssigneeAvatar
+                  user={proposed.assignee.value}
+                  isYou={proposed.assignee.value.id === currentUserId}
+                />
+              }
+              reason={proposed.assignee.reason}
+              onRemove={removable ? () => pending?.onRemove('assignee') : undefined}
+            />
+          ) : (
+            note.assignee && (
+              <AssigneeAvatar user={note.assignee} isYou={note.assignee.id === currentUserId} />
+            )
+          )}
+        </div>
+      )}
     </>
   );
-  // The review sits under the card, not inside its <button>: controls cannot nest in a button,
-  // and the card's accessible name would take in every row and the ticking seconds.
+  // The rows and the footer sit in the card beside its <button>, never inside it: controls
+  // cannot nest in a button, and its name would take in every row and the ticking seconds.
   const review = reviewing && (
     <>
-      <ProposalList note={note} pending={reviewing} />
+      {reviewing.mark.phase === 'pending' && <ProposalList note={note} pending={reviewing} />}
       <ReviewFooter
         mark={reviewing.mark}
         onKeep={() => reviewing.onKeep('click')}
@@ -458,8 +440,7 @@ function RestingNoteCard({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
   // A copy-drag leaves the original in place: only the copy is travelling.
   const hidden = dragging || (isDragging && !copying);
-  const dashed =
-    (pending !== undefined && pending.mark.phase !== 'kept') || tidy?.mark.phase === 'pending';
+  const tidyPending = tidy?.mark.phase === 'pending';
   // A tidy waits for a yes, so its dot runs no countdown (plan R1).
   const tidyDot: DotMark | null = tidy
     ? { phase: tidy.mark.phase, countdownEndsAt: null, countdownMs: 0, paused: false }
@@ -471,6 +452,67 @@ function RestingNoteCard({
     zIndex: selected ? 20 : style?.zIndex,
   };
 
+  const keyDown = (e: KeyboardEvent<HTMLElement>) => {
+    // Enter keeps and Esc discards while a change or a tidy is pending (Esc undoes a moved
+    // tidy); every other key, every key on a card with nothing pending, and every key
+    // mid-drag (Esc cancels the drag, not the change) still reaches dnd-kit's keyboard sensor.
+    if (!isDragging && (pendingKeys(e, pending) || tidyKeys(e, tidy))) return;
+    listeners?.onKeyDown?.(e);
+  };
+
+  if (review)
+    // A change under review (Paper Wall v3): one card inside the moving border, holding the
+    // card's own button (title and words: open, drag) and the rows and footer beside it, so
+    // no control sits inside the button. The lift and the focus ring belong to the whole card.
+    return (
+      <div
+        ref={setNodeRef}
+        style={wrapperStyle}
+        data-note-id={note.id}
+        data-dragging={hidden || undefined}
+        className="relative"
+        {...pause}
+      >
+        <div
+          data-capture-card
+          className={cn(
+            'capture-glow transition-transform duration-150 ease-ds',
+            hidden ? 'invisible' : 'hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
+          )}
+        >
+          <div
+            className={cn(
+              surface,
+              'border-transparent',
+              noteColourFillClass[note.colour],
+              isDone && 'opacity-55 saturate-50',
+            )}
+          >
+            <button
+              type="button"
+              {...listeners}
+              {...attributes}
+              data-pending={pending?.mark.phase}
+              onClick={onOpen}
+              onKeyDown={keyDown}
+              className="capture-card-button flex w-full cursor-grab flex-col gap-2 text-left focus-visible:outline-none"
+            >
+              {body}
+            </button>
+            <div
+              data-note-review
+              onKeyDown={(e) => {
+                pendingKeys(e, pending);
+              }}
+              className="capture-card-review flex flex-col gap-2"
+            >
+              {review}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
   return (
     <div
       ref={setNodeRef}
@@ -478,7 +520,6 @@ function RestingNoteCard({
       data-note-id={note.id}
       data-dragging={hidden || undefined}
       className="relative"
-      // On the wrapper, so the card and its review below count as one place to hover or focus.
       {...pause}
     >
       <button
@@ -488,14 +529,7 @@ function RestingNoteCard({
         data-pending={pending?.mark.phase}
         data-tidy={tidy?.mark.phase}
         onClick={onOpen}
-        // Enter keeps and Esc discards while a change or a tidy is pending (Esc undoes a moved
-        // tidy); every other key, every key on a card with nothing pending, and every key
-        // mid-drag (Esc cancels the drag, not the change) still reaches dnd-kit's keyboard sensor.
-        onKeyDown={(e) => {
-          if (!isDragging && (pendingKeys(e, pending) || tidyKeys(e, tidy))) return;
-          listeners?.onKeyDown?.(e);
-        }}
-        data-reviewing={review ? '' : undefined}
+        onKeyDown={keyDown}
         className={cn(
           surface,
           'peer/note group/note cursor-grab',
@@ -511,9 +545,8 @@ function RestingNoteCard({
           selected
             ? 'border-transparent shadow-e2 ring-2 ring-inset ring-[color:var(--note-selected)]'
             : 'border-[color:var(--note-border)] shadow-pin',
-          // A pending change: the edge goes dashed in the note's own border colour, never
-          // marigold (BRAND job 4: marigold is the dot and its ring alone).
-          dashed && 'border-dashed',
+          // A tidy waiting for a yes: the edge goes dashed in the note's own border colour.
+          tidyPending && 'border-dashed',
           // The overlay copy is what follows the cursor, so the source is hidden outright
           // rather than left behind as a ghost. `invisible` keeps its slot, so the column
           // does not reflow under the cursor mid-drag.
@@ -524,18 +557,6 @@ function RestingNoteCard({
         )}
       >
         {body}
-        {/* The dot sits inside the card, so its label is part of the name of the control
-            that has focus: a screen reader hears that a change is counting down, or waiting
-            for Enter. It is an image, not a control, so it may sit inside the button. */}
-        {pending && pending.mark.phase !== 'kept' && (
-          <PendingDot
-            mark={pending.mark}
-            onUndo={() => pending.onUndo('click')}
-            // The footer draws the countdown ring; the corner keeps the plain marker.
-            ring={false}
-            className="pointer-events-none absolute right-2 top-2"
-          />
-        )}
         {tidyDot?.phase === 'pending' && !pending && (
           <PendingDot
             mark={tidyDot}
@@ -544,21 +565,6 @@ function RestingNoteCard({
           />
         )}
       </button>
-      {review && (
-        <div
-          data-note-review
-          onKeyDown={(e) => {
-            pendingKeys(e, pending);
-          }}
-          className={cn(
-            'paper-note-review',
-            noteColourFillClass[note.colour],
-            hidden && 'invisible',
-          )}
-        >
-          {review}
-        </div>
-      )}
       {/* Once kept, the Undo sits where the dot was, but beside the card rather than inside
           it: a button cannot sit inside the card's own. It lifts with the card on hover. */}
       {pending?.mark.phase === 'kept' && !hidden && (
