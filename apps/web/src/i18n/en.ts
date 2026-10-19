@@ -502,6 +502,13 @@ export const en = {
     },
     failed: 'No answer. Try again.',
   },
+  noteEdit: {
+    cardAria: 'Edit the note',
+    titleAria: 'Title of the note',
+    descriptionAria: 'Text of the note',
+    hint: '↵ save · ⇧↵ text · Esc keep as it was',
+    hintCoarse: 'Enter saves',
+  },
   capture: {
     cardAria: 'Write a new note',
     titleAria: 'Title of the new note',

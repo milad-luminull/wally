@@ -521,6 +521,13 @@ export const de = {
     },
     failed: 'Keine Antwort. Noch einmal versuchen.',
   },
+  noteEdit: {
+    cardAria: 'Notiz bearbeiten',
+    titleAria: 'Titel der Notiz',
+    descriptionAria: 'Text der Notiz',
+    hint: '↵ speichern · ⇧↵ Text · Esc lässt sie, wie sie war',
+    hintCoarse: 'Enter speichert',
+  },
   capture: {
     cardAria: 'Neue Notiz schreiben',
     titleAria: 'Titel der neuen Notiz',
