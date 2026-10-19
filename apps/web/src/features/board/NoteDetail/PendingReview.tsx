@@ -1,16 +1,8 @@
-import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useEnumLabels } from '@/i18n/enumLabels';
-import { suggestionFieldKeys, type NoteDto, type SuggestionFieldKey } from '@wally/shared';
+import type { NoteDto } from '@wally/shared';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  proposedDateLabel,
-  proposedTitle,
-  proposedValues,
-  type PendingProps,
-} from '../Suggestions/pendingProps';
-import { displayName } from '../util/noteDerived';
+import type { PendingProps } from '../Suggestions/pendingProps';
+import { ProposalList } from '../Suggestions/ProposalList';
 import { FieldLabel, PanelSection } from './Field';
 
 interface PendingReviewProps {
@@ -18,38 +10,13 @@ interface PendingReviewProps {
   pending: PendingProps;
 }
 
-interface Row {
-  key: string;
-  label: string;
-  checked: boolean;
-  /**
-   * No handler: the row only says what the note holds (its title, its text, a field the
-   * person set while writing). It is checked and read-only (plan R4).
-   */
-  onCheckedChange?: (on: boolean) => void;
-}
-
 /**
- * Every value the proposal offers, ticked into the change or not, where the note has room for
- * it: the review keeps an unticked row in place so it can be ticked back, while the card shows
- * only the ticked ones. The title is offered on its own terms (R2), through `proposedTitle`.
- */
-function offeredValues(note: NoteDto, pending: PendingProps) {
-  const offered = suggestionFieldKeys.filter((key) => key !== 'title');
-  return proposedValues(note, { ...pending, mark: { ...pending.mark, fields: offered } });
-}
-
-/**
- * The note panel's review of a pending change, grouped by source (WALLYBOT_INLINE.md §3.4,
- * plan R3): what the person wrote and set while writing, and what the proposal adds. Ticking
- * an added row changes the change, as the card's × does. A typed row is checked and read-only:
- * a typed value changes in the panel's own fields, which ends the pending change as any edit
- * does (R4, slice 2's stale-revision rule). Once kept, only Undo is left.
+ * The note panel's review of a pending change: the same rows as the card (Paper Wall v3), a
+ * line that says whether the change is about to be kept, and Keep and Discard; once kept, only
+ * Undo. Keep and Undo are the same button, so the keyboard stays on it across a keep.
  */
 export function PendingReview({ note, pending }: PendingReviewProps) {
-  const { t, i18n } = useTranslation();
-  const { horizon: horizonLabels } = useEnumLabels();
-  const id = useId();
+  const { t } = useTranslation();
   const { mark } = pending;
   const kept = mark.phase === 'kept';
   // A countdown paused by this panel being open still runs once it closes.
@@ -59,147 +26,6 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
     : countsDown
       ? t('suggest.review.counting')
       : t('suggest.review.waiting');
-  // The card's own words for a priority; only HOCH and NIEDRIG ever have a row.
-  const priorityLabel = (value: NoteDto['priority']) =>
-    value === 'HOCH' ? t('suggest.fields.priorityHigh') : t('suggest.fields.priorityLow');
-
-  const typed: Row[] = [
-    {
-      key: 'title',
-      label: t('suggest.review.rowTitle', { title: note.title || t('common.untitled') }),
-      checked: true,
-    },
-  ];
-  if (note.description.trim()) {
-    typed.push({ key: 'text', label: t('suggest.review.rowText'), checked: true });
-  }
-  for (const key of mark.suggestion?.typed ?? []) {
-    // Only a value the note still holds has a row; MITTEL is the note holding no priority.
-    if (key === 'dueDate' && note.dueDate) {
-      const date = proposedDateLabel(note.dueDate, i18n.language);
-      typed.push({ key, label: t('suggest.review.rowDue', { date }), checked: true });
-    } else if (key === 'priority' && note.priority !== 'MITTEL') {
-      typed.push({ key, label: priorityLabel(note.priority), checked: true });
-    } else if (key === 'assignee' && note.assignee && note.visibility !== 'PRIVATE') {
-      typed.push({
-        key,
-        label: t('suggest.review.rowAssignee', { name: displayName(note.assignee) }),
-        checked: true,
-      });
-    }
-  }
-
-  const offered = offeredValues(note, pending);
-  const ticked = (key: SuggestionFieldKey) => mark.fields.includes(key);
-  const setField = (key: SuggestionFieldKey) => (on: boolean) => pending.onSetField(key, on);
-  const added: Row[] = [];
-  const title = proposedTitle(mark);
-  if (title) {
-    added.push({
-      key: 'title',
-      label: t('suggest.title.proposed', { title: title.value }),
-      checked: ticked('title'),
-      onCheckedChange: setField('title'),
-    });
-  }
-  // The smarter-capture fields, read from the proposal itself: the title's description
-  // (taken with the title), the horizon, Private (unticked until the person takes it), and
-  // each tag and property, kept one by one.
-  const smart = mark.phase === 'pending' ? mark.suggestion?.fields : undefined;
-  if (title && smart?.description) {
-    added.push({
-      key: 'description',
-      label: t('suggest.review.rowDescription', { text: smart.description.value }),
-      checked: ticked('description'),
-      onCheckedChange: setField('description'),
-    });
-  }
-  if (smart?.horizon) {
-    added.push({
-      key: 'horizon',
-      label: t('suggest.review.rowWhen', { value: horizonLabels[smart.horizon.value] }),
-      checked: ticked('horizon'),
-      onCheckedChange: setField('horizon'),
-    });
-  }
-  if (smart?.visibility) {
-    added.push({
-      key: 'visibility',
-      label: t('suggest.review.rowPrivate'),
-      checked: ticked('visibility'),
-      onCheckedChange: setField('visibility'),
-    });
-  }
-  smart?.tags?.items.forEach((tag, index) => {
-    added.push({
-      key: `tag-${index}`,
-      label: t('suggest.review.rowTag', { tag }),
-      checked: ticked('tags') && mark.tags.includes(index),
-      onCheckedChange: (on) => pending.onSetTag(index, on),
-    });
-  });
-  smart?.properties?.items.forEach((item, index) => {
-    added.push({
-      key: `property-${index}`,
-      label: t('suggest.review.rowReference', { key: item.key, value: item.value }),
-      checked: ticked('properties') && mark.properties.includes(index),
-      onCheckedChange: (on) => pending.onSetProperty(index, on),
-    });
-  });
-  if (offered.dueDate) {
-    const date = proposedDateLabel(offered.dueDate.value, i18n.language);
-    added.push({
-      key: 'dueDate',
-      label: t('suggest.review.rowDue', { date }),
-      checked: ticked('dueDate'),
-      onCheckedChange: setField('dueDate'),
-    });
-  }
-  if (offered.priority) {
-    added.push({
-      key: 'priority',
-      label: priorityLabel(offered.priority.value),
-      checked: ticked('priority'),
-      onCheckedChange: setField('priority'),
-    });
-  }
-  if (offered.assignee) {
-    added.push({
-      key: 'assignee',
-      label: t('suggest.review.rowAssignee', { name: displayName(offered.assignee.value) }),
-      checked: ticked('assignee'),
-      onCheckedChange: setField('assignee'),
-    });
-  }
-  if (offered.reference) {
-    added.push({
-      key: 'reference',
-      label: t('suggest.review.rowReference', {
-        key: offered.reference.key,
-        value: offered.reference.value,
-      }),
-      checked: ticked('reference'),
-      onCheckedChange: setField('reference'),
-    });
-  }
-  offered.subtasks?.items.forEach((text, index) => {
-    added.push({
-      key: `step-${index}`,
-      label: t('suggest.review.rowStep', { text }),
-      checked: ticked('subtasks') && mark.subtasks.includes(index),
-      onCheckedChange: (on) => pending.onSetSubtask(index, on),
-    });
-  });
-  // A link is named by the index the proposal stored, which a keep sends: a target that
-  // dropped out on the server leaves a gap, so the row's place in the list is not its index.
-  offered.links?.items.forEach((item) => {
-    added.push({
-      key: `link-${item.index}`,
-      label: t('suggest.review.rowLink', { title: item.title || t('common.untitled') }),
-      checked: ticked('links') && mark.links.includes(item.index),
-      onCheckedChange: (on) => pending.onSetLink(item.index, on),
-    });
-  });
 
   return (
     <PanelSection>
@@ -211,25 +37,19 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
           </p>
         </div>
 
-        {!kept && (
-          <>
-            <ReviewGroup id={`${id}-typed`} label={t('suggest.review.typed')} rows={typed} />
-            {added.length > 0 && (
-              <ReviewGroup id={`${id}-added`} label={t('suggest.review.added')} rows={added} />
-            )}
-          </>
-        )}
+        {/* The same rows as the card and the list row (Paper Wall v3), so the panel and the
+            card never disagree. */}
+        {mark.phase === 'pending' && <ProposalList note={note} pending={pending} />}
 
         <div className="flex items-center gap-1.5">
           {/* One button that is Keep and then Undo: the same element, so the keyboard stays on
               it when the change is kept. Ink, not marigold: the board's "New note" is the
               screen's one accent, and marigold is the dot's alone here (BRAND, "Marigold has
-              four jobs"). Keep needs something to keep: an offered title nobody ticked is not. */}
+              four jobs"). With everything crossed out, Keep discards. */}
           <Button
             key="primary"
             variant={kept ? 'ghost' : 'default'}
             size="sm"
-            disabled={!kept && mark.fields.length === 0}
             onClick={() => (kept ? pending.onUndo('click') : pending.onKeep('click'))}
           >
             {kept ? t('suggest.review.undo') : t('suggest.review.keep')}
@@ -242,35 +62,5 @@ export function PendingReview({ note, pending }: PendingReviewProps) {
         </div>
       </div>
     </PanelSection>
-  );
-}
-
-function ReviewGroup({ id, label, rows }: { id: string; label: string; rows: Row[] }) {
-  return (
-    <div role="group" aria-labelledby={`${id}-label`} className="flex flex-col gap-1.5">
-      <div id={`${id}-label`}>
-        <FieldLabel>{label}</FieldLabel>
-      </div>
-      <ul className="flex flex-col gap-1">
-        {rows.map((row) => {
-          const rowId = `${id}-${row.key}`;
-          const readOnly = !row.onCheckedChange;
-          return (
-            <li key={row.key} className="flex min-h-7 items-center gap-2.5">
-              <Checkbox
-                id={rowId}
-                checked={row.checked}
-                disabled={readOnly}
-                aria-disabled={readOnly || undefined}
-                onCheckedChange={readOnly ? undefined : (on) => row.onCheckedChange?.(on === true)}
-              />
-              <label htmlFor={rowId} className="min-w-0 break-words text-13 leading-snug text-fg-1">
-                {row.label}
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }

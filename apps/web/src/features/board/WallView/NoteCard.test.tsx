@@ -357,10 +357,10 @@ describe('NoteCard with a pending change', () => {
       </DndContext>,
     );
     const card = () => screen.getAllByRole('button')[0]!.closest('[data-capture-card]')!;
-    expect(within(card() as HTMLElement).getAllByText('Quote for Müller')[0]).toBeInTheDocument();
+    expect(within(card() as HTMLElement).getByText('Quote for Müller')).toBeInTheDocument();
     expect(screen.getByText('For the Müller quote.')).toBeInTheDocument();
     expect(screen.queryByText('Approve the quote comparison')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Quote for Müller' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Reworded' }));
     expect(on.onSetField).toHaveBeenCalledWith('title', false);
 
     const off = withProposals(['dueDate'], { title: TITLE, description });
@@ -377,9 +377,7 @@ describe('NoteCard with a pending change', () => {
     );
     expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
     expect(screen.queryByText('For the Müller quote.')).toBeNull();
-    expect(
-      screen.getByRole('button', { name: 'Bring back: Title Quote for Müller' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bring back: Title Reworded' })).toBeInTheDocument();
   });
 
   it('shows the reference and each step as rows with an × each', () => {

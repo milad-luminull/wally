@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, within } from '@testing-library/react';
 import { useLayoutEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { DndContext } from '@dnd-kit/core';
@@ -301,10 +301,9 @@ describe('the card and the review read one mark (§3.4)', () => {
         description: null,
       },
     });
-  const row = (name: string | RegExp) =>
-    within(screen.getByRole('group', { name: 'Added by Wallybot' })).getByRole('checkbox', {
-      name,
-    });
+  /** A row's button in the panel's review, and the same row's button on the card. */
+  const inReview = (name: string | RegExp) => within(review()!).getByRole('button', { name });
+  const inCard = (name: string | RegExp) => within(card()).getByRole('button', { name });
 
   it('follows every tick in the review, and the review follows the card', async () => {
     vi.mocked(assistantApi.suggest).mockResolvedValue({ suggestion: full() });
@@ -312,33 +311,28 @@ describe('the card and the review read one mark (§3.4)', () => {
     await propose();
     open();
 
-    expect(card().querySelector('.border-dashed')).not.toBeNull();
-    const button = (name: string | RegExp) => within(card()).getByRole('button', { name });
-    expect(button('Leave out: Customer Müller GmbH')).toBeInTheDocument();
-    expect(button(/^Leave out: Step Compare/)).toBeInTheDocument();
-    expect(within(card()).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
-    const titleLine = button('Suggested: Quote for Müller');
-    expect(titleLine).toHaveAttribute('aria-pressed', 'false');
+    expect(card().querySelector('.capture-glow')).not.toBeNull();
+    // The cleaned title is on the card, in the change from the start.
+    expect(within(card()).getByText('Quote for Müller')).toBeInTheDocument();
+    expect(inCard('Leave out: Customer Müller GmbH')).toBeInTheDocument();
+    expect(inCard(/^Leave out: Step Compare/)).toBeInTheDocument();
 
-    // A row unticked in the review is crossed out on the card, ready to come back.
-    fireEvent.click(row('Customer: Müller GmbH'));
-    expect(button('Bring back: Customer Müller GmbH')).toBeInTheDocument();
-    expect(row('Customer: Müller GmbH')).not.toBeChecked();
+    // A row left out in the review is crossed out on the card, ready to come back.
+    fireEvent.click(inReview('Leave out: Customer Müller GmbH'));
+    expect(inCard('Bring back: Customer Müller GmbH')).toBeInTheDocument();
+    expect(inReview('Bring back: Customer Müller GmbH')).toBeInTheDocument();
 
-    fireEvent.click(row('Step: Compare'));
-    expect(button(/^Bring back: Step Compare/)).toBeInTheDocument();
+    fireEvent.click(inReview(/^Leave out: Step Compare/));
+    expect(inCard(/^Bring back: Step Compare/)).toBeInTheDocument();
 
-    fireEvent.click(row(/^Suggested: Quote for Müller/));
-    expect(button('Suggested: Quote for Müller')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(inReview('Leave out: Priority High'));
+    expect(inCard('Bring back: Priority High')).toBeInTheDocument();
 
-    fireEvent.click(row('High priority'));
-    expect(button('Bring back: Priority High')).toBeInTheDocument();
-
-    // The other way round: the card's × unticks the review's row, and back.
-    fireEvent.click(button(/^Leave out: Due /));
-    expect(row(/^Due /)).not.toBeChecked();
-    fireEvent.click(row(/^Due /));
-    expect(button(/^Leave out: Due /)).toBeInTheDocument();
+    // The other way round: the card's × crosses the review's row out, and back.
+    fireEvent.click(inCard(/^Leave out: Due /));
+    expect(inReview(/^Bring back: Due /)).toBeInTheDocument();
+    fireEvent.click(inReview(/^Bring back: Due /));
+    expect(inCard(/^Leave out: Due /)).toBeInTheDocument();
 
     // Keep sends exactly what is ticked in both places.
     fireEvent.click(within(review()!).getByRole('button', { name: 'Keep' }));
@@ -357,7 +351,7 @@ describe('the card and the review read one mark (§3.4)', () => {
       ],
     ]);
     expect(within(review()!).getByRole('status')).toHaveTextContent('Kept.');
-    expect(card().querySelector('.border-dashed')).toBeNull();
+    expect(card().querySelector('.capture-glow')).toBeNull();
 
     fireEvent.click(within(review()!).getByRole('button', { name: 'Undo' }));
     await advance(0);
@@ -384,13 +378,11 @@ describe('the card and the review read one mark (§3.4)', () => {
     const { open } = setup(baseNote({ dueDate: '2026-10-30' }));
     await propose();
     open();
-    expect(card().querySelector('.border-dashed')).not.toBeNull();
+    expect(card().querySelector('.capture-glow')).not.toBeNull();
 
-    const typedDue = within(screen.getByRole('group', { name: 'From what you typed' })).getByRole(
-      'checkbox',
-      { name: /^Due / },
-    );
-    // The typed row itself does nothing.
+    const typedDue = within(review()!).getByText('Due').closest('[role="listitem"]') as HTMLElement;
+    // The typed row has no control; a click on it does nothing.
+    expect(within(typedDue).queryByRole('button')).toBeNull();
     fireEvent.click(typedDue);
     await advance(0);
     expect(mark()).toBeDefined();
@@ -400,7 +392,7 @@ describe('the card and the review read one mark (§3.4)', () => {
     await advance(0);
     expect(mark()).toBeUndefined();
     expect(review()).toBeNull();
-    expect(card().querySelector('.border-dashed')).toBeNull();
+    expect(card().querySelector('.capture-glow')).toBeNull();
     // No decision is sent: the server finds the record stale on its own next read.
     expect(assistantApi.decide).not.toHaveBeenCalled();
   });

@@ -55,17 +55,14 @@ describe('NoteRow with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed left edge, the dot at the end, and the proposed fields as a list under the title', () => {
+  it('wraps the row in the moving border, with the proposed fields as rows under the title', () => {
     const p = renderRow();
     const row = rowOf();
-    // The left edge alone: `border-dashed` would dash the row's bottom divider too.
-    expect(row.className).toContain('[border-left-style:dashed]');
-    expect(row.className).not.toContain('border-dashed');
     expect(row).toHaveAttribute('data-note-id', 'note-1');
-    const dot = screen.getByRole('img', { name: /Proposed changes/ });
-    // The dot is the last thing on the row.
-    expect(dot.parentElement?.lastElementChild).toBe(dot);
-    expect(row.lastElementChild?.contains(dot)).toBe(true);
+    expect(row.closest('[data-capture-card]')?.className).toContain('capture-glow');
+    // The border marks the change: no dashed edge and no dot on the row.
+    expect(row.className).not.toContain('[border-left-style:dashed]');
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     const list = screen.getByRole('list', { name: 'Suggested fields' });
     expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
     expect(
@@ -153,42 +150,29 @@ describe('NoteRow with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
-    const onOpen = vi.fn();
-    const p = withProposals(['dueDate'], { title: TITLE });
-    const row = (q: typeof p) => (
+  it("shows the cleaned title in place; its row's × brings the person's words back", () => {
+    const description = { value: 'For the Müller quote.', reason: 'moved out' };
+    const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
+    const row = (q: typeof on) => (
       <NoteRow
         note={makeNote({ dueDate: null })}
         currentUserId="user-1"
-        onOpen={onOpen}
+        onOpen={vi.fn()}
         onToggleDone={vi.fn()}
         canEdit
         pending={q}
       />
     );
-    const { rerender } = render(row(p));
+    const { rerender } = render(row(on));
+    // The cleaned title is the row's title now; the person's words are gone from it.
+    expect(screen.getByText('Quote for Müller').closest('[data-note-id]')).not.toBeNull();
+    expect(screen.queryByText('Approve the quote comparison')).toBeNull();
+    expect(screen.getByText('For the Müller quote.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Reworded' }));
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
+    rerender(row(withProposals(['dueDate'], { title: TITLE, description })));
     expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(line).toHaveAttribute('aria-pressed', 'false');
-    // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
-    // A full-width line of its own, under the title.
-    expect(line.closest('[data-proposed]')?.className).toContain('basis-full');
-    fireEvent.click(line);
-    expect(p.onSetField).toHaveBeenCalledWith('title', true);
-    fireEvent.keyDown(line, { key: 'Enter' });
-    expect(p.onSetField).toHaveBeenCalledTimes(2);
-    expect(p.onKeep).not.toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-
-    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
-    rerender(row(taken));
-    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
-    expect(takenLine).not.toHaveAttribute('aria-description');
-    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
-    expect(taken.onRemove).toHaveBeenCalledWith('title');
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.queryByText('For the Müller quote.')).toBeNull();
   });
 
   it('shows the reference and each step as rows with an × each', () => {

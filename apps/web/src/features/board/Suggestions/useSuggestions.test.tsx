@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { SuggestionDto } from '@wally/shared';
@@ -19,8 +19,6 @@ import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
 import { COUNTDOWN_MS, KEEP_RETRY_MS, UNDO_WINDOW_MS, useSuggestions } from './useSuggestions';
 import { nextKeptStamp } from './keptOrder';
-import { PendingDot } from './PendingDot';
-import { proposedTitle } from './pendingProps';
 
 const BOARD = 'board-1';
 const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({

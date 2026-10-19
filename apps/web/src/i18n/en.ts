@@ -545,6 +545,7 @@ export const en = {
     },
     rows: {
       title: 'Title',
+      reworded: 'Reworded',
       dueDate: 'Due',
       horizon: 'When',
       priority: 'Priority',

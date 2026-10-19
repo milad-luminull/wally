@@ -48,7 +48,7 @@ describe('ProposalList', () => {
       'listitem',
     );
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^Title.*Call the dentist/),
+      expect.stringMatching(/^Title.*Reworded/),
       expect.stringMatching(/^Due.*10\/23/),
       expect.stringMatching(/^When.*This week/),
       expect.stringMatching(/^Priority.*High/),

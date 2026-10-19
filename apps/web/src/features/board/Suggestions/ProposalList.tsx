@@ -86,7 +86,8 @@ export function ProposalList({ note, pending }: { note: NoteDto; pending: Pendin
   const text = (row: ProposalRow): [label: string, value: string] => {
     switch (row.kind) {
       case 'title':
-        return [t('suggest.rows.title'), row.value];
+        // The card's title already shows the cleaned title: the row only says it was reworded.
+        return [t('suggest.rows.title'), t('suggest.rows.reworded')];
       case 'date':
         return [t('suggest.rows.dueDate'), proposedDateLabel(row.iso, i18n.language)];
       case 'horizon':

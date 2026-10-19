@@ -631,7 +631,12 @@ describe('NoteDetailPanel', () => {
       const base = makeSuggestionMark();
       return {
         mark: makeSuggestionMark({
-          suggestion: { ...base.suggestion!, typed: ['dueDate'] },
+          // The date was typed: it is on the note, and the proposal holds none of its own.
+          suggestion: {
+            ...base.suggestion!,
+            typed: ['dueDate'],
+            fields: { ...base.suggestion!.fields, dueDate: null },
+          },
           fields: ['priority', 'assignee'],
         }),
         onKeep: vi.fn(),
@@ -651,7 +656,7 @@ describe('NoteDetailPanel', () => {
       const { unmount } = renderPanel();
       await screen.findByLabelText('Title');
       expect(document.querySelector('[data-pending-review]')).toBeNull();
-      expect(screen.queryByText('Added by Wallybot')).not.toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
       unmount();
 
       vi.mocked(notesApi.get).mockResolvedValue(
@@ -661,7 +666,9 @@ describe('NoteDetailPanel', () => {
       await screen.findByLabelText('Title');
       const review = document.querySelector('[data-pending-review]');
       expect(review).not.toBeNull();
-      expect(within(review as HTMLElement).getByText('Added by Wallybot')).toBeInTheDocument();
+      expect(
+        within(review as HTMLElement).getByRole('list', { name: 'Suggested fields' }),
+      ).toBeInTheDocument();
       // Above the subtasks: the first thing under the title and the description.
       const subtasks = screen.getByText('Subtasks');
       expect(review!.compareDocumentPosition(subtasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
@@ -679,7 +686,7 @@ describe('NoteDetailPanel', () => {
      * R4 as ruled: a typed row is read-only. The typed date changes in the panel's own date
      * field, which ends the pending change as any edit does (slice 2's stale-revision rule).
      */
-    it('sends no update when a typed row is clicked (R4)', async () => {
+    it('shows a typed row with no control, and a click on it sends nothing (R4)', async () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
       vi.mocked(notesApi.get).mockResolvedValue(
@@ -689,16 +696,15 @@ describe('NoteDetailPanel', () => {
       renderPanel({ pending });
       await screen.findByLabelText('Title');
 
-      const typed = screen.getByRole('group', { name: 'From what you typed' });
-      const row = within(typed).getByRole('checkbox', { name: /^Due / });
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      const row = within(list).getByText('Due').closest('[role="listitem"]') as HTMLElement;
+      expect(within(row).queryByRole('button')).toBeNull();
       // Calls from earlier cases stay on these mocks; only what the click sends counts here.
       vi.mocked(notesApi.update).mockClear();
       vi.mocked(notesApi.move).mockClear();
       vi.mocked(notesApi.assign).mockClear();
       await user.click(row);
 
-      expect(row).toBeChecked();
-      expect(row).toBeDisabled();
       expect(notesApi.update).not.toHaveBeenCalled();
       expect(notesApi.move).not.toHaveBeenCalled();
       expect(notesApi.assign).not.toHaveBeenCalled();
@@ -732,8 +738,8 @@ describe('NoteDetailPanel', () => {
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
       await screen.findByLabelText('Title');
-      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-      const row = within(added).getAllByRole('checkbox')[0]!;
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      const row = within(list).getAllByRole('button')[0]!;
       await user.click(row);
       expect(row).toHaveFocus();
 
@@ -771,8 +777,8 @@ describe('NoteDetailPanel', () => {
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
       await screen.findByLabelText('Title');
-      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-      await user.click(within(added).getAllByRole('checkbox')[0]!);
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      await user.click(within(list).getAllByRole('button')[0]!);
       // A click on the page behind the panel: focus goes to the page.
       await user.click(document.body);
       expect(document.body).toHaveFocus();
