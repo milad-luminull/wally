@@ -352,3 +352,48 @@ review, the cleaned title shown in place until kept (Undo restores), the ink rin
 Not taken (owner's choice): a colour proposal, an estimate field, moving the card to its date's
 lane at once, a fresh blank card after Enter, the "Keep all / Undo all" bar. The countdown stays
 15 s.
+
+## Revision 2026-10-19 (2): editing the text asks again
+
+The owner's request, approved in chat: "it should be possible to edit the card text after AI
+improved it, and it should re-trigger the AI", in place on the card "the way I entered the text
+in the first place", and in the sidebar too. "Consistency is what we care about and UX is our
+first rule": the AI's result looks and moves the same on the card and in the sidebar. Editing an
+existing card behaves the same as a new one: the AI runs and its suggestion waits for Keep or Undo.
+
+### Editing in place (wall and list)
+
+- **Start.** Double-click a card's or row's text, or press F2 on a focused card or row. On a card
+  under review a single click on its title starts the edit. Only a note the person may edit.
+- **The writing card.** The card becomes the capture card's field in place, same spot and width:
+  the title (the cleaned title while the Title row is in the change) and, with Shift+Enter or
+  when it has one, the description. Typed words become chips exactly as in capture.
+- **Finish.** Enter or a click away saves; ⌘/Ctrl+Enter saves and opens the sidebar. Esc puts the
+  text back and writes nothing; it never deletes the note. Text identical to what the editor
+  opened with, with no chip kept, writes nothing and asks nothing. Both fields erased count as Esc.
+- The panel a first click opened stays open beside the edit (one note, two views of it).
+
+### Editing in the sidebar
+
+- The title and description fields show the cleaned text while the Title row is in the change.
+- One edit runs from focus entering either field until focus leaves both (or the panel closes).
+  Saving as you type is unchanged.
+
+### What a finished edit does (both places)
+
+1. Text unchanged: nothing.
+2. Text changed, on the person's own open note, with the assistant on: the waiting suggestion is
+   dropped, the note shows "Filling in", and a new suggestion arrives with the 15 s countdown
+   (held while the sidebar is open or the card hovered or focused). The call waits for the
+   edit's saves to reach the server.
+3. The re-ask locks the title, the description and the horizon (horizon stays "fresh note
+   only"), plus any field a kept chip set. It proposes only what is still empty; Private stays
+   opt-in. Nothing empty: the server answers without a model call.
+4. Somebody else's note, a done note, or the assistant off: the edit saves, nothing is asked.
+
+### One look
+
+The sidebar's review uses the card's parts: the moving border around the review, "Filling in"
+with the shimmer and dots while the call runs (on the title field too), the same rows and the
+same footer (ring, "Saves in N s" / "Paused", Undo, Keep). The "Review" label, its status
+sentence and the Keep/Discard pair go.

@@ -370,3 +370,38 @@ new property key not proposed (`props-new-key`), "sometime" not read as low prio
 - Full suite; route files one at a time.
 - Side by side with the mockup on :5300 and the preview on :5250 with everyday notes ("call
   doctor tomorrow…", "remind the team…"), wall and list, before handing over.
+
+## Revision tasks (2026-10-19 (2), spec "editing the text asks again")
+
+### Task 17: Ask again after a finished edit
+- `lib/mutationQueue.ts`: `whenSettled(resource)` resolves once the lane is idle.
+- `useSuggestions.request(noteId, locked, options?: { after?: () => Promise<void> })`: shows
+  "asking" at once, calls the API after `after()`; a newer request or Esc wins as today.
+- `Suggestions/editAsk.ts`: `EDIT_LOCKED = ['title','description','horizon']`, `editAskAllowed(note,
+  userId, enabled)` (own, OPEN), `textChanged(before, after)`.
+- Tests: request waits for `after`; Esc during the wait sends nothing; helpers' cases.
+
+### Task 18: The sidebar asks again and looks like the card
+- `NoteDetailPanel`: edit session over both text fields (focus in → snapshot, focus out of both
+  or unmount → `onTextEdited` when changed); title/description show the cleaned text while the
+  Title row is on; title shimmers while asking.
+- `PendingReview`: the card's glow, `ProposalList` and `ReviewFooter` (asking and pending), Undo
+  pill when kept. AppShell wires `onTextEdited` → request with `EDIT_LOCKED`, after the lane.
+- Tests: panel edit asks once with the locks; unchanged edit asks nothing; review renders the
+  footer while asking.
+
+### Task 19: Edit in place on the wall and the list
+- `Capture/captureField.tsx`: `MirroredField`, `fitToContent`, `withoutDropped` moved out of
+  `InlineCaptureCard` (no behaviour change).
+- `Capture/InlineNoteEditor.tsx`: the editor (prefill, chips, Enter/⌘Enter/Esc/blur, writes via
+  update/move/assign hooks, then `onDone`).
+- `Suggestions/useInlineEdit.ts` → `editFor(noteId)` (`editing`, `start`, `done`); threaded like
+  `pendingFor` through WallView, WallCanvas, ZoneBands, ListView into NoteCard and NoteRow;
+  double-click, F2, title click under review; ZoneBands double-click ignores cards.
+- Tests: editor unit tests (prefill with cleaned title, Esc writes nothing, unchanged Enter
+  writes nothing, chip kept → locked); NoteCard/NoteRow start the edit on double-click and F2.
+
+### Task 20: E2E, suite, live check
+- `e2e/capture-review.spec.ts`: inline edit of a reviewed note shows "Filling in" and a new
+  review and sends the title locked; sidebar edit does the same.
+- Full suite, live check on :5250 (wall, list, sidebar).
