@@ -525,7 +525,7 @@ export const de = {
     cardAria: 'Notiz bearbeiten',
     titleAria: 'Titel der Notiz',
     descriptionAria: 'Text der Notiz',
-    hint: '↵ speichern · ⇧↵ Text · Esc lässt sie, wie sie war',
+    hint: '↵ speichern · ⇧↵ Text · Esc abbrechen',
     hintCoarse: 'Enter speichert',
   },
   capture: {

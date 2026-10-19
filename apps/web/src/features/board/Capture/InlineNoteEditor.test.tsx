@@ -84,7 +84,7 @@ describe('InlineNoteEditor', () => {
     expect(title()).toHaveFocus();
     expect((title() as HTMLTextAreaElement).selectionStart).toBe('Call Müller'.length);
     expect(screen.getByRole('textbox', { name: 'Text of the note' })).toHaveValue('For the quote');
-    expect(title()).toHaveAccessibleDescription('↵ save · ⇧↵ text · Esc keep as it was');
+    expect(title()).toHaveAccessibleDescription('↵ save · ⇧↵ text · Esc cancel');
   });
 
   it('Esc puts the words back and writes nothing', async () => {

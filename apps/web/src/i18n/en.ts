@@ -506,7 +506,7 @@ export const en = {
     cardAria: 'Edit the note',
     titleAria: 'Title of the note',
     descriptionAria: 'Text of the note',
-    hint: '↵ save · ⇧↵ text · Esc keep as it was',
+    hint: '↵ save · ⇧↵ text · Esc cancel',
     hintCoarse: 'Enter saves',
   },
   capture: {
