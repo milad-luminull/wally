@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { api, REQUEST_TIMEOUT_MS, RequestTimeoutError } from './apiClient';
+import {
+  AI_REQUEST_TIMEOUT_MS,
+  api,
+  REQUEST_TIMEOUT_MS,
+  RequestTimeoutError,
+  TURN_REQUEST_TIMEOUT_MS,
+} from './apiClient';
 import { getFreshIdToken } from '@/features/auth/AuthProvider';
 import { failureOf } from './errors';
 import {
@@ -258,4 +264,31 @@ it('never signs anyone out when a fresh token is still refused: it is a failure 
   expect(error).toMatchObject({ status: 401 });
   expect(failureOf(error)?.kind).toBe('temporary');
   expect(getFreshIdToken).toHaveBeenCalledWith(true);
+});
+
+it('waits longer for a question to the wall than the server allows it', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          ),
+      ),
+    );
+    expect(TURN_REQUEST_TIMEOUT_MS).toBeGreaterThan(60_000);
+    let settled = false;
+    const pending = api.post('/whiteboards/b1/assistant/turns', {}, z.unknown()).catch((e) => {
+      settled = true;
+      return e;
+    });
+    await vi.advanceTimersByTimeAsync(AI_REQUEST_TIMEOUT_MS + 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(TURN_REQUEST_TIMEOUT_MS);
+    expect(await pending).toBeInstanceOf(RequestTimeoutError);
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -431,7 +431,14 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       </div>
 
       {/* A failure inside the sidebar replaces the sidebar alone; the board stays usable. */}
-      <ErrorBoundary key={viewState.noteId ?? 'none'} inline>
+      <ErrorBoundary
+        key={viewState.noteId ?? 'none'}
+        inline
+        onClose={() => {
+          setDetailExpanded(false);
+          viewState.openNote(null);
+        }}
+      >
         <NoteDetailPanel
           noteId={viewState.noteId}
           boardId={boardId}

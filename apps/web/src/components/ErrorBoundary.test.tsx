@@ -32,4 +32,16 @@ describe('ErrorBoundary', () => {
     );
     expect(screen.getByText('fine')).toBeInTheDocument();
   });
+
+  it('offers Close beside Reload where a part of the page can simply be closed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onClose = vi.fn();
+    renderWithProviders(
+      <ErrorBoundary inline onClose={onClose}>
+        <Broken />
+      </ErrorBoundary>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

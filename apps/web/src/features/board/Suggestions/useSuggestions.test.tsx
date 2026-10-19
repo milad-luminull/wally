@@ -15,6 +15,7 @@ vi.mock('@/lib/preferences', async (importOriginal) => ({
 }));
 
 import { assistantApi } from '@/lib/resources';
+import { captureMutation, enqueueMutation } from '@/lib/mutationQueue';
 import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from '../hooks/queryKeys';
 import {
@@ -468,7 +469,10 @@ describe('useSuggestions', () => {
       outcome: { kind: 'busy', canRetry: true },
     });
     act(() => result.current.retryOutcome('n1'));
-    await flush();
+    // Try again first waits for the note's saves (none here), then asks.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
     expect(assistantApi.suggest).toHaveBeenCalledTimes(2);
     expect(vi.mocked(assistantApi.suggest).mock.calls[1]![1]).toMatchObject({
       locked: ['dueDate'],
@@ -732,6 +736,47 @@ describe('useSuggestions', () => {
       await vi.advanceTimersByTimeAsync(KEEP_RETRY_MS * 4);
     });
     expect(assistantApi.decide).toHaveBeenCalledTimes(4);
+  });
+
+  it('Try again on a busy line waits for the note’s saves still on their way', async () => {
+    vi.mocked(assistantApi.suggest).mockRejectedValueOnce(
+      Object.assign(new Error('502'), { status: 502, code: 'ASSISTANT_PROVIDER_ERROR' }),
+    );
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    let land!: () => void;
+    void enqueueMutation(captureMutation('note:n1'), async () => {
+      await new Promise<void>((resolve) => (land = resolve));
+      return { data: null, revision: 4 };
+    });
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(2);
+  });
+
+  it('a second failed undo still retries as an undo, from the kept state', async () => {
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    act(() => result.current.keep('n1', 'enter'));
+    await flush();
+    vi.mocked(assistantApi.decide)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockReturnValueOnce(new Promise(() => {}));
+    act(() => result.current.undo('n1', 'click'));
+    await flush();
+    act(() => result.current.retryOutcome('n1'));
+    await flush();
+    expect(result.current.marks.get('n1')?.outcome?.kind).toBe('saveFailed');
+    act(() => result.current.retryOutcome('n1'));
+    expect(result.current.marks.get('n1')?.phase).toBe('kept');
   });
 
   it('says it could not undo, and keeps the values marked until Try again works', async () => {

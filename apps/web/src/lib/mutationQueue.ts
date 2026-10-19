@@ -158,7 +158,11 @@ export async function enqueueMutation<T>(
         // A refusal for good (no permission, gone, invalid) cannot be fixed by sending it again:
         // it is said once with its reason and rolled back, never kept to retry, and it does not
         // hold up the writes behind it.
-        if (failureOf(error)?.kind === 'refused') throw error;
+        if (failureOf(error)?.kind === 'refused') {
+          // Whatever holds the refused words (a live field, a draft) lets go of them.
+          ticket.onDiscarded?.();
+          throw error;
+        }
         selected.blocked = true;
         recoveries = [
           ...recoveries.filter((r) => r.ticket.operationId !== ticket.operationId),

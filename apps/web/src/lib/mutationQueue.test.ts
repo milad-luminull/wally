@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   captureMutation,
   enqueueMutation,
@@ -184,12 +184,17 @@ describe('whenSettled', () => {
 describe('a write the server refused for good', () => {
   it('leaves no recovery entry and does not block the next write on its lane', async () => {
     const refused = Object.assign(new Error('forbidden'), { status: 403, code: 'FORBIDDEN' });
+    const ticket = captureMutation('note:r');
+    const onDiscarded = vi.fn();
+    ticket.onDiscarded = onDiscarded;
     await expect(
-      enqueueMutation(captureMutation('note:r'), async () => {
+      enqueueMutation(ticket, async () => {
         throw refused;
       }),
     ).rejects.toBe(refused);
     expect(getRecoveries()).toEqual([]);
+    // A live field holding the refused words lets go of them.
+    expect(onDiscarded).toHaveBeenCalledTimes(1);
     await expect(
       enqueueMutation(captureMutation('note:r'), async () => ({ data: 'next', revision: 2 })),
     ).resolves.toBe('next');

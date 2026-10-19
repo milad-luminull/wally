@@ -8,6 +8,11 @@ interface Props {
   onReload?: () => void;
   /** Smaller, for a part of the page (the sidebar) rather than the whole of it. */
   inline?: boolean;
+  /**
+   * Closes the part that failed, keeping the rest of the page (and its unsaved changes);
+   * offered beside Reload.
+   */
+  onClose?: () => void;
 }
 
 /**
@@ -41,9 +46,16 @@ export class ErrorBoundary extends Component<Props, { failed: boolean }> {
       >
         <p className="text-14 font-medium text-fg-1">{i18n.t('errors.crash.title')}</p>
         <p className="text-13 text-fg-3">{i18n.t('errors.crash.hint')}</p>
-        <Button size="sm" onClick={reload}>
-          {i18n.t('errors.crash.reload')}
-        </Button>
+        <div className="flex gap-2">
+          {this.props.onClose && (
+            <Button size="sm" variant="outline" onClick={this.props.onClose}>
+              {i18n.t('common.close')}
+            </Button>
+          )}
+          <Button size="sm" onClick={reload}>
+            {i18n.t('errors.crash.reload')}
+          </Button>
+        </div>
       </div>
     );
   }

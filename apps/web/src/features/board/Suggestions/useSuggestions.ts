@@ -8,6 +8,7 @@ import { settleNoteCaches } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
 import { nextKeptStamp } from './keptOrder';
 import { failureOf } from '@/lib/errors';
+import { afterNoteSaves } from './editAsk';
 
 /** What an outcome line's Try again repeats. */
 type OutcomeRetry =
@@ -449,7 +450,8 @@ export function useSuggestions(
               return showOutcome(
                 noteId,
                 { kind: 'saveFailed', code: failure.code },
-                { kind: 'decide', body, phase: mark.phase === 'kept' ? 'kept' : 'pending' },
+                // An undo always retries from the kept state, whatever the mark shows now.
+                { kind: 'decide', body, phase: body.decision === 'undo' ? 'kept' : 'pending' },
               );
             syncPending(record, false);
             showOutcome(noteId, { kind: 'changed', code: failure.code });
@@ -832,7 +834,9 @@ export function useSuggestions(
       const retry = retries.current.get(noteId);
       if (mark?.phase !== 'outcome' || !retry) return;
       retries.current.delete(noteId);
-      if (retry.kind === 'ask') return request(noteId, retry.locked);
+      // The ask waits for the note's saves still on their way (an edit just before Try again).
+      if (retry.kind === 'ask')
+        return request(noteId, retry.locked, { after: () => afterNoteSaves(noteId) });
       // Back to where the decision was made, then the same decision again.
       reset(noteId);
       patch(noteId, { ...mark, phase: retry.phase, outcome: undefined });

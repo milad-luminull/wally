@@ -24,6 +24,11 @@ export type ApiErrorKind =
 export const REQUEST_TIMEOUT_MS = 30_000;
 /** The AI routes: the server's 20 s deadline plus its one retry. */
 export const AI_REQUEST_TIMEOUT_MS = 45_000;
+/**
+ * A question to the wall: longer than the server's 60 s turn deadline, so the app never gives
+ * up on an answer the server is still writing (asking again could repeat its writes).
+ */
+export const TURN_REQUEST_TIMEOUT_MS = 75_000;
 
 /** Typed error the TanStack Query hooks can branch on (e.g. redirect to /login on 401). */
 export class ApiError extends Error {
@@ -198,7 +203,11 @@ async function request<T>(
         buildUrl(path, options.query),
         { method, headers, body: encodedBody },
         signal,
-        asksAssistant ? AI_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+        /\/assistant\/turns$/.test(path)
+          ? TURN_REQUEST_TIMEOUT_MS
+          : asksAssistant
+            ? AI_REQUEST_TIMEOUT_MS
+            : REQUEST_TIMEOUT_MS,
       );
     };
     let res = await doFetch(false);
