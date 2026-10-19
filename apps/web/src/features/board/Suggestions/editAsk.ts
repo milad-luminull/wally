@@ -1,4 +1,5 @@
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
+import { isMutationPending, whenSettled } from '@/lib/mutationQueue';
 
 /**
  * What an edit's ask leaves alone (the smarter-capture spec, revision "editing the text asks
@@ -29,4 +30,17 @@ export function textChanged(before: NoteText, after: NoteText): boolean {
     before.title.trim() !== after.title.trim() ||
     before.description.trim() !== after.description.trim()
   );
+}
+
+/**
+ * Resolves once the note's writes have all reached the server, those still to be queued by a
+ * field flushed on blur included (its save starts a moment later), so an edit's ask reads the
+ * words the person finished with.
+ */
+export async function afterNoteSaves(noteId: string): Promise<void> {
+  const resource = `note:${noteId}`;
+  do {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await whenSettled(resource);
+  } while (isMutationPending(resource));
 }

@@ -87,30 +87,33 @@ describe('PendingReview', () => {
     expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
   });
 
-  it('Keep, Discard and Undo', async () => {
+  it('draws the card’s review: the moving border, the rows and the footer with Undo and Keep', async () => {
     const user = userEvent.setup();
     const { pending } = renderReview();
-
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for you.');
+    expect(document.querySelector('[data-pending-review].capture-glow')).not.toBeNull();
+    expect(screen.queryByText('Wallybot')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep' }));
     // A click on the review's button, recorded as one (WALLYBOT_INLINE.md §4).
     expect(pending.onKeep).toHaveBeenCalledWith('click');
     expect(pending.onKeep).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(pending.onDiscard).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });
 
-  it('says the change is applied in a moment while a countdown runs, or waits paused', () => {
-    renderReview({ countdownEndsAt: Date.now() + 4000 });
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Applied in a moment; it waits while this panel is open.',
-    );
+  it('shows "Filling in" inside the border while the call runs, and no rows yet', () => {
+    renderReview({ phase: 'asking', suggestion: null, fields: [], subtasks: [] });
+    expect(screen.getByRole('status')).toHaveTextContent('Filling in');
+    expect(document.querySelector('[data-pending-review].capture-glow')).not.toBeNull();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
   });
 
-  it('counts a countdown the open panel paused as one that runs', () => {
-    renderReview({ countdownEndsAt: null, paused: true });
-    expect(screen.getByRole('status')).toHaveTextContent('Applied in a moment');
+  it('says the seconds left while a countdown runs, and Paused while the panel holds it', () => {
+    const { moveTo } = renderReview({ countdownEndsAt: Date.now() + 15_000 });
+    expect(screen.getByText('Saves in 15 s')).toBeInTheDocument();
+    moveTo({ countdownEndsAt: null, paused: true });
+    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 
   it('offers only Undo once the change is kept', async () => {
@@ -119,7 +122,6 @@ describe('PendingReview', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Kept.');
     expect(screen.queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(pending.onUndo).toHaveBeenCalledWith('click');
@@ -129,13 +131,10 @@ describe('PendingReview', () => {
   it('gives Undo the focus once a keep pressed from the keyboard lands', async () => {
     const user = userEvent.setup();
     const { pending, moveTo } = renderReview();
-    const keep = screen.getByRole('button', { name: 'Keep' });
-    keep.focus();
+    screen.getByRole('button', { name: 'Keep' }).focus();
     await user.keyboard('{Enter}');
     expect(pending.onKeep).toHaveBeenCalledWith('click');
     moveTo({ phase: 'kept' });
-    // The same button, now Undo: the keyboard is where it was.
-    expect(screen.getByRole('button', { name: 'Undo' })).toBe(keep);
     expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus();
   });
 

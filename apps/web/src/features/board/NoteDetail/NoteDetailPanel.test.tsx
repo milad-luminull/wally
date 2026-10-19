@@ -625,6 +625,51 @@ describe('NoteDetailPanel', () => {
     });
   });
 
+  /** The smarter-capture spec, revision "editing the text asks again". */
+  describe('an edit of the text', () => {
+    it('reports one finished edit once focus leaves both text fields with the words changed', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ title: 'Quote for Anna' }));
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, ' for Anna');
+      // On into the description: still the same edit.
+      await user.click(screen.getByLabelText('Description'));
+      expect(onTextEdited).not.toHaveBeenCalled();
+      await user.click(document.body);
+      expect(onTextEdited).toHaveBeenCalledTimes(1);
+      expect(onTextEdited).toHaveBeenCalledWith('note-1');
+    });
+
+    it('reports nothing when the words did not change', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, 'x{Backspace}');
+      await user.click(document.body);
+      expect(onTextEdited).not.toHaveBeenCalled();
+    });
+
+    it('reports an edit the panel closed on', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ title: 'Quote 2' }));
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      const { unmount } = renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, ' 2');
+      unmount();
+      expect(onTextEdited).toHaveBeenCalledWith('note-1');
+    });
+  });
+
   /** The review of a pending change lives in the panel (plan R3), above everything else. */
   describe('reviewing a pending change', () => {
     function pendingFor(): PendingProps {
@@ -676,10 +721,42 @@ describe('NoteDetailPanel', () => {
       );
     });
 
-    it('shows no review while the change is still being asked for', async () => {
-      renderPanel({ pending: { ...pendingFor(), mark: makeSuggestionMark({ phase: 'asking' }) } });
-      await screen.findByLabelText('Title');
-      expect(document.querySelector('[data-pending-review]')).toBeNull();
+    it('shows "Filling in" in the review and shimmers the title while the change is asked for', async () => {
+      renderPanel({
+        pending: {
+          ...pendingFor(),
+          mark: makeSuggestionMark({ phase: 'asking', suggestion: null, fields: [] }),
+        },
+      });
+      const title = await screen.findByLabelText('Title');
+      const review = document.querySelector('[data-pending-review]') as HTMLElement;
+      expect(within(review).getByRole('status')).toHaveTextContent('Filling in');
+      expect(title).toHaveClass('capture-shimmer');
+    });
+
+    it('shows the cleaned title and its text in the fields while the Title row is in the change', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ title: 'call doc', description: '' }),
+      );
+      const base = makeSuggestionMark();
+      renderPanel({
+        pending: {
+          ...pendingFor(),
+          mark: makeSuggestionMark({
+            suggestion: {
+              ...base.suggestion!,
+              fields: {
+                ...base.suggestion!.fields,
+                title: { value: 'Call the doctor', reason: 'clearer' },
+                description: { value: 'About the check-up', reason: 'split' },
+              },
+            },
+            fields: ['title', 'description', 'priority'],
+          }),
+        },
+      });
+      expect(await screen.findByLabelText('Title')).toHaveValue('Call the doctor');
+      expect(screen.getByLabelText('Description')).toHaveValue('About the check-up');
     });
 
     /*

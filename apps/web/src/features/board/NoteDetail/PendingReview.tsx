@@ -1,9 +1,12 @@
+import { useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteDto } from '@wally/shared';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { ProposalList } from '../Suggestions/ProposalList';
-import { FieldLabel, PanelSection } from './Field';
+import { ReviewFooter } from '../Suggestions/ReviewFooter';
+import { footerAction } from '../Suggestions/footerAction';
+import { PanelSection } from './Field';
 
 interface PendingReviewProps {
   note: NoteDto;
@@ -11,54 +14,72 @@ interface PendingReviewProps {
 }
 
 /**
- * The note panel's review of a pending change: the same rows as the card (Paper Wall v3), a
- * line that says whether the change is about to be kept, and Keep and Discard; once kept, only
- * Undo. Keep and Undo are the same button, so the keyboard stays on it across a keep.
+ * The note panel's review of a change, drawn as the card draws it (the smarter-capture spec,
+ * revision "editing the text asks again": one look): inside the moving border, "Filling in"
+ * while the call runs, then the same rows and the same footer (ring, seconds or Paused, Undo,
+ * Keep). Once kept, the border goes and only Undo stays, as the card's corner does. A keep
+ * pressed from the keyboard hands the focus to that Undo, so the keyboard is never dropped.
  */
 export function PendingReview({ note, pending }: PendingReviewProps) {
   const { t } = useTranslation();
   const { mark } = pending;
   const kept = mark.phase === 'kept';
-  // A countdown paused by this panel being open still runs once it closes.
-  const countsDown = mark.countdownEndsAt !== null || mark.paused;
-  const status = kept
-    ? t('suggest.review.kept')
-    : countsDown
-      ? t('suggest.review.counting')
-      : t('suggest.review.waiting');
+  /** Whether Keep held the focus last: then the kept Undo takes it over. */
+  const keepHadFocus = useRef(false);
+  const undoRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    if (!kept) return;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (keepHadFocus.current && lost) undoRef.current?.focus({ preventScroll: true });
+    keepHadFocus.current = false;
+  }, [kept]);
+
+  if (kept)
+    return (
+      <PanelSection>
+        <div data-pending-review className="flex items-center gap-2">
+          <p role="status" className="min-w-0 flex-1 text-12 text-fg-meta-on-note">
+            {t('suggest.review.kept')}
+          </p>
+          <span
+            ref={undoRef}
+            role="button"
+            tabIndex={0}
+            onClick={() => pending.onUndo('click')}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              pending.onUndo('click');
+            }}
+            className={cn(
+              footerAction,
+              'border border-[color:var(--note-border)] text-fg-1 hover:bg-inset-hover',
+            )}
+          >
+            {t('suggest.undo')}
+          </span>
+        </div>
+      </PanelSection>
+    );
 
   return (
     <PanelSection>
-      <div data-pending-review className="flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <FieldLabel>{t('suggest.review.label')}</FieldLabel>
-          <p role="status" className="text-12 leading-snug text-fg-3">
-            {status}
-          </p>
-        </div>
-
-        {/* The same rows as the card and the list row (Paper Wall v3), so the panel and the
-            card never disagree. */}
-        {mark.phase === 'pending' && <ProposalList note={note} pending={pending} />}
-
-        <div className="flex items-center gap-1.5">
-          {/* One button that is Keep and then Undo: the same element, so the keyboard stays on
-              it when the change is kept. Ink, not marigold: the board's "New note" is the
-              screen's one accent, and marigold is the dot's alone here (BRAND, "Marigold has
-              four jobs"). With everything crossed out, Keep discards. */}
-          <Button
-            key="primary"
-            variant={kept ? 'ghost' : 'default'}
-            size="sm"
-            onClick={() => (kept ? pending.onUndo('click') : pending.onKeep('click'))}
-          >
-            {kept ? t('suggest.review.undo') : t('suggest.review.keep')}
-          </Button>
-          {!kept && (
-            <Button key="discard" variant="ghost" size="sm" onClick={pending.onDiscard}>
-              {t('suggest.review.discard')}
-            </Button>
-          )}
+      <div
+        data-pending-review
+        data-capture-card
+        className="capture-glow"
+        onFocusCapture={(e) => {
+          keepHadFocus.current =
+            e.target instanceof Element && e.target.closest('[data-review-keep]') !== null;
+        }}
+      >
+        <div className="flex flex-col gap-2 rounded-[11px] bg-surface px-3.5 py-3">
+          {mark.phase === 'pending' && <ProposalList note={note} pending={pending} />}
+          <ReviewFooter
+            mark={mark}
+            onKeep={() => pending.onKeep('click')}
+            onUndo={pending.onDiscard}
+          />
         </div>
       </div>
     </PanelSection>

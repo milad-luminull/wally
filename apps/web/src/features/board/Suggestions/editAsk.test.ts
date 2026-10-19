@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NoteDto } from '@wally/shared';
-import { EDIT_LOCKED, editAskAllowed, textChanged } from './editAsk';
+import { captureMutation, enqueueMutation } from '@/lib/mutationQueue';
+import { EDIT_LOCKED, afterNoteSaves, editAskAllowed, textChanged } from './editAsk';
 
 const note = (over: Partial<NoteDto> = {}) =>
   ({
@@ -37,5 +38,21 @@ describe('asking again after an edit', () => {
     expect(textChanged(before, { title: 'Call doctor', description: 'about the check' })).toBe(
       true,
     );
+  });
+});
+
+describe('afterNoteSaves', () => {
+  it('waits for a save queued just after the edit finished', async () => {
+    const order: string[] = [];
+    const waiting = afterNoteSaves('n9').then(() => order.push('ask'));
+    // The field's flush queues its save a moment after the blur, as TanStack's mutate does.
+    await Promise.resolve();
+    void enqueueMutation(captureMutation('note:n9'), async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      order.push('save');
+      return { data: null, revision: 2 };
+    });
+    await waiting;
+    expect(order).toEqual(['save', 'ask']);
   });
 });

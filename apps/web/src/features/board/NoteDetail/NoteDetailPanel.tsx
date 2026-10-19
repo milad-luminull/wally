@@ -1,6 +1,6 @@
 import { RelatedNotes } from './RelatedNotes';
 import { useAddLink, useRemoveLink } from '../hooks/mutations/useLinkMutations';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
@@ -54,7 +54,8 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
-import type { PendingProps } from '../Suggestions/pendingProps';
+import { shownText, type PendingProps } from '../Suggestions/pendingProps';
+import { textChanged, type NoteText } from '../Suggestions/editAsk';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
@@ -87,6 +88,12 @@ interface NoteDetailPanelProps {
   currentUserId: string | undefined;
   /** The open note's pending change, reviewed at the top of the panel (plan R3). */
   pending?: PendingProps;
+  /**
+   * Hears an edit of the title or the text that changed the words, once it is finished: focus
+   * left both fields, or the panel closed on it (the smarter-capture spec, revision "editing the
+   * text asks again"). The shell decides whether Wallybot asks again.
+   */
+  onTextEdited?: (noteId: string) => void;
 }
 
 export function NoteDetailPanel({
@@ -100,6 +107,7 @@ export function NoteDetailPanel({
   onOpenNote,
   currentUserId,
   pending,
+  onTextEdited,
 }: NoteDetailPanelProps) {
   const { t } = useTranslation();
   useEscapeToClose(onClose, !isBelowDesktop && Boolean(noteId));
@@ -119,6 +127,7 @@ export function NoteDetailPanel({
               onOpenNote={onOpenNote}
               currentUserId={currentUserId}
               pending={pending}
+              onTextEdited={onTextEdited}
               autoFocusTitle={false}
             />
           )}
@@ -150,6 +159,7 @@ export function NoteDetailPanel({
         onOpenNote={onOpenNote}
         currentUserId={currentUserId}
         pending={pending}
+        onTextEdited={onTextEdited}
         autoFocusTitle
       />
     </aside>
@@ -166,6 +176,7 @@ interface ContentProps {
   onOpenNote: (noteId: string) => void;
   currentUserId: string | undefined;
   pending: PendingProps | undefined;
+  onTextEdited?: (noteId: string) => void;
   autoFocusTitle: boolean;
 }
 
@@ -179,6 +190,7 @@ function NoteDetailContent({
   onOpenNote,
   currentUserId,
   pending,
+  onTextEdited,
   autoFocusTitle,
 }: ContentProps) {
   const { t } = useTranslation();
@@ -241,6 +253,43 @@ function NoteDetailContent({
   });
   const titleRef = title.ref;
 
+  /*
+   * One edit of the words runs from focus entering the title or the text until it leaves both
+   * (or the panel closes on it). While a change waits with the Title row in it, the fields show
+   * the cleaned title and its text; the first keystroke takes both as the person's own, so the
+   * edit starts from what they saw. A finished edit that changed the words is reported once.
+   */
+  const shown = shownText(note ?? { title: '', description: '' }, pending);
+  const [adopted, setAdopted] = useState(false);
+  const fromShown = shown.cleaned && !adopted;
+  const shownTitle = fromShown ? shown.title : title.value;
+  const shownDescription = fromShown ? shown.description : description.value;
+  const textNow = useRef({ title: shownTitle, description: shownDescription });
+  textNow.current = { title: shownTitle, description: shownDescription };
+  // An edit is measured from the note's words (or the cleaned ones), never from the field: the
+  // panel focuses the title on open a moment before the loaded words reach it.
+  const textBefore = useRef({ title: shown.title, description: shown.description });
+  textBefore.current = { title: shown.title, description: shown.description };
+  const editStart = useRef<NoteText | null>(null);
+  const reportEdit = useRef(onTextEdited);
+  reportEdit.current = onTextEdited;
+  const finishEdit = useCallback((id: string) => {
+    const before = editStart.current;
+    editStart.current = null;
+    setAdopted(false);
+    if (before && textChanged(before, textNow.current)) reportEdit.current?.(id);
+  }, []);
+  // The panel closing (or moving to another note) mid-edit finishes the edit it was in.
+  useEffect(() => () => finishEdit(noteId), [finishEdit, noteId]);
+  /** The first keystroke of an edit that started from the cleaned words takes both fields. */
+  function adoptShown(edited: 'title' | 'description') {
+    if (!fromShown) return;
+    setAdopted(true);
+    if (edited !== 'title' && shown.title !== title.value) title.onChange(shown.title);
+    if (edited !== 'description' && shown.description !== description.value)
+      description.onChange(shown.description);
+  }
+
   const noteReady = Boolean(note);
   useEffect(() => {
     if (autoFocusTitle && noteReady && titleRef.current) {
@@ -260,7 +309,7 @@ function NoteDetailContent({
    * carries on through the panel, never on the page behind it. Focus the person moved out of
    * the review first (a click on the page, a field in the panel) is theirs and stays there.
    */
-  const showReview = Boolean(pending && pending.mark.phase !== 'asking');
+  const showReview = Boolean(pending);
   const closeRef = useRef<HTMLButtonElement>(null);
   const reviewHadFocus = useRef(false);
   useLayoutEffect(() => {
@@ -391,11 +440,23 @@ function NoteDetailContent({
         }}
         className="wally-scroll min-h-0 flex-1 overflow-y-auto"
       >
-        <div className="px-5 pb-4 pt-5">
+        <div
+          className="px-5 pb-4 pt-5"
+          onFocus={() => {
+            editStart.current ??= { ...textBefore.current };
+          }}
+          onBlur={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+            finishEdit(noteId);
+          }}
+        >
           <textarea
             ref={titleRef}
-            value={title.value}
-            onChange={(e) => title.onChange(e.target.value)}
+            value={shownTitle}
+            onChange={(e) => {
+              adoptShown('title');
+              title.onChange(e.target.value);
+            }}
             onBlur={title.onBlur}
             onKeyDown={(e) => {
               // One line of meaning, even when it wraps: Enter finishes the title.
@@ -417,14 +478,19 @@ function NoteDetailContent({
               'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
               isDone && 'text-fg-3 line-through decoration-fg-faint',
+              // Wallybot is reading the note: the same shimmer as the card's title.
+              pending?.mark.phase === 'asking' && 'capture-shimmer',
             )}
           />
           {/* Deliberately bare: no label, no border, no toolbar — it reads as the line under
               the title until you write in it. Enter is a new line here, unlike the title. */}
           <textarea
             ref={description.ref}
-            value={description.value}
-            onChange={(e) => description.onChange(e.target.value)}
+            value={shownDescription}
+            onChange={(e) => {
+              adoptShown('description');
+              description.onChange(e.target.value);
+            }}
             onBlur={description.onBlur}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -442,7 +508,7 @@ function NoteDetailContent({
               'mt-1 block w-full resize-none overflow-hidden rounded-md bg-transparent text-14 leading-relaxed text-fg-2 outline-none',
               'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
-              disabled && !description.value && 'hidden',
+              disabled && !shownDescription && 'hidden',
             )}
           />
         </div>

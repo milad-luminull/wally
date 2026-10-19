@@ -702,6 +702,12 @@
   color: transparent;
   animation: capture-shimmer 1.3s linear infinite;
 }
+/* A field being typed in never shimmers: the person's own words stay plain under the caret. */
+textarea.capture-shimmer:focus {
+  animation: none;
+  background: none;
+  color: var(--fg-1);
+}
 @keyframes capture-dot {
   0%,
   100% {

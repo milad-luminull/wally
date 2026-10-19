@@ -2,6 +2,7 @@ import { useEffect, useState, type KeyboardEvent, type SyntheticEvent } from 're
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/cn';
 import { CountdownRing } from './CountdownRing';
+import { footerAction } from './footerAction';
 import type { SuggestionMark } from './useSuggestions';
 
 const stop = (e: SyntheticEvent) => e.stopPropagation();
@@ -24,13 +25,6 @@ function useSecondsLeft(endsAt: number | null): number | null {
   }, [endsAt]);
   return endsAt === null ? null : Math.max(1, Math.ceil((endsAt - now) / 1000));
 }
-
-const action = cn(
-  'inline-flex h-6 cursor-pointer items-center rounded-full px-2.5 text-12 font-medium',
-  'transition-colors duration-150',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
-  '[@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:px-4',
-);
 
 /**
  * The foot of a pending card or row (the smarter-capture spec §5, after Paper Wall v3): while
@@ -91,7 +85,7 @@ export function ReviewFooter({
         onClick={onUndo}
         onKeyDown={onPress(onUndo)}
         className={cn(
-          action,
+          footerAction,
           'border border-[color:var(--note-border)] text-fg-1 hover:bg-inset-hover',
         )}
       >
@@ -100,9 +94,10 @@ export function ReviewFooter({
       <span
         role="button"
         tabIndex={0}
+        data-review-keep
         onClick={onKeep}
         onKeyDown={onPress(onKeep)}
-        className={cn(action, 'bg-primary text-primary-foreground hover:opacity-90')}
+        className={cn(footerAction, 'bg-primary text-primary-foreground hover:opacity-90')}
       >
         {t('suggest.footer.keep')}
       </span>

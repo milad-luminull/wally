@@ -592,14 +592,8 @@ export const de = {
     },
     /** The note panel's review of a pending change, grouped by source (§3.4, plan R3, R4). */
     review: {
-      label: 'Wallybot',
       typed: 'Aus deinem Text',
       added: 'Von Wallybot ergänzt',
-      keep: 'Behalten',
-      discard: 'Verwerfen',
-      undo: 'Rückgängig',
-      waiting: 'Wartet auf dich.',
-      counting: 'Wird gleich übernommen; solange das Fenster offen ist, wartet es.',
       kept: 'Übernommen.',
       rowTitle: 'Titel: {{title}}',
       rowText: 'Text',

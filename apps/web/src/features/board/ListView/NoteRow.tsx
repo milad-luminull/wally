@@ -16,6 +16,7 @@ import {
   pendingKeys,
   proposedDateLabel,
   proposedValues,
+  shownText,
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
@@ -59,10 +60,7 @@ export function NoteRow({
   // Under review the row shows the cleaned title and its description in place while the title
   // row is in the change (Paper Wall v3); crossed out, the person's own words come back.
   const offered = reviewing?.mark.phase === 'pending' ? reviewing.mark.suggestion?.fields : null;
-  const titleOn = Boolean(offered?.title && reviewing?.mark.fields.includes('title'));
-  const shownTitle = titleOn ? offered!.title!.value : note.title;
-  const shownDescription =
-    titleOn && offered?.description ? offered.description.value : note.description.trim();
+  const { title: shownTitle, description: shownDescription } = shownText(note, reviewing);
   const thinking = reviewing?.mark.phase === 'asking';
   // What the dot used to say, for a screen reader on the focused row.
   const reviewStatus =

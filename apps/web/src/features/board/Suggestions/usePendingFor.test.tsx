@@ -192,7 +192,7 @@ describe('the panel holds the countdown of the note it shows (R3)', () => {
     open();
     expect(mark()?.paused).toBe(true);
     expect(mark()?.countdownEndsAt).toBeNull();
-    expect(within(review()!).getByRole('status')).toHaveTextContent('Applied in a moment');
+    expect(within(review()!).getByText('Paused')).toBeInTheDocument();
     // Far past the countdown: nothing is kept while the review is open.
     await advance(COUNTDOWN_MS * 5);
     expect(keeps()).toHaveLength(0);

@@ -17,6 +17,7 @@ import {
   pendingKeys,
   proposedDateLabel,
   proposedValues,
+  shownText,
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
@@ -79,7 +80,6 @@ export function NoteCard({
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const due = dueInfo(note, t);
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
-  const description = note.description.trim();
   const isDone = note.status === 'DONE';
   const copying = useContext(CopyDragContext);
   // The overlay is a picture of the card in flight: it shows the note as it stands. A pending
@@ -98,10 +98,7 @@ export function NoteCard({
   // Under review the card shows the cleaned title and its description in place while the
   // title row is in the change (Paper Wall v3); crossed out, the person's own words come back.
   const offered = reviewing?.mark.phase === 'pending' ? reviewing.mark.suggestion?.fields : null;
-  const titleOn = Boolean(offered?.title && reviewing?.mark.fields.includes('title'));
-  const shownTitle = titleOn ? offered!.title!.value : note.title;
-  const shownDescription =
-    titleOn && offered?.description ? offered.description.value : description;
+  const { title: shownTitle, description: shownDescription } = shownText(note, reviewing);
   const thinking = reviewing?.mark.phase === 'asking';
   // What the corner dot used to say, for a screen reader on the focused card.
   const reviewStatus =
