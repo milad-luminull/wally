@@ -4,7 +4,8 @@ import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
 import { cn } from '@/lib/cn';
-import { proposedDateLabel, type PendingProps } from './pendingProps';
+import { dueInfo } from '../util/noteDerived';
+import type { PendingProps } from './pendingProps';
 import { proposalRows, type ProposalRow } from './proposalRows';
 
 const stop = (e: SyntheticEvent) => e.stopPropagation();
@@ -76,7 +77,7 @@ function RowToggle({
  * it back. Rows fade and rise in one after another; none of it moves under reduced motion.
  */
 export function ProposalList({ note, pending }: { note: NoteDto; pending: PendingProps }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { priority: priorityLabels, horizon: horizonLabels } = useEnumLabels();
   const rows = proposalRows(note, pending.mark);
   if (rows.length === 0) return null;
@@ -89,7 +90,8 @@ export function ProposalList({ note, pending }: { note: NoteDto; pending: Pendin
         // The card's title already shows the cleaned title: the row only says it was reworded.
         return [t('suggest.rows.title'), t('suggest.rows.reworded')];
       case 'date':
-        return [t('suggest.rows.dueDate'), proposedDateLabel(row.iso, i18n.language)];
+        // Worded as the card's own meta line words a date: Today, Tomorrow, Fri…
+        return [t('suggest.rows.dueDate'), dueInfo({ status: 'OPEN', dueDate: row.iso }, t).label];
       case 'horizon':
         return [t('suggest.rows.horizon'), horizonLabels[row.value]];
       case 'priority':
@@ -114,7 +116,7 @@ export function ProposalList({ note, pending }: { note: NoteDto; pending: Pendin
   return (
     <span
       data-proposal-list
-      className="flex flex-col gap-1.5 border-t border-[color:var(--note-border)] pt-1.5"
+      className="flex flex-col gap-1.5"
       onPointerDown={stop}
       onMouseDown={stop}
       onClick={stop}

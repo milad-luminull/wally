@@ -137,18 +137,13 @@ export function NoteCard({
 
   const body = (
     <>
-      {/* Hidden, not removed, while a change is under review: a stray click must not
-          complete a note whose proposal is still open, and the title must not jump. */}
-      <span
-        className={cn(
-          'paper-note-status',
-          isDone && 'paper-note-status-done',
-          reviewing && 'invisible',
-        )}
-        aria-hidden
-      >
-        {isDone && <Check size={11} strokeWidth={3} />}
-      </span>
+      {/* Not drawn while a change is under review: a stray click must not complete a note
+          whose proposal is still open, and the title then lines up with the rows below it. */}
+      {!reviewing && (
+        <span className={cn('paper-note-status', isDone && 'paper-note-status-done')} aria-hidden>
+          {isDone && <Check size={11} strokeWidth={3} />}
+        </span>
+      )}
       <span
         className={cn(
           'paper-note-title line-clamp-3 text-14 font-medium leading-snug text-fg-1',

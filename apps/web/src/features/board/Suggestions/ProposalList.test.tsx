@@ -4,6 +4,10 @@ import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionMark } from './useSuggestions';
 import type { PendingProps } from './pendingProps';
 import { ProposalList } from './ProposalList';
+import { i18n } from '@/i18n';
+import { dueInfo } from '../util/noteDerived';
+/** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
+const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 
 const base = makeSuggestionMark();
 const note = makeNote({ dueDate: null, priority: 'MITTEL', assignee: null });
@@ -49,7 +53,7 @@ describe('ProposalList', () => {
     );
     expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringMatching(/^Title.*Reworded/),
-      expect.stringMatching(/^Due.*10\/23/),
+      expect.stringContaining(`Due${dueWords('2026-10-23')}`),
       expect.stringMatching(/^When.*This week/),
       expect.stringMatching(/^Priority.*High/),
       expect.stringMatching(/^Private/),
@@ -81,7 +85,7 @@ describe('ProposalList', () => {
       />,
     );
     const due = screen.getByText('Due').closest('[role="listitem"]') as HTMLElement;
-    expect(due.textContent).toMatch(/10\/20/);
+    expect(due.textContent).toBe(`Due${dueWords('2026-10-20')}`);
     expect(within(due).queryByRole('button')).toBeNull();
   });
 
@@ -127,6 +131,11 @@ describe('ProposalList', () => {
     render(<ProposalList note={note} pending={pending()} />);
     const row = screen.getByText('This week').closest('[role="listitem"]')!;
     expect(row).toHaveAttribute('aria-description', 'Because: "this week"');
+  });
+
+  it('draws no line above the rows', () => {
+    render(<ProposalList note={note} pending={pending()} />);
+    expect(document.querySelector('[data-proposal-list]')?.className).not.toMatch(/border-t/);
   });
 
   it('a press on a row never reaches the card underneath', () => {

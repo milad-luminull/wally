@@ -7,6 +7,10 @@ import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import type { TidyMark } from '../Tidy/useTidy';
 import { NoteCard } from './NoteCard';
+import { i18n } from '@/i18n';
+import { dueInfo } from '../util/noteDerived';
+/** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
+const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 
 /**
  * Regression cover for two drag defects, both caused by animating note cards on mount.
@@ -203,7 +207,7 @@ describe('NoteCard with a pending change', () => {
     // The border and the rows mark the change; there is no corner dot any more.
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     const list = screen.getByRole('list', { name: 'Suggested fields' });
-    expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(within(list).getByText(dueWords('2026-10-23'))).toBeInTheDocument();
     expect(
       within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
@@ -221,7 +225,8 @@ describe('NoteCard with a pending change', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(p.onDiscard).toHaveBeenCalledTimes(1);
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
-    expect(card.querySelector('.paper-note-status')?.className).toContain('invisible');
+    // The done circle leaves the card under review, so the title lines up with the rows.
+    expect(card.querySelector('.paper-note-status')).toBeNull();
   });
 
   it("the list and footer sit beside the card's button, so its name stays the note", () => {

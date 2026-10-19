@@ -680,9 +680,10 @@
   outline: 2px solid var(--ring-alpha);
   outline-offset: 2px;
 }
-/* The rows and footer start at the card's edge, as in the mockup, not under the title. */
-.board-shell .capture-card-review {
-  margin-left: -28px;
+/* Under review the done circle is not drawn, so the title, the rows and the footer share one
+   left edge: the card's own padding. */
+.board-shell .capture-glow > .paper-note {
+  padding-left: 14px;
 }
 /* While the call runs: the person's words shimmer, and three dots pulse after "Filling in". */
 @keyframes capture-shimmer {
@@ -734,6 +735,8 @@
   box-shadow: none;
   background: transparent;
   padding-bottom: 6px;
+  /* No done box under review: the title takes its column, on the rows' left edge. */
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .capture-row-review {
   display: flex;

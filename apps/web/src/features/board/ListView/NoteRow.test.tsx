@@ -4,6 +4,10 @@ import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteRow } from './NoteRow';
+import { i18n } from '@/i18n';
+import { dueInfo } from '../util/noteDerived';
+/** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
+const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 
 // The rows sort in the reader's language, which useLanguage supplies outside a provider here.
 const reader = vi.hoisted(() => ({ language: 'en' as 'de' | 'en' }));
@@ -64,7 +68,7 @@ describe('NoteRow with a pending change', () => {
     expect(row.className).not.toContain('[border-left-style:dashed]');
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     const list = screen.getByRole('list', { name: 'Suggested fields' });
-    expect(within(list).getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(within(list).getByText(dueWords('2026-10-23'))).toBeInTheDocument();
     expect(
       within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
@@ -73,7 +77,8 @@ describe('NoteRow with a pending change', () => {
     // The footer keeps and undoes; the done checkbox waits until the change is decided.
     fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
     expect(p.onKeep).toHaveBeenCalledWith('click');
-    expect(screen.getByRole('checkbox').className).toContain('invisible');
+    // The done box leaves the row under review, so the title lines up with the rows below.
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 
   it('the list and footer sit beside the row, not inside its button role', () => {
@@ -123,15 +128,15 @@ describe('NoteRow with a pending change', () => {
     expect(p.onPause).toHaveBeenCalledTimes(2);
   });
 
-  it('stays paused while focus moves from the row to a control inside it', () => {
+  it('stays paused while focus moves from the row to a control in its card', () => {
     const p = renderRow();
     const row = rowOf();
-    const checkbox = screen.getByRole('checkbox');
+    const control = screen.getByRole('button', { name: 'Leave out: Priority High' });
     fireEvent.focus(row);
-    fireEvent.blur(row, { relatedTarget: checkbox });
-    fireEvent.focus(checkbox);
+    fireEvent.blur(row, { relatedTarget: control });
+    fireEvent.focus(control);
     expect(p.onPause).toHaveBeenCalledTimes(1);
-    fireEvent.blur(checkbox);
+    fireEvent.blur(control);
     expect(p.onPause).toHaveBeenLastCalledWith(false);
   });
 

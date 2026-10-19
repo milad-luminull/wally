@@ -40,6 +40,11 @@ describe('ReviewFooter', () => {
     expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 
+  it('draws no line above the footer', () => {
+    render(<ReviewFooter mark={makeSuggestionMark()} onKeep={vi.fn()} onUndo={vi.fn()} />);
+    expect(document.querySelector('[data-review-footer]')?.className).not.toMatch(/border-t/);
+  });
+
   it('says nothing about time when no countdown runs', () => {
     render(
       <ReviewFooter

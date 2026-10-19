@@ -141,15 +141,17 @@ export function NoteRow({
         '[@media(pointer:coarse)]:min-h-12',
       )}
     >
-      <Checkbox
-        checked={isDone}
-        onClick={handleCheckboxClick}
-        disabled={!canEdit}
-        aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
-        // Hidden, not removed, while a change is under review: a stray click must not
-        // complete a note whose proposal is still open.
-        className={cn('paper-row-status shrink-0', reviewing && 'invisible')}
-      />
+      {/* Not drawn while a change is under review: a stray click must not complete a note
+          whose proposal is still open, and the title then lines up with the rows below it. */}
+      {!reviewing && (
+        <Checkbox
+          checked={isDone}
+          onClick={handleCheckboxClick}
+          disabled={!canEdit}
+          aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
+          className="paper-row-status shrink-0"
+        />
+      )}
 
       <div
         className={cn(

@@ -50,7 +50,7 @@ export function ReviewFooter({
 }) {
   const { t } = useTranslation();
   const seconds = useSecondsLeft(mark.phase === 'pending' ? mark.countdownEndsAt : null);
-  const shell = 'flex items-center gap-2 border-t border-[color:var(--note-border)] pt-2';
+  const shell = 'flex items-center gap-2 pt-1';
   if (mark.phase === 'asking')
     return (
       <span role="status" className="flex items-center gap-2 text-12 font-medium">
