@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeSuggestionMark } from '@/test/fixtures';
+import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import { proposalRows } from './proposalRows';
 
 describe('proposalRows', () => {
@@ -20,19 +20,21 @@ describe('proposalRows', () => {
     properties: { items: [{ key: 'Customer', value: 'Acme' }], reason: 'named' },
     description: { value: 'The detail.', reason: 'moved' },
   };
+  const plain = makeNote({ dueDate: null, priority: 'MITTEL', assignee: null });
 
-  it('lists every proposed item in order, crossed-out ones with on: false', () => {
+  it('lists the title first, then every proposed item in order, crossed-out ones with on: false', () => {
     const base = makeSuggestionMark();
     const mark = makeSuggestionMark({
       suggestion: { ...base.suggestion!, fields },
-      fields: ['dueDate', 'subtasks', 'links', 'horizon', 'tags', 'properties'],
+      fields: ['dueDate', 'title', 'subtasks', 'links', 'horizon', 'tags', 'properties'],
       subtasks: [1],
       links: [2],
       tags: [0],
       properties: [0],
     });
-    const rows = proposalRows(mark);
+    const rows = proposalRows(plain, mark);
     expect(rows.map((r) => [r.kind, r.field, r.index ?? null, r.on])).toEqual([
+      ['title', 'title', null, true],
       ['date', 'dueDate', null, true],
       ['horizon', 'horizon', null, true],
       ['priority', 'priority', null, false],
@@ -40,16 +42,32 @@ describe('proposalRows', () => {
       ['property', 'properties', 0, true],
       ['tag', 'tags', 0, true],
       ['tag', 'tags', 1, false],
+      ['link', 'links', 2, true],
       ['step', 'subtasks', 0, false],
       ['step', 'subtasks', 1, true],
-      ['link', 'links', 2, true],
     ]);
+    expect(rows[0]).toMatchObject({ value: 'Smart note' });
     expect(rows.find((r) => r.kind === 'tag' && r.index === 1)).toMatchObject({
       value: 'sales',
       reason: 'tags',
     });
-    // The title and its description are on the title line, not in the list.
-    expect(rows.some((r) => r.field === 'title' || r.field === 'description')).toBe(false);
+  });
+
+  it("shows what the person typed as fixed rows, with the note's own values", () => {
+    const base = makeSuggestionMark();
+    const mark = makeSuggestionMark({
+      suggestion: {
+        ...base.suggestion!,
+        typed: ['dueDate', 'priority'],
+        fields: { ...base.suggestion!.fields, dueDate: null, priority: null, assignee: null },
+      },
+      fields: [],
+    });
+    const note = makeNote({ dueDate: '2026-10-20', priority: 'HOCH', assignee: null });
+    expect(proposalRows(note, mark)).toEqual([
+      expect.objectContaining({ kind: 'date', field: 'dueDate', iso: '2026-10-20', fixed: true }),
+      expect.objectContaining({ kind: 'priority', field: 'priority', value: 'HOCH', fixed: true }),
+    ]);
   });
 
   it('shows a record from before smarter capture as one property row', () => {
@@ -67,12 +85,14 @@ describe('proposalRows', () => {
       },
       fields: ['reference'],
     });
-    expect(proposalRows(mark)).toEqual([
+    expect(proposalRows(plain, mark)).toEqual([
       expect.objectContaining({ kind: 'property', field: 'reference', key: 'Customer', on: true }),
     ]);
   });
 
   it('lists nothing while the call is still running', () => {
-    expect(proposalRows(makeSuggestionMark({ phase: 'asking', suggestion: null }))).toEqual([]);
+    expect(proposalRows(plain, makeSuggestionMark({ phase: 'asking', suggestion: null }))).toEqual(
+      [],
+    );
   });
 });

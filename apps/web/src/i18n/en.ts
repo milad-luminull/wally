@@ -544,6 +544,7 @@ export const en = {
       mine: 'Keep my title',
     },
     rows: {
+      title: 'Title',
       dueDate: 'Due',
       horizon: 'When',
       priority: 'Priority',
@@ -556,6 +557,7 @@ export const en = {
       leaveOut: 'Leave out: {{label}}',
       bringBack: 'Bring back: {{label}}',
       list: 'Suggested fields',
+      steps: 'Suggested steps',
     },
     footer: {
       asking: 'Filling in…',

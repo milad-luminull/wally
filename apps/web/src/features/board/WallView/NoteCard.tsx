@@ -365,7 +365,7 @@ export function NoteCard({
   // and the card's accessible name would take in every row and the ticking seconds.
   const review = reviewing && (
     <>
-      <ProposalList pending={reviewing} />
+      <ProposalList note={note} pending={reviewing} />
       <ReviewFooter
         mark={reviewing.mark}
         onKeep={() => reviewing.onKeep('click')}

@@ -333,7 +333,7 @@ export function NoteRow({
         }}
         className={cn('paper-note-row-review', noteColourFillClass[note.colour])}
       >
-        <ProposalList pending={reviewing} />
+        <ProposalList note={note} pending={reviewing} />
         <ReviewFooter
           mark={reviewing.mark}
           onKeep={() => reviewing.onKeep('click')}

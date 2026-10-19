@@ -567,6 +567,7 @@ export const de = {
     },
     /** The pending card's list of suggested fields (smarter capture, after Paper Wall v3). */
     rows: {
+      title: 'Titel',
       dueDate: 'Fällig',
       horizon: 'Wann',
       priority: 'Priorität',
@@ -579,6 +580,7 @@ export const de = {
       leaveOut: 'Weglassen: {{label}}',
       bringBack: 'Wieder aufnehmen: {{label}}',
       list: 'Vorgeschlagene Felder',
+      steps: 'Vorgeschlagene Schritte',
     },
     /** The pending card's footer: the countdown, Undo and Keep. */
     footer: {

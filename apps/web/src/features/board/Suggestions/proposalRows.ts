@@ -1,4 +1,4 @@
-import type { SuggestionFieldKey, UserSummary } from '@wally/shared';
+import type { NoteDto, SuggestionFieldKey, UserSummary } from '@wally/shared';
 import type { SuggestionMark } from './useSuggestions';
 
 /**
@@ -12,10 +12,13 @@ export type ProposalRow = {
   field: SuggestionFieldKey;
   /** The item's index in the proposal, for steps, links, tags and properties. */
   index?: number;
-  /** Whether the row is in the change: kept by Keep (and, unless opt-in, by the countdown). */
+  /** Whether the row is in the change: kept by Keep (and, unless Private, by the countdown). */
   on: boolean;
+  /** A field the person typed (a chip): already on the note, shown, never toggled here. */
+  fixed?: boolean;
   reason: string;
 } & (
+  | { kind: 'title'; value: string }
   | { kind: 'date'; iso: string }
   | { kind: 'horizon'; value: 'DIESE_WOCHE' | 'SPAETER' }
   | { kind: 'priority'; value: 'HOCH' | 'NIEDRIG' }
@@ -28,16 +31,27 @@ export type ProposalRow = {
 );
 
 /**
- * The rows of a pending change, in the order the card lists them: date, horizon, priority,
- * person, Private, properties, tags, steps, related notes. The title and its description are
- * not rows: they stay on the title line, a second version beside the person's own (R2).
- * A record from before smarter capture shows its one reference as a property row.
+ * The rows of a pending change, in the order the card lists them (Paper Wall v3): the cleaned
+ * title, date, horizon, priority, person, Private, properties, tags, related notes, then the
+ * steps (drawn as a checklist). Fields the person typed (`suggestion.typed`) are rows too, with
+ * the note's own values, fixed. A record from before smarter capture shows its one reference as
+ * a property row.
  */
-export function proposalRows(mark: SuggestionMark): ProposalRow[] {
+export function proposalRows(note: NoteDto, mark: SuggestionMark): ProposalRow[] {
   if (mark.phase === 'asking' || !mark.suggestion) return [];
-  const { fields } = mark.suggestion;
+  const { fields, typed } = mark.suggestion;
   const has = (key: SuggestionFieldKey) => mark.fields.includes(key);
+  const wasTyped = (key: SuggestionFieldKey) => typed.includes(key);
   const rows: ProposalRow[] = [];
+  if (fields.title)
+    rows.push({
+      id: 'title',
+      field: 'title',
+      on: has('title'),
+      reason: fields.title.reason,
+      kind: 'title',
+      value: fields.title.value,
+    });
   if (fields.dueDate)
     rows.push({
       id: 'dueDate',
@@ -46,6 +60,16 @@ export function proposalRows(mark: SuggestionMark): ProposalRow[] {
       reason: fields.dueDate.reason,
       kind: 'date',
       iso: fields.dueDate.value,
+    });
+  else if (wasTyped('dueDate') && note.dueDate)
+    rows.push({
+      id: 'dueDate',
+      field: 'dueDate',
+      on: true,
+      fixed: true,
+      reason: '',
+      kind: 'date',
+      iso: note.dueDate,
     });
   if (fields.horizon)
     rows.push({
@@ -65,6 +89,16 @@ export function proposalRows(mark: SuggestionMark): ProposalRow[] {
       kind: 'priority',
       value: fields.priority.value,
     });
+  else if (wasTyped('priority') && note.priority !== 'MITTEL')
+    rows.push({
+      id: 'priority',
+      field: 'priority',
+      on: true,
+      fixed: true,
+      reason: '',
+      kind: 'priority',
+      value: note.priority,
+    });
   if (fields.assignee)
     rows.push({
       id: 'assignee',
@@ -73,6 +107,16 @@ export function proposalRows(mark: SuggestionMark): ProposalRow[] {
       reason: fields.assignee.reason,
       kind: 'person',
       user: fields.assignee.value,
+    });
+  else if (wasTyped('assignee') && note.assignee)
+    rows.push({
+      id: 'assignee',
+      field: 'assignee',
+      on: true,
+      fixed: true,
+      reason: '',
+      kind: 'person',
+      user: note.assignee,
     });
   if (fields.visibility)
     rows.push({
@@ -115,17 +159,6 @@ export function proposalRows(mark: SuggestionMark): ProposalRow[] {
       value,
     }),
   );
-  fields.subtasks?.items.forEach((text, index) =>
-    rows.push({
-      id: `subtasks-${index}`,
-      field: 'subtasks',
-      index,
-      on: has('subtasks') && mark.subtasks.includes(index),
-      reason: fields.subtasks!.reason,
-      kind: 'step',
-      text,
-    }),
-  );
   // A link is named by its stored index: one whose target dropped out leaves a gap.
   fields.links?.items.forEach((item) =>
     rows.push({
@@ -136,6 +169,17 @@ export function proposalRows(mark: SuggestionMark): ProposalRow[] {
       reason: item.reason,
       kind: 'link',
       title: item.title,
+    }),
+  );
+  fields.subtasks?.items.forEach((text, index) =>
+    rows.push({
+      id: `subtasks-${index}`,
+      field: 'subtasks',
+      index,
+      on: has('subtasks') && mark.subtasks.includes(index),
+      reason: fields.subtasks!.reason,
+      kind: 'step',
+      text,
     }),
   );
   return rows;
