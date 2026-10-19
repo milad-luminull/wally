@@ -83,7 +83,8 @@ test('with a stubbed proposal, the note shows the rows and the footer, Ã— and â†
   const title = `E2E review ${Date.now()}`;
   await captureNote(page, title);
 
-  const note = page.locator('[data-note-id]', { hasText: title });
+  // Under review the note is one card inside the moving border, on the wall and in the list.
+  const note = page.locator('[data-capture-card]', { hasText: title });
   const list = note.getByRole('list', { name: 'Vorgeschlagene Felder' });
   await expect(list).toBeVisible();
   await expect(list.getByRole('listitem')).toHaveCount(5);
