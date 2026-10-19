@@ -5,7 +5,6 @@ import { Plus, Command, RotateCcw, PanelRight } from 'lucide-react';
 import type { NoteDto, NoteVisibility, WhiteboardDto } from '@wally/shared';
 import type { T } from '@/i18n/enumLabels';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Link } from 'react-router';
 import { BrandMark } from '@/components/BrandMark';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,10 +12,8 @@ import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { MOD_KEY, openCommandPalette } from '@/lib/shortcuts';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
-import { useAuth } from '@/features/auth/AuthProvider';
-import { useActiveMembers } from './hooks/useMembers';
 import { useBoardRename } from './hooks/mutations/useBoardRename';
-import { initialsOf } from './util/noteDerived';
+import { BoardContributors } from './Share/BoardContributors';
 import { ShareSheet } from './Share/ShareSheet';
 import { AccountMenu } from './AccountMenu';
 import { BoardSwitcher } from './BoardSwitcher';
@@ -150,8 +147,6 @@ export function TopBar({
   const newNoteLabel = t(
     newNoteVisibility === 'PRIVATE' ? 'board.topBar.newPrivateNote' : 'board.topBar.newNote',
   );
-  const { activeMembers } = useActiveMembers(boardId);
-  const { user } = useAuth();
   const renameBoard = useBoardRename(boardId);
 
   const openCount = notes.filter((n) => n.status === 'OPEN').length;
@@ -183,12 +178,6 @@ export function TopBar({
     else setNameDraft(board.name);
   }
 
-  // Everyone else on the board. You are already the account avatar at the end of the bar,
-  // so including yourself here showed your initials twice.
-  const otherMembers = activeMembers.filter((m) => m.userId !== user?.uid);
-  const visibleMembers = otherMembers.slice(0, 3);
-  const overflowCount = otherMembers.length - visibleMembers.length;
-
   const boardActions = (
     <div className="board-toolbar-tools flex shrink-0 items-center gap-1 md:gap-1.5">
       {/* Commands, not search: the filter row's field is the board's one search box. Hidden
@@ -219,30 +208,11 @@ export function TopBar({
         </>
       )}
 
-      {otherMembers.length > 0 && (
-        <div
-          className="ml-1 hidden items-center sm:flex"
-          aria-label={t('board.topBar.membersAria', { count: otherMembers.length })}
-        >
-          {visibleMembers.map((m) => (
-            <Avatar
-              key={m.id}
-              className="-ml-1.5 ring-2 ring-surface first:ml-0"
-              title={m.displayName ?? m.email}
-            >
-              <AvatarFallback>{initialsOf(m.displayName ?? m.email)}</AvatarFallback>
-            </Avatar>
-          ))}
-          {overflowCount > 0 && (
-            <span className="-ml-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-inset px-1 text-[10px] font-semibold tabular-nums text-fg-3 ring-2 ring-surface">
-              +{overflowCount}
-            </span>
-          )}
-        </div>
-      )}
+      <BoardContributors boardId={boardId} />
 
       <ShareSheet
         boardId={boardId}
+        boardName={board.name}
         ownerId={board.ownerId}
         isOwner={isOwner}
         isBelowTablet={isBelowTablet}

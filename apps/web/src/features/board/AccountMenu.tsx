@@ -36,7 +36,10 @@ const LANGUAGE_ENDONYMS: Record<AppLocale, string> = {
 };
 
 /** `shortcuts`: off where no board's command layer is mounted to show the help. */
-export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) {
+export function AccountMenu({
+  shortcuts = true,
+  showName = false,
+}: { shortcuts?: boolean; showName?: boolean } = {}) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { language, setLanguage, isSaving, saveFailed } = useLanguage();
@@ -52,13 +55,18 @@ export function AccountMenu({ shortcuts = true }: { shortcuts?: boolean } = {}) 
       <PopoverTrigger
         aria-label={t('account.menuAria')}
         /* The avatar stays 28px; the trigger around it grows to 44 on touch. */
-        className="flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+        className={
+          showName
+            ? 'board-rail-profile focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]'
+            : 'flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)] focus-visible:ring-offset-2 focus-visible:ring-offset-surface [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11'
+        }
       >
         <Avatar className="h-7 w-7 transition-opacity duration-150 hover:opacity-85">
           <AvatarFallback className="bg-primary text-[11px] text-primary-foreground">
             {initialsOf(name)}
           </AvatarFallback>
         </Avatar>
+        {showName && <span className="board-rail-profile-name">{name}</span>}
       </PopoverTrigger>
 
       <PopoverContent className="max-h-[85dvh] w-72 overflow-y-auto p-1">
