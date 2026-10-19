@@ -1,4 +1,10 @@
-import { RequestTimeoutError } from './apiClient';
+/** A request that got no answer within its time limit; sending it again may work. */
+export class RequestTimeoutError extends Error {
+  constructor() {
+    super('The request took too long');
+    this.name = 'RequestTimeoutError';
+  }
+}
 
 /**
  * The five kinds of failure (the error handling spec, 2026-10-19). Every surface decides what

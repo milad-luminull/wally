@@ -180,3 +180,27 @@ describe('whenSettled', () => {
     await expect(whenSettled('note:c')).resolves.toBeUndefined();
   });
 });
+
+describe('a write the server refused for good', () => {
+  it('leaves no recovery entry and does not block the next write on its lane', async () => {
+    const refused = Object.assign(new Error('forbidden'), { status: 403, code: 'FORBIDDEN' });
+    await expect(
+      enqueueMutation(captureMutation('note:r'), async () => {
+        throw refused;
+      }),
+    ).rejects.toBe(refused);
+    expect(getRecoveries()).toEqual([]);
+    await expect(
+      enqueueMutation(captureMutation('note:r'), async () => ({ data: 'next', revision: 2 })),
+    ).resolves.toBe('next');
+  });
+
+  it('still keeps a write that failed for a moment, to retry from the list', async () => {
+    await expect(
+      enqueueMutation(captureMutation('note:t'), async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    ).rejects.toBeInstanceOf(TypeError);
+    expect(getRecoveries()).toHaveLength(1);
+  });
+});

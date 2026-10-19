@@ -481,6 +481,16 @@ export const en = {
       signUpFailed: 'Sign-up failed. Please try again.',
     },
   },
+  errors: {
+    saveFailed: 'Couldn’t save that change',
+    refused: {
+      forbidden: 'You can’t change this here',
+      gone: 'This was deleted meanwhile',
+      assignee: 'That person isn’t on this board',
+      link: 'That note can’t be linked',
+      other: 'That change isn’t allowed',
+    },
+  },
   toast: {
     saveFailed: 'Couldn’t save that change. Please try again.',
     prefsFailed: 'Couldn’t save your view.',

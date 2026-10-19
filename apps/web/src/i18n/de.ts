@@ -497,6 +497,16 @@ export const de = {
       signUpFailed: 'Registrierung fehlgeschlagen. Bitte erneut versuchen.',
     },
   },
+  errors: {
+    saveFailed: 'Konnte die Änderung nicht speichern',
+    refused: {
+      forbidden: 'Das kannst du hier nicht ändern',
+      gone: 'Das wurde inzwischen gelöscht',
+      assignee: 'Diese Person ist nicht auf dieser Wand',
+      link: 'Diese Notiz lässt sich nicht verknüpfen',
+      other: 'Diese Änderung ist nicht erlaubt',
+    },
+  },
   toast: {
     saveFailed: 'Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
     prefsFailed: 'Ansicht konnte nicht gespeichert werden.',

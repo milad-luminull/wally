@@ -10,6 +10,9 @@ import {
   type MutationTicket,
 } from './mutationQueue';
 import { i18n } from '@/i18n';
+import { RequestTimeoutError } from './errors';
+
+export { RequestTimeoutError };
 import { getFreshIdToken } from '@/features/auth/AuthProvider';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -21,14 +24,6 @@ export type ApiErrorKind =
 export const REQUEST_TIMEOUT_MS = 30_000;
 /** The AI routes: the server's 20 s deadline plus its one retry. */
 export const AI_REQUEST_TIMEOUT_MS = 45_000;
-
-/** A request that got no answer within its time limit; sending it again may work. */
-export class RequestTimeoutError extends Error {
-  constructor() {
-    super('The request took too long');
-    this.name = 'RequestTimeoutError';
-  }
-}
 
 /** Typed error the TanStack Query hooks can branch on (e.g. redirect to /login on 401). */
 export class ApiError extends Error {
