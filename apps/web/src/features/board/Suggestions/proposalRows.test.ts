@@ -26,7 +26,16 @@ describe('proposalRows', () => {
     const base = makeSuggestionMark();
     const mark = makeSuggestionMark({
       suggestion: { ...base.suggestion!, fields },
-      fields: ['dueDate', 'title', 'subtasks', 'links', 'horizon', 'tags', 'properties'],
+      fields: [
+        'dueDate',
+        'title',
+        'description',
+        'subtasks',
+        'links',
+        'horizon',
+        'tags',
+        'properties',
+      ],
       subtasks: [1],
       links: [2],
       tags: [0],
@@ -35,6 +44,7 @@ describe('proposalRows', () => {
     const rows = proposalRows(plain, mark);
     expect(rows.map((r) => [r.kind, r.field, r.index ?? null, r.on])).toEqual([
       ['title', 'title', null, true],
+      ['text', 'description', null, true],
       ['date', 'dueDate', null, true],
       ['horizon', 'horizon', null, true],
       ['priority', 'priority', null, false],

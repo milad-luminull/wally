@@ -347,10 +347,10 @@ describe('NoteCard with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it("shows the cleaned title in place; its row's × brings the person's words back", () => {
+  it('keeps the person’s title on the card and offers the new one in the Title row, its text in a Text row', () => {
     const description = { value: 'For the Müller quote.', reason: 'moved out' };
     const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
-    const { rerender } = render(
+    render(
       <DndContext>
         <NoteCard
           note={makeNote({ dueDate: null })}
@@ -361,28 +361,17 @@ describe('NoteCard with a pending change', () => {
         />
       </DndContext>,
     );
-    const card = () => screen.getAllByRole('button')[0]!.closest('[data-capture-card]')!;
-    expect(within(card() as HTMLElement).getByText('Quote for Müller')).toBeInTheDocument();
-    expect(screen.getByText('For the Müller quote.')).toBeInTheDocument();
-    expect(screen.queryByText('Approve the quote comparison')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Reworded' }));
-    expect(on.onSetField).toHaveBeenCalledWith('title', false);
-
-    const off = withProposals(['dueDate'], { title: TITLE, description });
-    rerender(
-      <DndContext>
-        <NoteCard
-          note={makeNote({ dueDate: null })}
-          currentUserId="user-1"
-          selected={false}
-          onOpen={vi.fn()}
-          pending={off}
-        />
-      </DndContext>,
+    const button = screen.getAllByRole('button')[0]!;
+    expect(within(button).getByText('Approve the quote comparison')).toBeInTheDocument();
+    expect(within(button).queryByText('Quote for Müller')).toBeNull();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText('Quote for Müller')).toBeInTheDocument();
+    expect(within(list).getByText('For the Müller quote.')).toBeInTheDocument();
+    expect(screen.queryByText('Reworded')).toBeNull();
+    fireEvent.click(
+      within(list).getByRole('button', { name: 'Leave out: Title Quote for Müller' }),
     );
-    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    expect(screen.queryByText('For the Müller quote.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Bring back: Title Reworded' })).toBeInTheDocument();
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
   });
 
   it('shows the reference and each step as rows with an × each', () => {

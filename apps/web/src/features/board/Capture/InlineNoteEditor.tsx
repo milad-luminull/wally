@@ -21,7 +21,6 @@ import { useMoveNote } from '../hooks/mutations/useMoveNote';
 import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
 import { noteColourFillClass } from '../util/noteDerived';
 import { textChanged } from '../Suggestions/editAsk';
-import { shownText, type PendingProps } from '../Suggestions/pendingProps';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
 import { MirroredField } from './captureField';
 import { fitToContent, withoutDropped } from './captureText';
@@ -65,21 +64,18 @@ function onlyNewWords(parse: CaptureParse | null, title: string, before: string)
 
 /**
  * A note's words edited in place, on the wall or as a list row (the smarter-capture spec,
- * revision "editing the text asks again"): the capture card's field, opened on the words the
- * note shows (the cleaned ones while the Title row is in the change), with the same chips for
- * new words. Enter or a click away saves, ⌘/Ctrl+Enter saves and opens the sidebar, Esc puts
+ * revision "editing the text asks again"): the capture card's field, opened on the note's
+ * own words, with the same chips for new words. Enter or a click away saves, ⌘/Ctrl+Enter saves and opens the sidebar, Esc puts
  * the words back and writes nothing. Words left as they were write nothing either.
  */
 export function InlineNoteEditor({
   boardId,
   note,
-  pending,
   layout,
   onDone,
 }: {
   boardId: string;
   note: NoteDto;
-  pending?: PendingProps;
   layout: 'card' | 'row';
   onDone: (result: EditResult | null) => void;
 }) {
@@ -90,7 +86,7 @@ export function InlineNoteEditor({
   const { mutateAsync: moveNote } = useMoveNote(boardId);
   const { mutateAsync: assignNote } = useAssignNote(boardId);
   // What the editor opened on, read once: a refetch while typing does not move the words.
-  const [initial] = useState(() => shownText(note, pending));
+  const [initial] = useState(() => ({ title: note.title, description: note.description.trim() }));
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description);
   const [showText, setShowText] = useState(initial.description !== '');

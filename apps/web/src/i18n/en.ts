@@ -552,7 +552,7 @@ export const en = {
     },
     rows: {
       title: 'Title',
-      reworded: 'Reworded',
+      text: 'Text',
       dueDate: 'Due',
       horizon: 'When',
       priority: 'Priority',

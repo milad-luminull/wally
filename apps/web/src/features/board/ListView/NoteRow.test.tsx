@@ -155,29 +155,27 @@ describe('NoteRow with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it("shows the cleaned title in place; its row's × brings the person's words back", () => {
+  it('keeps the person’s title on the row and offers the new one in the Title row, its text in a Text row', () => {
     const description = { value: 'For the Müller quote.', reason: 'moved out' };
     const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
-    const row = (q: typeof on) => (
+    render(
       <NoteRow
         note={makeNote({ dueDate: null })}
         currentUserId="user-1"
         onOpen={vi.fn()}
         onToggleDone={vi.fn()}
         canEdit
-        pending={q}
-      />
+        pending={on}
+      />,
     );
-    const { rerender } = render(row(on));
-    // The cleaned title is the row's title now; the person's words are gone from it.
-    expect(screen.getByText('Quote for Müller').closest('[data-note-id]')).not.toBeNull();
-    expect(screen.queryByText('Approve the quote comparison')).toBeNull();
-    expect(screen.getByText('For the Müller quote.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Title Reworded' }));
-    expect(on.onSetField).toHaveBeenCalledWith('title', false);
-    rerender(row(withProposals(['dueDate'], { title: TITLE, description })));
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
     expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    expect(screen.queryByText('For the Müller quote.')).toBeNull();
+    expect(within(list).getByText('Quote for Müller')).toBeInTheDocument();
+    expect(within(list).getByText('For the Müller quote.')).toBeInTheDocument();
+    fireEvent.click(
+      within(list).getByRole('button', { name: 'Leave out: Title Quote for Müller' }),
+    );
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
   });
 
   it('shows the reference and each step as rows with an × each', () => {

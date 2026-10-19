@@ -734,7 +734,7 @@ describe('NoteDetailPanel', () => {
       expect(title).toHaveClass('capture-shimmer');
     });
 
-    it('shows the cleaned title and its text in the fields while the Title row is in the change', async () => {
+    it('keeps the note’s own words in the fields and offers the new title in the review', async () => {
       vi.mocked(notesApi.get).mockResolvedValue(
         makeNoteDetail({ title: 'call doc', description: '' }),
       );
@@ -755,8 +755,11 @@ describe('NoteDetailPanel', () => {
           }),
         },
       });
-      expect(await screen.findByLabelText('Title')).toHaveValue('Call the doctor');
-      expect(screen.getByLabelText('Description')).toHaveValue('About the check-up');
+      expect(await screen.findByLabelText('Title')).toHaveValue('call doc');
+      expect(screen.getByLabelText('Description')).toHaveValue('');
+      const review = document.querySelector('[data-pending-review]') as HTMLElement;
+      expect(within(review).getByText('Call the doctor')).toBeInTheDocument();
+      expect(within(review).getByText('About the check-up')).toBeInTheDocument();
     });
 
     /*

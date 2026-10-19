@@ -36,24 +36,17 @@ vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
 
 import { membersApi, notesApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { makeNote, makeSuggestionMark } from '@/test/fixtures';
-import type { PendingProps } from '../Suggestions/pendingProps';
+import { makeNote } from '@/test/fixtures';
 import { InlineNoteEditor, type EditResult } from './InlineNoteEditor';
 
 const note = (overrides: Partial<NoteDto> = {}) =>
   makeNote({ id: 'n1', revision: 4, title: 'Call Müller', description: '', ...overrides });
 
-function renderEditor(target: NoteDto = note(), pending?: PendingProps) {
+function renderEditor(target: NoteDto = note()) {
   const onDone = vi.fn<(result: EditResult | null) => void>();
   const view = renderWithProviders(
     <>
-      <InlineNoteEditor
-        boardId="b1"
-        note={target}
-        pending={pending}
-        layout="card"
-        onDone={onDone}
-      />
+      <InlineNoteEditor boardId="b1" note={target} layout="card" onDone={onDone} />
       <button type="button">Elsewhere</button>
     </>,
   );
@@ -61,33 +54,6 @@ function renderEditor(target: NoteDto = note(), pending?: PendingProps) {
 }
 
 const title = () => screen.getByRole('textbox', { name: 'Title of the note' });
-
-function cleanedTitle(): PendingProps {
-  const base = makeSuggestionMark();
-  return {
-    mark: makeSuggestionMark({
-      suggestion: {
-        ...base.suggestion!,
-        fields: {
-          ...base.suggestion!.fields,
-          title: { value: 'Call Müller GmbH back', reason: 'clearer' },
-          description: { value: 'About the quote', reason: 'split' },
-        },
-      },
-      fields: ['title', 'description', 'priority'],
-    }),
-    onKeep: vi.fn(),
-    onDiscard: vi.fn(),
-    onUndo: vi.fn(),
-    onRemove: vi.fn(),
-    onSetField: vi.fn(),
-    onSetSubtask: vi.fn(),
-    onSetLink: vi.fn(),
-    onSetTag: vi.fn(),
-    onSetProperty: vi.fn(),
-    onPause: vi.fn(),
-  };
-}
 
 describe('InlineNoteEditor', () => {
   beforeEach(() => {
@@ -121,14 +87,6 @@ describe('InlineNoteEditor', () => {
     expect(title()).toHaveAccessibleDescription('↵ save · ⇧↵ text · Esc keep as it was');
   });
 
-  it('opens on the cleaned title and its text while the Title row is in the change', () => {
-    renderEditor(note(), cleanedTitle());
-    expect(title()).toHaveValue('Call Müller GmbH back');
-    expect(screen.getByRole('textbox', { name: 'Text of the note' })).toHaveValue(
-      'About the quote',
-    );
-  });
-
   it('Esc puts the words back and writes nothing', async () => {
     const user = userEvent.setup();
     const { onDone } = renderEditor();
@@ -156,18 +114,6 @@ describe('InlineNoteEditor', () => {
     expect(notesApi.update).toHaveBeenCalledWith(
       'n1',
       { title: 'Call Müller back', description: '' },
-      expect.anything(),
-    );
-  });
-
-  it('saves the cleaned words the person edited from', async () => {
-    const user = userEvent.setup();
-    const { onDone } = renderEditor(note(), cleanedTitle());
-    await user.type(title(), ' please{Enter}');
-    await waitFor(() => expect(onDone).toHaveBeenCalled());
-    expect(notesApi.update).toHaveBeenCalledWith(
-      'n1',
-      { title: 'Call Müller GmbH back please', description: 'About the quote' },
       expect.anything(),
     );
   });

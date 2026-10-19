@@ -72,7 +72,7 @@ describe('PendingReview', () => {
     const user = userEvent.setup();
     const { pending } = renderReview({ fields: ['priority', 'subtasks'] });
     const list = screen.getByRole('list', { name: 'Suggested fields' });
-    expect(within(list).getByText('Reworded')).toBeInTheDocument();
+    expect(within(list).getByText('Call Müller GmbH back')).toBeInTheDocument();
     expect(within(list).getByText('Müller GmbH')).toBeInTheDocument();
     // The date the person typed is a row of its own, without a button.
     const due = within(list).getByText('Due').closest('[role="listitem"]') as HTMLElement;

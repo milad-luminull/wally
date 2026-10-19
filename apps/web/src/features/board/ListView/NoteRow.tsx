@@ -16,7 +16,6 @@ import {
   pendingKeys,
   proposedDateLabel,
   proposedValues,
-  shownText,
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
@@ -62,10 +61,10 @@ export function NoteRow({
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
-  // Under review the row shows the cleaned title and its description in place while the title
-  // row is in the change (Paper Wall v3); crossed out, the person's own words come back.
-  const offered = reviewing?.mark.phase === 'pending' ? reviewing.mark.suggestion?.fields : null;
-  const { title: shownTitle, description: shownDescription } = shownText(note, reviewing);
+  // The row keeps the person's own words under review: a new title and its text are offered
+  // in the rows below, as every other field is.
+  const shownTitle = note.title;
+  const shownDescription = note.description.trim();
   const thinking = reviewing?.mark.phase === 'asking';
   // What the dot used to say, for a screen reader on the focused row.
   const reviewStatus =
@@ -186,7 +185,6 @@ export function NoteRow({
             reviewing && edit && 'cursor-text',
             isDone && 'line-through decoration-fg-faint',
             thinking && 'capture-shimmer',
-            offered && 'proposal-row',
           )}
         >
           {shownTitle || t('common.untitled')}
@@ -317,13 +315,7 @@ export function NoteRow({
     // waiting change's countdown while it has focus or the pointer.
     return (
       <div data-note-id={note.id} {...pause}>
-        <InlineNoteEditor
-          boardId={edit.boardId}
-          note={note}
-          pending={pending}
-          layout="row"
-          onDone={edit.done}
-        />
+        <InlineNoteEditor boardId={edit.boardId} note={note} layout="row" onDone={edit.done} />
       </div>
     );
   if (!reviewing) return row;

@@ -87,8 +87,10 @@ export function ProposalList({ note, pending }: { note: NoteDto; pending: Pendin
   const text = (row: ProposalRow): [label: string, value: string] => {
     switch (row.kind) {
       case 'title':
-        // The card's title already shows the cleaned title: the row only says it was reworded.
-        return [t('suggest.rows.title'), t('suggest.rows.reworded')];
+        // The card keeps the person's own title; the row offers the new one beside it.
+        return [t('suggest.rows.title'), row.value];
+      case 'text':
+        return [t('suggest.rows.text'), row.value];
       case 'date':
         // Worded as the card's own meta line words a date: Today, Tomorrow, Fri…
         return [t('suggest.rows.dueDate'), dueInfo({ status: 'OPEN', dueDate: row.iso }, t).label];

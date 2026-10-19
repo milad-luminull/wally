@@ -52,7 +52,7 @@ describe('ProposalList', () => {
       'listitem',
     );
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^Title.*Reworded/),
+      expect.stringMatching(/^Title.*Call the dentist/),
       expect.stringContaining(`Due${dueWords('2026-10-23')}`),
       expect.stringMatching(/^When.*This week/),
       expect.stringMatching(/^Priority.*High/),
@@ -68,6 +68,29 @@ describe('ProposalList', () => {
       'Find the number of the practice near the office',
       'Book a slot',
     ]);
+  });
+
+  it('offers the new title in the Title row and its text in a Text row right under it', () => {
+    const base = makeSuggestionMark();
+    const p = pending({
+      suggestion: {
+        ...base.suggestion!,
+        fields: {
+          ...base.suggestion!.fields,
+          title: { value: 'Call the dentist', reason: 'shorter' },
+          description: { value: 'About the check-up', reason: 'moved out' },
+        },
+      },
+      fields: ['title', 'description'],
+    });
+    render(<ProposalList note={note} pending={p} />);
+    const rows = within(screen.getByRole('list', { name: 'Suggested fields' })).getAllByRole(
+      'listitem',
+    );
+    expect(rows[0]).toHaveTextContent(/^Title.*Call the dentist/);
+    expect(rows[1]).toHaveTextContent(/^Text.*About the check-up/);
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Text About the check-up' }));
+    expect(p.onSetField).toHaveBeenCalledWith('description', false);
   });
 
   it('shows a typed field as a row with no button', () => {

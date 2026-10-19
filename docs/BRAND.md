@@ -179,9 +179,10 @@ follow, and `brandGuards.test.ts` enforces the first one.
 5. The AI never interrupts. No toasts, no modals, no badges counting suggestions.
 6. It never writes a note the user didn't start. It completes, files and reorders; it doesn't
    author.
-7. A cleaner title is shown in place of the person's words while the proposal waits, with a
-   Title row whose × brings their words back at once. It is written only by Keep or the
-   countdown, and Undo restores the original.
+7. A cleaner title never replaces the person's words on the card while the proposal waits: the
+   card keeps their title, and the new title is offered in a Title row (its text in a Text row
+   under it) like any other field. It is written only by Keep or the countdown, and Undo
+   restores the original.
 8. Questions about the wall are answered on the wall, as a card where the question was written,
    in plain text, with the notes it read listed underneath. The card has the dashed edge and
    nothing else: no dot, no ring, because nothing is written.

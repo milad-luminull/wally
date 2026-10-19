@@ -575,7 +575,7 @@ export const de = {
     /** The pending card's list of suggested fields (smarter capture, after Paper Wall v3). */
     rows: {
       title: 'Titel',
-      reworded: 'Umformuliert',
+      text: 'Text',
       dueDate: 'Fällig',
       horizon: 'Wann',
       priority: 'Priorität',

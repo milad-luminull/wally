@@ -17,7 +17,6 @@ import {
   pendingKeys,
   proposedDateLabel,
   proposedValues,
-  shownText,
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
@@ -100,10 +99,10 @@ export function NoteCard({
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
-  // Under review the card shows the cleaned title and its description in place while the
-  // title row is in the change (Paper Wall v3); crossed out, the person's own words come back.
-  const offered = reviewing?.mark.phase === 'pending' ? reviewing.mark.suggestion?.fields : null;
-  const { title: shownTitle, description: shownDescription } = shownText(note, reviewing);
+  // The card keeps the person's own words under review: a new title and its text are offered
+  // in the rows below, as every other field is.
+  const shownTitle = note.title;
+  const shownDescription = note.description.trim();
   const thinking = reviewing?.mark.phase === 'asking';
   // What the corner dot used to say, for a screen reader on the focused card.
   const reviewStatus =
@@ -162,7 +161,6 @@ export function NoteCard({
           reviewing && edit && 'cursor-text',
           isDone && 'line-through decoration-fg-faint',
           thinking && 'capture-shimmer',
-          offered && 'proposal-row',
           // Room for the dot, or the Undo after it, in the card's top-right corner.
           (corner === 'dot' || tidyCorner === 'dot') && 'pr-4',
           (corner === 'undo' || tidyCorner === 'undo') && 'pr-[4.5rem]',
@@ -176,7 +174,7 @@ export function NoteCard({
         <span
           className={cn(
             'paper-note-description -mt-1 text-12 leading-snug text-fg-meta-on-note',
-            offered ? 'line-clamp-2' : 'line-clamp-1',
+            reviewing ? 'line-clamp-2' : 'line-clamp-1',
           )}
         >
           {shownDescription}
@@ -489,13 +487,7 @@ function RestingNoteCard({
         className="relative"
         {...pause}
       >
-        <InlineNoteEditor
-          boardId={edit.boardId}
-          note={note}
-          pending={pending}
-          layout="card"
-          onDone={edit.done}
-        />
+        <InlineNoteEditor boardId={edit.boardId} note={note} layout="card" onDone={edit.done} />
       </div>
     );
 

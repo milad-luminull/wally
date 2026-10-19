@@ -107,8 +107,8 @@ This slice has no AI in it and is where the customer feedback is answered. It sh
   the person's wording; if Wallybot proposes a cleaner one (with the detail moved to a
   description), it appears as a second line with "use mine" beside it, never as a
   replacement. Amended by the smarter-capture spec (2026-10-18), after Paper Wall v3, and again
-  on 2026-10-19: the card follows Paper Wall v3 (moving border, cleaned title in place, one
-  card); see the spec's Revision section.
+  on 2026-10-19: the card follows Paper Wall v3 (moving border, one card); the card keeps the
+  person's title and the new title is a row; see the spec's Revision sections.
 - The footer shows the countdown ring (15 s), "Saves in N s" or "Paused", Undo and Keep.
   Hover or focus pauses it. Esc or Undo undoes everything, Enter or Keep keeps what is
   ticked. The title, its description and Private are only ever taken by the person, never by

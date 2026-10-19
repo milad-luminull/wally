@@ -397,3 +397,11 @@ The sidebar's review uses the card's parts: the moving border around the review,
 with the shimmer and dots while the call runs (on the title field too), the same rows and the
 same footer (ring, "Saves in N s" / "Paused", Undo, Keep). The "Review" label, its status
 sentence and the Keep/Discard pair go.
+
+### Owner's change, same day: the new title is a row
+
+"Reworded" in the review was confusing. The card (and the sidebar's fields) keep the person's own
+title and text while a change waits; the Title row shows the new title and a Text row under it
+the text moved out of it. Both rows go in and out together. Editing therefore always starts from
+the note's own words, on the card and in the sidebar alike. This supersedes "the title shown in
+place" from the first revision and "the cleaned title" in the editor and sidebar bullets above.

@@ -19,6 +19,7 @@ export type ProposalRow = {
   reason: string;
 } & (
   | { kind: 'title'; value: string }
+  | { kind: 'text'; value: string }
   | { kind: 'date'; iso: string }
   | { kind: 'horizon'; value: 'DIESE_WOCHE' | 'SPAETER' }
   | { kind: 'priority'; value: 'HOCH' | 'NIEDRIG' }
@@ -51,6 +52,16 @@ export function proposalRows(note: NoteDto, mark: SuggestionMark): ProposalRow[]
       reason: fields.title.reason,
       kind: 'title',
       value: fields.title.value,
+    });
+  // The text the cleaned title moved out of it, right under it; the two go in and out together.
+  if (fields.description)
+    rows.push({
+      id: 'description',
+      field: 'description',
+      on: has('description'),
+      reason: fields.description.reason,
+      kind: 'text',
+      value: fields.description.value,
     });
   if (fields.dueDate)
     rows.push({

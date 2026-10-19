@@ -1,6 +1,6 @@
 import { RelatedNotes } from './RelatedNotes';
 import { useAddLink, useRemoveLink } from '../hooks/mutations/useLinkMutations';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Circle, CircleCheck, Copy, Trash2, X } from 'lucide-react';
 import {
@@ -54,7 +54,7 @@ import { captureMutation, type MutationTicket } from '@/lib/mutationQueue';
 import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
-import { shownText, type PendingProps } from '../Suggestions/pendingProps';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { textChanged, type NoteText } from '../Suggestions/editAsk';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
@@ -255,40 +255,25 @@ function NoteDetailContent({
 
   /*
    * One edit of the words runs from focus entering the title or the text until it leaves both
-   * (or the panel closes on it). While a change waits with the Title row in it, the fields show
-   * the cleaned title and its text; the first keystroke takes both as the person's own, so the
-   * edit starts from what they saw. A finished edit that changed the words is reported once.
+   * (or the panel closes on it). A finished edit that changed the words is reported once.
    */
-  const shown = shownText(note ?? { title: '', description: '' }, pending);
-  const [adopted, setAdopted] = useState(false);
-  const fromShown = shown.cleaned && !adopted;
-  const shownTitle = fromShown ? shown.title : title.value;
-  const shownDescription = fromShown ? shown.description : description.value;
-  const textNow = useRef({ title: shownTitle, description: shownDescription });
-  textNow.current = { title: shownTitle, description: shownDescription };
-  // An edit is measured from the note's words (or the cleaned ones), never from the field: the
-  // panel focuses the title on open a moment before the loaded words reach it.
-  const textBefore = useRef({ title: shown.title, description: shown.description });
-  textBefore.current = { title: shown.title, description: shown.description };
+  const textNow = useRef({ title: title.value, description: description.value });
+  textNow.current = { title: title.value, description: description.value };
+  // An edit is measured from the note's words, never from the field: the panel focuses the
+  // title on open a moment before the loaded words reach it.
+  const noteText = { title: note?.title ?? '', description: note?.description ?? '' };
+  const textBefore = useRef(noteText);
+  textBefore.current = noteText;
   const editStart = useRef<NoteText | null>(null);
   const reportEdit = useRef(onTextEdited);
   reportEdit.current = onTextEdited;
   const finishEdit = useCallback((id: string) => {
     const before = editStart.current;
     editStart.current = null;
-    setAdopted(false);
     if (before && textChanged(before, textNow.current)) reportEdit.current?.(id);
   }, []);
   // The panel closing (or moving to another note) mid-edit finishes the edit it was in.
   useEffect(() => () => finishEdit(noteId), [finishEdit, noteId]);
-  /** The first keystroke of an edit that started from the cleaned words takes both fields. */
-  function adoptShown(edited: 'title' | 'description') {
-    if (!fromShown) return;
-    setAdopted(true);
-    if (edited !== 'title' && shown.title !== title.value) title.onChange(shown.title);
-    if (edited !== 'description' && shown.description !== description.value)
-      description.onChange(shown.description);
-  }
 
   const noteReady = Boolean(note);
   useEffect(() => {
@@ -452,9 +437,8 @@ function NoteDetailContent({
         >
           <textarea
             ref={titleRef}
-            value={shownTitle}
+            value={title.value}
             onChange={(e) => {
-              adoptShown('title');
               title.onChange(e.target.value);
             }}
             onBlur={title.onBlur}
@@ -486,9 +470,8 @@ function NoteDetailContent({
               the title until you write in it. Enter is a new line here, unlike the title. */}
           <textarea
             ref={description.ref}
-            value={shownDescription}
+            value={description.value}
             onChange={(e) => {
-              adoptShown('description');
               description.onChange(e.target.value);
             }}
             onBlur={description.onBlur}
@@ -508,7 +491,7 @@ function NoteDetailContent({
               'mt-1 block w-full resize-none overflow-hidden rounded-md bg-transparent text-14 leading-relaxed text-fg-2 outline-none',
               'placeholder:text-fg-faint',
               'disabled:cursor-not-allowed disabled:opacity-70',
-              disabled && !shownDescription && 'hidden',
+              disabled && !description.value && 'hidden',
             )}
           />
         </div>

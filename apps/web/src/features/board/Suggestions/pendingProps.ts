@@ -145,24 +145,3 @@ export function proposedDateLabel(iso: string, language: string): string {
     month: '2-digit',
   }).format(parseIsoDate(iso));
 }
-
-/**
- * The words a note shows while a change waits (Paper Wall v3): the cleaned title and its
- * description while the Title row is in the change, the person's own words otherwise. The
- * card, the list row, the sidebar and the editor all start from these.
- */
-export function shownText(
-  note: Pick<NoteDto, 'title' | 'description'>,
-  pending: PendingProps | undefined,
-): { title: string; description: string; cleaned: boolean } {
-  const mark = pending?.mark;
-  const offered = mark?.phase === 'pending' ? mark.suggestion?.fields : null;
-  const cleaned = Boolean(offered?.title && mark?.fields.includes('title'));
-  return cleaned
-    ? {
-        title: offered!.title!.value,
-        description: offered!.description ? offered!.description.value : note.description.trim(),
-        cleaned,
-      }
-    : { title: note.title, description: note.description.trim(), cleaned };
-}
