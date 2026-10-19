@@ -335,3 +335,30 @@ describe('NoteRow without a pending change', () => {
     },
   );
 });
+
+it('identifies the list row whose detail panel is open', () => {
+  const note = makeNote();
+  const { rerender } = render(
+    <NoteRow
+      note={note}
+      currentUserId="user-1"
+      selected
+      onOpen={vi.fn()}
+      onToggleDone={vi.fn()}
+      canEdit
+    />,
+  );
+  const row = screen.getByText(note.title).closest('[role="button"]')!;
+  expect(row).toHaveAttribute('aria-current', 'true');
+  rerender(
+    <NoteRow
+      note={note}
+      currentUserId="user-1"
+      selected={false}
+      onOpen={vi.fn()}
+      onToggleDone={vi.fn()}
+      canEdit
+    />,
+  );
+  expect(row).not.toHaveAttribute('aria-current');
+});

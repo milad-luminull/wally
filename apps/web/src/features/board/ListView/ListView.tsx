@@ -55,6 +55,7 @@ interface ListViewProps {
   totalNoteCount: number;
   axis: BoardAxis;
   currentUserId: string | undefined;
+  selectedNoteId?: string | null;
   onOpenNote: (id: string) => void;
   onToggleDone: (noteId: string, currentStatus: NoteStatus) => void;
   access: BoardAccess;
@@ -107,6 +108,7 @@ export function ListView({
   totalNoteCount,
   axis,
   currentUserId,
+  selectedNoteId,
   onOpenNote,
   onToggleDone,
   access,
@@ -204,6 +206,7 @@ export function ListView({
                 <NoteRow
                   key={note.id}
                   note={note}
+                  selected={selectedNoteId === note.id}
                   currentUserId={currentUserId}
                   onOpen={() => onOpenNote(note.id)}
                   onToggleDone={() => onToggleDone(note.id, note.status)}

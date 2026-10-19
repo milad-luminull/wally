@@ -44,10 +44,11 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 
 /** A layer above the board (dialog, sheet, popover, select) owns the keyboard. */
 export function overlayIsOpen(): boolean {
-  return Boolean(
-    document.querySelector(
-      '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
-    ),
+  if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return true;
+  // Passive tooltips advertise shortcuts; they must not suppress those shortcuts when
+  // their trigger receives keyboard focus. Interactive popovers/selects still own keys.
+  return Array.from(document.querySelectorAll('[data-radix-popper-content-wrapper]')).some(
+    (wrapper) => !wrapper.querySelector('[role="tooltip"]'),
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
@@ -11,6 +11,9 @@ import { i18n } from '@/i18n';
 import { dueInfo } from '../util/noteDerived';
 /** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
 const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
+import { NoteCardQuickActions } from './NoteCardActions';
+import userEvent from '@testing-library/user-event';
+import { renderWithProviders } from '@/test/renderWithProviders';
 
 /**
  * Regression cover for two drag defects, both caused by animating note cards on mount.
@@ -558,4 +561,136 @@ describe('NoteCard in a tidy batch', () => {
     fireEvent.keyDown(card, { key: 'Escape' });
     expect(onUndo).toHaveBeenCalledWith('esc');
   });
+});
+
+describe('NoteCard quick actions', () => {
+  function setup(editable = true, note = makeNote()) {
+    const onOpen = vi.fn();
+    const onExpand = vi.fn();
+    const onDuplicate = vi.fn();
+    const onDelete = vi.fn();
+    const onZoneDoubleClick = vi.fn();
+    renderWithProviders(
+      <DndContext>
+        <div onDoubleClick={onZoneDoubleClick}>
+          <NoteCard
+            note={note}
+            currentUserId="user-1"
+            selected={false}
+            onOpen={onOpen}
+            actions={{ onOpen, onExpand, ...(editable ? { onDuplicate, onDelete } : {}) }}
+          />
+        </div>
+      </DndContext>,
+    );
+    return { onOpen, onExpand, onDuplicate, onDelete, onZoneDoubleClick };
+  }
+
+  it('opens full-screen from the quick action without opening the side panel', async () => {
+    const actions = setup();
+    const expand = screen.getByRole('button', { name: 'Expand note' });
+    expect(expand.parentElement?.closest('button')).toBeNull();
+    await userEvent.click(expand);
+    expect(actions.onExpand).toHaveBeenCalledTimes(1);
+    expect(actions.onOpen).not.toHaveBeenCalled();
+  });
+
+  it('offers duplicate and delete in the More menu', async () => {
+    const actions = setup();
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    expect(actions.onDuplicate).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(actions.onDelete).toHaveBeenCalledTimes(1);
+    expect(actions.onOpen).not.toHaveBeenCalled();
+  });
+
+  it('offers opening but no editing actions on a read-only card', async () => {
+    const actions = setup(false);
+    expect(screen.getByRole('button', { name: 'Expand note' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark as done' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Make private' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(actions.onOpen).toHaveBeenCalledTimes(1));
+    expect(actions.onExpand).not.toHaveBeenCalled();
+  });
+
+  it('expands with E and prevents double-click from triggering the zone create gesture', () => {
+    const actions = setup();
+    const card = screen.getByText('Approve the quote comparison').closest('button')!;
+    fireEvent.keyDown(card, { key: 'e' });
+    fireEvent.doubleClick(card);
+    expect(actions.onExpand).toHaveBeenCalledTimes(1);
+    expect(actions.onZoneDoubleClick).not.toHaveBeenCalled();
+  });
+  it('keeps quick actions unavailable while a copy is still saving', () => {
+    setup(true, makeNote({ id: 'temp-copy' }));
+    expect(screen.queryByRole('button', { name: 'Expand note' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Note actions' })).not.toBeInTheDocument();
+  });
+
+  it('does not restore menu focus over the duplicated editor', async () => {
+    const duplicate = vi.fn(() => screen.getByLabelText('Copied note title').focus());
+    renderWithProviders(
+      <>
+        <input aria-label="Copied note title" />
+        <NoteCardQuickActions
+          actions={{ onOpen: vi.fn(), onExpand: vi.fn(), onDuplicate: duplicate }}
+        />
+      </>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    await waitFor(() => expect(duplicate).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Copied note title')).toHaveFocus();
+  });
+  it.each([
+    [false, 'Mark as done'],
+    [true, 'Mark as open'],
+  ])('offers the matching completion action (completed: %s)', async (isDone, label) => {
+    const toggle = vi.fn();
+    renderWithProviders(
+      <NoteCardQuickActions
+        actions={{ onOpen: vi.fn(), onExpand: vi.fn(), isDone, onToggleStatus: toggle }}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Note actions' }));
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    await waitFor(() => expect(toggle).toHaveBeenCalledTimes(1));
+  });
+
+  it('offers making private only when allowed and returns focus after changing a card', async () => {
+    const makePrivate = vi.fn();
+    renderWithProviders(
+      <NoteCardQuickActions
+        actions={{ onOpen: vi.fn(), onExpand: vi.fn(), onMakePrivate: makePrivate }}
+      />,
+    );
+    const more = screen.getByRole('button', { name: 'Note actions' });
+    await userEvent.click(more);
+    await userEvent.click(screen.getByRole('button', { name: 'Make private' }));
+    await waitFor(() => expect(makePrivate).toHaveBeenCalledTimes(1));
+    expect(more).toHaveFocus();
+  });
+});
+
+it('identifies the card shown in the detail panel and clears that state when closed', () => {
+  const note = makeNote();
+  const { rerender } = render(
+    <DndContext>
+      <NoteCard note={note} currentUserId="user-1" selected onOpen={vi.fn()} />
+    </DndContext>,
+  );
+  const card = screen.getByText(note.title).closest('button')!;
+  expect(card).toHaveAttribute('aria-current', 'true');
+  rerender(
+    <DndContext>
+      <NoteCard note={note} currentUserId="user-1" selected={false} onOpen={vi.fn()} />
+    </DndContext>,
+  );
+  expect(card).not.toHaveAttribute('aria-current');
 });

@@ -48,6 +48,7 @@ import { cancelFlight, useFlip } from '../Tidy/useFlip';
 import { ZoneBands, zoneDroppableId } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
+import type { NoteCardActions } from './NoteCardActions';
 import { CopyDragContext } from './copyDrag';
 import { useQueryKeys } from '../hooks/queryKeys';
 import type { InlineEditProps } from '../Capture/inlineEdit';
@@ -62,6 +63,7 @@ interface WallViewProps {
   axis: BoardAxis;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
+  cardActions?: (note: NoteDto) => NoteCardActions;
   /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
   onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
   access: BoardAccess;
@@ -122,6 +124,7 @@ export function WallView({
   axis,
   selectedNoteId,
   onOpenNote,
+  cardActions,
   onDuplicateNote,
   access,
   capture,
@@ -463,6 +466,7 @@ export function WallView({
             currentUserId={currentUserId}
             selectedNoteId={selectedNoteId}
             onOpenNote={onOpenNote}
+            cardActions={cardActions}
             onCapture={onCapture}
             capture={capture}
             captureKey={captureKey}
@@ -495,6 +499,7 @@ export function WallView({
               currentUserId={currentUserId}
               selectedNoteId={selectedNoteId}
               onOpenNote={onOpenNote}
+              cardActions={cardActions}
               onCreateInZone={handleCreateInZone}
               activeDragId={activeId}
               filteredOut={shownNotes.length === 0 && totalNoteCount > 0}

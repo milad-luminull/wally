@@ -1,4 +1,4 @@
-import { useDraggable } from '@dnd-kit/core';
+import { useDndContext, useDraggable } from '@dnd-kit/core';
 import { Check, CheckCircle2, Link2, ListChecks, Plus } from 'lucide-react';
 import { useContext, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import type { NoteDto } from '@wally/shared';
@@ -24,12 +24,14 @@ import { tidyKeys, type TidyProps } from '../Tidy/tidyProps';
 import { CopyDragContext } from './copyDrag';
 import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
 import { useReturnFocus, type InlineEditProps } from '../Capture/inlineEdit';
+import { NoteCardQuickActions, type NoteCardActions } from './NoteCardActions';
 
 interface NoteCardProps {
   note: NoteDto;
   currentUserId: string | undefined;
   selected: boolean;
   onOpen: () => void;
+  actions?: NoteCardActions;
   style?: CSSProperties;
   /**
    * Render as the floating copy inside dnd-kit's `<DragOverlay>` rather than as a card
@@ -72,6 +74,7 @@ export function NoteCard({
   currentUserId,
   selected,
   onOpen,
+  actions,
   style,
   overlay = false,
   dragging = false,
@@ -401,6 +404,7 @@ export function NoteCard({
       dragging={dragging && !copying}
       copying={copying}
       onOpen={onOpen}
+      actions={actions}
       style={style}
       surface={surface}
       body={body}
@@ -419,6 +423,7 @@ interface RestingProps {
   dragging: boolean;
   copying: boolean;
   onOpen: () => void;
+  actions?: NoteCardActions;
   style?: CSSProperties;
   surface: string;
   body: ReactNode;
@@ -437,6 +442,7 @@ function RestingNoteCard({
   dragging,
   copying,
   onOpen,
+  actions,
   style,
   surface,
   body,
@@ -446,6 +452,7 @@ function RestingNoteCard({
   edit,
 }: RestingProps) {
   const { t } = useTranslation();
+  const { active } = useDndContext();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: note.id });
   // A copy-drag leaves the original in place: only the copy is travelling.
   const hidden = dragging || (isDragging && !copying);
@@ -461,6 +468,9 @@ function RestingNoteCard({
     document.querySelector<HTMLElement>(
       `[data-note-id="${CSS.escape(note.id)}"] > button, [data-note-id="${CSS.escape(note.id)}"] .capture-card-button`,
     ),
+  );
+  const showActions = Boolean(
+    actions && !note.id.startsWith('temp-') && !active && !hidden && !pending && !tidy,
   );
 
   const wrapperStyle: CSSProperties = {
@@ -558,18 +568,40 @@ function RestingNoteCard({
       style={wrapperStyle}
       data-note-id={note.id}
       data-dragging={hidden || undefined}
-      className="relative"
-      {...pause}
+      className="note-card-wrapper relative"
     >
       <button
         type="button"
         {...listeners}
         {...attributes}
+        data-selected={selected || undefined}
+        aria-current={selected ? 'true' : undefined}
         data-pending={pending?.mark.phase}
         data-tidy={tidy?.mark.phase}
         onClick={onOpen}
-        onDoubleClick={edit?.start}
-        onKeyDown={keyDown}
+        onDoubleClick={(event) => {
+          // Double-clicking a card never creates a note in the containing zone: it edits the
+          // card's words in place.
+          event.stopPropagation();
+          edit?.start();
+        }}
+        onKeyDown={(e) => {
+          if (
+            showActions &&
+            !isDragging &&
+            e.key.toLowerCase() === 'e' &&
+            !e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            actions?.onExpand();
+            return;
+          }
+          keyDown(e);
+        }}
+        {...pause}
         className={cn(
           surface,
           'peer/note group/note cursor-grab',
@@ -583,7 +615,7 @@ function RestingNoteCard({
           // keeps its own colour (docs/BRAND.md). Inset, because the zones are scroll
           // containers: an outline outside the card was clipped along the column's top edge.
           selected
-            ? 'border-transparent shadow-e2 ring-2 ring-inset ring-[color:var(--note-selected)]'
+            ? 'border-transparent shadow-e2'
             : 'border-[color:var(--note-border)] shadow-pin',
           // A tidy waiting for a yes: the edge goes dashed in the note's own border colour.
           tidyPending && 'border-dashed',
@@ -605,6 +637,7 @@ function RestingNoteCard({
           />
         )}
       </button>
+      {showActions && actions && <NoteCardQuickActions actions={actions} />}
       {/* Once kept, the Undo sits where the dot was, but beside the card rather than inside
           it: a button cannot sit inside the card's own. It lifts with the card on hover. */}
       {pending?.mark.phase === 'kept' && !hidden && (

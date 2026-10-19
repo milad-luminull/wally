@@ -7,6 +7,7 @@
  */
 export const de = {
   welcome: {
+    open: 'Wally öffnen',
     brand: 'Wally',
     byline: 'by Luminull',
     navigation: 'Hauptnavigation',
@@ -63,6 +64,251 @@ export const de = {
       review: {
         title: 'Du behältst das letzte Wort.',
         body: 'Wallybot kann hilfreiche Details vorschlagen. Prüfe Ergänzungen, behalte, was hilft, und mache eine Änderung bei Bedarf rückgängig.',
+      },
+    },
+  },
+  landing: {
+    nav: {
+      how: 'So funktioniert’s',
+      voice: 'Sprache',
+      views: 'Ansichten',
+      faq: 'FAQ',
+    },
+    headline: 'Ab an die Wand.',
+    headlineNext: 'Wally macht',
+    headlineHighlight: 'den Rest.',
+    description:
+      'Aufgaben, Besprechungsnotizen, Termine, Ideen, Sprachnotizen. Sammle alles an einem Ort. Wally sortiert, plant und bringt deinen Arbeitstag in Ordnung. Du behältst bei jeder Änderung das letzte Wort.',
+    floating: [
+      'beim Kunden nachfragen',
+      'q3-bericht fr',
+      'Stand-up-Notizen',
+      'Idee: Onboarding verbessern',
+    ],
+    howTitle: 'Ein Ort für alles. Wally übernimmt den Rest.',
+    steps: [
+      {
+        title: 'Wirf alles rein',
+        body: 'Tippe es, sag es oder leite es weiter. Aufgaben, Besprechungsnotizen und Termine landen auf derselben Wand.',
+      },
+      {
+        title: 'Wally sortiert es',
+        body: 'Wally erkennt, worum es geht, wann es fällig ist, wer beteiligt ist und welche Schritte dazugehören. Du behältst, was dir hilft.',
+      },
+      {
+        title: 'Dein Tag, geordnet',
+        body: 'Alles landet am richtigen Tag, neben deinen Besprechungen. Wally plant deinen Tag mit einem Klick.',
+      },
+    ],
+    captureKinds: ['Aufgabe', 'Besprechung', 'Idee', 'Sprachnotiz'],
+    captureExample: 'maya fr nachfragen',
+    voiceTitle: 'Sag es.',
+    voiceTitleNext: 'Wally schreibt mit.',
+    voiceBody:
+      'Sprich, wie du denkst. Eine Rückfrage, eine Prüfung und eine Besprechung in einem Atemzug werden zu drei Karten am richtigen Ort. Oder sag einfach „Plane meinen Tag“.',
+    voiceListening: 'Hört zu',
+    voiceTranscript:
+      'Frag Maya am Freitag nach dem Angebot, erinnere mich morgen an die Vertragsprüfung und vereinbare eine Besprechung mit Leo am Donnerstag um zwei',
+    voiceCards: [
+      {
+        title: 'Bei Maya zum Angebot nachfragen',
+        meta: 'Aufgabe · Fr 23',
+      },
+      {
+        title: 'Vertrag prüfen',
+        meta: 'Aufgabe · Morgen',
+      },
+      {
+        title: 'Besprechung mit Leo',
+        meta: 'Besprechung · Do 14 Uhr',
+      },
+    ],
+    viewsLabel: 'Eine Wand, jede Ansicht',
+    viewsTitle: 'Sieh dieselben Notizen so, wie du sie heute brauchst.',
+    views: {
+      week: {
+        label: 'Diese Woche',
+        description: 'Heute, morgen, diese Woche und später – nebeneinander.',
+      },
+      priority: {
+        label: 'Priorität',
+        description: 'Hoch, mittel und niedrig. Was zuerst zählt, auf einen Blick.',
+      },
+      whiteboard: {
+        label: 'Whiteboard',
+        description: 'Ziehe Notizen an beliebige Stellen und gruppiere sie in Zonen.',
+      },
+      today: {
+        label: 'Heute',
+        description: 'Nur heute, mit einem Kalender daneben.',
+      },
+      focus: {
+        label: 'Fokus',
+        description: 'Eine Notiz, ihr nächster Schritt und Wallybot als Hilfe.',
+      },
+    },
+    notes: [
+      {
+        title: 'Angebot an Maya senden',
+        meta: 'Heute · Hoch',
+      },
+      {
+        title: 'Team-Sync',
+        meta: 'Heute · 11 Uhr',
+      },
+      {
+        title: 'Rechnungen freigeben',
+        meta: 'Heute',
+      },
+      {
+        title: 'Vertragsentwurf prüfen',
+        meta: 'Morgen',
+      },
+      {
+        title: 'Q3-Budget mit Leo',
+        meta: 'Do · 14 Uhr',
+      },
+      {
+        title: 'Projektbrief fertigstellen',
+        meta: 'Fr 23 · Hoch',
+      },
+      {
+        title: 'Idee: einfacheres Onboarding',
+        meta: 'Später',
+      },
+      {
+        title: 'Zahnarzttermin buchen',
+        meta: 'Später',
+      },
+    ],
+    focusStep: 'Schritt 1 von 3 · Noch einmal durchlesen',
+    controlLabel: 'Du behältst die Kontrolle',
+    controlTitle: 'KI schlägt vor. Du entscheidest.',
+    control: [
+      {
+        title: 'Erst vorschlagen, dann anwenden',
+        body: 'Jede Änderung erscheint zuerst auf der Karte. Nichts wird geschrieben, bevor du es übernimmst.',
+      },
+      {
+        title: 'Schweigen heißt ja',
+        body: 'Gerade beschäftigt? Tu nichts und der Vorschlag speichert sich nach ein paar Sekunden von selbst.',
+      },
+      {
+        title: 'Immer rückgängig zu machen',
+        body: 'Mach jede Änderung rückgängig, auch nach dem Speichern. Dein ursprünglicher Text ist immer nur einen Klick entfernt.',
+      },
+    ],
+    joinTitle: 'Alles an einem Ort.',
+    joinBody: 'Starte deine Wand und gib allem, was dir durch den Kopf geht, einen Platz.',
+    joinSignedIn: 'Deine Wand ist bereit. Mach dort weiter, wo du aufgehört hast.',
+    joinNote: 'Privat und beruflich · Ein Ort für alles',
+    joinNotes: ['alles an einem Ort', 'Wally kümmert sich ✓'],
+    questions: 'Fragen',
+    faqs: [
+      {
+        question: 'Was kann ich in Wally sammeln?',
+        answer:
+          'Alles, was du sonst im Kopf behältst: Aufgaben, Besprechungsnotizen, Termine, Ideen und Sprachnotizen. Wally erkennt, worum es geht, und bringt alles an den richtigen Platz.',
+      },
+      {
+        question: 'Ändert die KI meine Notizen ungefragt?',
+        answer:
+          'Nein. Änderungen erscheinen als Vorschlag auf der Karte. Übernimm sie, lass etwas aus oder mache sie rückgängig. Wenn du nichts tust, werden sie nach ein paar Sekunden gespeichert. Du kannst sie auch danach rückgängig machen.',
+      },
+      {
+        question: 'Ist Wally für die Arbeit oder privat?',
+        answer:
+          'Wally ist zuerst für deinen Arbeitstag gedacht, hält aber auch gern deine privaten Dinge fest. Nutze getrennte Wände für Arbeit und Privates oder sieh alles zusammen.',
+      },
+      {
+        question: 'Welche Plattformen werden unterstützt?',
+        answer:
+          'Zuerst das Web, später iOS- und Android-Apps zum schnellen Erfassen unterwegs, auch per Sprache.',
+      },
+    ],
+    copyright: '© {{year}} Luminull',
+    skip: 'Zum Inhalt springen',
+    demo: {
+      label: 'Interaktive Demo',
+      note: 'Interaktive Demo · Nur Beispielvorschläge',
+      input: 'Probiere eine Notiz',
+      placeholder: 'Zum Beispiel „Besprechung mit Leo Do 14 Uhr“',
+      add: 'Hinzufügen',
+      voice: 'Sprachdemo abspielen',
+      pause: 'Animationen pausieren',
+      play: 'Animationen abspielen',
+      poke: 'Sag Hallo zu Wallybot',
+      moods: {
+        ready: 'bereit',
+        listening: 'hört zu…',
+        voice: 'versteht dich…',
+        thinking: 'sortiert…',
+        review: 'passt das?',
+        kept: 'abgelegt ✓',
+        hello: 'Hi, ich bin Wallybot',
+      },
+      idle: 'Hier erscheint deine nächste Karte',
+      waiting: 'Wallybot wartet auf ⏎',
+      reading: 'Liest deine Notiz…',
+      details: 'Erkennt die Details…',
+      steps: 'Ergänzt die nächsten Schritte…',
+      keep: 'Übernehmen',
+      undo: 'Rückgängig',
+      review: 'Prüfe dieses Beispiel',
+      saving: 'Speichert sich von selbst',
+      saved: 'In der Demo abgelegt',
+      trays: {
+        today: 'Heute',
+        week: 'Diese Woche',
+        meet: 'Termine',
+        ideas: 'Ideen',
+      },
+      trayCount: '{{name}} Beispielnotizen',
+      kind: {
+        meeting: 'Besprechung',
+        note: 'Notiz',
+        todo: 'Aufgabe',
+      },
+      fields: {
+        type: 'Typ',
+        due: 'Fällig',
+        when: 'Wann',
+        with: 'Mit',
+        priority: 'Priorität',
+        takes: 'Dauer',
+        filed: 'Ablage',
+      },
+      days: {
+        today: 'Heute',
+        tomorrow: 'Morgen',
+        mon: 'Mo 26',
+        tue: 'Di 27',
+        wed: 'Mi 21',
+        thu: 'Do 22',
+        fri: 'Fr 23',
+        next: 'Nächste Woche',
+      },
+      high: 'Hoch',
+      medium: 'Mittel',
+      duration: '{{count}} Min.',
+      ideas: 'Ideen',
+      someone: 'der Person',
+      phrases: [
+        'Besprechung mit Leo Do 14 Uhr zum Q3-Budget',
+        'Anruf mit Sam am Donnerstag um 10 Uhr zum Launch',
+        'Angebot an Maya Fr dringend senden',
+        'Idee: Onboarding vereinfachen',
+        'Vertragsentwurf morgen prüfen 30m',
+        'Vertrag morgen prüfen 30m',
+      ],
+      subs: {
+        meeting: ['Agenda teilen', 'Zahlen vorbereiten', 'Danach Notizen versenden'],
+        review: ['Durchlesen', 'Offene Fragen markieren', 'Kommentare senden'],
+        idea: ['Erste Gedanken aufschreiben', 'Teilen, sobald es bereit ist'],
+        call: ['Details ansehen', '{{who}} anrufen', 'Vereinbarung festhalten'],
+        send: ['Noch einmal durchlesen', 'An {{who}} senden', 'Bei Bedarf nachfragen'],
+        book: ['Passenden Zeitpunkt finden', 'Buchen', 'In den Kalender eintragen'],
+        other: ['Ersten Schritt klären', 'Erledigen', 'Abhaken'],
       },
     },
   },
@@ -181,6 +427,7 @@ export const de = {
     canvas: { label: 'Hintergrund der freien Wand', dots: 'Punkte', grid: 'Raster', none: 'Leer' },
     language: {
       label: 'Sprache',
+      review: 'Prüfe dieses Beispiel',
       saving: 'Wird gespeichert…',
       saveFailed: 'Sprache konnte nicht gespeichert werden.',
     },
@@ -308,7 +555,13 @@ export const de = {
     then: 'dann',
   },
   board: {
-    rail: { wall: 'Wand', views: 'Wandansichten', whiteboard: 'Whiteboard' },
+    rail: {
+      wall: 'Wand',
+      views: 'Wandansichten',
+      whiteboard: 'Whiteboard',
+      collapse: 'Seitenleiste einklappen',
+      expand: 'Seitenleiste ausklappen',
+    },
     rowStatus: { markOpen: 'Als offen markieren', markDone: 'Als erledigt markieren' },
     switcherHeading: 'Wände',
     switcherAria: 'Wand wechseln',
@@ -426,6 +679,13 @@ export const de = {
     },
   },
   note: {
+    open: 'Öffnen',
+    makePrivate: 'Privat machen',
+    actions: 'Notizaktionen',
+    expand: 'Notiz im Vollbild öffnen',
+    collapse: 'In Seitenleiste öffnen',
+    details: 'Details',
+    showActivity: 'Aktivität anzeigen · {{count}}',
     panelAria: 'Notizdetails',
     titlePlaceholder: 'Was ist zu tun?',
     titleAria: 'Titel',

@@ -7,7 +7,15 @@ import { AppearanceControls } from './AppearanceControls';
 import { BrandMark } from './BrandMark';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-export function PublicHeader({ showAuth = false }: { showAuth?: boolean }) {
+export function PublicHeader({
+  showAuth = false,
+  signedIn = false,
+  landing = false,
+}: {
+  showAuth?: boolean;
+  signedIn?: boolean;
+  landing?: boolean;
+}) {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
   return (
@@ -20,6 +28,15 @@ export function PublicHeader({ showAuth = false }: { showAuth?: boolean }) {
         </span>
       </Link>
       <nav className="public-actions" aria-label={t('welcome.navigation')}>
+        {landing && (
+          <div className="landing-nav-links">
+            {(['how', 'voice', 'views', 'faq'] as const).map((section) => (
+              <a key={section} href={`#${section}`}>
+                {t(`landing.nav.${section}`)}
+              </a>
+            ))}
+          </div>
+        )}
         <Popover>
           <PopoverTrigger className="public-appearance" aria-label={t('appearance.menu')}>
             <Palette size={18} />
@@ -43,16 +60,21 @@ export function PublicHeader({ showAuth = false }: { showAuth?: boolean }) {
             </label>
           </PopoverContent>
         </Popover>
-        {showAuth && (
-          <>
-            <Link to="/login" className="public-login">
-              {t('welcome.login')}
+        {showAuth &&
+          (signedIn ? (
+            <Link to="/boards" className="public-signup">
+              {t('welcome.open')}
             </Link>
-            <Link to="/signup" className="public-signup">
-              {t('welcome.signup')}
-            </Link>
-          </>
-        )}
+          ) : (
+            <>
+              <Link to="/login" className="public-login">
+                {t('welcome.login')}
+              </Link>
+              <Link to="/signup" className="public-signup">
+                {t('welcome.signup')}
+              </Link>
+            </>
+          ))}
       </nav>
     </header>
   );

@@ -28,6 +28,7 @@ interface NoteRowProps {
   onOpen: () => void;
   onToggleDone: () => void;
   canEdit: boolean;
+  selected?: boolean;
   /** A change Wallybot proposed for this note, still pending or just kept (§3.3). */
   pending?: PendingProps;
   /** How many notes of the board this one is related to, both ways (`relatedCounts`, L1, L7). */
@@ -42,6 +43,7 @@ export function NoteRow({
   onOpen,
   onToggleDone,
   canEdit,
+  selected = false,
   pending,
   relatedCount = 0,
   edit,
@@ -124,6 +126,8 @@ export function NoteRow({
       // The same address the wall's cards carry, so the board can focus the row after a
       // commit (useCaptureSession) and Enter keeps from there.
       data-note-id={note.id}
+      data-selected={selected || undefined}
+      aria-current={selected ? 'true' : undefined}
       data-pending={pending?.mark.phase}
       onClick={onOpen}
       onDoubleClick={edit?.start}

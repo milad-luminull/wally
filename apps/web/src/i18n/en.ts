@@ -1,6 +1,7 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   welcome: {
+    open: 'Open Wally',
     brand: 'Wally',
     byline: 'by Luminull',
     navigation: 'Main navigation',
@@ -57,6 +58,246 @@ export const en = {
       review: {
         title: 'Keep the final say.',
         body: 'Wallybot can suggest useful details. Review what it adds, keep what helps, and undo a change when you need to.',
+      },
+    },
+  },
+  landing: {
+    nav: {
+      how: 'How it works',
+      voice: 'Voice',
+      views: 'Views',
+      faq: 'FAQ',
+    },
+    headline: 'Drop it on the wall.',
+    headlineNext: 'Wally does',
+    headlineHighlight: 'the rest.',
+    description:
+      'Tasks, meeting notes, deadlines, ideas, voice memos. Put everything in one place, and Wally sorts it, schedules it and keeps your workday in order. You stay in charge of every change.',
+    floating: ['follow up w/ client', 'q3 report fri', 'standup notes', 'idea: onboarding revamp'],
+    howTitle: 'One place in. Wally takes it from there.',
+    steps: [
+      {
+        title: 'Drop anything in',
+        body: 'Type it, say it, or forward it. Tasks, meeting notes and deadlines all land on the same wall.',
+      },
+      {
+        title: 'Wally sorts it',
+        body: 'It works out what each thing is, when it’s due, who it involves and what the steps are. You keep what you like.',
+      },
+      {
+        title: 'Your day, in order',
+        body: 'Everything lands on the right day, next to your meetings. Wally plans your day in one tap.',
+      },
+    ],
+    captureKinds: ['task', 'meeting', 'idea', 'voice memo'],
+    captureExample: 'follow up maya fri',
+    voiceTitle: 'Say it.',
+    voiceTitleNext: 'Wally writes it.',
+    voiceBody:
+      'Talk the way you think. A follow-up, a review and a meeting in one breath become three cards in the right places. Or just say “plan my day”.',
+    voiceListening: 'Listening',
+    voiceTranscript:
+      'Follow up with Maya on Friday about the proposal, remind me to review the contract tomorrow, and set up a meeting with Leo on Thursday at two',
+    voiceCards: [
+      {
+        title: 'Follow up with Maya on the proposal',
+        meta: 'To-do · Fri 23',
+      },
+      {
+        title: 'Review the contract',
+        meta: 'To-do · Tomorrow',
+      },
+      {
+        title: 'Meeting with Leo',
+        meta: 'Meeting · Thu 2 pm',
+      },
+    ],
+    viewsLabel: 'One wall, every view',
+    viewsTitle: 'Look at the same notes the way you need today.',
+    views: {
+      week: {
+        label: 'This week',
+        description: 'Today, tomorrow, this week and later, side by side.',
+      },
+      priority: {
+        label: 'Priority',
+        description: 'High, medium and low. What matters first, at a glance.',
+      },
+      whiteboard: {
+        label: 'Whiteboard',
+        description: 'Drag notes anywhere and group them into zones.',
+      },
+      today: {
+        label: 'Today',
+        description: 'Just today, with a calendar next to it.',
+      },
+      focus: {
+        label: 'Focus',
+        description: 'One note, its next step, and Wallybot to help.',
+      },
+    },
+    notes: [
+      {
+        title: 'Send proposal to Maya',
+        meta: 'Today · High',
+      },
+      {
+        title: 'Team sync',
+        meta: 'Today · 11 am',
+      },
+      {
+        title: 'Approve invoices',
+        meta: 'Today',
+      },
+      {
+        title: 'Review the contract draft',
+        meta: 'Tomorrow',
+      },
+      {
+        title: 'Q3 budget with Leo',
+        meta: 'Thu · 2 pm',
+      },
+      {
+        title: 'Finish the project brief',
+        meta: 'Fri 23 · High',
+      },
+      {
+        title: 'Idea: simpler onboarding',
+        meta: 'Later',
+      },
+      {
+        title: 'Book a dentist appointment',
+        meta: 'Later',
+      },
+    ],
+    focusStep: 'Step 1 of 3 · Do a final read',
+    controlLabel: 'You stay in charge',
+    controlTitle: 'AI that suggests. You decide.',
+    control: [
+      {
+        title: 'Propose, then apply',
+        body: 'Every change shows up on the card first. Nothing is written until you keep it.',
+      },
+      {
+        title: 'Silence means yes',
+        body: 'Busy? Do nothing and the suggestion saves itself after a few seconds.',
+      },
+      {
+        title: 'Always reversible',
+        body: 'Undo any change, even after it’s saved. What you wrote is always one tap away.',
+      },
+    ],
+    joinTitle: 'Put it all in one place.',
+    joinBody: 'Start your wall and give everything on your mind a place to land.',
+    joinSignedIn: 'Your wall is ready. Pick up where you left off.',
+    joinNote: 'Personal and work · One place for everything',
+    joinNotes: ['everything, one place', 'wally’s on it ✓'],
+    questions: 'Questions',
+    faqs: [
+      {
+        question: 'What can I put in Wally?',
+        answer:
+          'Anything you’d otherwise keep in your head: tasks, meeting notes, deadlines, ideas and voice memos. Wally works out what each one is and puts it in the right place.',
+      },
+      {
+        question: 'Does the AI change my notes without asking?',
+        answer:
+          'Never. Changes appear as a suggestion on the card. Keep them, leave some out, or undo. If you do nothing, they save after a few seconds, and you can still undo later.',
+      },
+      {
+        question: 'Is it for work or personal life?',
+        answer:
+          'Wally is built for your workday first, and it’s happy to hold the personal things too. Keep separate walls for work and personal, or see everything together.',
+      },
+      {
+        question: 'Which platforms will it support?',
+        answer:
+          'Web first, with iOS and Android apps for quick capture on the go, including voice.',
+      },
+    ],
+    copyright: '© {{year}} Luminull',
+    skip: 'Skip to content',
+    demo: {
+      label: 'Interactive demo',
+      note: 'Interactive demo · Sample suggestions only',
+      input: 'Try a note',
+      placeholder: 'Try “meeting with leo thu 2pm”',
+      add: 'Add',
+      voice: 'Play voice demo',
+      pause: 'Pause animations',
+      play: 'Play animations',
+      poke: 'Say hi to Wallybot',
+      moods: {
+        ready: 'ready',
+        listening: 'listening…',
+        voice: 'hearing you…',
+        thinking: 'sorting it…',
+        review: 'look good?',
+        kept: 'filed ✓',
+        hello: 'Hi, I’m Wallybot',
+      },
+      idle: 'Your next card appears here',
+      waiting: 'Wallybot is waiting for ⏎',
+      reading: 'Reading what you wrote…',
+      details: 'Working out the details…',
+      steps: 'Adding the next steps…',
+      keep: 'Keep',
+      undo: 'Undo',
+      review: 'Review this example',
+      saving: 'Saves on its own',
+      saved: 'Filed in the demo',
+      trays: {
+        today: 'Today',
+        week: 'This week',
+        meet: 'Meetings',
+        ideas: 'Ideas',
+      },
+      trayCount: '{{name}} sample notes',
+      kind: {
+        meeting: 'Meeting',
+        note: 'Note',
+        todo: 'To-do',
+      },
+      fields: {
+        type: 'Type',
+        due: 'Due',
+        when: 'When',
+        with: 'With',
+        priority: 'Priority',
+        takes: 'Takes',
+        filed: 'Filed under',
+      },
+      days: {
+        today: 'Today',
+        tomorrow: 'Tomorrow',
+        mon: 'Mon 26',
+        tue: 'Tue 27',
+        wed: 'Wed 21',
+        thu: 'Thu 22',
+        fri: 'Fri 23',
+        next: 'Next week',
+      },
+      high: 'High',
+      medium: 'Medium',
+      duration: '{{count}}m',
+      ideas: 'Ideas',
+      someone: 'them',
+      phrases: [
+        'meeting with leo thu 2pm about q3 budget',
+        'Set up a call with Sam on Thursday at 10am about the launch',
+        'send proposal to maya fri urgent',
+        'idea: simplify the onboarding flow',
+        'Remind me to review the contract draft tomorrow, it takes 30m',
+        'review contract draft tomorrow 30m',
+      ],
+      subs: {
+        meeting: ['Share the agenda', 'Prepare the numbers', 'Send notes afterwards'],
+        review: ['Read it through', 'Mark open questions', 'Send comments'],
+        idea: ['Write down the first thoughts', 'Share it when it’s ready'],
+        call: ['Look over the details', 'Call {{who}}', 'Write down what you agreed'],
+        send: ['Do a final read', 'Send it to {{who}}', 'Follow up if no reply'],
+        book: ['Find a time that works', 'Book it', 'Add it to the calendar'],
+        other: ['Work out the first step', 'Do it', 'Check it off'],
       },
     },
   },
@@ -173,6 +414,7 @@ export const en = {
     canvas: { label: 'Free canvas background', dots: 'Dots', grid: 'Grid', none: 'Plain' },
     language: {
       label: 'Language',
+      review: 'Review this example',
       saving: 'Saving…',
       saveFailed: 'Could not save your language.',
     },
@@ -296,7 +538,13 @@ export const en = {
     then: 'then',
   },
   board: {
-    rail: { wall: 'Wall', views: 'Board views', whiteboard: 'Whiteboard' },
+    rail: {
+      wall: 'Wall',
+      views: 'Board views',
+      whiteboard: 'Whiteboard',
+      collapse: 'Collapse sidebar',
+      expand: 'Expand sidebar',
+    },
     rowStatus: { markOpen: 'Mark as open', markDone: 'Mark as done' },
     switcherHeading: 'Boards',
     switcherAria: 'Switch board',
@@ -412,6 +660,13 @@ export const en = {
     },
   },
   note: {
+    open: 'Open',
+    makePrivate: 'Make private',
+    actions: 'Note actions',
+    expand: 'Expand note',
+    collapse: 'Open in side panel',
+    details: 'Details',
+    showActivity: 'Show activity · {{count}}',
     panelAria: 'Note details',
     titlePlaceholder: 'What needs doing?',
     titleAria: 'Title',

@@ -22,6 +22,7 @@ import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 import type { InlineEditProps } from '../Capture/inlineEdit';
+import type { NoteCardActions } from './NoteCardActions';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
 
@@ -31,6 +32,7 @@ interface WallCanvasProps {
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
+  cardActions?: (note: NoteDto) => NoteCardActions;
   /** A double-click on empty canvas asks for a new note written at that point. */
   onCapture: (placement: CapturePlacement) => void;
   /** The note being written, shown on the canvas when its placement is free. */
@@ -91,6 +93,7 @@ export function WallCanvas({
   currentUserId,
   selectedNoteId,
   onOpenNote,
+  cardActions,
   onCapture,
   capture,
   captureKey,
@@ -151,6 +154,7 @@ export function WallCanvas({
               selected={selectedNoteId === note.id}
               dragging={activeDragId === note.id}
               onOpen={() => onOpenNote(note.id)}
+              actions={cardActions?.(note)}
               pending={pendingFor?.(note.id)}
               edit={editFor?.(note)}
               relatedCount={relatedCounts?.get(note.id)}

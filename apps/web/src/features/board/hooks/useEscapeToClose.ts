@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { overlayIsOpen } from '@/lib/shortcuts';
 
 /**
  * Escape closes a desktop side panel (the note panel).
@@ -18,10 +19,7 @@ export function useEscapeToClose(onClose: () => void, enabled: boolean) {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const layerAbove = document.querySelector(
-        '[data-radix-popper-content-wrapper], [role="alertdialog"], [role="dialog"]',
-      );
-      if (layerAbove) return;
+      if (overlayIsOpen()) return;
       onClose();
     }
 

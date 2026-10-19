@@ -1,5 +1,5 @@
-import { ChartNoAxesColumn, Columns3, Plus } from 'lucide-react';
-import type { SVGProps } from 'react';
+import { ChartNoAxesColumn, Columns3, PanelLeft, Plus } from 'lucide-react';
+import { useState, type SVGProps } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility } from '@wally/shared';
@@ -47,6 +47,8 @@ export function BoardRail({
   newNoteVisibility,
 }: Props) {
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(false);
+  const toggleLabel = t(collapsed ? 'board.rail.expand' : 'board.rail.collapse');
   const links = [
     {
       key: 'horizon',
@@ -71,17 +73,36 @@ export function BoardRail({
     newNoteVisibility === 'PRIVATE' ? 'board.topBar.newPrivateNote' : 'board.topBar.newNote',
   );
   return (
-    <aside className="board-rail">
-      <Link to="/boards" className="board-rail-brand" aria-label={t('board.topBar.home')}>
-        <BrandMark size={20} />
-        <span>{t('welcome.brand')}</span>
-      </Link>
+    <aside className="board-rail" data-collapsed={collapsed}>
+      <div className="board-rail-header">
+        <Link to="/boards" className="board-rail-brand" aria-label={t('board.topBar.home')}>
+          <BrandMark size={20} />
+          <span>{t('welcome.brand')}</span>
+        </Link>
+        <button
+          type="button"
+          className="board-rail-toggle"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+          aria-expanded={!collapsed}
+          aria-controls="board-rail-navigation"
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          {collapsed ? (
+            <BrandMark size={20} />
+          ) : (
+            <PanelLeft size={15} strokeWidth={1.9} aria-hidden />
+          )}
+        </button>
+      </div>
       <BoardSwitcher boardId={boardId} boardName={boardName} variant="rail" />
-      <nav aria-label={t('board.rail.views')} className="board-rail-nav">
+      <nav id="board-rail-navigation" aria-label={t('board.rail.views')} className="board-rail-nav">
         {links.map(({ key, icon: Icon, axis: nextAxis, label }) => (
           <button
             key={key}
             type="button"
+            aria-label={label}
+            title={collapsed ? label : undefined}
             aria-current={axis === nextAxis ? 'page' : undefined}
             onClick={() => onSetAxis(nextAxis)}
           >
@@ -91,7 +112,13 @@ export function BoardRail({
         ))}
       </nav>
       <div className="board-rail-bottom">
-        <button className="board-rail-new" type="button" onClick={onNewNote}>
+        <button
+          className="board-rail-new"
+          type="button"
+          onClick={onNewNote}
+          aria-label={newLabel}
+          title={collapsed ? newLabel : undefined}
+        >
           <Plus size={18} />
           <span>{newLabel}</span>
           <kbd aria-hidden>{'N'}</kbd>

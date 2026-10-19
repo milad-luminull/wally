@@ -78,6 +78,96 @@ function renderPanel(overrides: Partial<Parameters<typeof NoteDetailPanel>[0]> =
 }
 
 describe('NoteDetailPanel', () => {
+  describe('expanded presentation', () => {
+    it('keeps the same live editor and draft when expanding and collapsing', async () => {
+      vi.mocked(notesApi.update).mockImplementation(async (_id, input) => makeNoteDetail(input));
+      const user = userEvent.setup();
+      renderPanel();
+      const title = await screen.findByLabelText('Title');
+      await user.clear(title);
+      await user.type(title, 'Draft across presentations');
+      await user.click(screen.getByRole('button', { name: 'Expand note' }));
+      expect(screen.getByLabelText('Title')).toBe(title);
+      expect(title).toHaveValue('Draft across presentations');
+      expect(screen.getByRole('button', { name: 'Open in side panel' })).toBeVisible();
+      expect(screen.getByLabelText('Due')).toBeEnabled();
+      await user.click(screen.getByRole('button', { name: 'Open in side panel' }));
+      expect(screen.getByLabelText('Title')).toBe(title);
+      expect(title).toHaveValue('Draft across presentations');
+      await waitFor(() =>
+        expect(notesApi.update).toHaveBeenCalledWith(
+          'note-1',
+          { title: 'Draft across presentations' },
+          expect.anything(),
+        ),
+      );
+    });
+
+    it('collapses on Escape before closing and ignores E while typing', async () => {
+      const user = userEvent.setup();
+      const { onClose } = renderPanel();
+      await screen.findByLabelText('Title');
+      await user.keyboard('e');
+      expect(screen.getByRole('button', { name: 'Expand note' })).toBeVisible();
+      await user.click(screen.getByRole('button', { name: 'Expand note' }));
+      await user.keyboard('{Escape}');
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Expand note' })).toHaveFocus();
+      await user.keyboard('e');
+      expect(screen.getByRole('button', { name: 'Open in side panel' })).toHaveFocus();
+      await user.keyboard('{Escape}{Escape}');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves expanded mode open when Escape dismisses a property dropdown', async () => {
+      const user = userEvent.setup();
+      const { onClose } = renderPanel();
+      await user.click(await screen.findByRole('button', { name: 'Expand note' }));
+      await user.click(screen.getByRole('combobox', { name: 'Assignee' }));
+      await screen.findByRole('option', { name: 'Nobody' });
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('option', { name: 'Nobody' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open in side panel' })).toBeVisible();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('honours E when keyboard focus opens the expand tooltip', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+      await screen.findByLabelText('Title');
+      // The title is auto-focused; Shift+Tab passes Close, then Expand.
+      await user.tab({ shift: true });
+      await user.tab({ shift: true });
+      expect(screen.getByRole('button', { name: 'Expand note' })).toHaveFocus();
+      await screen.findByRole('tooltip');
+      await user.keyboard('e');
+      expect(screen.getByRole('button', { name: 'Open in side panel' })).toHaveFocus();
+    });
+
+    it('restores focus to Expand after using the full-screen back control', async () => {
+      const user = userEvent.setup();
+      renderPanel();
+      await user.click(await screen.findByRole('button', { name: 'Expand note' }));
+      await user.click(screen.getByRole('button', { name: 'This Week' }));
+      expect(screen.getByRole('button', { name: 'Expand note' })).toHaveFocus();
+    });
+
+    it('preserves read-only permissions in expanded mode', async () => {
+      renderPanel({ access: boardAccess('VIEW', 'user-1', 'all') });
+      await userEvent.click(await screen.findByRole('button', { name: 'Expand note' }));
+      expect(screen.getByLabelText('Title')).toBeDisabled();
+      expect(screen.getByRole('checkbox', { name: 'Done' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    });
+
+    it('uses the mobile sheet without desktop expansion controls', async () => {
+      renderPanel({ isBelowDesktop: true });
+      await screen.findByLabelText('Title');
+      expect(screen.getByRole('dialog')).toBeVisible();
+      expect(screen.queryByRole('button', { name: 'Expand note' })).not.toBeInTheDocument();
+    });
+  });
+
   it('opens a related note from the panel and offers an unlinked note', async () => {
     const onOpenNote = vi.fn();
     vi.mocked(notesApi.list).mockResolvedValue([

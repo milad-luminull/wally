@@ -87,6 +87,8 @@ function setupSwitch() {
 describe('useTidy', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // Match the fixture week: Oct 19 belongs in Later until the following Monday.
+    vi.setSystemTime(new Date('2026-10-17T12:00:00.000Z'));
     vi.mocked(assistantApi.tidy).mockReset();
     vi.mocked(assistantApi.decideTidy).mockReset();
   });
