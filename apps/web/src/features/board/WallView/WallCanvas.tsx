@@ -21,6 +21,7 @@ import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
 import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 import type { NoteCardActions } from './NoteCardActions';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
@@ -47,6 +48,8 @@ interface WallCanvasProps {
   ask?: AskSlot | null;
   /** What a new note's visibility will be; a viewer's is private. */
   visibility: NoteVisibility;
+  /** The board's filter chose that visibility ("Shared"). */
+  visibilityChosen?: boolean;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
   canEditShared: boolean;
   /** True when the board has notes but the active filter hides all of them. */
@@ -54,6 +57,8 @@ interface WallCanvasProps {
   activeDragId: string | null;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
 }
@@ -97,10 +102,12 @@ export function WallCanvas({
   onCaptureAsk,
   ask,
   visibility,
+  visibilityChosen,
   canEditShared,
   filtered,
   activeDragId,
   pendingFor,
+  editFor,
   relatedCounts,
 }: WallCanvasProps) {
   const { t } = useTranslation();
@@ -149,6 +156,7 @@ export function WallCanvas({
               onOpen={() => onOpenNote(note.id)}
               actions={cardActions?.(note)}
               pending={pendingFor?.(note.id)}
+              edit={editFor?.(note)}
               relatedCount={relatedCounts?.get(note.id)}
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
@@ -165,6 +173,7 @@ export function WallCanvas({
                 boardId={boardId}
                 placement={capture}
                 visibility={visibility}
+                visibilityChosen={visibilityChosen}
                 layout="card"
                 onDone={onCaptureDone}
                 onNoteId={onCaptureNoteId}

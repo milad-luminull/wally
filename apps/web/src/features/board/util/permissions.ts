@@ -17,6 +17,8 @@ export interface BoardAccess {
   /** What a note created from the board right now becomes. Viewers can only add private
    *  notes, and with "Only private" on a new note must not vanish from the view. */
   newNoteVisibility: NoteVisibility;
+  /** The filter chose a new note's visibility ("Shared"), so Wallybot leaves it alone. */
+  visibilityChosen: boolean;
   canEditNote(note: NoteAccessFields): boolean;
   /** Whether the panel offers the Private switch. Shown disabled to a viewer on their own
    *  private note, so it can say why it cannot be shared. */
@@ -36,6 +38,7 @@ export function boardAccess(
   return {
     canEditShared,
     newNoteVisibility: !canEditShared || filter === 'private' ? 'PRIVATE' : 'SHARED',
+    visibilityChosen: filter === 'shared',
     canEditNote: (note) => canEditShared || isOwnPrivate(note, userId),
     showsVisibilitySwitch: (note) =>
       userId !== undefined &&

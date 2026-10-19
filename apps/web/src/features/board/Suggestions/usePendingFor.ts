@@ -38,6 +38,8 @@ export function usePendingFor(
         onSetField: (field, on) => suggestions.setField(noteId, field, on),
         onSetSubtask: (index, on) => suggestions.setSubtask(noteId, index, on),
         onSetLink: (index, on) => suggestions.setLink(noteId, index, on),
+        onSetTag: (index, on) => suggestions.setTag(noteId, index, on),
+        onSetProperty: (index, on) => suggestions.setProperty(noteId, index, on),
         onPause: (paused) => {
           if (paused) cardHolds.current.add(noteId);
           else cardHolds.current.delete(noteId);

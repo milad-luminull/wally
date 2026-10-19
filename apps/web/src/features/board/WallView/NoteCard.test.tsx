@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
 import tailwindConfig from '../../../../tailwind.config';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
@@ -7,6 +7,10 @@ import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import type { TidyMark } from '../Tidy/useTidy';
 import { NoteCard } from './NoteCard';
+import { i18n } from '@/i18n';
+import { dueInfo } from '../util/noteDerived';
+/** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
+const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 import { NoteCardQuickActions } from './NoteCardActions';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -179,6 +183,8 @@ describe('NoteCard with a pending change', () => {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   });
   const renderCard = (p = pending()) => {
@@ -196,18 +202,62 @@ describe('NoteCard with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed edge, the dot, and each proposed field in its place with an ×', () => {
+  it('wraps the card in the moving border, with the proposed fields as rows with an × each', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
-    expect(card.className).toContain('border-dashed');
-    expect(card.className).not.toMatch(/\banimate-/);
-    expect(screen.getByRole('img', { name: /Proposed changes/ })).toBeInTheDocument();
-    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    const shell = card.closest('[data-capture-card]')!;
+    expect(shell.className).toContain('capture-glow');
+    // The border and the rows mark the change; there is no corner dot any more.
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText(dueWords('2026-10-23'))).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
+      within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
-    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+    fireEvent.click(within(list).getByRole('button', { name: 'Leave out: Person Anna' }));
+    expect(p.onSetField).toHaveBeenCalledWith('assignee', false);
+    // Everything is in the rows: the card's own meta line waits until the decision.
+    expect(card.querySelector('[data-note-meta]')).toBeNull();
+  });
+
+  it('a pending change shows the list and the footer and hides the done checkbox', () => {
+    const p = renderCard();
+    expect(screen.getByRole('list', { name: 'Suggested fields' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(p.onKeep).toHaveBeenCalledWith('click');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+    const card = screen.getByText('Approve the quote comparison').closest('button')!;
+    // The done circle leaves the card under review, so the title lines up with the rows.
+    expect(card.querySelector('.paper-note-status')).toBeNull();
+  });
+
+  it("the list and footer sit beside the card's button, so its name stays the note", () => {
+    renderCard();
+    const card = screen.getByText('Approve the quote comparison').closest('button')!;
+    expect(within(card).queryByRole('list')).toBeNull();
+    expect(card.querySelector('[data-review-footer]')).toBeNull();
+    const review = card.parentElement!.querySelector('[data-note-review]')!;
+    expect(
+      within(review as HTMLElement).getByRole('list', { name: 'Suggested fields' }),
+    ).toBeInTheDocument();
+    expect(within(review as HTMLElement).getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  });
+
+  it('Esc on a row of the review discards, as on the card', () => {
+    const p = renderCard();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Leave out: Priority High' }), {
+      key: 'Escape',
+    });
+    expect(p.onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it('while the call runs the words shimmer, the card says it is filling in, and there is no list', () => {
+    renderCard(pending({ phase: 'asking', suggestion: null, countdownEndsAt: null }));
+    expect(screen.getByText('Approve the quote comparison').className).toContain('capture-shimmer');
+    expect(screen.getByText('Filling in')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
   });
 
   it('keeps on Enter, discards on Esc, and never opens the note for those keys', () => {
@@ -265,7 +315,7 @@ describe('NoteCard with a pending change', () => {
   it('stays paused while focus moves from the card to one of its ×', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
-    const remove = screen.getByRole('button', { name: 'Remove suggestion: High priority' });
+    const remove = screen.getByRole('button', { name: 'Leave out: Priority High' });
     fireEvent.focus(card);
     fireEvent.blur(card, { relatedTarget: remove });
     fireEvent.focus(remove);
@@ -277,7 +327,6 @@ describe('NoteCard with a pending change', () => {
     renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     expect(card).toHaveAccessibleName(/Proposed changes, applied in a moment/);
-    expect(card).toContainElement(screen.getByRole('img', { name: /Proposed changes/ }));
   });
 
   it('names the card as waiting for Enter when nothing counts down', () => {
@@ -301,48 +350,34 @@ describe('NoteCard with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
-    const onOpen = vi.fn();
-    const p = withProposals(['dueDate'], { title: TITLE });
-    const card = (q: typeof p) => (
+  it('keeps the person’s title on the card and offers the new one in the Title row, its text in a Text row', () => {
+    const description = { value: 'For the Müller quote.', reason: 'moved out' };
+    const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
+    render(
       <DndContext>
         <NoteCard
           note={makeNote({ dueDate: null })}
           currentUserId="user-1"
           selected={false}
-          onOpen={onOpen}
-          pending={q}
+          onOpen={vi.fn()}
+          pending={on}
         />
-      </DndContext>
+      </DndContext>,
     );
-    const { rerender } = render(card(p));
-    // The person's own title stays; the offer is a line of its own beside it (BRAND rule 7).
-    expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(line).toHaveAttribute('aria-pressed', 'false');
-    // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
-    fireEvent.click(line);
-    expect(p.onSetField).toHaveBeenCalledWith('title', true);
-    // Enter on the line takes the title; it neither keeps the change nor opens the note.
-    fireEvent.keyDown(line, { key: 'Enter' });
-    expect(p.onSetField).toHaveBeenCalledTimes(2);
-    expect(p.onKeep).not.toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-
-    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
-    rerender(card(taken));
-    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
-    expect(takenLine).not.toHaveAttribute('aria-description');
-    fireEvent.click(takenLine);
-    expect(taken.onSetField).toHaveBeenCalledWith('title', false);
-    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
-    expect(taken.onRemove).toHaveBeenCalledWith('title');
-    expect(onOpen).not.toHaveBeenCalled();
+    const button = screen.getAllByRole('button')[0]!;
+    expect(within(button).getByText('Approve the quote comparison')).toBeInTheDocument();
+    expect(within(button).queryByText('Quote for Müller')).toBeNull();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText('Quote for Müller')).toBeInTheDocument();
+    expect(within(list).getByText('For the Müller quote.')).toBeInTheDocument();
+    expect(screen.queryByText('Reworded')).toBeNull();
+    fireEvent.click(
+      within(list).getByRole('button', { name: 'Leave out: Title Quote for Müller' }),
+    );
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
   });
 
-  it('shows the reference and the step count with an × each', () => {
+  it('shows the reference and each step as rows with an × each', () => {
     const p = renderCard(
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
@@ -353,30 +388,16 @@ describe('NoteCard with a pending change', () => {
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
-    );
-    expect(p.onRemove).toHaveBeenCalledWith('reference');
-    // The count is of the steps still ticked, in the checklist's place.
-    expect(screen.getByText('2 steps')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
-    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Customer Müller GmbH' }));
+    expect(p.onSetField).toHaveBeenCalledWith('reference', false);
+    // Each step is a row; the unticked one is crossed out and can be brought back.
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Step Approve' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(2, false);
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Step Compare' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(1, true);
   });
 
-  it('counts one step in the singular', () => {
-    renderCard(
-      withProposals(
-        ['subtasks'],
-        { subtasks: { items: ['Get prices', 'Compare'], reason: 'process' } },
-        { subtasks: [1] },
-      ),
-    );
-    expect(screen.getByText('1 step')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Remove suggestion: 1 step' })).toBeInTheDocument();
-  });
-
-  it('shows one line per ticked proposed link, each with an × that unticks it by its index', () => {
+  it('shows one row per proposed link, each toggled by its stored index', () => {
     const p = renderCard(
       withProposals(
         ['dueDate', 'links'],
@@ -393,16 +414,13 @@ describe('NoteCard with a pending change', () => {
         { links: [0, 2] },
       ),
     );
-    expect(screen.getByText('Related: Supplier list')).toBeInTheDocument();
-    expect(screen.getByText('Related: Untitled')).toBeInTheDocument();
-    // An unticked link leaves the card; the review still offers it.
-    expect(screen.queryByText('Related: Budget')).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Related: Supplier list' }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Related Supplier list' }));
     expect(p.onSetLink).toHaveBeenCalledWith(0, false);
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Related: Untitled' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Related Untitled' }));
     expect(p.onSetLink).toHaveBeenLastCalledWith(2, false);
+    // An unticked link stays as a crossed-out row that can come back.
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Related Budget' }));
+    expect(p.onSetLink).toHaveBeenLastCalledWith(1, true);
     expect(p.onRemove).not.toHaveBeenCalled();
   });
 
@@ -415,7 +433,14 @@ describe('NoteCard with a pending change', () => {
       suggestion: {
         ...base.suggestion!,
         status: 'KEPT',
-        kept: { fields: ['dueDate', 'priority'], subtasks: [], links: [], revision: 3 },
+        kept: {
+          fields: ['dueDate', 'priority'],
+          subtasks: [],
+          links: [],
+          tags: [],
+          properties: [],
+          revision: 3,
+        },
       },
     });
     renderCard(p);
@@ -432,6 +457,9 @@ describe('NoteCard with a pending change', () => {
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     expect(card.className).not.toContain('border-dashed');
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    // Neither the list nor the footer outlives the keep.
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);

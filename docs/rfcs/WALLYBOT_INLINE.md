@@ -100,14 +100,19 @@ This slice has no AI in it and is where the customer feedback is answered. It sh
 
 ### 3.3 Fill in on Enter (3a, the default)
 
-- On commit, the card gets a dashed edge with a marigold dot in its corner. Fields stream onto
-  the card as they arrive: due date, priority, assignee, reference, subtasks, each in the place
-  it has on a normal card, each with a `×`. The title keeps the person's wording; if Wallybot
-  proposes a cleaner one, it appears as a second line with "use mine" beside it, never as a
-  replacement.
-- The dot fills as a countdown ring (default 6 s). Hover or focus pauses it. Esc undoes
-  everything, Enter keeps everything, a `×` removes one field without touching the rest.
-  Editing a field during review wins: that field leaves the proposal.
+- On commit, the card gets a dashed edge with a marigold dot in its corner and a footer that
+  says "Filling in…". The proposed fields arrive one after another as a labelled list under a
+  hairline (due date, horizon, priority, person, Private, properties, tags, steps, related
+  notes), each with a `×` that crosses it out and a `↺` that brings it back. The title keeps
+  the person's wording; if Wallybot proposes a cleaner one (with the detail moved to a
+  description), it appears as a second line with "use mine" beside it, never as a
+  replacement. Amended by the smarter-capture spec (2026-10-18), after Paper Wall v3, and again
+  on 2026-10-19: the card follows Paper Wall v3 (moving border, one card); the card keeps the
+  person's title and the new title is a row; see the spec's Revision sections.
+- The footer shows the countdown ring (15 s), "Saves in N s" or "Paused", Undo and Keep.
+  Hover or focus pauses it. Esc or Undo undoes everything, Enter or Keep keeps what is
+  ticked. The title, its description and Private are only ever taken by the person, never by
+  the countdown. Editing a field during review wins: that field leaves the proposal.
 - When kept, the dashed edge and the dot fade over 180 ms and the card folds back to its compact
   form. For the next 30 s a faint "Undo" sits where the dot was; `⌘Z` works too. No toast.
 - When the model fails or times out, the card simply stops showing the dot. Nothing is said.

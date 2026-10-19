@@ -11,6 +11,7 @@ import type { AskSlot } from '../Ask/askSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
+import type { InlineEditProps } from '../Capture/inlineEdit';
 import type { NoteCardActions } from './NoteCardActions';
 
 /** Droppable-region id convention consumed by WallView's onDragEnd. */
@@ -24,6 +25,7 @@ interface ZoneCapture {
   boardId: string;
   placement: Extract<CapturePlacement, { kind: 'zone' }>;
   visibility: NoteVisibility;
+  visibilityChosen?: boolean;
   onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
   onNoteId: ((noteId: string) => void) | undefined;
   onAsk: CaptureAsk | undefined;
@@ -46,6 +48,8 @@ interface ZoneBandProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
@@ -65,6 +69,7 @@ function ZoneBand({
   activeDragId,
   filteredOut,
   pendingFor,
+  editFor,
   relatedCounts,
   tidyFor,
 }: ZoneBandProps) {
@@ -76,9 +81,9 @@ function ZoneBand({
     <section
       ref={setNodeRef}
       onDoubleClick={(e) => {
-        // Selecting a word in the note being written, or in an answer, is not a request for
-        // another note.
-        if ((e.target as HTMLElement).closest('[data-capture], [data-ask]')) return;
+        // A double-click on a card edits it; selecting a word in the note being written, or in
+        // an answer, is not a request for another note either.
+        if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
@@ -125,6 +130,7 @@ function ZoneBand({
                 boardId={capture.boardId}
                 placement={capture.placement}
                 visibility={capture.visibility}
+                visibilityChosen={capture.visibilityChosen}
                 layout="card"
                 onDone={capture.onDone}
                 onNoteId={capture.onNoteId}
@@ -142,6 +148,7 @@ function ZoneBand({
               onOpen={() => onOpenNote(note.id)}
               actions={cardActions?.(note)}
               pending={pendingFor?.(note.id)}
+              edit={editFor?.(note)}
               relatedCount={relatedCounts?.get(note.id)}
               tidy={tidyFor?.(note.id)}
             />
@@ -194,6 +201,8 @@ interface ZoneBandsProps {
   /** The answer to a question; shown at the top of its zone when its placement is a zone. */
   ask?: AskSlot | null;
   visibility: NoteVisibility;
+  /** The board's filter chose that visibility ("Shared"). */
+  visibilityChosen?: boolean;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -203,6 +212,8 @@ interface ZoneBandsProps {
   filteredOut: boolean;
   /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
+  /** Editing a note's words in place, for a note the person may edit. */
+  editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
@@ -222,6 +233,7 @@ export function ZoneBands({
   onCaptureAsk,
   ask,
   visibility,
+  visibilityChosen,
   ...rest
 }: ZoneBandsProps) {
   const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
@@ -241,6 +253,7 @@ export function ZoneBands({
                     boardId,
                     placement: zoneCapture,
                     visibility,
+                    visibilityChosen,
                     onDone: onCaptureDone,
                     onNoteId: onCaptureNoteId,
                     onAsk: onCaptureAsk,

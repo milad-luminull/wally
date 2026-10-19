@@ -5,20 +5,19 @@ import type {
   EffectiveRole,
   Language,
   NoteDetailDto,
+  NoteHorizon,
   NotePriority,
+  NoteVisibility,
   SuggestionDecision,
   SuggestionDto,
   SuggestionFieldKey,
   SuggestionFields,
 } from '@wally/shared';
 import {
-  SUGGESTION_MAX_LINKS,
   SUGGESTION_MAX_SUBTASKS,
-  customFieldKeySchema,
-  customFieldValueSchema,
   findFieldKey,
-  foldFieldKey,
   suggestionFieldKeys,
+  suggestionOptInFieldKeys,
 } from '@wally/shared';
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
@@ -45,23 +44,17 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import {
-  CAPTURE_MAX_OTHER_NOTES,
-  buildCaptureInstructions,
-  buildCapturePrompt,
-} from './capturePrompt.js';
-import {
-  suggestionSchemaJson,
-  type ModelSuggestion,
-  type SuggestionRunner,
-} from './model/index.js';
+  acceptCapture,
+  buildCaptureCall,
+  captureCandidates,
+  captureNeedsBoard,
+  type CaptureContext,
+} from './captureProposal.js';
+import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
 import { runOperation, type OperationContext } from './run.js';
 
-export const SUGGESTION_MAX_OUTPUT_TOKENS = 512;
+export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 export const SUGGESTION_DEADLINE_MS = 20_000;
-/** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
-export const SUGGESTION_MIN_CONFIDENCE = 0.6;
-/** Fewer steps than this are no breakdown: steps are proposed two to five (plan R7). */
-export const SUGGESTION_MIN_SUBTASKS = 2;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -105,165 +98,23 @@ function mintOperationIds(): SuggestionOperationIds {
       undo: randomUUID(),
     })),
     links: { apply: randomUUID(), undo: randomUUID() },
+    horizon: { apply: randomUUID(), undo: randomUUID() },
+    visibility: { apply: randomUUID(), undo: randomUUID(), undoAssignee: randomUUID() },
+    tags: { apply: randomUUID(), undo: randomUUID() },
+    properties: { apply: randomUUID(), undo: randomUUID() },
+    description: { apply: randomUUID(), undo: randomUUID() },
   };
 }
 
-/**
- * Which fields may be proposed for this note: an empty one the person did not decide while
- * writing (plan R3), a cleaner title beside a title they wrote, a reference or steps only on a
- * note that has no property and no step yet (R7), and links only on a note with none (L3).
- */
-function candidates(
-  note: Pick<
-    NoteDetailDto,
-    | 'dueDate'
-    | 'priority'
-    | 'assignee'
-    | 'visibility'
-    | 'title'
-    | 'customFields'
-    | 'subtaskSummary'
-    | 'links'
-  >,
-  locked: SuggestionFieldKey[],
-): SuggestionFieldKey[] {
-  const open: SuggestionFieldKey[] = [];
-  if (note.dueDate === null && !locked.includes('dueDate')) open.push('dueDate');
-  if (note.priority === 'MITTEL' && !locked.includes('priority')) open.push('priority');
-  if (note.assignee === null && note.visibility !== 'PRIVATE' && !locked.includes('assignee'))
-    open.push('assignee');
-  if (note.title.trim() && !locked.includes('title')) open.push('title');
-  if (Object.keys(note.customFields ?? {}).length === 0 && !locked.includes('reference'))
-    open.push('reference');
-  if (note.subtaskSummary.total === 0 && !locked.includes('subtasks')) open.push('subtasks');
-  if ((note.links ?? []).length === 0 && !locked.includes('links')) open.push('links');
-  return open;
-}
-
-/**
- * The property keys the board's notes use, for the prompt: one spelling per key compared
- * through the shared, locale-neutral fold (the first one seen), sorted for the caller's
- * language. Mirrors the web's `collectFieldKeys`, so the model sees the keys the panel offers.
- */
-export function collectKeys(
-  notes: { customFields: Record<string, string> }[],
-  language: Language,
-): string[] {
-  const byFolded = new Map<string, string>();
-  for (const note of notes)
-    for (const key of Object.keys(note.customFields ?? {})) {
-      const folded = foldFieldKey(key);
-      if (!byFolded.has(folded)) byFolded.set(folded, key);
-    }
-  return [...byFolded.values()].sort((a, b) => a.localeCompare(b, language));
-}
+/** The fields the countdown never keeps: Private only (the smarter-capture revision). */
+const optIn = (key: SuggestionFieldKey) =>
+  (suggestionOptInFieldKeys as readonly SuggestionFieldKey[]).includes(key);
 
 /** The fields a chip sets while writing: what the review's first group lists besides the words. */
 const TYPED_KEYS: readonly SuggestionFieldKey[] = ['dueDate', 'priority', 'assignee'];
 
 /** Each value once, first occurrence first. */
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
-
-/**
- * Keeps a field only when it is a candidate, confident enough, (for a person) a member and
- * (for a link) one of the other notes the model was shown, `others` (id to title). A due date
- * before the person's today is dropped: nobody writes a task that was due last week. Both are
- * YYYY-MM-DD, so the string order is the calendar order.
- */
-function accept(
-  fields: ModelSuggestion,
-  open: SuggestionFieldKey[],
-  memberIds: Set<string>,
-  today: string,
-  note: { title: string },
-  fieldKeys: string[],
-  others: Map<string, string>,
-): AssistantSuggestionDoc['fields'] {
-  const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
-  return {
-    dueDate:
-      open.includes('dueDate') &&
-      fields.dueDate &&
-      sure(fields.dueDate.confidence) &&
-      fields.dueDate.value >= today
-        ? { value: fields.dueDate.value, reason: fields.dueDate.reason }
-        : null,
-    priority:
-      open.includes('priority') && fields.priority && sure(fields.priority.confidence)
-        ? { value: fields.priority.value, reason: fields.priority.reason }
-        : null,
-    assignee:
-      open.includes('assignee') &&
-      fields.assignee &&
-      sure(fields.assignee.confidence) &&
-      memberIds.has(fields.assignee.memberId)
-        ? { value: fields.assignee.memberId, reason: fields.assignee.reason }
-        : null,
-    // A "cleaner" title that is the person's own is nothing to offer.
-    title:
-      open.includes('title') &&
-      fields.title &&
-      sure(fields.title.confidence) &&
-      fields.title.value.trim() !== note.title.trim()
-        ? { value: fields.title.value.trim(), reason: fields.title.reason }
-        : null,
-    reference:
-      open.includes('reference') && fields.reference && sure(fields.reference.confidence)
-        ? acceptReference(fields.reference, fieldKeys)
-        : null,
-    subtasks:
-      open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
-        ? acceptSubtasks(fields.subtasks)
-        : null,
-    links:
-      open.includes('links') && fields.links && sure(fields.links.confidence)
-        ? acceptLinks(fields.links, others)
-        : null,
-  };
-}
-
-/**
- * The key folds to the board's own spelling when the board already uses it ("customer" becomes
- * "Customer"), so a keep never starts a near-duplicate property. A key or value the property
- * schema refuses drops the reference.
- */
-function acceptReference(
-  reference: NonNullable<ModelSuggestion['reference']>,
-  fieldKeys: string[],
-): NonNullable<AssistantSuggestionDoc['fields']['reference']> | null {
-  const wanted = foldFieldKey(reference.key);
-  const key = fieldKeys.find((k) => foldFieldKey(k) === wanted) ?? reference.key.trim();
-  const parsedKey = customFieldKeySchema.safeParse(key);
-  const parsedValue = customFieldValueSchema.safeParse(reference.value);
-  if (!parsedKey.success || !parsedValue.success) return null;
-  return { key: parsedKey.data, value: parsedValue.data, reason: reference.reason };
-}
-
-/**
- * The runner already trimmed the steps, dropped the blank and repeated ones and cut them to
- * `SUGGESTION_MAX_SUBTASKS` (`modelSuggestionSchema`); one step left is no breakdown.
- */
-function acceptSubtasks(
-  subtasks: NonNullable<ModelSuggestion['subtasks']>,
-): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
-  const { items } = subtasks;
-  return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
-}
-
-/**
- * Only notes from the rows the model saw, each once, at most three: a link is never invented
- * (L3). The rows never hold the note itself, and the runner already dropped repeated ids.
- */
-function acceptLinks(
-  links: NonNullable<ModelSuggestion['links']>,
-  others: Map<string, string>,
-): NonNullable<AssistantSuggestionDoc['fields']['links']> | null {
-  const items = links.items
-    .filter((item) => others.has(item.noteId))
-    .slice(0, SUGGESTION_MAX_LINKS)
-    .map((item) => ({ noteId: item.noteId, reason: item.reason }));
-  return items.length ? { items, reason: links.reason } : null;
-}
 
 const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
   // A slice 2 record has no title, reference or subtasks at all: absent reads as nothing proposed.
@@ -332,6 +183,12 @@ async function toDto(
     subtasks: live.subtasks ?? null,
     // Nothing readable left: the field reads as empty.
     links: links && links.items.length > 0 ? links : null,
+    // A record from before smarter capture has none of these: absent reads as nothing proposed.
+    horizon: live.horizon ?? null,
+    visibility: live.visibility ?? null,
+    tags: live.tags ?? null,
+    properties: live.properties ?? null,
+    description: live.description ?? null,
   };
   return {
     id: doc.id,
@@ -346,6 +203,8 @@ async function toDto(
           fields: doc.applied.fields,
           subtasks: doc.applied.subtasks ?? [],
           links: doc.applied.links ?? [],
+          tags: doc.applied.tags ?? [],
+          properties: doc.applied.properties ?? [],
           revision: doc.applied.revision,
         }
       : null,
@@ -373,43 +232,27 @@ export async function suggestForCapture(
   // 404 a note they cannot see gets.
   if (note.createdBy?.id !== actor.id) throw notFound();
   if (!note.title.trim() && !note.description.trim()) return null;
-  const open = candidates(note, request.locked);
-  if (open.length === 0) return null;
-
   const members = (await listMembers(db, actor, board.id)).data;
-  const memberRows = members.flatMap((m) =>
-    m.userId ? [{ id: m.userId, name: m.displayName ?? m.email }] : [],
-  );
-  const instructions = buildCaptureInstructions({
+  const captureCtx: CaptureContext = {
+    actorId: actor.id,
     today: request.today,
     timeZone: request.timeZone,
     language: ctx.language,
-  });
-  // Every note the caller can see, done ones too, read once and only when a reference or links
-  // may be proposed at all.
-  const needsBoard = open.includes('reference') || open.includes('links');
-  const boardNotes = needsBoard ? await listNotes(db, actor, board.id, { status: 'ALL' }) : [];
-  // A key in use anywhere on the board is one a reference should reuse.
-  const fieldKeys = open.includes('reference') ? collectKeys(boardNotes, ctx.language) : [];
-  // The other open notes, newest first, as `id: title` rows: what a link may name (L3).
-  const otherNotes = open.includes('links')
-    ? boardNotes
-        .filter((n) => n.id !== note.id && n.status === 'OPEN')
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
-        .slice(0, CAPTURE_MAX_OTHER_NOTES)
-        .map((n) => ({ id: n.id, title: n.title }))
+    locked: request.locked,
+    members: members.flatMap((m) =>
+      m.userId ? [{ id: m.userId, name: m.displayName ?? m.email }] : [],
+    ),
+    canChangeVisibility: ctx.role !== 'VIEW',
+  };
+  const open = captureCandidates(note, captureCtx);
+  if (open.length === 0) return null;
+  // Every note the caller can see, done ones too, read once and only when the call uses them.
+  const boardNotes = captureNeedsBoard(open)
+    ? await listNotes(db, actor, board.id, { status: 'ALL' })
     : [];
-  // Links are offered only when the board has another open note to name (L3): with none, a
-  // note whose other fields are all decided costs no call.
-  const proposable = otherNotes.length ? open : open.filter((key) => key !== 'links');
-  if (proposable.length === 0) return null;
-  const prompt = buildCapturePrompt({
-    title: note.title,
-    description: note.description,
-    members: memberRows,
-    fieldKeys,
-    notes: otherNotes,
-  });
+  const call = buildCaptureCall(note, boardNotes, captureCtx);
+  if (!call) return null;
+  const { instructions, prompt } = call;
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
   const model = env.ASSISTANT_MODEL;
@@ -473,16 +316,8 @@ export async function suggestForCapture(
     ms: Date.now() - startedAt,
   });
   if (!output.fields) return null;
-  const fields = accept(
-    output.fields,
-    proposable,
-    new Set(memberRows.map((m) => m.id)),
-    request.today,
-    note,
-    fieldKeys,
-    new Map(otherNotes.map((n) => [n.id, n.title])),
-  );
-  if (proposedKeys(fields).length === 0) return null;
+  const fields = acceptCapture(output.fields, call, note, captureCtx);
+  if (!fields) return null;
 
   const now = clock();
   const stamp = Timestamp.fromDate(now);
@@ -544,6 +379,8 @@ async function claim(
     fields: SuggestionFieldKey[];
     subtasks?: number[];
     links?: number[];
+    tags?: number[];
+    properties?: number[];
   },
   now: Date,
 ): Promise<{ doc: WithId<AssistantSuggestionDoc>; claimed: boolean }> {
@@ -603,6 +440,18 @@ function stepsFor(fields: SuggestionFieldKey[], subtaskIndexes: number[]): Step[
     );
 }
 
+/**
+ * The inverse writes, newest first. Taking Private back is two writes: shared again, then the
+ * author's assignment, which making it private wrote, taken back (`index: 1`).
+ */
+function undoSteps(fields: SuggestionFieldKey[], subtaskIndexes: number[]): Step[] {
+  return stepsFor(fields, subtaskIndexes)
+    .reverse()
+    .flatMap((step): Step[] =>
+      step.key === 'visibility' ? [step, { key: 'visibility', index: 1 }] : [step],
+    );
+}
+
 /** A step is added with its text, and taken back by the id it was created with. */
 type SubtaskWrite = { add: string } | { remove: string };
 /** The kept links are added in one write and taken back in one (L4). */
@@ -621,6 +470,13 @@ type FieldValues = {
   reference: { key: string; value: string | null } | null;
   subtasks: Map<number, SubtaskWrite>;
   links: LinkWrite;
+  horizon: NoteHorizon;
+  visibility: NoteVisibility;
+  /** Who a private note is assigned to: its author while private, nobody once shared again. */
+  privateAssigneeId: string | null;
+  tags: { add: string[] } | { remove: string[] };
+  properties: { set: Record<string, string> } | { remove: string[] };
+  description: string;
 };
 type Applied = NonNullable<AssistantSuggestionDoc['applied']>;
 
@@ -637,7 +493,7 @@ const EMPTY = { dueDate: null, priority: 'MITTEL', assigneeId: null } as const s
  * What a keep writes: the proposed values (a field that is not kept is never read). The links
  * are every proposed one; a keep writes only the ticked ones (`keptLinkIds`).
  */
-function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
+function proposedValues(doc: AssistantSuggestionDoc, actorId: string): FieldValues {
   const { fields } = doc;
   return {
     dueDate: fields.dueDate?.value ?? EMPTY.dueDate,
@@ -649,6 +505,46 @@ function proposedValues(doc: AssistantSuggestionDoc): FieldValues {
       : null,
     subtasks: new Map((fields.subtasks?.items ?? []).map((text, index) => [index, { add: text }])),
     links: { add: (fields.links?.items ?? []).map((item) => item.noteId) },
+    horizon: fields.horizon?.value ?? 'HEUTE',
+    visibility: 'PRIVATE',
+    // Making a note private assigns its author (the command does it); the chain checks that.
+    privateAssigneeId: actorId,
+    tags: { add: fields.tags?.items ?? [] },
+    properties: {
+      set: Object.fromEntries((fields.properties?.items ?? []).map((p) => [p.key, p.value])),
+    },
+    description: fields.description?.value ?? '',
+  };
+}
+
+/** The tags and properties the ticked indexes name, in the order of `indexes`. */
+const keptTags = (doc: AssistantSuggestionDoc, indexes: number[]): string[] =>
+  indexes.flatMap((index) => {
+    const tag = doc.fields.tags?.items[index];
+    return tag ? [tag] : [];
+  });
+const keptProperties = (doc: AssistantSuggestionDoc, indexes: number[]) =>
+  indexes.flatMap((index) => {
+    const item = doc.fields.properties?.items[index];
+    return item ? [item] : [];
+  });
+
+/**
+ * What a keep writes: the proposed values with only the ticked links, tags and properties.
+ * The note had none of these at the base (L3, R7), so writing and removing them is exact.
+ */
+function keptValues(
+  doc: AssistantSuggestionDoc,
+  actorId: string,
+  picked: { links: number[]; tags: number[]; properties: number[] },
+): FieldValues {
+  return {
+    ...proposedValues(doc, actorId),
+    links: { add: keptLinkIds(doc, picked.links) },
+    tags: { add: keptTags(doc, picked.tags) },
+    properties: {
+      set: Object.fromEntries(keptProperties(doc, picked.properties).map((p) => [p.key, p.value])),
+    },
   };
 }
 
@@ -670,6 +566,10 @@ function restoredValues(
   keptIndexes: number[],
   subtaskIds: string[],
   linkIds: string[],
+  written: Pick<FieldValues, 'tags' | 'properties'> = {
+    tags: { add: [] },
+    properties: { set: {} },
+  },
 ): FieldValues {
   const sorted = [...keptIndexes].sort((a, b) => a - b);
   return {
@@ -684,6 +584,16 @@ function restoredValues(
       subtaskIds.map((id, position): [number, SubtaskWrite] => [sorted[position]!, { remove: id }]),
     ),
     links: { remove: linkIds },
+    // A horizon, Private, tags, properties and a description are proposed only on a note
+    // that had none (Today, shared and unassigned, no tags, no properties, no description).
+    horizon: 'HEUTE',
+    visibility: 'SHARED',
+    privateAssigneeId: null,
+    tags: { remove: 'add' in written.tags ? written.tags.add : [] },
+    properties: {
+      remove: 'set' in written.properties ? Object.keys(written.properties.set) : [],
+    },
+    description: '',
   };
 }
 
@@ -768,6 +678,21 @@ function stepCall(
     }
     case 'links':
       return { name: 'update_note', input: { ...at, input: { linkChanges: values.links } } };
+    case 'horizon':
+      return {
+        name: 'move_note',
+        input: { ...at, input: { mode: 'HORIZON', horizon: values.horizon } },
+      };
+    case 'visibility':
+      return step.index === 1
+        ? { name: 'assign_note', input: { ...at, input: { assigneeId: values.privateAssigneeId } } }
+        : { name: 'update_note', input: { ...at, input: { visibility: values.visibility } } };
+    case 'tags':
+      return { name: 'update_note', input: { ...at, input: { tagChanges: values.tags } } };
+    case 'properties':
+      return { name: 'update_note', input: { ...at, input: { fieldChanges: values.properties } } };
+    case 'description':
+      return { name: 'update_note', input: { ...at, input: { description: values.description } } };
   }
 }
 
@@ -806,6 +731,26 @@ function stillWritten(
         ? written.links.add.every((id) => links.includes(id))
         : !written.links.remove.some((id) => links.includes(id));
     }
+    case 'horizon':
+      return note.horizon === written.horizon;
+    case 'visibility':
+      return step.index === 1
+        ? (note.assignee?.id ?? null) === written.privateAssigneeId
+        : note.visibility === written.visibility;
+    case 'tags': {
+      const tags = note.tags.map((t) => t.toLowerCase());
+      return 'add' in written.tags
+        ? written.tags.add.every((t) => tags.includes(t.toLowerCase()))
+        : !written.tags.remove.some((t) => tags.includes(t.toLowerCase()));
+    }
+    case 'properties':
+      return 'set' in written.properties
+        ? Object.entries(written.properties.set).every(
+            ([key, value]) => propertyValue(note.customFields, key) === value,
+          )
+        : written.properties.remove.every((key) => propertyValue(note.customFields, key) === null);
+    case 'description':
+      return note.description === written.description;
     default:
       return noteValue(step.key, note) === valueOf(step.key, written);
   }
@@ -843,6 +788,10 @@ async function runChain(
 
 /** The operation id of one step; a record written before that step existed has none. */
 function operationId(ids: SuggestionOperationIds, step: Step, direction: 'apply' | 'undo'): string {
+  if (step.key === 'visibility' && step.index === 1) {
+    if (!ids.visibility) throw settled();
+    return ids.visibility.undoAssignee;
+  }
   const entry = step.key === 'subtasks' ? ids.subtasks?.[step.index ?? -1] : ids[step.key];
   if (!entry) throw settled();
   return entry[direction];
@@ -867,7 +816,15 @@ async function revertWrites(
   restore: FieldValues,
 ): Promise<void> {
   const opCtx = operationContext(deps, ctx, doc.id);
-  for (const step of [...done].reverse()) {
+  // Sharing a note again leaves its author assigned; the assignment goes back with it.
+  const steps = [...done]
+    .reverse()
+    .flatMap((step): Step[] =>
+      step.key === 'visibility' && step.index === undefined && restore.visibility === 'SHARED'
+        ? [step, { key: 'visibility', index: 1 }]
+        : [step],
+    );
+  for (const step of steps) {
     try {
       const note = await getNote(deps.db, ctx.actor, doc.noteId, ctx.board.id);
       if (!stillWritten(step, note, written, restore)) continue;
@@ -938,8 +895,18 @@ async function completeKeep(
     ? [...(doc.decision?.links ?? [])].sort((a, b) => a - b)
     : [];
   const linkIds = keptLinkIds(doc, keptLinks);
-  // Only the ticked links are written, in one update (L4).
-  const written: FieldValues = { ...proposedValues(doc), links: { add: linkIds } };
+  const keptTagIndexes = kept.includes('tags')
+    ? [...(doc.decision?.tags ?? [])].sort((a, b) => a - b)
+    : [];
+  const keptPropertyIndexes = kept.includes('properties')
+    ? [...(doc.decision?.properties ?? [])].sort((a, b) => a - b)
+    : [];
+  // Only the ticked links, tags and properties are written, each kind in one update (L4).
+  const written = keptValues(doc, ctx.actor.id, {
+    links: keptLinks,
+    tags: keptTagIndexes,
+    properties: keptPropertyIndexes,
+  });
   const done: Step[] = [];
   const created: string[] = [];
   let before: Applied['before'] | undefined;
@@ -968,7 +935,7 @@ async function completeKeep(
         doc,
         done,
         written,
-        restoredValues(before, keptIndexes, created, linkIds),
+        restoredValues(before, keptIndexes, created, linkIds, written),
       );
     await settleKeep(db, ctx.actor, doc.id, { status: 'DISCARDED' }, deps.now?.() ?? new Date());
     throw error;
@@ -986,6 +953,8 @@ async function completeKeep(
         subtaskIds: created,
         links: keptLinks,
         linkIds,
+        tags: keptTagIndexes,
+        properties: keptPropertyIndexes,
         revision,
       },
     },
@@ -1034,10 +1003,11 @@ export async function decideSuggestion(
     // Each field once, in the one order the chain and its receipts use: a field named twice
     // would run its write twice under one operation id and be refused.
     const requested = decision.fields ?? proposed;
-    // The title is opt-in (plan R2): the countdown never keeps it, whatever it names.
+    // Private is opt-in: the countdown never keeps it, whatever it names (the smarter-capture
+    // revision; the cleaned title and its description are kept like any other field).
     const countdown = decision.source === 'countdown';
     let fields = suggestionFieldKeys.filter(
-      (key) => requested.includes(key) && proposed.includes(key) && !(countdown && key === 'title'),
+      (key) => requested.includes(key) && proposed.includes(key) && !(countdown && optIn(key)),
     );
     // Each step once, ascending, and only steps that were proposed; none left keeps no steps.
     const items = current.fields.subtasks?.items ?? [];
@@ -1055,15 +1025,23 @@ export async function decideSuggestion(
           .sort((a, b) => a - b)
       : [];
     if (links.length === 0) fields = fields.filter((key) => key !== 'links');
-    // A proposal holding nothing but a title runs no countdown (R2): one that fires anyway
-    // leaves the title waiting for the person, neither written nor discarded.
+    // The same for the tags and the properties.
+    const picked = (key: 'tags' | 'properties', requested: number[] | undefined) => {
+      const count = current.fields[key]?.items.length ?? 0;
+      return fields.includes(key)
+        ? unique(requested ?? Array.from({ length: count }, (_, index) => index))
+            .filter((index) => index < count)
+            .sort((a, b) => a - b)
+        : [];
+    };
+    const tags = picked('tags', decision.tags);
+    if (tags.length === 0) fields = fields.filter((key) => key !== 'tags');
+    const properties = picked('properties', decision.properties);
+    if (properties.length === 0) fields = fields.filter((key) => key !== 'properties');
+    // A proposal holding nothing but Private runs no countdown: one that fires
+    // anyway leaves them waiting for the person, neither written nor discarded.
     // Only while the record is still pending: on a settled one the claim below answers.
-    if (
-      fields.length === 0 &&
-      countdown &&
-      proposed.includes('title') &&
-      current.status === 'PENDING'
-    )
+    if (fields.length === 0 && countdown && proposed.some(optIn) && current.status === 'PENDING')
       return toDto(db, board, actor.id, current);
     if (fields.length === 0) {
       const { doc } = await claim(
@@ -1087,7 +1065,7 @@ export async function decideSuggestion(
       suggestionId,
       'PENDING',
       'KEPT',
-      { source: decision.source, fields, subtasks, links },
+      { source: decision.source, fields, subtasks, links, tags, properties },
       now,
     );
     return toDto(db, board, actor.id, await completeKeep(deps, ctx, doc));
@@ -1106,9 +1084,20 @@ export async function decideSuggestion(
   // steps newest first, then the fields. Run again after a cut-short undo, the inverse
   // writes that committed replay their receipts.
   const keptIndexes = applied.subtasks ?? [];
-  const inverse = stepsFor(applied.fields, keptIndexes).reverse();
+  const inverse = undoSteps(applied.fields, keptIndexes);
   const linkIds = applied.linkIds ?? [];
-  const restore = restoredValues(applied.before, keptIndexes, applied.subtaskIds ?? [], linkIds);
+  const written = keptValues(current, ctx.actor.id, {
+    links: applied.links ?? [],
+    tags: applied.tags ?? [],
+    properties: applied.properties ?? [],
+  });
+  const restore = restoredValues(
+    applied.before,
+    keptIndexes,
+    applied.subtaskIds ?? [],
+    linkIds,
+    written,
+  );
   const undoIds = current.operationIds;
   const done: Step[] = [];
   try {
@@ -1126,11 +1115,7 @@ export async function decideSuggestion(
     // Refused for good part way (someone edited the note between two inverse writes): what
     // was already put back returns to what the keep wrote, so the record stays KEPT and the
     // note is not left half undone. A step deleted here comes back as a new one.
-    if (isFinal(error))
-      await revertWrites(deps, ctx, current, done, restore, {
-        ...proposedValues(current),
-        links: { add: linkIds },
-      });
+    if (isFinal(error)) await revertWrites(deps, ctx, current, done, restore, written);
     throw error;
   }
   const { doc } = await claim(

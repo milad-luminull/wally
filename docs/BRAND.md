@@ -36,9 +36,11 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
 2. The back note of the mark.
 3. Public-page calls to action and the mark. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
-4. The dot and its countdown ring on a note whose Wallybot changes are still pending, never
-   a fill or an edge colour, and gone the moment the changes are kept or undone
-   (`rfcs/WALLYBOT_INLINE.md`).
+4. A note whose Wallybot changes are still pending (Paper Wall v3): the moving gradient border
+   in the accent family around the card, the shimmer on the words while they are being read,
+   the pulsing dots after "Filling in", and the small dot before each line of the proposed
+   fields. Never a fill, and gone the moment the changes are kept or undone
+   (`rfcs/WALLYBOT_INLINE.md`). The review footer's countdown ring is ink.
 
 Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
@@ -154,10 +156,10 @@ in hex and must be kept in step.
 Wally's AI is three things on the board: the answer to a question typed into the capture card
 (`features/board/Ask`), drawn as a card where the question was written, with the notes it read
 listed underneath, and the fill-in on a note written in place (`features/board/Suggestions`), which
-proposes a due date, a priority, a person, subtasks, a reference or links to related notes as a pending change, reviewed in
-the note panel in two groups ("From what you typed", "Added by Wallybot"; `suggest.review.typed` and
-`suggest.review.added`) and offering a cleaner title on the card's title line as a second version
-beside the original, which is rule 7's instance, and Tidy on the horizon wall
+proposes a cleaner title and its description, a due date, a horizon, a priority, a person,
+Private, properties, tags, subtasks and links to related notes as a pending change, reviewed on
+the card itself and, with the same rows, in the note panel (rule 7 says how the title is
+offered), and Tidy on the horizon wall
 (`features/board/Tidy`), which proposes where jotted notes belong and moves them only on the
 person's yes, every moved card carrying the Undo for a while. These rules are the contract all three
 follow, and `brandGuards.test.ts` enforces the first one.
@@ -167,15 +169,20 @@ follow, and `brandGuards.test.ts` enforces the first one.
 
 1. No sparkle, wand, robot or brain icon anywhere in the product.
 2. The AI has no name and no pronoun. Copy says "Wally set the date", never "I set the date".
-3. AI output uses the same type, colour and layout as user input. The only markers are a
-   dashed edge and the marigold dot with its countdown, and only until the changes are kept
-   or undone.
+3. AI output uses the same type and colour as user input. While a fresh note's proposal is
+   being made and waits for a decision, the card wears the moving gradient border (accent job
+   4), lists the proposed fields under a hairline, one labelled line each with its ×, and ends
+   in a footer with the countdown ring, the seconds left, Undo and Keep. Once kept or undone
+   the card is an ordinary card again.
 4. Every AI action is reversible in one step, and the reversal is visible where the action
    happened.
 5. The AI never interrupts. No toasts, no modals, no badges counting suggestions.
 6. It never writes a note the user didn't start. It completes, files and reorders; it doesn't
    author.
-7. Rewriting text is offered as a second version beside the original, never as a replacement.
+7. A cleaner title never replaces the person's words on the card while the proposal waits: the
+   card keeps their title, and the new title is offered in a Title row (its text in a Text row
+   under it) like any other field. It is written only by Keep or the countdown, and Undo
+   restores the original.
 8. Questions about the wall are answered on the wall, as a card where the question was written,
    in plain text, with the notes it read listed underneath. The card has the dashed edge and
    nothing else: no dot, no ring, because nothing is written.

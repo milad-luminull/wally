@@ -6,8 +6,8 @@ import { usePendingPause } from './usePendingPause';
 import type { SuggestionPhase } from './useSuggestions';
 
 /** A card as far as the pause is concerned: a focusable root with the handlers on it. */
-function Card({ pending }: { pending: PendingProps }) {
-  const pause = usePendingPause(pending);
+function Card({ pending, held = false }: { pending: PendingProps; held?: boolean }) {
+  const pause = usePendingPause(pending, held);
   return (
     <div role="button" tabIndex={0} data-testid="card" {...pause}>
       <span>note</span>
@@ -28,11 +28,20 @@ function pendingAt(phase: SuggestionPhase, onPause: (paused: boolean) => void): 
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause,
   };
 }
 
 describe('usePendingPause', () => {
+  it('holds the countdown from the start when the words are being edited in place as the answer lands', () => {
+    const onPause = vi.fn();
+    const { rerender } = render(<Card pending={pendingAt('asking', onPause)} held />);
+    rerender(<Card pending={pendingAt('pending', onPause)} held />);
+    expect(onPause).toHaveBeenLastCalledWith(true);
+  });
+
   it('pauses on hover after a commit focused the card while the mark was still asking', () => {
     const onPause = vi.fn();
     const { rerender } = render(<Card pending={pendingAt('asking', onPause)} />);

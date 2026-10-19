@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionFields } from '@wally/shared';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
 import { NoteRow } from './NoteRow';
+import { i18n } from '@/i18n';
+import { dueInfo } from '../util/noteDerived';
+/** A date as the card's own meta line words it (Tomorrow, Fri…), which the rows reuse. */
+const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 
 // The rows sort in the reader's language, which useLanguage supplies outside a provider here.
 const reader = vi.hoisted(() => ({ language: 'en' as 'de' | 'en' }));
@@ -36,6 +40,8 @@ describe('NoteRow with a pending change', () => {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   });
   const rowOf = () => screen.getByText('Approve the quote comparison').closest('[role="button"]')!;
@@ -53,23 +59,33 @@ describe('NoteRow with a pending change', () => {
     return p;
   };
 
-  it('draws a dashed left edge, the dot at the end, and each proposed field with an ×', () => {
+  it('wraps the row in the moving border, with the proposed fields as rows under the title', () => {
     const p = renderRow();
     const row = rowOf();
-    // The left edge alone: `border-dashed` would dash the row's bottom divider too.
-    expect(row.className).toContain('[border-left-style:dashed]');
-    expect(row.className).not.toContain('border-dashed');
     expect(row).toHaveAttribute('data-note-id', 'note-1');
-    const dot = screen.getByRole('img', { name: /Proposed changes/ });
-    // The dot is the last thing on the row.
-    expect(dot.parentElement?.lastElementChild).toBe(dot);
-    expect(row.lastElementChild?.contains(dot)).toBe(true);
-    expect(screen.getByText(/Fri,? 10\/23/)).toBeInTheDocument();
+    expect(row.closest('[data-capture-card]')?.className).toContain('capture-glow');
+    // The border marks the change: no dashed edge and no dot on the row.
+    expect(row.className).not.toContain('[border-left-style:dashed]');
+    expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText(dueWords('2026-10-23'))).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Remove suggestion: High priority' }),
+      within(list).getByRole('button', { name: 'Leave out: Priority High' }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: Assigned to Anna' }));
-    expect(p.onRemove).toHaveBeenCalledWith('assignee');
+    fireEvent.click(within(list).getByRole('button', { name: 'Leave out: Person Anna' }));
+    expect(p.onSetField).toHaveBeenCalledWith('assignee', false);
+    // The footer keeps and undoes; the done checkbox waits until the change is decided.
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(p.onKeep).toHaveBeenCalledWith('click');
+    // The done box leaves the row under review, so the title lines up with the rows below.
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('the list and footer sit beside the row, not inside its button role', () => {
+    renderRow();
+    expect(within(rowOf() as HTMLElement).queryByRole('list')).toBeNull();
+    expect(screen.getByRole('list', { name: 'Suggested fields' })).toBeInTheDocument();
+    expect(within(rowOf() as HTMLElement).queryByRole('button', { name: 'Keep' })).toBeNull();
   });
 
   it('keeps on Enter instead of opening, discards on Esc', () => {
@@ -112,15 +128,15 @@ describe('NoteRow with a pending change', () => {
     expect(p.onPause).toHaveBeenCalledTimes(2);
   });
 
-  it('stays paused while focus moves from the row to a control inside it', () => {
+  it('stays paused while focus moves from the row to a control in its card', () => {
     const p = renderRow();
     const row = rowOf();
-    const checkbox = screen.getByRole('checkbox');
+    const control = screen.getByRole('button', { name: 'Leave out: Priority High' });
     fireEvent.focus(row);
-    fireEvent.blur(row, { relatedTarget: checkbox });
-    fireEvent.focus(checkbox);
+    fireEvent.blur(row, { relatedTarget: control });
+    fireEvent.focus(control);
     expect(p.onPause).toHaveBeenCalledTimes(1);
-    fireEvent.blur(checkbox);
+    fireEvent.blur(control);
     expect(p.onPause).toHaveBeenLastCalledWith(false);
   });
 
@@ -139,45 +155,30 @@ describe('NoteRow with a pending change', () => {
   };
   const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-  it('offers a cleaner title as a second line, taken by a tap and dropped by its ×', () => {
-    const onOpen = vi.fn();
-    const p = withProposals(['dueDate'], { title: TITLE });
-    const row = (q: typeof p) => (
+  it('keeps the person’s title on the row and offers the new one in the Title row, its text in a Text row', () => {
+    const description = { value: 'For the Müller quote.', reason: 'moved out' };
+    const on = withProposals(['dueDate', 'title', 'description'], { title: TITLE, description });
+    render(
       <NoteRow
         note={makeNote({ dueDate: null })}
         currentUserId="user-1"
-        onOpen={onOpen}
+        onOpen={vi.fn()}
         onToggleDone={vi.fn()}
         canEdit
-        pending={q}
-      />
+        pending={on}
+      />,
     );
-    const { rerender } = render(row(p));
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
     expect(screen.getByText('Approve the quote comparison')).toBeInTheDocument();
-    const line = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(line).toHaveAttribute('aria-pressed', 'false');
-    // What a press does, said only while the press would take the title.
-    expect(line).toHaveAttribute('aria-description', 'Take the suggested title');
-    // A full-width line of its own, under the title.
-    expect(line.closest('[data-proposed]')?.className).toContain('basis-full');
-    fireEvent.click(line);
-    expect(p.onSetField).toHaveBeenCalledWith('title', true);
-    fireEvent.keyDown(line, { key: 'Enter' });
-    expect(p.onSetField).toHaveBeenCalledTimes(2);
-    expect(p.onKeep).not.toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-
-    const taken = withProposals(['dueDate', 'title'], { title: TITLE });
-    rerender(row(taken));
-    const takenLine = screen.getByRole('button', { name: 'Suggested: Quote for Müller' });
-    expect(takenLine).toHaveAttribute('aria-pressed', 'true');
-    expect(takenLine).not.toHaveAttribute('aria-description');
-    fireEvent.click(screen.getByRole('button', { name: 'Keep my title' }));
-    expect(taken.onRemove).toHaveBeenCalledWith('title');
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(within(list).getByText('Quote for Müller')).toBeInTheDocument();
+    expect(within(list).getByText('For the Müller quote.')).toBeInTheDocument();
+    fireEvent.click(
+      within(list).getByRole('button', { name: 'Leave out: Title Quote for Müller' }),
+    );
+    expect(on.onSetField).toHaveBeenCalledWith('title', false);
   });
 
-  it('shows the reference and the step count with an × each', () => {
+  it('shows the reference and each step as rows with an × each', () => {
     const p = renderRow(
       withProposals(
         ['dueDate', 'reference', 'subtasks'],
@@ -188,14 +189,10 @@ describe('NoteRow with a pending change', () => {
         { subtasks: [0, 2] },
       ),
     );
-    expect(screen.getByText('Customer: Müller GmbH')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove suggestion: Customer: Müller GmbH' }),
-    );
-    expect(p.onRemove).toHaveBeenCalledWith('reference');
-    expect(screen.getByText('2 steps')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove suggestion: 2 steps' }));
-    expect(p.onRemove).toHaveBeenCalledWith('subtasks');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave out: Customer Müller GmbH' }));
+    expect(p.onSetField).toHaveBeenCalledWith('reference', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Bring back: Step Compare' }));
+    expect(p.onSetSubtask).toHaveBeenCalledWith(1, true);
   });
 
   it('looks like any other row once kept, with only the faint Undo left', () => {
@@ -204,6 +201,8 @@ describe('NoteRow with a pending change', () => {
     expect(rowOf().className).not.toContain('[border-left-style:dashed]');
     expect(screen.queryByRole('img', { name: /Proposed changes/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Remove suggestion/ })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Undo the kept changes' }));
     expect(p.onUndo).toHaveBeenCalledWith('click');
     expect(p.onUndo).toHaveBeenCalledTimes(1);
@@ -219,7 +218,14 @@ describe('NoteRow just after a keep', () => {
     suggestion: {
       ...kept.suggestion!,
       status: 'KEPT' as const,
-      kept: { fields: ['dueDate' as const], subtasks: [], links: [], revision: 2 },
+      kept: {
+        fields: ['dueDate' as const],
+        subtasks: [],
+        links: [],
+        tags: [],
+        properties: [],
+        revision: 2,
+      },
     },
   };
   const props = {
@@ -231,6 +237,8 @@ describe('NoteRow just after a keep', () => {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   };
   it('shows the kept date, without an ×, until the refetched note carries it', () => {

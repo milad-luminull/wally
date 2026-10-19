@@ -2,8 +2,10 @@ import { z } from 'zod';
 import {
   FIELD_KEY_MAX_LENGTH,
   FIELD_VALUE_MAX_LENGTH,
+  NOTE_DESCRIPTION_MAX_LENGTH,
   NOTE_TITLE_MAX_LENGTH,
   SUBTASK_TEXT_MAX_LENGTH,
+  TAG_MAX_LENGTH,
 } from '../constants.js';
 import { isTimeZone } from '../utils/timeZone.js';
 import { userSummarySchema } from './user.js';
@@ -62,9 +64,26 @@ export const suggestionFieldKeys = [
   'reference',
   'subtasks',
   'links',
+  // Smarter capture: appended, so the chain's canonical order of the earlier keys stays.
+  'horizon',
+  'visibility',
+  'tags',
+  'properties',
+  'description',
 ] as const;
 export const suggestionFieldKeySchema = z.enum(suggestionFieldKeys);
 export type SuggestionFieldKey = z.infer<typeof suggestionFieldKeySchema>;
+/**
+ * Fields only the person takes, never the countdown: making a note private hides it from
+ * everyone else, too much for a silent yes. The cleaned title and its description are kept like
+ * any other field (the smarter-capture revision after Paper Wall v3); Undo restores the words.
+ */
+export const suggestionOptInFieldKeys = [
+  'visibility',
+] as const satisfies readonly SuggestionFieldKey[];
+/** Tags and properties a proposal may carry. */
+export const SUGGESTION_MAX_TAGS = 3;
+export const SUGGESTION_MAX_PROPERTIES = 3;
 /** Steps a proposal may carry; more would be a plan, not a note. */
 export const SUGGESTION_MAX_SUBTASKS = 5;
 /** Related notes a proposal may name; more would be a map of the board, not a note. */
@@ -139,6 +158,36 @@ export const suggestionFieldsSchema = z.object({
       reason: reasonSchema,
     })
     .nullable(),
+  /** This week or Later for a note just written; Today is the default and is never proposed. */
+  horizon: z.object({ value: z.enum(['DIESE_WOCHE', 'SPAETER']), reason: reasonSchema }).nullable(),
+  /** Only ever Private, and only taken by the person (`suggestionOptInFieldKeys`). */
+  visibility: z.object({ value: z.literal('PRIVATE'), reason: reasonSchema }).nullable(),
+  /** Up to three tags, the board's own spelling where it has one; kept one by one. */
+  tags: z
+    .object({
+      items: z.array(z.string().min(1).max(TAG_MAX_LENGTH)).min(1).max(SUGGESTION_MAX_TAGS),
+      reason: reasonSchema,
+    })
+    .nullable(),
+  /** Up to three properties, keys folded to the board's; kept one by one. */
+  properties: z
+    .object({
+      items: z
+        .array(
+          z.object({
+            key: z.string().min(1).max(FIELD_KEY_MAX_LENGTH),
+            value: z.string().min(1).max(FIELD_VALUE_MAX_LENGTH),
+          }),
+        )
+        .min(1)
+        .max(SUGGESTION_MAX_PROPERTIES),
+      reason: reasonSchema,
+    })
+    .nullable(),
+  /** The detail moved out of a long title, offered and taken with the title line (R2). */
+  description: z
+    .object({ value: z.string().min(1).max(NOTE_DESCRIPTION_MAX_LENGTH), reason: reasonSchema })
+    .nullable(),
 });
 export type SuggestionFields = z.infer<typeof suggestionFieldsSchema>;
 
@@ -163,6 +212,9 @@ export const suggestionDtoSchema = z.object({
       subtasks: z.array(z.number().int().nonnegative()),
       /** Which of the proposed links were written, by index. */
       links: z.array(z.number().int().nonnegative()),
+      /** Which of the proposed tags and properties were written, by index. */
+      tags: z.array(z.number().int().nonnegative()),
+      properties: z.array(z.number().int().nonnegative()),
       revision: z.number().int().nonnegative(),
     })
     .nullable(),
@@ -213,6 +265,27 @@ export const suggestionDecisionSchema = z
           .max(SUGGESTION_MAX_LINKS - 1),
       )
       .max(SUGGESTION_MAX_LINKS)
+      .optional(),
+    /** For `keep` with `tags` or `properties` among the fields: the items to write, by index. */
+    tags: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(SUGGESTION_MAX_TAGS - 1),
+      )
+      .max(SUGGESTION_MAX_TAGS)
+      .optional(),
+    properties: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(SUGGESTION_MAX_PROPERTIES - 1),
+      )
+      .max(SUGGESTION_MAX_PROPERTIES)
       .optional(),
     source: suggestionDecisionSourceSchema,
   })

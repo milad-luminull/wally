@@ -118,9 +118,17 @@ export interface ModelSuggestion {
   priority: { value: 'HOCH' | 'NIEDRIG'; confidence: number; reason: string } | null;
   assignee: { memberId: string; confidence: number; reason: string } | null;
   title: { value: string; confidence: number; reason: string } | null;
-  reference: { key: string; value: string; confidence: number; reason: string } | null;
   subtasks: { items: string[]; confidence: number; reason: string } | null;
   links: { items: { noteId: string; reason: string }[]; confidence: number; reason: string } | null;
+  horizon: { value: 'DIESE_WOCHE' | 'SPAETER'; confidence: number; reason: string } | null;
+  visibility: { value: 'PRIVATE'; confidence: number; reason: string } | null;
+  tags: { items: string[]; confidence: number; reason: string } | null;
+  properties: {
+    items: { key: string; value: string }[];
+    confidence: number;
+    reason: string;
+  } | null;
+  description: { value: string; confidence: number; reason: string } | null;
 }
 export interface SuggestionOutput {
   /** null when the model produced nothing that validates against the schema. */

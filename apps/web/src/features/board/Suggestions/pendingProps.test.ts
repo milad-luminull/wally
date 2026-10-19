@@ -37,6 +37,8 @@ const pending = (m: SuggestionMark): PendingProps => ({
   onSetField: vi.fn(),
   onSetSubtask: vi.fn(),
   onSetLink: vi.fn(),
+  onSetTag: vi.fn(),
+  onSetProperty: vi.fn(),
   onPause: vi.fn(),
 });
 
@@ -81,6 +83,8 @@ describe('proposedValues, place by place', () => {
           fields: ['dueDate', 'reference', 'subtasks'],
           subtasks: [0, 1, 2],
           links: [],
+          tags: [],
+          properties: [],
           revision,
         },
       },
@@ -97,6 +101,11 @@ describe('proposedValues, place by place', () => {
       reference: null,
       subtasks: null,
       links: null,
+      horizon: null,
+      visibility: null,
+      tags: null,
+      properties: null,
+      description: null,
     };
     expect(proposedValues(note, pending(mark({ phase: 'asking' })))).toEqual(none);
     expect(proposedValues(note, pending(mark({ suggestion: null })))).toEqual(none);
@@ -183,12 +192,12 @@ describe('pendingKeys', () => {
     expect(k.onUndo).toHaveBeenCalledWith('esc');
   });
 
-  it('lets Enter through when nothing but an unticked title is offered', () => {
+  it('Enter is Keep even with everything crossed out, so it never drags or opens the note', () => {
     const p = pending(mark({ fields: [], subtasks: [] }));
     const enter = key('Enter');
-    expect(pendingKeys(enter, p)).toBe(false);
-    expect(enter.preventDefault).not.toHaveBeenCalled();
-    expect(p.onKeep).not.toHaveBeenCalled();
+    expect(pendingKeys(enter, p)).toBe(true);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(p.onKeep).toHaveBeenCalledWith('enter');
     // Esc still discards the offer.
     expect(pendingKeys(key('Escape'), p)).toBe(true);
     expect(p.onDiscard).toHaveBeenCalledTimes(1);

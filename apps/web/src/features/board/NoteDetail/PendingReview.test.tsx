@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { SuggestionFields } from '@wally/shared';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { SuggestionMark } from '../Suggestions/useSuggestions';
-import { proposedDateLabel, type PendingProps } from '../Suggestions/pendingProps';
+import type { PendingProps } from '../Suggestions/pendingProps';
 import { i18n } from '@/i18n';
 import { PendingReview } from './PendingReview';
 
@@ -27,6 +27,11 @@ const proposal: SuggestionFields = {
     reason: 'call',
   },
   links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
 };
 
 function markWith(over: Partial<SuggestionMark> = {}): SuggestionMark {
@@ -51,6 +56,8 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
     onSetField: vi.fn(),
     onSetSubtask: vi.fn(),
     onSetLink: vi.fn(),
+    onSetTag: vi.fn(),
+    onSetProperty: vi.fn(),
     onPause: vi.fn(),
   };
   const view = render(<PendingReview note={note} pending={pending} />);
@@ -61,163 +68,52 @@ function renderReview(over: Partial<SuggestionMark> = {}) {
 }
 
 describe('PendingReview', () => {
-  it('shows the typed group from the note and the record, and the added group from the proposal', () => {
-    renderReview();
-
-    const typed = screen.getByRole('group', { name: 'From what you typed' });
-    const title = within(typed).getByRole('checkbox', { name: 'Title: Call Müller' });
-    // The title is the note itself: it stays, and cannot be taken off here.
-    expect(title).toBeChecked();
-    expect(title).toBeDisabled();
-    const due = within(typed).getByRole('checkbox', {
-      name: `Due ${proposedDateLabel('2026-10-23', 'en')}`,
-    });
-    expect(due).toBeChecked();
-    expect(due).toBeDisabled();
-    expect(within(typed).getAllByRole('checkbox')).toHaveLength(2);
-
-    const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-    // Opt-in (R2): offered, never ticked at first.
-    expect(
-      within(added).getByRole('checkbox', { name: 'Suggested: Call Müller GmbH back' }),
-    ).not.toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'High priority' })).toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Customer: Müller GmbH' })).toBeChecked();
-    for (const step of proposal.subtasks!.items) {
-      expect(within(added).getByRole('checkbox', { name: `Step: ${step}` })).toBeChecked();
-    }
-    expect(within(added).getAllByRole('checkbox')).toHaveLength(6);
+  it('lists the same rows as the card: × leaves one out, ↺ brings it back', async () => {
+    const user = userEvent.setup();
+    const { pending } = renderReview({ fields: ['priority', 'subtasks'] });
+    const list = screen.getByRole('list', { name: 'Suggested fields' });
+    expect(within(list).getByText('Call Müller GmbH back')).toBeInTheDocument();
+    expect(within(list).getByText('Müller GmbH')).toBeInTheDocument();
+    // The date the person typed is a row of its own, without a button.
+    const due = within(list).getByText('Due').closest('[role="listitem"]') as HTMLElement;
+    expect(within(due).queryByRole('button')).toBeNull();
+    await user.click(within(list).getByRole('button', { name: 'Leave out: Priority High' }));
+    expect(pending.onSetField).toHaveBeenCalledWith('priority', false);
+    await user.click(
+      within(list).getByRole('button', { name: 'Bring back: Customer Müller GmbH' }),
+    );
+    expect(pending.onSetField).toHaveBeenCalledWith('reference', true);
+    const steps = screen.getByRole('list', { name: 'Suggested steps' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
   });
 
-  it('keeps an unticked row in place, so it can be ticked back', () => {
-    renderReview({ fields: ['priority', 'subtasks'], subtasks: [0, 2] });
-
-    const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-    expect(
-      within(added).getByRole('checkbox', { name: 'Customer: Müller GmbH' }),
-    ).not.toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Step: Open the quote' })).not.toBeChecked();
-    expect(within(added).getByRole('checkbox', { name: 'Step: Note the call back' })).toBeChecked();
-  });
-
-  it('ticking rows reports to the controller', async () => {
+  it('draws the card’s review: the moving border, the rows and the footer with Undo and Keep', async () => {
     const user = userEvent.setup();
     const { pending } = renderReview();
-
-    await user.click(screen.getByRole('checkbox', { name: 'Step: Open the quote' }));
-    expect(pending.onSetSubtask).toHaveBeenCalledWith(1, false);
-
-    await user.click(screen.getByRole('checkbox', { name: 'Suggested: Call Müller GmbH back' }));
-    expect(pending.onSetField).toHaveBeenCalledWith('title', true);
-
-    await user.click(screen.getByRole('checkbox', { name: 'Customer: Müller GmbH' }));
-    expect(pending.onSetField).toHaveBeenCalledWith('reference', false);
-  });
-
-  describe('the proposed links', () => {
-    const withLinks = (indexes: [number, number], links: number[]): Partial<SuggestionMark> => {
-      const base = markWith();
-      return {
-        fields: ['priority', 'links'],
-        links,
-        suggestion: {
-          ...base.suggestion!,
-          fields: {
-            ...proposal,
-            links: {
-              items: [
-                { index: indexes[0], noteId: 'b', title: 'Supplier list', reason: 'same supplier' },
-                { index: indexes[1], noteId: 'c', title: '', reason: 'same quote' },
-              ],
-              reason: 'related',
-            },
-          },
-        },
-      };
-    };
-
-    it('offers one row per link, ticked as the mark says, and ticking one reports its index', async () => {
-      const user = userEvent.setup();
-      const { pending } = renderReview(withLinks([0, 1], [0]));
-
-      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-      expect(within(added).getByRole('checkbox', { name: 'Related: Supplier list' })).toBeChecked();
-      const second = within(added).getByRole('checkbox', { name: 'Related: Untitled' });
-      expect(second).not.toBeChecked();
-      await user.click(second);
-      expect(pending.onSetLink).toHaveBeenCalledWith(1, true);
-    });
-
-    it('names a link by the index the proposal stored, not its place in the list', async () => {
-      const user = userEvent.setup();
-      // The item stored at index 1 dropped out on the server: the second row is index 2.
-      const { pending } = renderReview(withLinks([0, 2], [2]));
-
-      expect(screen.getByRole('checkbox', { name: 'Related: Supplier list' })).not.toBeChecked();
-      const second = screen.getByRole('checkbox', { name: 'Related: Untitled' });
-      expect(second).toBeChecked();
-      await user.click(second);
-      expect(pending.onSetLink).toHaveBeenCalledWith(2, false);
-    });
-
-    it('shows every link unticked once the links are out of the change', () => {
-      renderReview({ ...withLinks([0, 1], [0, 1]), fields: ['priority'] });
-      expect(screen.getByRole('checkbox', { name: 'Related: Supplier list' })).not.toBeChecked();
-      expect(screen.getByRole('checkbox', { name: 'Related: Untitled' })).not.toBeChecked();
-    });
-  });
-
-  /*
-   * R4 as ruled: the typed rows document what the person wrote. A typed value changes in the
-   * panel's own fields, which ends the pending change as any edit does.
-   */
-  it('typed rows are checked and cannot be unticked', async () => {
-    const user = userEvent.setup();
-    const { pending } = renderReview();
-
-    const typed = screen.getByRole('group', { name: 'From what you typed' });
-    const rows = within(typed).getAllByRole('checkbox');
-    for (const row of rows) {
-      expect(row).toBeChecked();
-      expect(row).toBeDisabled();
-      expect(row).toHaveAttribute('aria-disabled', 'true');
-    }
-
-    const due = within(typed).getByRole('checkbox', {
-      name: `Due ${proposedDateLabel('2026-10-23', 'en')}`,
-    });
-    await user.click(due);
-    await user.click(within(typed).getByText(`Due ${proposedDateLabel('2026-10-23', 'en')}`));
-    expect(due).toBeChecked();
-    expect(pending.onSetField).not.toHaveBeenCalled();
-    expect(pending.onSetSubtask).not.toHaveBeenCalled();
-    expect(pending.onRemove).not.toHaveBeenCalled();
-  });
-
-  it('Keep, Discard and Undo', async () => {
-    const user = userEvent.setup();
-    const { pending } = renderReview();
-
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for you.');
+    expect(document.querySelector('[data-pending-review].capture-glow')).not.toBeNull();
+    expect(screen.queryByText('Wallybot')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep' }));
     // A click on the review's button, recorded as one (WALLYBOT_INLINE.md §4).
     expect(pending.onKeep).toHaveBeenCalledWith('click');
     expect(pending.onKeep).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(pending.onDiscard).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
   });
 
-  it('says the change is applied in a moment while a countdown runs, or waits paused', () => {
-    renderReview({ countdownEndsAt: Date.now() + 4000 });
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Applied in a moment; it waits while this panel is open.',
-    );
+  it('shows "Filling in" inside the border while the call runs, and no rows yet', () => {
+    renderReview({ phase: 'asking', suggestion: null, fields: [], subtasks: [] });
+    expect(screen.getByRole('status')).toHaveTextContent('Filling in');
+    expect(document.querySelector('[data-pending-review].capture-glow')).not.toBeNull();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
   });
 
-  it('counts a countdown the open panel paused as one that runs', () => {
-    renderReview({ countdownEndsAt: null, paused: true });
-    expect(screen.getByRole('status')).toHaveTextContent('Applied in a moment');
+  it('says the seconds left while a countdown runs, and Paused while the panel holds it', () => {
+    const { moveTo } = renderReview({ countdownEndsAt: Date.now() + 15_000 });
+    expect(screen.getByText('Saves in 15 s')).toBeInTheDocument();
+    moveTo({ countdownEndsAt: null, paused: true });
+    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 
   it('offers only Undo once the change is kept', async () => {
@@ -226,8 +122,7 @@ describe('PendingReview', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Kept.');
     expect(screen.queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(pending.onUndo).toHaveBeenCalledWith('click');
     expect(pending.onUndo).toHaveBeenCalledTimes(1);
@@ -236,13 +131,10 @@ describe('PendingReview', () => {
   it('gives Undo the focus once a keep pressed from the keyboard lands', async () => {
     const user = userEvent.setup();
     const { pending, moveTo } = renderReview();
-    const keep = screen.getByRole('button', { name: 'Keep' });
-    keep.focus();
+    screen.getByRole('button', { name: 'Keep' }).focus();
     await user.keyboard('{Enter}');
     expect(pending.onKeep).toHaveBeenCalledWith('click');
     moveTo({ phase: 'kept' });
-    // The same button, now Undo: the keyboard is where it was.
-    expect(screen.getByRole('button', { name: 'Undo' })).toBe(keep);
     expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus();
   });
 
@@ -251,27 +143,25 @@ describe('PendingReview', () => {
     const { moveTo } = renderReview();
     screen.getByRole('button', { name: 'Keep' }).focus();
     await user.keyboard('{Enter}');
-    const row = screen.getByRole('checkbox', { name: 'Customer: Müller GmbH' });
+    const row = screen.getByRole('button', { name: 'Leave out: Priority High' });
     row.focus();
     moveTo({ phase: 'kept' });
     expect(screen.getByRole('button', { name: 'Undo' })).not.toHaveFocus();
   });
 
-  it('cannot keep a change that holds nothing but an unticked title', async () => {
+  it('Keep stays active with everything crossed out (it then discards)', async () => {
     const user = userEvent.setup();
     const { pending } = renderReview({ fields: [], subtasks: [] });
-    const keep = screen.getByRole('button', { name: 'Keep' });
-    expect(keep).toBeDisabled();
-    await user.click(keep);
-    expect(pending.onKeep).not.toHaveBeenCalled();
-    // Ticking the title makes it one the person can keep.
-    expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(pending.onKeep).toHaveBeenCalledWith('click');
   });
 
-  it("names a priority row with the card's own words, in German too", async () => {
+  it('names the rows in German too', async () => {
     await i18n.changeLanguage('de');
     renderReview();
-    const added = screen.getByRole('group', { name: 'Von Wallybot ergänzt' });
-    expect(within(added).getByRole('checkbox', { name: 'Priorität hoch' })).toBeChecked();
+    const list = screen.getByRole('list', { name: 'Vorgeschlagene Felder' });
+    expect(
+      within(list).getByRole('button', { name: 'Weglassen: Priorität Hoch' }),
+    ).toBeInTheDocument();
   });
 });

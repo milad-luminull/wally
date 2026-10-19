@@ -1,5 +1,4 @@
 import {
-  forwardRef,
   useEffect,
   useId,
   useLayoutEffect,
@@ -8,7 +7,6 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
-  type TextareaHTMLAttributes,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
@@ -16,11 +14,13 @@ import { NOTE_TITLE_MAX_LENGTH, suggestionFieldKeys } from '@wally/shared';
 import { useLanguage } from '@/i18n/LanguageProvider';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
-import { parseCapture, type CaptureParse } from '@/lib/capture/parseCapture';
+import { parseCapture } from '@/lib/capture/parseCapture';
 import { isQuestion, questionOf } from '@/lib/capture/question';
 import { useActiveMembers } from '../hooks/useMembers';
 import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
+import { MirroredField } from './captureField';
+import { fitToContent, withoutDropped } from './captureText';
 import {
   useCapture,
   type CaptureAsk,
@@ -47,75 +47,6 @@ const OWN_CONTROLS = 'textarea, input, button';
 /** The schema keeps a description as typed; only whitespace alone counts as no text. */
 const asTyped = (text: string) => (text.trim() ? text : '');
 
-/** The parse without the matches whose chips were dropped, so their words lose the underline. */
-function withoutDropped(parse: CaptureParse | null, chips: ChipState): CaptureParse | null {
-  if (!parse) return null;
-  return {
-    dueDate: chips.dropped.dueDate ? null : parse.dueDate,
-    assignee: chips.dropped.assignee ? null : parse.assignee,
-    priority: chips.dropped.priority ? null : parse.priority,
-  };
-}
-
-/** Grows a textarea to its content, so the card expands in place instead of scrolling. */
-function fitToContent(field: HTMLTextAreaElement | null) {
-  if (!field) return;
-  field.style.height = 'auto';
-  field.style.height = `${field.scrollHeight}px`;
-}
-
-/** The field and its mirror: the textarea draws the caret and takes input; the div behind it draws the same text with the matches underlined. */
-const MirroredField = forwardRef<
-  HTMLTextAreaElement,
-  { value: string; parse: CaptureParse | null } & TextareaHTMLAttributes<HTMLTextAreaElement>
->(function MirroredField({ value, parse, ...props }, ref) {
-  const matches = parse
-    ? [parse.dueDate, parse.assignee, parse.priority]
-        .filter((m): m is NonNullable<typeof m> => m !== null)
-        .sort((a, b) => a.start - b.start)
-    : [];
-  const pieces: { text: string; mark: boolean }[] = [];
-  let cursor = 0;
-  for (const m of matches) {
-    if (m.start < cursor) continue;
-    if (m.start > cursor) pieces.push({ text: value.slice(cursor, m.start), mark: false });
-    pieces.push({ text: value.slice(m.start, m.end), mark: true });
-    cursor = m.end;
-  }
-  if (cursor < value.length) pieces.push({ text: value.slice(cursor), mark: false });
-  const shared = 'whitespace-pre-wrap break-words text-14 font-medium leading-snug';
-  return (
-    <div className="relative">
-      <div aria-hidden className={cn(shared, 'pointer-events-none absolute inset-0 text-fg-1')}>
-        {pieces.map((p, i) =>
-          p.mark ? (
-            <span
-              key={i}
-              data-testid="capture-mark"
-              className="underline decoration-fg-3 decoration-dotted underline-offset-2"
-            >
-              {p.text}
-            </span>
-          ) : (
-            <span key={i}>{p.text}</span>
-          ),
-        )}
-        {value.endsWith('\n') && <br />}
-      </div>
-      <textarea
-        {...props}
-        ref={ref}
-        value={value}
-        rows={1}
-        className={cn(
-          shared,
-          'relative block w-full resize-none overflow-hidden bg-transparent text-transparent caret-fg-1 outline-none placeholder:text-fg-faint',
-        )}
-      />
-    </div>
-  );
-});
-
 /**
  * The card the person writes in, on the wall (or as a list row) where the note will live
  * (WALLYBOT_INLINE.md §3.1). Its own component, never a mode of NoteCard: it may animate in
@@ -125,6 +56,7 @@ export function InlineCaptureCard({
   boardId,
   placement,
   visibility,
+  visibilityChosen = false,
   layout,
   onDone,
   onNoteId,
@@ -133,6 +65,8 @@ export function InlineCaptureCard({
   boardId: string;
   placement: CapturePlacement;
   visibility: NoteVisibility;
+  /** The board's filter chose the visibility ("Shared"): Wallybot then never proposes one. */
+  visibilityChosen?: boolean;
   layout: 'card' | 'row';
   /**
    * `noteId` is null when the capture was cancelled; `open` asks for the note's sidebar;
@@ -219,10 +153,15 @@ export function InlineCaptureCard({
       priority: parse?.priority && applies('priority') ? parse.priority.value : null,
     };
   }
-  /** The fields the person decided here: a kept chip, or a placement on the priority wall (R3). */
+  /**
+   * The fields the person decided here: a kept chip, a placement on the priority wall (R3), a
+   * column they picked on the horizon wall, or the visibility the Shared filter chose.
+   */
   function locked(): SuggestionFieldKey[] {
     const f = fields();
     const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+    const pickedHorizon =
+      placement.kind === 'zone' && placement.axis === 'horizon' && placement.picked === true;
     return suggestionFieldKeys.filter(
       (key) =>
         key === 'dueDate'
@@ -231,7 +170,11 @@ export function InlineCaptureCard({
             ? f.priority !== null || placedByPriority
             : key === 'assignee'
               ? f.assigneeId !== null
-              : false, // title, reference, subtasks: only Wallybot proposes them, never a chip
+              : key === 'horizon'
+                ? pickedHorizon
+                : key === 'visibility'
+                  ? visibilityChosen
+                  : false, // the rest: only Wallybot proposes them, never a chip
     );
   }
   /** Words in either field make a note; whitespace alone in both does not. */

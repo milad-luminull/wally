@@ -1,0 +1,106 @@
+import { useEffect, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/cn';
+import { CountdownRing } from './CountdownRing';
+import { footerAction } from './footerAction';
+import type { SuggestionMark } from './useSuggestions';
+
+const stop = (e: SyntheticEvent) => e.stopPropagation();
+/** Enter and Space press a `role="button"` span, and go no further than it. */
+const onPress = (action: () => void) => (e: KeyboardEvent) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  e.stopPropagation();
+  action();
+};
+
+/** Whole seconds left on a running countdown, updated each second; null when none runs. */
+function useSecondsLeft(endsAt: number | null): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (endsAt === null) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [endsAt]);
+  return endsAt === null ? null : Math.max(1, Math.ceil((endsAt - now) / 1000));
+}
+
+/**
+ * The foot of a pending card or row (the smarter-capture spec §5, after Paper Wall v3): while
+ * the call runs, "Filling in…"; once the proposal is there, the countdown ring with the seconds
+ * left (or "Paused"), Undo and Keep. Undo discards the proposal and Keep keeps what is ticked,
+ * exactly as Esc and Enter do; with everything crossed out Keep discards. It sits under the card
+ * or row, never inside its button; every press stops here so it never opens the note.
+ */
+export function ReviewFooter({
+  mark,
+  onKeep,
+  onUndo,
+}: {
+  mark: SuggestionMark;
+  onKeep: () => void;
+  onUndo: () => void;
+}) {
+  const { t } = useTranslation();
+  const seconds = useSecondsLeft(mark.phase === 'pending' ? mark.countdownEndsAt : null);
+  const shell = 'flex items-center gap-2 pt-1';
+  if (mark.phase === 'asking')
+    return (
+      <span role="status" className="flex items-center gap-2 text-12 font-medium">
+        <span className="capture-shimmer">{t('suggest.footer.asking')}</span>
+        <span aria-hidden className="inline-flex gap-[3px]">
+          {[0, 150, 300].map((delay) => (
+            <span
+              key={delay}
+              className="capture-dot h-1 w-1 rounded-full bg-accent"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </span>
+      </span>
+    );
+  if (mark.phase !== 'pending') return null;
+  const status =
+    seconds !== null
+      ? t('suggest.footer.saving', { count: seconds })
+      : mark.paused
+        ? t('suggest.footer.paused')
+        : '';
+  return (
+    <span
+      data-review-footer
+      className={shell}
+      onPointerDown={stop}
+      onMouseDown={stop}
+      onClick={stop}
+    >
+      {status && <CountdownRing mark={mark} />}
+      <span className="min-w-0 flex-1 truncate text-12 tabular-nums text-fg-meta-on-note">
+        {status}
+      </span>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onUndo}
+        onKeyDown={onPress(onUndo)}
+        className={cn(
+          footerAction,
+          'border border-[color:var(--note-border)] text-fg-1 hover:bg-inset-hover',
+        )}
+      >
+        {t('suggest.undo')}
+      </span>
+      <span
+        role="button"
+        tabIndex={0}
+        data-review-keep
+        onClick={onKeep}
+        onKeyDown={onPress(onKeep)}
+        className={cn(footerAction, 'bg-primary text-primary-foreground hover:opacity-90')}
+      >
+        {t('suggest.footer.keep')}
+      </span>
+    </span>
+  );
+}

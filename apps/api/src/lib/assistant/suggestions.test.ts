@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { collectKeys } from './suggestions.js';
+import { collectKeys } from './captureProposal.js';
 
 const notes = (...fields: Record<string, string>[]) =>
   fields.map((customFields) => ({ customFields }));

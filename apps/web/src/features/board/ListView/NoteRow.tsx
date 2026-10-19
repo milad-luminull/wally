@@ -9,15 +9,18 @@ import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '.
 import { PriorityIcon } from '../PriorityIcon';
 import { PrivateBadge } from '../PrivateBadge';
 import { PendingDot } from '../Suggestions/PendingDot';
+import { ProposalList } from '../Suggestions/ProposalList';
 import { ProposedField } from '../Suggestions/ProposedField';
+import { ReviewFooter } from '../Suggestions/ReviewFooter';
 import {
   pendingKeys,
   proposedDateLabel,
-  proposedTitle,
   proposedValues,
   type PendingProps,
 } from '../Suggestions/pendingProps';
 import { usePendingPause } from '../Suggestions/usePendingPause';
+import { InlineNoteEditor } from '../Capture/InlineNoteEditor';
+import { useReturnFocus, type InlineEditProps } from '../Capture/inlineEdit';
 
 interface NoteRowProps {
   note: NoteDto;
@@ -30,6 +33,8 @@ interface NoteRowProps {
   pending?: PendingProps;
   /** How many notes of the board this one is related to, both ways (`relatedCounts`, L1, L7). */
   relatedCount?: number;
+  /** Editing the note's words in place; absent for a note the person may not edit. */
+  edit?: InlineEditProps;
 }
 
 export function NoteRow({
@@ -41,6 +46,7 @@ export function NoteRow({
   selected = false,
   pending,
   relatedCount = 0,
+  edit,
 }: NoteRowProps) {
   const { t, i18n } = useTranslation();
   const { language } = useLanguage();
@@ -49,16 +55,28 @@ export function NoteRow({
   const checklistLabel = subtaskCountLabel(note.subtaskSummary);
   const isDone = note.status === 'DONE';
   const isPrivate = note.visibility === 'PRIVATE';
-  const proposed = proposedValues(note, pending);
+  // A pending change is drawn as its list under the title; only a kept one shows its values
+  // in their places, until the refetch carries them.
+  const proposed = proposedValues(note, pending?.mark.phase === 'kept' ? pending : undefined);
+  // The list and its footer: while the call runs and while the change waits for a decision.
+  const reviewing = pending && pending.mark.phase !== 'kept' ? pending : undefined;
   const proposedDate = proposed.dueDate && proposedDateLabel(proposed.dueDate.value, i18n.language);
-  const dashed = pending !== undefined && pending.mark.phase !== 'kept';
   // Only a pending change has fields to take out; a kept one shows its values plainly.
   const removable = pending?.mark.phase === 'pending';
-  // The offered title shows ticked or not, and only while the change is pending (R2).
-  const offeredTitle = removable ? proposedTitle(pending.mark) : null;
-  const titleTaken = pending?.mark.fields.includes('title') ?? false;
-  const offeredTitleLabel =
-    offeredTitle && t('suggest.title.proposed', { title: offeredTitle.value });
+  // The row keeps the person's own words under review: a new title and its text are offered
+  // in the rows below, as every other field is.
+  const shownTitle = note.title;
+  const shownDescription = note.description.trim();
+  const thinking = reviewing?.mark.phase === 'asking';
+  // What the dot used to say, for a screen reader on the focused row.
+  const reviewStatus =
+    reviewing?.mark.phase === 'pending'
+      ? t(
+          reviewing.mark.countdownEndsAt !== null || reviewing.mark.paused
+            ? 'suggest.dotAria'
+            : 'suggest.dotAriaWaiting',
+        )
+      : null;
   const referenceLabel =
     proposed.reference &&
     t('suggest.fields.reference', {
@@ -67,7 +85,12 @@ export function NoteRow({
     });
   const stepsLabel =
     proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
-  const pause = usePendingPause(pending);
+  const pause = usePendingPause(pending, edit?.editing ?? false);
+  // An edit in place that ends (Enter, Esc) takes its field away: the keyboard goes back to the
+  // row, unless the person already put it somewhere else.
+  useReturnFocus(edit?.editing ?? false, () =>
+    document.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(note.id)}"][role="button"]`),
+  );
 
   // Always named, yourself included: leaving your own name out made "assigned to me" read
   // exactly like "assigned to nobody".
@@ -96,7 +119,7 @@ export function NoteRow({
     onToggleDone();
   }
 
-  return (
+  const row = (
     <div
       role="button"
       tabIndex={0}
@@ -107,7 +130,15 @@ export function NoteRow({
       aria-current={selected ? 'true' : undefined}
       data-pending={pending?.mark.phase}
       onClick={onOpen}
+      onDoubleClick={edit?.start}
       onKeyDown={(e) => {
+        // F2 edits the words in place, as in a file list.
+        if (edit && e.key === 'F2' && e.target === e.currentTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          edit.start();
+          return;
+        }
         // Enter keeps and Esc discards while a change is pending, instead of opening.
         if (pendingKeys(e, pending)) return;
         // A key meant for a control inside the row (the checkbox, the Undo) is not "open".
@@ -117,27 +148,29 @@ export function NoteRow({
           onOpen();
         }
       }}
-      {...pause}
+      // Under review the shell around the row and its review holds the pause instead.
+      {...(reviewing ? {} : pause)}
       className={cn(
-        'paper-note-row group/row relative flex min-h-10 cursor-pointer items-center gap-3 px-3 py-2',
+        'paper-note-row group/row relative flex min-h-10 cursor-pointer gap-3 px-3 py-2',
+        // Under review the row grows a list and a footer; its ends then sit at the top.
+        reviewing ? 'items-start' : 'items-center',
         noteColourFillClass[note.colour],
         'transition-shadow duration-100',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--ring-alpha)]',
         '[@media(pointer:coarse)]:min-h-12',
-        // A pending change: a dashed left edge in the note's border colour, never marigold
-        // (BRAND job 4). Only the left edge's style changes, so the divider below stays
-        // solid. The padding gives back the edge's 2px, so the row does not shift.
-        dashed &&
-          'border-l-2 border-l-[color:var(--note-border)] pl-2.5 [border-left-style:dashed]',
       )}
     >
-      <Checkbox
-        checked={isDone}
-        onClick={handleCheckboxClick}
-        disabled={!canEdit}
-        aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
-        className="paper-row-status shrink-0"
-      />
+      {/* Not drawn while a change is under review: a stray click must not complete a note
+          whose proposal is still open, and the title then lines up with the rows below it. */}
+      {!reviewing && (
+        <Checkbox
+          checked={isDone}
+          onClick={handleCheckboxClick}
+          disabled={!canEdit}
+          aria-label={isDone ? t('board.rowStatus.markOpen') : t('board.rowStatus.markDone')}
+          className="paper-row-status shrink-0"
+        />
+      )}
 
       <div
         className={cn(
@@ -146,43 +179,29 @@ export function NoteRow({
         )}
       >
         <span
+          // Under review the title is where an edit starts: one click, as on the words just
+          // written (the smarter-capture spec, revision "editing the text asks again").
+          onClick={
+            reviewing && edit
+              ? (e) => {
+                  e.stopPropagation();
+                  edit.start();
+                }
+              : undefined
+          }
           className={cn(
             'paper-row-title min-w-0 text-14 font-medium text-fg-1',
+            reviewing && edit && 'cursor-text',
             isDone && 'line-through decoration-fg-faint',
+            thinking && 'capture-shimmer',
           )}
         >
-          {note.title || t('common.untitled')}
+          {shownTitle || t('common.untitled')}
         </span>
+        {reviewStatus && <span className="sr-only">{reviewStatus}</span>}
 
-        {note.description.trim() && (
-          <span className="paper-row-description text-fg-meta-on-note">{note.description}</span>
-        )}
-
-        {/* A cleaner title is a full-width second line under the person's own, never a
-            replacement (BRAND rule 7): a tap takes it into the change, its × keeps theirs. */}
-        {offeredTitle && offeredTitleLabel && pending && (
-          <ProposedField
-            className="basis-full items-start"
-            name={offeredTitleLabel}
-            label={
-              <span
-                className={cn(
-                  'line-clamp-2 text-12 leading-snug',
-                  titleTaken ? 'text-fg-1' : 'text-fg-meta-on-note',
-                )}
-              >
-                {offeredTitleLabel}
-              </span>
-            }
-            reason={offeredTitle.reason}
-            toggle={{
-              pressed: titleTaken,
-              onToggle: () => pending.onSetField('title', !titleTaken),
-              description: t('suggest.title.take'),
-            }}
-            removeLabel={t('suggest.title.mine')}
-            onRemove={() => pending.onRemove('title')}
-          />
+        {shownDescription && (
+          <span className="paper-row-description text-fg-meta-on-note">{shownDescription}</span>
         )}
 
         {isPrivate && <PrivateBadge className="text-fg-meta-on-note" />}
@@ -235,62 +254,100 @@ export function NoteRow({
         ))}
       </div>
 
-      <div
-        className={cn('paper-row-meta flex shrink-0 items-center gap-2.5', isDone && 'opacity-55')}
-      >
-        <span
-          className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])}
-          style={{ fontWeight: due.weight }}
+      {/* Under review every value is in the rows instead (Paper Wall v3). */}
+      {!reviewing && (
+        <div
+          className={cn(
+            'paper-row-meta flex shrink-0 items-center gap-2.5',
+            isDone && 'opacity-55',
+          )}
         >
-          {proposed.dueDate && proposedDate ? (
+          <span
+            className={cn('whitespace-nowrap text-12 tabular-nums', dueToneClass[due.tone])}
+            style={{ fontWeight: due.weight }}
+          >
+            {proposed.dueDate && proposedDate ? (
+              <ProposedField
+                name={t('suggest.fields.dueDate', { date: proposedDate })}
+                label={
+                  <span
+                    className={cn(
+                      'text-12 tabular-nums',
+                      dueToneClass[
+                        dueInfo({ status: 'OPEN', dueDate: proposed.dueDate.value }, t).tone
+                      ],
+                    )}
+                  >
+                    {proposedDate}
+                  </span>
+                }
+                reason={proposed.dueDate.reason}
+                onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
+              />
+            ) : (
+              due.label
+            )}
+          </span>
+          {proposed.priority ? (
             <ProposedField
-              name={t('suggest.fields.dueDate', { date: proposedDate })}
+              name={t(
+                proposed.priority.value === 'HOCH'
+                  ? 'suggest.fields.priorityHigh'
+                  : 'suggest.fields.priorityLow',
+              )}
               label={
-                <span
-                  className={cn(
-                    'text-12 tabular-nums',
-                    dueToneClass[
-                      dueInfo({ status: 'OPEN', dueDate: proposed.dueDate.value }, t).tone
-                    ],
-                  )}
-                >
-                  {proposedDate}
-                </span>
+                <PriorityIcon
+                  priority={proposed.priority.value}
+                  label={t('board.priorityPrefix', {
+                    label: priorityLabels[proposed.priority.value],
+                  })}
+                />
               }
-              reason={proposed.dueDate.reason}
-              onRemove={removable ? () => pending?.onRemove('dueDate') : undefined}
+              reason={proposed.priority.reason}
+              onRemove={removable ? () => pending?.onRemove('priority') : undefined}
             />
           ) : (
-            due.label
-          )}
-        </span>
-        {proposed.priority ? (
-          <ProposedField
-            name={t(
-              proposed.priority.value === 'HOCH'
-                ? 'suggest.fields.priorityHigh'
-                : 'suggest.fields.priorityLow',
-            )}
-            label={
+            !isDone && (
               <PriorityIcon
-                priority={proposed.priority.value}
-                label={t('board.priorityPrefix', {
-                  label: priorityLabels[proposed.priority.value],
-                })}
+                priority={note.priority}
+                label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
               />
-            }
-            reason={proposed.priority.reason}
-            onRemove={removable ? () => pending?.onRemove('priority') : undefined}
+            )
+          )}
+          {pending && <PendingDot mark={pending.mark} onUndo={() => pending.onUndo('click')} />}
+        </div>
+      )}
+    </div>
+  );
+  if (edit?.editing)
+    // The words edited in place: the capture row's field where the row stood. It holds a
+    // waiting change's countdown while it has focus or the pointer.
+    return (
+      <div data-note-id={note.id} {...pause}>
+        <InlineNoteEditor boardId={edit.boardId} note={note} layout="row" onDone={edit.done} />
+      </div>
+    );
+  if (!reviewing) return row;
+  // The same card as on the wall (Paper Wall v3): inside the moving border, the row's own
+  // button and, beside it, the rows and the footer; nothing nests in the button role.
+  return (
+    <div data-capture-card className="capture-glow" {...pause}>
+      <div className={cn('capture-row-card', noteColourFillClass[note.colour])}>
+        {row}
+        <div
+          data-note-review
+          onKeyDown={(e) => {
+            pendingKeys(e, reviewing);
+          }}
+          className="capture-row-review"
+        >
+          {reviewing.mark.phase === 'pending' && <ProposalList note={note} pending={reviewing} />}
+          <ReviewFooter
+            mark={reviewing.mark}
+            onKeep={() => reviewing.onKeep('click')}
+            onUndo={reviewing.onDiscard}
           />
-        ) : (
-          !isDone && (
-            <PriorityIcon
-              priority={note.priority}
-              label={t('board.priorityPrefix', { label: priorityLabels[note.priority] })}
-            />
-          )
-        )}
-        {pending && <PendingDot mark={pending.mark} onUndo={() => pending.onUndo('click')} />}
+        </div>
       </div>
     </div>
   );

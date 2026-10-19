@@ -36,6 +36,8 @@ import { AskCard } from './Ask/AskCard';
 import { placementsTaken, type AskSlot } from './Ask/askSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
+import { EDIT_LOCKED, afterNoteSaves, editAskAllowed } from './Suggestions/editAsk';
+import { useInlineEdit } from './Capture/inlineEdit';
 import { useTidy } from './Tidy/useTidy';
 import { useTidyFor } from './Tidy/useTidyFor';
 import { tidyOnWall } from './Tidy/tidyOnWall';
@@ -94,6 +96,41 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const onCommitted = useCallback(
     (noteId: string, locked: SuggestionFieldKey[]) => requestSuggestion(noteId, locked),
     [requestSuggestion],
+  );
+  // An edit of the words asks again, the same way, once its saves have landed (the
+  // smarter-capture spec, revision "editing the text asks again"): the words just written and
+  // the horizon are locked, with any field a chip set. Read through a ref: the edit finishes
+  // after the render that built this.
+  const latestNotes = useRef(notes);
+  latestNotes.current = notes;
+  const onTextEdited = useCallback(
+    (noteId: string, chipLocked: SuggestionFieldKey[] = []) => {
+      const note = latestNotes.current.find((n) => n.id === noteId);
+      if (!note || !editAskAllowed(note, user?.uid, board.assistantEnabled)) return;
+      requestSuggestion(noteId, [...new Set([...EDIT_LOCKED, ...chipLocked])], {
+        after: () => afterNoteSaves(noteId),
+      });
+    },
+    [board.assistantEnabled, requestSuggestion, user?.uid],
+  );
+  // The words edited in place on a card or a row, one note at a time; a finished edit asks
+  // again exactly as one in the sidebar does.
+  const { editFor, openFromCard } = useInlineEdit({
+    boardId,
+    canEdit: access.canEditNote,
+    onEdited: onTextEdited,
+    onOpen: viewState.openNote,
+  });
+  // A click on a card or a row: it opens the sidebar once a double-click (an edit) can no
+  // longer follow.
+  const { openNote: openNoteNow } = viewState;
+  const openNoteFromCard = useCallback(
+    (noteId: string) => {
+      const note = latestNotes.current.find((n) => n.id === noteId);
+      if (note) openFromCard(note);
+      else openNoteNow(noteId);
+    },
+    [openFromCard, openNoteNow],
   );
   // Read through a ref: Undo can fire long after the render that set up the toast.
   const openNoteId = useRef(viewState.noteId);
@@ -286,7 +323,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 currentUserId={user?.uid}
                 axis={viewState.axis}
                 selectedNoteId={viewState.noteId}
-                onOpenNote={viewState.openNote}
+                onOpenNote={openNoteFromCard}
                 onDuplicateNote={duplicateNote}
                 cardActions={(note) => ({
                   onOpen: () => {
@@ -347,7 +384,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 onCaptureAsk={captureAsk}
                 ask={askSlot}
                 visibility={access.newNoteVisibility}
+                visibilityChosen={access.visibilityChosen}
                 pendingFor={pendingFor}
+                editFor={editFor}
                 relatedCounts={relatedCountByNote}
                 tidyFor={tidyOn ? tidyFor : undefined}
                 tidy={tidyOn ? tidy : undefined}
@@ -359,7 +398,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 totalNoteCount={boardNotes.length}
                 axis={viewState.axis}
                 currentUserId={user?.uid}
-                onOpenNote={viewState.openNote}
+                onOpenNote={openNoteFromCard}
                 onToggleDone={(noteId, status) =>
                   toggleStatus.mutate({ noteId, currentStatus: status })
                 }
@@ -370,6 +409,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                     id: captureKey,
                     boardId,
                     visibility: access.newNoteVisibility,
+                    visibilityChosen: access.visibilityChosen,
                     onDone: onCaptureDone,
                     onNoteId: onCaptureNoteId,
                     onAsk: captureAsk,
@@ -377,6 +417,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 }
                 ask={askSlot}
                 pendingFor={pendingFor}
+                editFor={editFor}
                 relatedCounts={relatedCountByNote}
               />
             )}
@@ -398,6 +439,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
         onOpenNote={viewState.openNote}
         currentUserId={user?.uid}
         pending={viewState.noteId ? pendingFor(viewState.noteId) : undefined}
+        onTextEdited={onTextEdited}
       />
 
       <BoardCommands

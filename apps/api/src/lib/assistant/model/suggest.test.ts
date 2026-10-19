@@ -9,7 +9,16 @@ import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { ModelRef } from './types.js';
 
 /** The fields this reply proposes nothing for. */
-const none = { title: null, reference: null, subtasks: null, links: null };
+const none = {
+  title: null,
+  subtasks: null,
+  links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
+};
 const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
   instructions: 'Fill in the fields.',
   prompt: 'Title: Call Müller Friday',
@@ -24,18 +33,21 @@ describe('createSuggestionRunner', () => {
       priority: null,
       assignee: null,
       title: { value: 'Call Müller', confidence: 0.8, reason: 'shorter' },
-      reference: {
-        key: 'Customer',
-        value: 'Müller GmbH',
-        confidence: 0.9,
-        reason: 'customer named',
-      },
       subtasks: {
         items: ['Check the documents', 'Call Müller'],
         confidence: 0.7,
         reason: 'two steps',
       },
       links: null,
+      horizon: { value: 'DIESE_WOCHE', confidence: 0.8, reason: '"this week"' },
+      visibility: null,
+      tags: { items: ['sales'], confidence: 0.7, reason: 'board tag' },
+      properties: {
+        items: [{ key: 'Customer', value: 'Müller GmbH' }],
+        confidence: 0.9,
+        reason: 'customer named',
+      },
+      description: null,
     };
     const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(fields))] });
     const a = attempts();
@@ -178,18 +190,25 @@ describe('createSuggestionRunner', () => {
         ...base,
         title: { value: 'x'.repeat(300), confidence: 0.9, reason: 'shorter' },
       },
-      'an empty reference key': {
+      'only an empty property key': {
         ...base,
-        reference: { key: '', value: 'Müller GmbH', confidence: 0.9, reason: 'customer' },
-      },
-      'an over-long reference value': {
-        ...base,
-        reference: {
-          key: 'Customer',
-          value: 'x'.repeat(2_000),
+        properties: {
+          items: [{ key: '', value: 'Müller GmbH' }],
           confidence: 0.9,
           reason: 'customer',
         },
+      },
+      'an over-long property value': {
+        ...base,
+        properties: {
+          items: [{ key: 'Customer', value: 'x'.repeat(2_000) }],
+          confidence: 0.9,
+          reason: 'customer',
+        },
+      },
+      'an over-long description': {
+        ...base,
+        description: { value: 'x'.repeat(6_000), confidence: 0.9, reason: 'detail' },
       },
       'only blank steps': { ...base, subtasks: steps([' ', '']) },
       'an over-long step': { ...base, subtasks: steps(['Call', 'x'.repeat(1_000)]) },
@@ -275,7 +294,7 @@ describe('createSuggestionRunner', () => {
     expect(json).toContain('dueDate');
     expect(json).toContain('memberId');
     expect(json).toContain('"subtasks"');
-    expect(json).toContain('"reference"');
+    expect(json).toContain('"properties"');
     // "or null" is said of the title as a whole; its value is only ever a title.
     expect(json).toContain('"description":"A cleaner title, or null."');
     expect(json).toContain('"description":"A shorter title with the same meaning."');
@@ -339,6 +358,85 @@ describe('modelSuggestionSchema', () => {
     });
     expect(bad.links).toBeNull();
     expect(bad.dueDate?.value).toBe('2026-10-23');
+  });
+
+  it('reads horizon, visibility, tags, properties and description from a reply', () => {
+    const out = modelSuggestionSchema.parse({
+      ...nothing,
+      horizon: { value: 'DIESE_WOCHE', confidence: 0.8, reason: '"this week"' },
+      visibility: { value: 'PRIVATE', confidence: 0.9, reason: 'a dentist visit' },
+      tags: { items: ['sales'], confidence: 0.7, reason: 'board tag' },
+      properties: {
+        items: [{ key: 'Customer', value: 'Acme Corp' }],
+        confidence: 0.9,
+        reason: '"Acme"',
+      },
+      description: { value: 'They want it in writing.', confidence: 0.8, reason: 'detail' },
+    });
+    expect(out.horizon?.value).toBe('DIESE_WOCHE');
+    expect(out.visibility?.value).toBe('PRIVATE');
+    expect(out.tags?.items).toEqual(['sales']);
+    expect(out.properties?.items).toEqual([{ key: 'Customer', value: 'Acme Corp' }]);
+    expect(out.description?.value).toBe('They want it in writing.');
+  });
+
+  it('keeps the first three tags and properties, trimmed, blanks and repeats dropped', () => {
+    const out = modelSuggestionSchema.parse({
+      ...nothing,
+      tags: {
+        items: [' sales ', '', 'Sales', 'ops', 'finance', 'hiring'],
+        confidence: 0.7,
+        reason: 'x',
+      },
+      properties: {
+        items: [
+          { key: ' Customer ', value: ' Acme ' },
+          { key: 'customer', value: 'Other' },
+          { key: '', value: 'blank key' },
+          { key: 'Project', value: 'Relaunch' },
+          { key: 'Region', value: 'EU' },
+          { key: 'Owner', value: 'Sam' },
+        ],
+        confidence: 0.8,
+        reason: 'x',
+      },
+    });
+    expect(out.tags?.items).toEqual(['sales', 'ops', 'finance']);
+    expect(out.properties?.items).toEqual([
+      { key: 'Customer', value: 'Acme' },
+      { key: 'Project', value: 'Relaunch' },
+      { key: 'Region', value: 'EU' },
+    ]);
+  });
+
+  it('a tag or property too long for a note reads as not proposed, never costing the date beside it', () => {
+    const out = modelSuggestionSchema.parse({
+      ...nothing,
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
+      tags: { items: ['x'.repeat(41)], confidence: 0.7, reason: 'x' },
+      properties: { items: [{ key: 'k'.repeat(500), value: 'v' }], confidence: 0.7, reason: 'x' },
+    });
+    expect(out.tags).toBeNull();
+    expect(out.properties).toBeNull();
+    expect(out.dueDate?.value).toBe('2026-10-23');
+  });
+
+  it('reads a reply that leaves the new fields out as proposing nothing there', () => {
+    const out = modelSuggestionSchema.parse({ dueDate: null, priority: null, assignee: null });
+    expect(out.horizon).toBeNull();
+    expect(out.tags).toBeNull();
+    expect(out.description).toBeNull();
+  });
+
+  it('sends no reference, and maxItems three on tags and properties', async () => {
+    type Node = { properties?: Record<string, Node>; anyOf?: Node[]; type?: unknown };
+    const json = JSON.parse(await suggestionSchemaJson()) as Node;
+    expect(json.properties!.reference).toBeUndefined();
+    for (const key of ['tags', 'properties']) {
+      const node = json.properties![key]!;
+      const branch = node.anyOf?.find((n) => n.type === 'object') ?? node;
+      expect(branch.properties!.items, key).toMatchObject({ type: 'array', maxItems: 3 });
+    }
   });
 
   it('sends maxItems on the links list and no string keywords', async () => {

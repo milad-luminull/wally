@@ -1,6 +1,14 @@
 import { RelatedNotes } from './RelatedNotes';
 import { useAddLink, useRemoveLink } from '../hooks/mutations/useLinkMutations';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -72,6 +80,7 @@ import { PriorityIcon } from '../PriorityIcon';
 import { AssigneeAvatar } from '../AssigneeAvatar';
 import { useNotes } from '../hooks/useNotes';
 import type { PendingProps } from '../Suggestions/pendingProps';
+import { textChanged, type NoteText } from '../Suggestions/editAsk';
 import { PanelSection, PropertyRow } from './Field';
 import { TagEditor } from './TagEditor';
 import { SubtaskChecklist } from './SubtaskChecklist';
@@ -109,6 +118,12 @@ interface NoteDetailPanelProps {
   onExpandedChange?: (expanded: boolean) => void;
   /** The open note's pending change, reviewed at the top of the panel (plan R3). */
   pending?: PendingProps;
+  /**
+   * Hears an edit of the title or the text that changed the words, once it is finished: focus
+   * left both fields, or the panel closed on it (the smarter-capture spec, revision "editing the
+   * text asks again"). The shell decides whether Wallybot asks again.
+   */
+  onTextEdited?: (noteId: string) => void;
 }
 
 export function NoteDetailPanel({
@@ -123,6 +138,7 @@ export function NoteDetailPanel({
   onOpenNote,
   currentUserId,
   pending,
+  onTextEdited,
   onExpandedChange,
   expanded: controlledExpanded,
 }: NoteDetailPanelProps) {
@@ -166,6 +182,7 @@ export function NoteDetailPanel({
               onOpenNote={onOpenNote}
               currentUserId={currentUserId}
               pending={pending}
+              onTextEdited={onTextEdited}
               autoFocusTitle={false}
             />
           )}
@@ -203,6 +220,7 @@ export function NoteDetailPanel({
         onOpenNote={onOpenNote}
         currentUserId={currentUserId}
         pending={pending}
+        onTextEdited={onTextEdited}
         autoFocusTitle
       />
     </aside>
@@ -220,6 +238,7 @@ interface ContentProps {
   onOpenNote: (noteId: string) => void;
   currentUserId: string | undefined;
   pending: PendingProps | undefined;
+  onTextEdited?: (noteId: string) => void;
   autoFocusTitle: boolean;
   expanded: boolean;
   onToggleExpanded?: () => void;
@@ -236,6 +255,7 @@ function NoteDetailContent({
   onOpenNote,
   currentUserId,
   pending,
+  onTextEdited,
   autoFocusTitle,
   expanded,
   onToggleExpanded,
@@ -298,6 +318,39 @@ function NoteDetailContent({
     capture: () => captureMutation(`note:${noteId}`, { revision: note?.revision }),
     save: saveDescription,
   });
+  /*
+   * One edit of the words runs from focus entering the title or the text until it leaves both
+   * (or the panel closes on it). A finished edit that changed the words is reported once.
+   */
+  const textNow = useRef({ title: title.value, description: description.value });
+  textNow.current = { title: title.value, description: description.value };
+  // An edit is measured from the note's words, never from the field: the panel focuses the
+  // title on open a moment before the loaded words reach it.
+  const noteText = { title: note?.title ?? '', description: note?.description ?? '' };
+  const textBefore = useRef(noteText);
+  textBefore.current = noteText;
+  const editStart = useRef<NoteText | null>(null);
+  const reportEdit = useRef(onTextEdited);
+  reportEdit.current = onTextEdited;
+  const finishEdit = useCallback((id: string) => {
+    const before = editStart.current;
+    editStart.current = null;
+    if (before && textChanged(before, textNow.current)) reportEdit.current?.(id);
+  }, []);
+  // The panel closing (or moving to another note) mid-edit finishes the edit it was in.
+  useEffect(() => () => finishEdit(noteId), [finishEdit, noteId]);
+  /** Focus moving between the title and the text stays one edit. */
+  const textEdit = {
+    onFocus: () => {
+      editStart.current ??= { ...textBefore.current };
+    },
+    leaving: (e: FocusEvent<HTMLTextAreaElement>) => {
+      const next = e.relatedTarget;
+      if (next === title.ref.current || next === description.ref.current) return;
+      finishEdit(noteId);
+    },
+  };
+
   const noteReady = Boolean(note);
   const titleRef = title.ref;
   const articleRef = useRef<HTMLElement>(null);
@@ -342,7 +395,7 @@ function NoteDetailContent({
    * carries on through the panel, never on the page behind it. Focus the person moved out of
    * the review first (a click on the page, a field in the panel) is theirs and stays there.
    */
-  const showReview = Boolean(pending && pending.mark.phase !== 'asking');
+  const showReview = Boolean(pending);
   const closeRef = useRef<HTMLButtonElement>(null);
   const expandRef = useRef<HTMLButtonElement>(null);
   const wasExpanded = useRef(expanded);
@@ -519,7 +572,11 @@ function NoteDetailContent({
               ref={titleRef}
               value={title.value}
               onChange={(e) => title.onChange(e.target.value)}
-              onBlur={title.onBlur}
+              onFocus={textEdit.onFocus}
+              onBlur={(e) => {
+                title.onBlur();
+                textEdit.leaving(e);
+              }}
               onKeyDown={(e) => {
                 // One line of meaning, even when it wraps: Enter finishes the title.
                 if (e.key === 'Enter') {
@@ -540,6 +597,8 @@ function NoteDetailContent({
                 'placeholder:text-fg-faint',
                 'disabled:cursor-not-allowed disabled:opacity-70',
                 isDone && 'text-fg-3 line-through decoration-fg-faint',
+                // Wallybot is reading the note: the same shimmer as the card's title.
+                pending?.mark.phase === 'asking' && 'capture-shimmer',
               )}
             />
             {expanded && (
@@ -567,7 +626,11 @@ function NoteDetailContent({
             ref={description.ref}
             value={description.value}
             onChange={(e) => description.onChange(e.target.value)}
-            onBlur={description.onBlur}
+            onFocus={textEdit.onFocus}
+            onBlur={(e) => {
+              description.onBlur();
+              textEdit.leaving(e);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 // Leave the field, not the panel: the first Escape only ends the edit.

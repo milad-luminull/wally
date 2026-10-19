@@ -715,13 +715,63 @@ describe('NoteDetailPanel', () => {
     });
   });
 
+  /** The smarter-capture spec, revision "editing the text asks again". */
+  describe('an edit of the text', () => {
+    it('reports one finished edit once focus leaves both text fields with the words changed', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ title: 'Quote for Anna' }));
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, ' for Anna');
+      // On into the description: still the same edit.
+      await user.click(screen.getByLabelText('Description'));
+      expect(onTextEdited).not.toHaveBeenCalled();
+      await user.click(document.body);
+      expect(onTextEdited).toHaveBeenCalledTimes(1);
+      expect(onTextEdited).toHaveBeenCalledWith('note-1');
+    });
+
+    it('reports nothing when the words did not change', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, 'x{Backspace}');
+      await user.click(document.body);
+      expect(onTextEdited).not.toHaveBeenCalled();
+    });
+
+    it('reports an edit the panel closed on', async () => {
+      const user = userEvent.setup();
+      vi.mocked(notesApi.update).mockResolvedValue(makeNote({ title: 'Quote 2' }));
+      vi.mocked(notesApi.get).mockResolvedValue(makeNoteDetail({ title: 'Quote' }));
+      const onTextEdited = vi.fn();
+      const { unmount } = renderPanel({ onTextEdited });
+      const title = await screen.findByLabelText('Title');
+      await user.click(title);
+      await user.type(title, ' 2');
+      unmount();
+      expect(onTextEdited).toHaveBeenCalledWith('note-1');
+    });
+  });
+
   /** The review of a pending change lives in the panel (plan R3), above everything else. */
   describe('reviewing a pending change', () => {
     function pendingFor(): PendingProps {
       const base = makeSuggestionMark();
       return {
         mark: makeSuggestionMark({
-          suggestion: { ...base.suggestion!, typed: ['dueDate'] },
+          // The date was typed: it is on the note, and the proposal holds none of its own.
+          suggestion: {
+            ...base.suggestion!,
+            typed: ['dueDate'],
+            fields: { ...base.suggestion!.fields, dueDate: null },
+          },
           fields: ['priority', 'assignee'],
         }),
         onKeep: vi.fn(),
@@ -731,6 +781,8 @@ describe('NoteDetailPanel', () => {
         onSetField: vi.fn(),
         onSetSubtask: vi.fn(),
         onSetLink: vi.fn(),
+        onSetTag: vi.fn(),
+        onSetProperty: vi.fn(),
         onPause: vi.fn(),
       };
     }
@@ -739,7 +791,7 @@ describe('NoteDetailPanel', () => {
       const { unmount } = renderPanel();
       await screen.findByLabelText('Title');
       expect(document.querySelector('[data-pending-review]')).toBeNull();
-      expect(screen.queryByText('Added by Wallybot')).not.toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: 'Suggested fields' })).not.toBeInTheDocument();
       unmount();
 
       vi.mocked(notesApi.get).mockResolvedValue(
@@ -749,7 +801,9 @@ describe('NoteDetailPanel', () => {
       await screen.findByLabelText('Title');
       const review = document.querySelector('[data-pending-review]');
       expect(review).not.toBeNull();
-      expect(within(review as HTMLElement).getByText('Added by Wallybot')).toBeInTheDocument();
+      expect(
+        within(review as HTMLElement).getByRole('list', { name: 'Suggested fields' }),
+      ).toBeInTheDocument();
       // Above the subtasks: the first thing under the title and the description.
       const subtasks = screen.getByText('Subtasks');
       expect(review!.compareDocumentPosition(subtasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
@@ -757,17 +811,52 @@ describe('NoteDetailPanel', () => {
       );
     });
 
-    it('shows no review while the change is still being asked for', async () => {
-      renderPanel({ pending: { ...pendingFor(), mark: makeSuggestionMark({ phase: 'asking' }) } });
-      await screen.findByLabelText('Title');
-      expect(document.querySelector('[data-pending-review]')).toBeNull();
+    it('shows "Filling in" in the review and shimmers the title while the change is asked for', async () => {
+      renderPanel({
+        pending: {
+          ...pendingFor(),
+          mark: makeSuggestionMark({ phase: 'asking', suggestion: null, fields: [] }),
+        },
+      });
+      const title = await screen.findByLabelText('Title');
+      const review = document.querySelector('[data-pending-review]') as HTMLElement;
+      expect(within(review).getByRole('status')).toHaveTextContent('Filling in');
+      expect(title).toHaveClass('capture-shimmer');
+    });
+
+    it('keeps the note’s own words in the fields and offers the new title in the review', async () => {
+      vi.mocked(notesApi.get).mockResolvedValue(
+        makeNoteDetail({ title: 'call doc', description: '' }),
+      );
+      const base = makeSuggestionMark();
+      renderPanel({
+        pending: {
+          ...pendingFor(),
+          mark: makeSuggestionMark({
+            suggestion: {
+              ...base.suggestion!,
+              fields: {
+                ...base.suggestion!.fields,
+                title: { value: 'Call the doctor', reason: 'clearer' },
+                description: { value: 'About the check-up', reason: 'split' },
+              },
+            },
+            fields: ['title', 'description', 'priority'],
+          }),
+        },
+      });
+      expect(await screen.findByLabelText('Title')).toHaveValue('call doc');
+      expect(screen.getByLabelText('Description')).toHaveValue('');
+      const review = document.querySelector('[data-pending-review]') as HTMLElement;
+      expect(within(review).getByText('Call the doctor')).toBeInTheDocument();
+      expect(within(review).getByText('About the check-up')).toBeInTheDocument();
     });
 
     /*
      * R4 as ruled: a typed row is read-only. The typed date changes in the panel's own date
      * field, which ends the pending change as any edit does (slice 2's stale-revision rule).
      */
-    it('sends no update when a typed row is clicked (R4)', async () => {
+    it('shows a typed row with no control, and a click on it sends nothing (R4)', async () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
       vi.mocked(notesApi.get).mockResolvedValue(
@@ -777,16 +866,15 @@ describe('NoteDetailPanel', () => {
       renderPanel({ pending });
       await screen.findByLabelText('Title');
 
-      const typed = screen.getByRole('group', { name: 'From what you typed' });
-      const row = within(typed).getByRole('checkbox', { name: /^Due / });
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      const row = within(list).getByText('Due').closest('[role="listitem"]') as HTMLElement;
+      expect(within(row).queryByRole('button')).toBeNull();
       // Calls from earlier cases stay on these mocks; only what the click sends counts here.
       vi.mocked(notesApi.update).mockClear();
       vi.mocked(notesApi.move).mockClear();
       vi.mocked(notesApi.assign).mockClear();
       await user.click(row);
 
-      expect(row).toBeChecked();
-      expect(row).toBeDisabled();
       expect(notesApi.update).not.toHaveBeenCalled();
       expect(notesApi.move).not.toHaveBeenCalled();
       expect(notesApi.assign).not.toHaveBeenCalled();
@@ -820,8 +908,8 @@ describe('NoteDetailPanel', () => {
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
       await screen.findByLabelText('Title');
-      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-      const row = within(added).getAllByRole('checkbox')[0]!;
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      const row = within(list).getAllByRole('button')[0]!;
       await user.click(row);
       expect(row).toHaveFocus();
 
@@ -859,8 +947,8 @@ describe('NoteDetailPanel', () => {
         <NoteDetailPanel {...props} pending={pendingFor()} />,
       );
       await screen.findByLabelText('Title');
-      const added = screen.getByRole('group', { name: 'Added by Wallybot' });
-      await user.click(within(added).getAllByRole('checkbox')[0]!);
+      const list = screen.getByRole('list', { name: 'Suggested fields' });
+      await user.click(within(list).getAllByRole('button')[0]!);
       // A click on the page behind the panel: focus goes to the page.
       await user.click(document.body);
       expect(document.body).toHaveFocus();

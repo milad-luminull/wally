@@ -18,18 +18,21 @@ export interface PendingProps {
   onSetSubtask: (index: number, on: boolean) => void;
   /** Ticks one proposed link in or out, by its stored index. */
   onSetLink: (index: number, on: boolean) => void;
+  /** Ticks one proposed tag or property in or out, by its index in the proposal. */
+  onSetTag: (index: number, on: boolean) => void;
+  onSetProperty: (index: number, on: boolean) => void;
   onPause: (paused: boolean) => void;
 }
 
 /**
- * Enter keeps, Esc discards (pending) or undoes (kept). True when the key was taken. Enter on a
- * change that holds nothing to keep (an offered title nobody ticked, plan R2) is not taken: it
- * goes on to the card or row as it would without a change.
+ * Enter keeps, Esc discards (pending) or undoes (kept). True when the key was taken. Under
+ * review Enter is always Keep (with everything crossed out that discards), so it never opens
+ * the note or starts a keyboard drag of the card.
  */
 export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefined): boolean {
   if (!pending || event.nativeEvent.isComposing) return false;
-  const { phase, fields } = pending.mark;
-  if (event.key === 'Enter' && phase === 'pending' && fields.length > 0) {
+  const { phase } = pending.mark;
+  if (event.key === 'Enter' && phase === 'pending') {
     event.preventDefault();
     event.stopPropagation();
     pending.onKeep('enter');
@@ -67,6 +70,11 @@ const NONE: ProposedValues = {
   reference: null,
   subtasks: null,
   links: null,
+  horizon: null,
+  visibility: null,
+  tags: null,
+  properties: null,
+  description: null,
 };
 
 /**
@@ -110,6 +118,12 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
       has('links') && note.links.length === 0 && fields.links
         ? { ...fields.links, kept: mark.links }
         : null,
+    // The smarter-capture fields show in the proposal list while pending, never in place.
+    horizon: null,
+    visibility: null,
+    tags: null,
+    properties: null,
+    description: null,
   };
 }
 
