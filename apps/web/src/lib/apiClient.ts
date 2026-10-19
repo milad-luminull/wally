@@ -13,7 +13,7 @@ import { i18n } from '@/i18n';
 import { RequestTimeoutError } from './errors';
 
 export { RequestTimeoutError };
-import { expireSession, getFreshIdToken } from '@/features/auth/AuthProvider';
+import { getFreshIdToken } from '@/features/auth/AuthProvider';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -203,9 +203,6 @@ async function request<T>(
     };
     let res = await doFetch(false);
     if (res.status === 401) res = await doFetch(true);
-    // A fresh token still refused: the session is over (revoked, disabled). The person signs
-    // in again, and the sign-in screen says why.
-    if (res.status === 401) expireSession();
     assertCurrentSession(generation);
     // A board that is already gone (deleted from another tab, membership already removed, or
     // the retry of a request that did succeed) is the end state delete and leave ask for.

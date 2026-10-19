@@ -40,7 +40,9 @@ export function failureOf(error: unknown): Failure | null {
   if (code && CONFLICT_CODES.has(code)) return { kind: 'conflict', code };
   if (typeof fields.status === 'number') {
     const status = fields.status;
-    if (status === 401) return { kind: 'session', code };
+    // Already sent again with a fresh token: the API's own check failed, not the session (a
+    // session that really ended is signed out by Firebase itself). Worth another try.
+    if (status === 401) return { kind: 'temporary', code };
     if (code && LIMIT_CODES.has(code))
       return {
         kind: 'limit',

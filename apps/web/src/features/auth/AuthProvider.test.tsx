@@ -201,6 +201,26 @@ describe('AuthProvider', () => {
     expect(result.current.signedOut).toBe(false);
   });
 
+  it('says the session ended when Firebase signs the person out on its own, not after Sign out', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(makeUser({ uid: 'u-1' }));
+    await waitFor(() => expect(result.current.status).toBe('authenticated'));
+    // Firebase could not refresh the session: no Sign out was pressed.
+    await signIn(null);
+    expect(result.current.expired).toEqual({ unsaved: 0 });
+
+    await signIn(makeUser({ uid: 'u-1' }));
+    await waitFor(() => expect(result.current.expired).toBeNull());
+    vi.mocked(firebaseSignOut).mockImplementation(async () => {
+      await signIn(null);
+    });
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(result.current.status).toBe('unauthenticated');
+    expect(result.current.expired).toBeNull();
+  });
+
   it('clears the verification flag on sign-out', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await signIn(makeUser({ emailVerified: true }));

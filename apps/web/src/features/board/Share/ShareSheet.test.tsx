@@ -130,4 +130,64 @@ describe('ShareSheet', () => {
     },
     { timeout: 20000 },
   );
+
+  describe('when something fails', () => {
+    const open = async () => {
+      const user = userEvent.setup();
+      clipboardWriteText = vi.fn().mockRejectedValue(new Error('denied'));
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: clipboardWriteText },
+        configurable: true,
+      });
+      renderWithProviders(
+        <ShareSheet boardId="board-1" ownerId="user-1" isOwner isBelowTablet={false} />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Share' }));
+      return user;
+    };
+
+    it('a share link that failed to load is said, with Try again, and no new link is made', async () => {
+      vi.mocked(shareLinkApi.get).mockRejectedValue(
+        Object.assign(new Error('500'), { status: 500, code: 'INTERNAL_SERVER_ERROR' }),
+      );
+      await open();
+      expect(await screen.findByText('Couldn’t load the share link')).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
+      expect(shareLinkApi.createOrUpdate).not.toHaveBeenCalled();
+    });
+
+    it('a board without a link yet still gets one', async () => {
+      vi.mocked(shareLinkApi.get).mockRejectedValue(
+        Object.assign(new Error('404'), { status: 404, code: 'NOT_FOUND' }),
+      );
+      await open();
+      await waitFor(() => expect(shareLinkApi.createOrUpdate).toHaveBeenCalled());
+    });
+
+    it('members that failed to load are said, with Try again', async () => {
+      vi.mocked(membersApi.list).mockRejectedValue(
+        Object.assign(new Error('500'), { status: 500 }),
+      );
+      await open();
+      expect(await screen.findByText('Couldn’t load the members')).toBeInTheDocument();
+    });
+
+    it('a copy the browser refuses says how to copy by hand', async () => {
+      const user = await open();
+      await screen.findByText('https://hub.example.com/w/tok');
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(
+        await screen.findByText('Couldn’t copy. Select the link and copy it.'),
+      ).toBeInTheDocument();
+    });
+
+    it('an invite the server refuses says why under the field', async () => {
+      vi.mocked(membersApi.invite).mockRejectedValue(
+        Object.assign(new Error('422'), { status: 422, code: 'INVITE_INVALID' }),
+      );
+      const user = await open();
+      await user.type(screen.getByRole('textbox', { name: /email/i }), 'anna@example.com{Enter}');
+      expect(await screen.findByText('Couldn’t send the invite')).toBeInTheDocument();
+    });
+  });
 });

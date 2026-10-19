@@ -982,6 +982,10 @@ export const en = {
     },
   },
   share: {
+    membersFailed: 'Couldn’t load the members',
+    linkFailed: 'Couldn’t load the share link',
+    copyFailed: 'Couldn’t copy. Select the link and copy it.',
+    inviteFailed: 'Couldn’t send the invite',
     trigger: 'Share',
     title: 'Share board',
     copy: 'Copy',

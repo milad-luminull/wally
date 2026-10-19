@@ -1016,6 +1016,10 @@ export const de = {
     },
   },
   share: {
+    membersFailed: 'Konnte die Mitglieder nicht laden',
+    linkFailed: 'Konnte den Freigabelink nicht laden',
+    copyFailed: 'Konnte nicht kopieren. Markiere den Link und kopiere ihn.',
+    inviteFailed: 'Konnte die Einladung nicht senden',
     trigger: 'Teilen',
     title: 'Wand teilen',
     copy: 'Kopieren',

@@ -60,8 +60,9 @@ interface AuthContextValue {
    */
   signedOut: boolean;
   /**
-   * The session ended on its own (the API refused a fresh token), with how many unsaved
-   * changes could not be kept; null otherwise. The sign-in screen says so.
+   * The session ended without the person signing out (Firebase could no longer refresh it:
+   * the account was disabled or its sign-in revoked), with how many unsaved changes could not
+   * be kept; null otherwise. The sign-in screen says so. No return path is kept across it.
    */
   expired: { unsaved: number } | null;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -86,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailVerified, setEmailVerified] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const [expired, setExpired] = useState<{ unsaved: number } | null>(null);
+  /** The person asked to sign out: the sign-out that follows is theirs, not an ended session. */
+  const signingOut = useRef(false);
   // Firebase can fire onAuthStateChanged before the token is attached; track it so we
   // never flip to "authenticated" without a usable token.
   const tokenRef = useRef<string | null>(null);
@@ -117,13 +120,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Counted before the account change empties the queue.
+      const unsaved = getRecoveries().length;
       const previousUid = onIdentityChange(firebaseUser?.uid ?? null);
       if (!firebaseUser) {
-        // An expired session is no sign-out: the page they were on is kept to come back to.
-        const ended = pendingExpiry;
-        pendingExpiry = null;
-        setExpired(ended);
-        setSignedOut(ended ? false : typeof previousUid === 'string');
+        // Signed out without asking: the session ended on its own, and the sign-in page says so.
+        const ended = typeof previousUid === 'string' && !signingOut.current;
+        signingOut.current = false;
+        setExpired(ended ? { unsaved } : null);
+        setSignedOut(typeof previousUid === 'string');
         tokenRef.current = null;
         setUser(null);
         setIdToken(null);
@@ -209,7 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A preference change still inside its debounce belongs to this account; send it while
     // its token is still the one attached. A failure has already been reported by the toast.
     await flushPreferences(queryClient).catch(() => {});
-    await firebaseSignOut(auth);
+    signingOut.current = true;
+    await firebaseSignOut(auth).catch((error: unknown) => {
+      signingOut.current = false;
+      throw error;
+    });
   }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
@@ -261,19 +270,6 @@ export function useAuth(): AuthContextValue {
  * before a request or on a 401 retry. Not part of the context value itself — the API
  * client lives outside React and must not depend on component state.
  */
-/** Set by `expireSession` until the auth listener hears the sign-out it caused. */
-let pendingExpiry: { unsaved: number } | null = null;
-
-/**
- * Ends a session the API no longer accepts (the error handling spec, 2026-10-19): signs out
- * once, remembering how many unsaved changes go with it, so the sign-in screen can say so.
- */
-export function expireSession(): void {
-  if (!auth.currentUser || pendingExpiry) return;
-  pendingExpiry = { unsaved: getRecoveries().length };
-  void firebaseSignOut(auth);
-}
-
 export async function getFreshIdToken(forceRefresh = false): Promise<string | null> {
   const current = auth.currentUser;
   if (!current) return null;

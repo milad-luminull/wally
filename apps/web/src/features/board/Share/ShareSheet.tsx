@@ -39,31 +39,40 @@ function ShareBody({
   ownerId: string;
   isOwner: boolean;
 }) {
-  const { data: members = [], isLoading: membersLoading } = useMembers(boardId);
+  const membersQuery = useMembers(boardId);
+  const { data: members = [], isLoading: membersLoading } = membersQuery;
   const { t } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
   const shareLinkQuery = useShareLink(boardId, isOwner);
   const createOrUpdateShareLink = useCreateOrUpdateShareLink(boardId);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  // No link yet is a 404: the first owner to open the sheet makes one. Any other failure is
+  // said, with Try again; it never makes a second link.
+  const linkMissing =
+    shareLinkQuery.isError && (shareLinkQuery.error as { status?: unknown } | null)?.status === 404;
+  const linkFailed = shareLinkQuery.isError && !linkMissing;
 
   useEffect(() => {
     // Ensure a link exists (create with the default VIEW role) the first time an owner opens the sheet.
-    if (isOwner && shareLinkQuery.isError) {
+    if (isOwner && linkMissing) {
       createOrUpdateShareLink.mutate('VIEW');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner, shareLinkQuery.isError]);
+  }, [isOwner, linkMissing]);
 
   async function handleCopy() {
     const link = shareLinkQuery.data;
     if (!link) return;
     try {
       await navigator.clipboard.writeText(link.url);
+      setCopyFailed(false);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard API can be unavailable (permissions, insecure context); the link text
-      // is still visible and selectable, so this fails silently rather than blocking.
+      // Clipboard API can be unavailable (permissions, insecure context): the link text is
+      // still there to select, and the sheet says so.
+      setCopyFailed(true);
     }
   }
 
@@ -76,7 +85,14 @@ function ShareBody({
 
       <div className="flex flex-col gap-1">
         <p className="text-12 font-medium text-fg-3">{t('share.membersHeading')}</p>
-        {membersLoading ? (
+        {membersQuery.isError && !membersQuery.data ? (
+          <div role="alert" className="flex items-center gap-2 py-1 text-13 text-fg-2">
+            <span className="flex-1">{t('share.membersFailed')}</span>
+            <Button size="sm" variant="ghost" onClick={() => void membersQuery.refetch()}>
+              {t('common.retry')}
+            </Button>
+          </div>
+        ) : membersLoading ? (
           <div className="flex flex-col gap-2 py-1" role="status" aria-label={t('common.loading')}>
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
@@ -114,6 +130,20 @@ function ShareBody({
                 <span className="min-w-0 flex-1 truncate font-mono text-12 text-fg-2">
                   {shareLinkQuery.data.url}
                 </span>
+              ) : linkFailed ? (
+                <span
+                  role="alert"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-12 text-fg-2"
+                >
+                  <span className="flex-1 truncate">{t('share.linkFailed')}</span>
+                  <button
+                    type="button"
+                    className="font-medium text-fg-1 underline-offset-2 hover:underline"
+                    onClick={() => void shareLinkQuery.refetch()}
+                  >
+                    {t('common.retry')}
+                  </button>
+                </span>
               ) : (
                 <Skeleton className="h-3.5 flex-1" />
               )}
@@ -128,6 +158,11 @@ function ShareBody({
               {copied ? t('share.copied') : t('share.copy')}
             </Button>
           </div>
+          {copyFailed && (
+            <p role="alert" className="text-12 text-fg-2">
+              {t('share.copyFailed')}
+            </p>
+          )}
           <p className="text-12 text-fg-3">
             {shareLinkQuery.data?.role === 'EDIT'
               ? t('share.linkHint.EDIT')

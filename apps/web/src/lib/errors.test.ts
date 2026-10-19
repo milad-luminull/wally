@@ -6,8 +6,13 @@ const api = (status: number, error?: string, extra: Record<string, unknown> = {}
   new ApiError(status, error ? { error, message: 'x', retryable: false, ...extra } : null);
 
 describe('failureOf: every failure is one of five kinds', () => {
-  it('a signed-out session', () => {
-    expect(failureOf(api(401, 'UNAUTHORIZED'))).toEqual({ kind: 'session', code: 'UNAUTHORIZED' });
+  it('a 401 that survived a fresh token is a failure to retry, never a sign-out', () => {
+    // The API cannot tell a revoked session from its own verifier failing; a session that
+    // really ended is signed out by Firebase itself (AuthProvider says so on the sign-in page).
+    expect(failureOf(api(401, 'UNAUTHORIZED'))).toEqual({
+      kind: 'temporary',
+      code: 'UNAUTHORIZED',
+    });
   });
   it('a conflict the person reviews', () => {
     expect(failureOf(api(409, 'STALE_REVISION'))?.kind).toBe('conflict');
