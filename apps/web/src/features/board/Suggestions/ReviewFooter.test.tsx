@@ -67,7 +67,7 @@ describe('ReviewFooter', () => {
     expect(onCard).not.toHaveBeenCalled();
   });
 
-  it('Keep is disabled while nothing is ticked; Undo stays the way out', () => {
+  it('Keep is always active, even with everything crossed out', () => {
     const onKeep = vi.fn();
     const onUndo = vi.fn();
     render(
@@ -78,11 +78,8 @@ describe('ReviewFooter', () => {
       />,
     );
     const keep = screen.getByRole('button', { name: 'Keep' });
-    expect(keep).toHaveAttribute('aria-disabled', 'true');
+    expect(keep).not.toHaveAttribute('aria-disabled');
     fireEvent.click(keep);
-    fireEvent.keyDown(keep, { key: 'Enter' });
-    expect(onKeep).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onKeep).toHaveBeenCalledTimes(1);
   });
 });

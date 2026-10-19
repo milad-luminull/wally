@@ -74,13 +74,11 @@ export const suggestionFieldKeys = [
 export const suggestionFieldKeySchema = z.enum(suggestionFieldKeys);
 export type SuggestionFieldKey = z.infer<typeof suggestionFieldKeySchema>;
 /**
- * Fields only the person takes, never the countdown: a title line and its description are a
- * rewrite offered beside their words (plan R2), and making a note private hides it from
- * everyone else, too much for a silent yes.
+ * Fields only the person takes, never the countdown: making a note private hides it from
+ * everyone else, too much for a silent yes. The cleaned title and its description are kept like
+ * any other field (the smarter-capture revision after Paper Wall v3); Undo restores the words.
  */
 export const suggestionOptInFieldKeys = [
-  'title',
-  'description',
   'visibility',
 ] as const satisfies readonly SuggestionFieldKey[];
 /** Tags and properties a proposal may carry. */

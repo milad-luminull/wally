@@ -241,16 +241,67 @@ describe('useSuggestions', () => {
     const waiting = result.current.marks.get('n2');
     expect(waiting).toMatchObject({ phase: 'pending', fields: [], countdownEndsAt: null });
     expect(assistantApi.decide).not.toHaveBeenCalledWith(BOARD, 's2', expect.anything());
-    // Keep with nothing ticked keeps nothing and decides nothing: a Private left unticked
-    // must never read as kept. Undo (Esc) is the way out.
+    // Keep with everything crossed out keeps nothing: the proposal is discarded.
     act(() => result.current.keep('n2', 'click'));
     await flush();
-    expect(assistantApi.decide).not.toHaveBeenCalledWith(BOARD, 's2', expect.anything());
-    expect(result.current.marks.get('n2')?.phase).toBe('pending');
+    expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
+      decision: 'discard',
+      source: 'click',
+    });
+    expect(result.current.marks.has('n2')).toBe(false);
   });
 
   it('counts down fifteen seconds', () => {
     expect(COUNTDOWN_MS).toBe(15_000);
+  });
+
+  it('the title row × crosses the cleaned title out with its description, and ↺ brings both back', async () => {
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({
+        fields: {
+          ...dto().fields,
+          title: { value: 'Call doctor', reason: 'shorter' },
+          description: { value: 'For the health check.', reason: 'moved' },
+        },
+      }),
+    });
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.fields).toEqual(
+      expect.arrayContaining(['title', 'description']),
+    );
+    act(() => result.current.remove('n1', 'title'));
+    expect(result.current.marks.get('n1')?.fields).toEqual(['dueDate', 'priority']);
+    act(() => result.current.setField('n1', 'title', true));
+    expect(result.current.marks.get('n1')?.fields).toEqual(
+      expect.arrayContaining(['title', 'description']),
+    );
+  });
+
+  it('a cleaned title alone counts down and is kept by the countdown', async () => {
+    vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
+      suggestion: dto({
+        fields: {
+          ...dto().fields,
+          dueDate: null,
+          priority: null,
+          title: { value: 'Call doctor', reason: 'shorter' },
+        },
+      }),
+    });
+    const { result } = setup();
+    act(() => result.current.request('n1', []));
+    await flush();
+    expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
+    });
+    expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
+      decision: 'keep',
+      fields: ['title'],
+      source: 'countdown',
+    });
   });
 
   describe('the smarter-capture fields', () => {
@@ -282,16 +333,23 @@ describe('useSuggestions', () => {
       return view;
     };
 
-    it('starts with everything but the title, the description and Private in the change', async () => {
+    it('starts with everything but Private in the change, the cleaned title included', async () => {
       const { result } = await start();
       const mark = result.current.marks.get('n1')!;
-      expect(mark.fields).toEqual(['dueDate', 'horizon', 'tags', 'properties']);
+      expect(mark.fields).toEqual([
+        'dueDate',
+        'title',
+        'horizon',
+        'tags',
+        'properties',
+        'description',
+      ]);
       expect(mark.tags).toEqual([0, 1, 2]);
       expect(mark.properties).toEqual([0, 1]);
       expect(mark.countdownEndsAt).not.toBeNull();
     });
 
-    it('ticking Private or the title stops the countdown, and the title brings the description with it', async () => {
+    it('ticking Private stops the countdown, and the title and description go in and out together', async () => {
       const { result } = await start();
       act(() => result.current.setField('n1', 'visibility', true));
       expect(result.current.marks.get('n1')).toMatchObject({ countdownEndsAt: null });
@@ -316,14 +374,14 @@ describe('useSuggestions', () => {
       await flush();
       expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
         decision: 'keep',
-        fields: ['dueDate', 'horizon', 'tags', 'properties'],
+        fields: ['dueDate', 'title', 'horizon', 'tags', 'properties', 'description'],
         tags: [0, 2],
         properties: [1],
         source: 'click',
       });
     });
 
-    it('the countdown sends the ticked tags and properties and never an opt-in field', async () => {
+    it('the countdown sends the ticked tags and properties, the title, and never Private', async () => {
       const { result } = await start();
       act(() => result.current.setTag('n1', 0, false));
       await act(async () => {
@@ -331,7 +389,7 @@ describe('useSuggestions', () => {
       });
       expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
         decision: 'keep',
-        fields: ['dueDate', 'horizon', 'tags', 'properties'],
+        fields: ['dueDate', 'title', 'horizon', 'tags', 'properties', 'description'],
         tags: [1, 2],
         properties: [0, 1],
         source: 'countdown',
@@ -784,50 +842,6 @@ describe('useSuggestions', () => {
     const DATE = { value: '2026-10-23', reason: 'Friday' };
     const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
 
-    it('a proposed title waits for the person: the countdown keeps the date and leaves the title', async () => {
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      expect(result.current.marks.get('n1')?.fields).toEqual(['dueDate']);
-      expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
-      });
-      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
-        decision: 'keep',
-        fields: ['dueDate'],
-        source: 'countdown',
-      });
-
-      // Ticked before the countdown ends: only the person can keep it, so the change waits.
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({
-          id: 's2',
-          noteId: 'n2',
-          fields: fields({ dueDate: DATE, title: TITLE }),
-        }),
-      });
-      act(() => result.current.request('n2', []));
-      await flush();
-      act(() => result.current.setField('n2', 'title', true));
-      expect(result.current.marks.get('n2')?.fields).toEqual(['dueDate', 'title']);
-      expect(result.current.marks.get('n2')?.countdownEndsAt).toBeNull();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
-      });
-      expect(assistantApi.decide).toHaveBeenCalledTimes(1);
-      act(() => result.current.keep('n2', 'enter'));
-      await flush();
-      expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
-        decision: 'keep',
-        fields: ['dueDate', 'title'],
-        source: 'enter',
-      });
-    });
-
     it('the proposed links in the change are the stored indexes, even when an earlier target dropped out', async () => {
       vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
         suggestion: dto({
@@ -847,62 +861,6 @@ describe('useSuggestions', () => {
       act(() => result.current.request('n1', []));
       await flush();
       expect(result.current.marks.get('n1')?.links).toEqual([1, 2]);
-    });
-
-    it('a title alone runs no countdown and keeps only when ticked', async () => {
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      const mark = result.current.marks.get('n1');
-      expect(mark?.phase).toBe('pending');
-      expect(mark?.fields).toEqual([]);
-      expect(mark?.countdownEndsAt).toBeNull();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
-      });
-      act(() => result.current.keep('n1', 'enter'));
-      await flush();
-      expect(assistantApi.decide).not.toHaveBeenCalled();
-      expect(result.current.marks.get('n1')?.phase).toBe('pending');
-      act(() => result.current.setField('n1', 'title', true));
-      act(() => result.current.keep('n1', 'enter'));
-      await flush();
-      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
-        decision: 'keep',
-        fields: ['title'],
-        source: 'enter',
-      });
-    });
-
-    it('stops the countdown once nothing but the title is left', async () => {
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      act(() => result.current.setPaused('n1', true));
-      act(() => result.current.setField('n1', 'title', true));
-      act(() => result.current.setField('n1', 'dueDate', false));
-      expect(result.current.marks.get('n1')?.fields).toEqual(['title']);
-      // A pointer leaving the card does not bring a countdown back.
-      act(() => result.current.setPaused('n1', false));
-      expect(result.current.marks.get('n1')?.countdownEndsAt).toBeNull();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
-      });
-      expect(assistantApi.decide).not.toHaveBeenCalled();
-      // A field the proposal does not hold cannot be ticked.
-      act(() => result.current.setField('n1', 'priority', true));
-      expect(result.current.marks.get('n1')?.fields).toEqual(['title']);
-      // Nothing left ticked: the change waits, the date can still be brought back.
-      act(() => result.current.setField('n1', 'title', false));
-      await flush();
-      expect(assistantApi.decide).not.toHaveBeenCalled();
-      expect(result.current.marks.get('n1')).toMatchObject({ phase: 'pending', fields: [] });
     });
 
     it('steps are kept one by one', async () => {
@@ -1123,36 +1081,6 @@ describe('useSuggestions', () => {
       });
     });
 
-    it('unticking a ticked title does not start the countdown again: the change waits for Enter', async () => {
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      expect(result.current.marks.get('n1')?.countdownEndsAt).not.toBeNull();
-      act(() => result.current.setField('n1', 'title', true));
-      act(() => result.current.setField('n1', 'title', false));
-      expect(result.current.marks.get('n1')).toMatchObject({
-        fields: ['dueDate'],
-        countdownEndsAt: null,
-        paused: false,
-      });
-      // Nor does a pointer leaving the card afterwards.
-      act(() => result.current.setPaused('n1', false));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
-      });
-      expect(assistantApi.decide).not.toHaveBeenCalled();
-      act(() => result.current.keep('n1', 'enter'));
-      await flush();
-      expect(assistantApi.decide).toHaveBeenCalledWith(BOARD, 's1', {
-        decision: 'keep',
-        fields: ['dueDate'],
-        source: 'enter',
-      });
-    });
-
     it('the last field out leaves the change waiting with no ring, so a row can come back', async () => {
       for (const take of ['untick', 'remove'] as const) {
         vi.mocked(assistantApi.decide).mockClear();
@@ -1162,11 +1090,13 @@ describe('useSuggestions', () => {
         const { result, unmount } = setup();
         act(() => result.current.request('n1', []));
         await flush();
-        act(() =>
-          take === 'untick'
-            ? result.current.setField('n1', 'dueDate', false)
-            : result.current.remove('n1', 'dueDate'),
-        );
+        // One press at a time, as a person makes them.
+        for (const field of ['dueDate', 'title'] as const)
+          act(() =>
+            take === 'untick'
+              ? result.current.setField('n1', field, false)
+              : result.current.remove('n1', field),
+          );
         await act(async () => {
           await vi.advanceTimersByTimeAsync(COUNTDOWN_MS * 2);
         });
@@ -1180,91 +1110,6 @@ describe('useSuggestions', () => {
         expect(result.current.marks.get('n1')?.fields, take).toEqual(['dueDate']);
         unmount();
       }
-    });
-
-    it('a ticked title leaves the dot waiting for Enter, with no ring', async () => {
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      act(() => result.current.setField('n1', 'title', true));
-      const mark = result.current.marks.get('n1')!;
-      expect(mark.countdownEndsAt).toBeNull();
-      expect(mark.paused).toBe(false);
-      const { container } = render(<PendingDot mark={mark} onUndo={vi.fn()} />);
-      expect(
-        screen.getByRole('img', { name: 'Proposed changes, waiting for Enter' }),
-      ).toBeInTheDocument();
-      expect(container.querySelector('circle.fill-accent')).not.toBeNull();
-      expect(container.querySelector('circle.animate-countdown')).toBeNull();
-    });
-
-    it('"use mine" drops the offered title, ticked or not; a title alone goes with it', async () => {
-      // Ticked, beside a date: the title line goes, the date stays and waits for Enter.
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ fields: fields({ dueDate: DATE, title: TITLE }) }),
-      });
-      const { result } = setup();
-      act(() => result.current.request('n1', []));
-      await flush();
-      act(() => result.current.setField('n1', 'title', true));
-      expect(proposedTitle(result.current.marks.get('n1')!)).toEqual(TITLE);
-      act(() => result.current.remove('n1', 'title'));
-      let mark = result.current.marks.get('n1')!;
-      expect(mark.phase).toBe('pending');
-      expect(mark.fields).toEqual(['dueDate']);
-      expect(mark.titleDismissed).toBe(true);
-      expect(proposedTitle(mark)).toBeNull();
-      // Turned down, it is no longer on offer.
-      act(() => result.current.setField('n1', 'title', true));
-      expect(result.current.marks.get('n1')?.fields).toEqual(['dueDate']);
-      act(() => result.current.keep('n1', 'enter'));
-      await flush();
-      expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's1', {
-        decision: 'keep',
-        fields: ['dueDate'],
-        source: 'enter',
-      });
-
-      // Unticked, beside a date: the line goes and the countdown runs on for the date.
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({
-          id: 's2',
-          noteId: 'n2',
-          fields: fields({ dueDate: DATE, title: TITLE }),
-        }),
-      });
-      act(() => result.current.request('n2', []));
-      await flush();
-      act(() => result.current.remove('n2', 'title'));
-      mark = result.current.marks.get('n2')!;
-      expect(mark.fields).toEqual(['dueDate']);
-      expect(proposedTitle(mark)).toBeNull();
-      expect(mark.countdownEndsAt).not.toBeNull();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(COUNTDOWN_MS);
-      });
-      expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's2', {
-        decision: 'keep',
-        fields: ['dueDate'],
-        source: 'countdown',
-      });
-
-      // A title alone: "use mine" leaves nothing, so the change is discarded.
-      vi.mocked(assistantApi.suggest).mockResolvedValueOnce({
-        suggestion: dto({ id: 's3', noteId: 'n3', fields: fields({ title: TITLE }) }),
-      });
-      act(() => result.current.request('n3', []));
-      await flush();
-      act(() => result.current.remove('n3', 'title'));
-      await flush();
-      expect(assistantApi.decide).toHaveBeenLastCalledWith(BOARD, 's3', {
-        decision: 'discard',
-        source: 'remove',
-      });
-      expect(result.current.marks.has('n3')).toBe(false);
     });
 
     it("a step ticked after the steps' × is that step alone, as after unticking them all", async () => {

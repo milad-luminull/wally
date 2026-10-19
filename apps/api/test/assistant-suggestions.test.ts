@@ -192,7 +192,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       ...noProposal,
       visibility: { value: 'PRIVATE', confidence: 0.9, reason: 'a dentist visit' },
     });
-  // A cleaner title and nothing else: the countdown has nothing it may keep (plan R2).
+  // A cleaner title and nothing else.
   if (title.startsWith('titleonly'))
     return settle({
       dueDate: null,
@@ -1270,46 +1270,31 @@ describe('capture suggestions', () => {
     expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(1);
   });
 
-  it('the countdown never keeps a title: it keeps the rest, and a title alone waits for the person', async () => {
+  it('the countdown keeps the cleaned title with the rest, and a title alone too', async () => {
     const fx = await createBoardFixture(ctx);
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
-    // Even a countdown keep that names the title (the web at this point sends every
-    // proposed field) leaves the person's title as it is.
     const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       fields: ['dueDate', 'title', 'subtasks', 'properties'],
       source: 'countdown',
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().suggestion.kept).toEqual({
-      fields: ['dueDate', 'subtasks', 'properties'],
-      subtasks: [0, 1, 2],
-      links: [],
-      tags: [],
-      properties: [0],
-      revision: n.revision + 5,
-    });
-    expect(await note(n.id)).toMatchObject({ title: 'review', dueDate: '2026-10-23' });
+    expect(res.json().suggestion.kept.fields).toEqual([
+      'dueDate',
+      'title',
+      'subtasks',
+      'properties',
+    ]);
+    expect(await note(n.id)).toMatchObject({ title: 'Quote for Müller', dueDate: '2026-10-23' });
 
     const only = (await createNote(fx.editToken, fx.boardId, { title: 'titleonly' })).json();
     const proposal = (await suggest(fx.editToken, fx.boardId, only.id)).json().suggestion;
-    expect(proposal.fields.title).toEqual({ value: 'Just a title', reason: 'shorter' });
     const fired = await decide(fx.editToken, fx.boardId, proposal.id, {
       decision: 'keep',
       source: 'countdown',
     });
-    expect(fired.statusCode).toBe(200);
-    expect(fired.json().suggestion).toMatchObject({ status: 'PENDING', kept: null });
-    expect(await note(only.id)).toMatchObject({ title: 'titleonly', revision: only.revision });
-    expect((await stored(fx.editorId, proposal.id)).status).toBe('PENDING');
-    // Ticked by the person, the title is kept.
-    const ticked = await decide(fx.editToken, fx.boardId, proposal.id, {
-      decision: 'keep',
-      fields: ['title'],
-      source: 'click',
-    });
-    expect(ticked.json().suggestion.kept.fields).toEqual(['title']);
+    expect(fired.json().suggestion.kept.fields).toEqual(['title']);
     expect((await note(only.id)).title).toBe('Just a title');
   });
 
@@ -1939,7 +1924,7 @@ describe('capture suggestions', () => {
     expect(await note(n.id)).toMatchObject({ title: 'smart', description: '' });
   });
 
-  it('the countdown keeps the horizon and tags but never Private, the title or the description', async () => {
+  it('the countdown keeps the title, description, horizon and tags, but never Private', async () => {
     const fx = await smartBoard();
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'smart' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
@@ -1948,8 +1933,14 @@ describe('capture suggestions', () => {
       fields: ['title', 'horizon', 'tags', 'properties', 'description'],
       source: 'countdown',
     });
-    expect(res.json().suggestion.kept.fields).toEqual(['horizon', 'tags', 'properties']);
-    expect(await note(n.id)).toMatchObject({ title: 'smart', description: '' });
+    expect(res.json().suggestion.kept.fields).toEqual([
+      'title',
+      'horizon',
+      'tags',
+      'properties',
+      'description',
+    ]);
+    expect(await note(n.id)).toMatchObject({ title: 'Smart note', description: 'The detail.' });
     const p = (await createNote(fx.editToken, fx.boardId, { title: 'private dated' })).json();
     const proposal = (await suggest(fx.editToken, fx.boardId, p.id)).json().suggestion;
     const fired = await decide(fx.editToken, fx.boardId, proposal.id, {
@@ -2102,7 +2093,7 @@ describe('capture suggestions', () => {
   // These run as the viewer, on private notes: the owner and the editor already come close to
   // the route's per-user rate limit of 30 captures a minute in this file.
 
-  it('a countdown keep of a title-only proposal is refused once undone, and replays a discard', async () => {
+  it('a late countdown keep is refused on an undone or a discarded record', async () => {
     const fx = await createBoardFixture(ctx);
     const own = async (title: string) =>
       (await createNote(fx.viewToken, fx.boardId, { title, visibility: 'PRIVATE' })).json();
@@ -2129,7 +2120,8 @@ describe('capture suggestions', () => {
     expect((await stored(fx.viewerId, suggestion.id)).status).toBe('UNDONE');
     expect(await note(n.id)).toMatchObject({ title: 'titleonly', revision: n.revision + 2 });
 
-    // On a discarded one it is a keep of nothing, which replays the discard.
+    // On a discarded one the same: the title is now kept by the countdown, and the record
+    // was already decided.
     const other = await own('titleonly two');
     const second = (await suggest(fx.viewToken, fx.boardId, other.id)).json().suggestion;
     await decide(fx.viewToken, fx.boardId, second.id, { decision: 'discard', source: 'esc' });
@@ -2137,8 +2129,8 @@ describe('capture suggestions', () => {
       decision: 'keep',
       source: 'countdown',
     });
-    expect(fired.statusCode).toBe(200);
-    expect(fired.json().suggestion).toMatchObject({ status: 'DISCARDED', kept: null });
+    expect(fired.statusCode).toBe(409);
+    expect(fired.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
     expect((await note(other.id)).revision).toBe(other.revision);
   });
 

@@ -421,9 +421,11 @@ export function useSuggestions(
     (noteId, source) => {
       const mark = latestMarks.current.get(noteId);
       if (mark?.phase !== 'pending' || deciding.current.has(noteId)) return;
-      // Nothing ticked is nothing to keep: the change waits. Discarding here would let a Private
-      // left unticked read as kept; Undo (Esc) is the way out.
-      if (mark.fields.length === 0) return;
+      // Everything crossed out: Keep keeps nothing, so the proposal is discarded.
+      if (mark.fields.length === 0) {
+        decide(noteId, { decision: 'discard', source });
+        return;
+      }
       decide(noteId, keepBody(mark.fields, mark, source));
     },
     [decide],
@@ -593,32 +595,12 @@ export function useSuggestions(
     (noteId, index, on) => setItem(noteId, 'properties', index, on),
     [setItem],
   );
+  // A row's ×: the field leaves the change and stays on the card, crossed out, so its ↺ can
+  // bring it back. On the title row it brings the person's words back (and the description
+  // goes with the cleaned title).
   const remove = useCallback<SuggestionsController['remove']>(
-    (noteId, field) => {
-      if (field !== 'title') {
-        setField(noteId, field, false);
-        return;
-      }
-      // "Use mine": the offered title and its description go, ticked or not. A proposal that
-      // offered nothing else has nothing left to bring back, so it goes with them.
-      const mark = latestMarks.current.get(noteId);
-      if (mark?.phase !== 'pending' || !mark.suggestion || deciding.current.has(noteId)) return;
-      if (mark.suggestion.fields.title === null) return;
-      const { fields } = mark.suggestion;
-      const rest = suggestionFieldKeys.filter(
-        (k) => k !== 'title' && k !== 'description' && fields[k] !== null,
-      );
-      if (rest.length === 0) {
-        decide(noteId, { decision: 'discard', source: 'remove' });
-        return;
-      }
-      choose(
-        noteId,
-        { ...mark, titleDismissed: true },
-        { fields: mark.fields.filter((k) => k !== 'title' && k !== 'description') },
-      );
-    },
-    [choose, decide, setField],
+    (noteId, field) => setField(noteId, field, false),
+    [setField],
   );
   const setPaused = useCallback<SuggestionsController['setPaused']>(
     (noteId, paused) => {

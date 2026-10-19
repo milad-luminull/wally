@@ -106,7 +106,7 @@ function mintOperationIds(): SuggestionOperationIds {
   };
 }
 
-/** The fields the countdown never keeps (plan R2 and the smarter-capture spec). */
+/** The fields the countdown never keeps: Private only (the smarter-capture revision). */
 const optIn = (key: SuggestionFieldKey) =>
   (suggestionOptInFieldKeys as readonly SuggestionFieldKey[]).includes(key);
 
@@ -1003,8 +1003,8 @@ export async function decideSuggestion(
     // Each field once, in the one order the chain and its receipts use: a field named twice
     // would run its write twice under one operation id and be refused.
     const requested = decision.fields ?? proposed;
-    // The title, its description and Private are opt-in: the countdown never keeps them,
-    // whatever it names (plan R2, the smarter-capture spec).
+    // Private is opt-in: the countdown never keeps it, whatever it names (the smarter-capture
+    // revision; the cleaned title and its description are kept like any other field).
     const countdown = decision.source === 'countdown';
     let fields = suggestionFieldKeys.filter(
       (key) => requested.includes(key) && proposed.includes(key) && !(countdown && optIn(key)),
@@ -1038,7 +1038,7 @@ export async function decideSuggestion(
     if (tags.length === 0) fields = fields.filter((key) => key !== 'tags');
     const properties = picked('properties', decision.properties);
     if (properties.length === 0) fields = fields.filter((key) => key !== 'properties');
-    // A proposal holding nothing but opt-in fields runs no countdown (R2): one that fires
+    // A proposal holding nothing but Private runs no countdown: one that fires
     // anyway leaves them waiting for the person, neither written nor discarded.
     // Only while the record is still pending: on a settled one the claim below answers.
     if (fields.length === 0 && countdown && proposed.some(optIn) && current.status === 'PENDING')
