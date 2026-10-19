@@ -503,6 +503,18 @@ export const de = {
     },
   },
   errors: {
+    crash: {
+      title: 'Etwas ist schiefgelaufen',
+      hint: 'Lade die Seite neu, um weiterzumachen.',
+      reload: 'Neu laden',
+    },
+    offline: 'Du bist offline. Änderungen werden gespeichert, sobald du wieder online bist.',
+    notesFailed: {
+      title: 'Konnte die Notizen nicht laden',
+      hint: 'Prüfe deine Verbindung und versuch es erneut.',
+    },
+    noteGone: 'Diese Notiz wurde gelöscht oder wird nicht mehr mit dir geteilt',
+    noteFailed: 'Konnte diese Notiz nicht laden',
     saveFailed: 'Konnte die Änderung nicht speichern',
     refused: {
       forbidden: 'Das kannst du hier nicht ändern',

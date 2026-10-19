@@ -487,6 +487,18 @@ export const en = {
     },
   },
   errors: {
+    crash: {
+      title: 'Something went wrong',
+      hint: 'Reload the page to carry on.',
+      reload: 'Reload',
+    },
+    offline: 'You’re offline. Changes are saved when you’re back.',
+    notesFailed: {
+      title: 'Couldn’t load the notes',
+      hint: 'Check your connection, then try again.',
+    },
+    noteGone: 'This note was deleted or isn’t shared with you',
+    noteFailed: 'Couldn’t load this note',
     saveFailed: 'Couldn’t save that change',
     refused: {
       forbidden: 'You can’t change this here',
