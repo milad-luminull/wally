@@ -272,6 +272,14 @@ const replySchema = jsonSchema<z.output<typeof modelSuggestionSchema>>(
  * not validate is "nothing proposed", not an error: the person just sees no dot (§3.3).
  * Anything else the library throws is the provider's and passes through.
  */
+/** What a call the provider refused with an error status costs: nothing. */
+const NOTHING_BILLED = {
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+};
+
 export function createSuggestionRunner(
   model: LanguageModel,
   options: Partial<SuggestionCallSettings> = {},
@@ -304,6 +312,11 @@ export function createSuggestionRunner(
         if (usage) await lease.settle(usage);
         return { fields: null, usage, finishReason: error.finishReason ?? 'other' };
       }
+      // The provider answered with an error status (busy, a fault): nothing was processed or
+      // billed, so the attempt settles at zero and its in-flight slot is free at once. A
+      // dropped connection leaves the usage unknown, and the reservation stays (R7).
+      if (typeof (error as { statusCode?: unknown } | null)?.statusCode === 'number')
+        await lease.settle(NOTHING_BILLED);
       throw error;
     }
   };

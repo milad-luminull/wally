@@ -42,4 +42,21 @@ describe('error bodies on the wire', () => {
       retryable: false,
     });
   });
+
+  it('answers a missing or invalid token with the same body, not retryable', async () => {
+    const missing = await ctx.app.inject({ method: 'GET', url: '/me' });
+    expect(missing.statusCode).toBe(401);
+    expect(apiErrorSchema.parse(missing.json())).toMatchObject({
+      error: 'UNAUTHORIZED',
+      retryable: false,
+    });
+    const invalid = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: { authorization: 'Bearer not-a-token' },
+    });
+    expect(invalid.statusCode).toBe(401);
+    expect(apiErrorSchema.parse(invalid.json())).toMatchObject({ error: 'UNAUTHORIZED' });
+  });
 });
+
