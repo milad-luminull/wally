@@ -78,6 +78,7 @@ export function BoardRail({
         <Link to="/boards" className="board-rail-brand" aria-label={t('board.topBar.home')}>
           <BrandMark size={20} />
           <span>{t('welcome.brand')}</span>
+          <small className="board-rail-byline">{t('welcome.byline')}</small>
         </Link>
         <button
           type="button"
@@ -124,8 +125,7 @@ export function BoardRail({
           <kbd aria-hidden>{'N'}</kbd>
         </button>
         <div className="board-rail-account">
-          <span>{t('welcome.byline')}</span>
-          <AccountMenu />
+          <AccountMenu showName={!collapsed} />
         </div>
       </div>
     </aside>

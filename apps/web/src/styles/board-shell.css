@@ -511,7 +511,7 @@
     border: 0;
     box-shadow: none;
   }
-  .board-toolbar-tools > button span,
+  .board-toolbar-tools > button:not(.board-contributors) span,
   .board-toolbar-tools > button kbd {
     display: none;
   }
@@ -1140,4 +1140,98 @@ textarea.capture-shimmer:focus {
   .capture-outcome-fade {
     animation: none;
   }
+}
+
+/* Make the existing avatar stack accessible without changing the toolbar layout. */
+.board-contributors {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 3px;
+  border-radius: 6px;
+}
+.board-toolbar-tools > .board-contributors {
+  width: auto;
+}
+.board-contributors:hover {
+  background: var(--inset);
+}
+.board-contributors:focus-visible {
+  outline: 2px solid var(--fg-1);
+  outline-offset: 2px;
+}
+.board-contributor-avatars {
+  display: flex;
+  align-items: center;
+}
+.board-contributor-avatars > * + * {
+  margin-left: -6px;
+}
+.board-contributor-overflow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 3px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--inset);
+  font-size: 10px;
+  color: var(--fg-3);
+}
+.board-contributor-mobile,
+.board-contributor-count {
+  display: none;
+}
+@media (max-width: 719px) {
+  .board-contributor-avatars {
+    display: none;
+  }
+  .board-contributor-mobile,
+  .board-contributor-count {
+    display: block;
+  }
+}
+@media (pointer: coarse) {
+  .board-contributors {
+    min-height: 44px;
+  }
+}
+
+/* Keep identity within the original sidebar: quiet brand credit, readable user name. */
+.board-rail-brand {
+  gap: 7px;
+}
+.board-rail-byline {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: var(--fg-3);
+}
+.board-rail-profile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 0;
+  border-radius: 6px;
+  text-align: left;
+}
+.board-rail-profile > span:first-child {
+  flex-shrink: 0;
+}
+.board-rail-profile:hover {
+  background: var(--inset-hover);
+}
+.board-rail-profile-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: var(--fg-1);
 }

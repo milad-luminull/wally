@@ -50,7 +50,7 @@ describe('AccountMenu', () => {
   async function openMenu() {
     const user = userEvent.setup();
     renderWithProviders(<AccountMenu />);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(screen.getByRole('button', { name: 'Profile & preferences' }));
     return user;
   }
 
@@ -94,7 +94,7 @@ describe('AccountMenu', () => {
   it('offers "always ask me" for Wallybot and saves the switch', async () => {
     const user = userEvent.setup();
     renderWithProviders(<AccountMenu />);
-    await user.click(screen.getByRole('button', { name: 'Account' }));
+    await user.click(screen.getByRole('button', { name: 'Profile & preferences' }));
     const alwaysAsk = screen.getByRole('switch', { name: 'Always ask me' });
     expect(alwaysAsk).toHaveAttribute('aria-checked', 'false');
     // The hint under the label is what the switch does; a screen reader hears it with it.

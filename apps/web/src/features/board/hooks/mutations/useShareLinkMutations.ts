@@ -10,6 +10,7 @@ export function useCreateOrUpdateShareLink(boardId: string) {
   const keys = useQueryKeys();
 
   return useMutation({
+    meta: { silentError: true },
     mutationFn: (role: WhiteboardRole) =>
       shareLinkApi.createOrUpdate(
         boardId,
@@ -35,6 +36,28 @@ export function useCreateOrUpdateShareLink(boardId: string) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(keys.shareLink(boardId), data);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.shareLink(boardId) });
+    },
+  });
+}
+
+export function useChangeShareLink(boardId: string) {
+  const queryClient = useQueryClient();
+  const keys = useQueryKeys();
+  return useMutation({
+    meta: { silentError: true },
+    mutationFn: async (action: 'disable' | 'rotate') => {
+      if (action === 'rotate') return shareLinkApi.rotate(boardId);
+      await shareLinkApi.remove(boardId);
+      return null;
+    },
+    onMutate: () => {
+      void queryClient.cancelQueries({ queryKey: keys.shareLink(boardId) });
+    },
+    onSuccess: (link) => {
+      queryClient.setQueryData(keys.shareLink(boardId), link);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: keys.shareLink(boardId) });
