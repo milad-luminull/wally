@@ -269,6 +269,106 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
   });
 };
 
+/**
+ * The capture's log line says why "nothing came": which fields were open, which rule kept or
+ * dropped each proposed field, and the early exits, by name only, never the note's words.
+ */
+describe('the capture log line', () => {
+  let ctx: TestContext;
+  const lines: string[] = [];
+  beforeAll(async () => {
+    ctx = await buildTestApp(PROJECT_ID, {
+      suggestionRunner: fakeRunner,
+      assistantEnabled: true,
+      logLines: lines,
+    });
+  });
+  afterEach(async () => {
+    lines.length = 0;
+    await resetDatabase(PROJECT_ID);
+  });
+  afterAll(async () => {
+    await resetDatabase(PROJECT_ID);
+    await ctx.app.close();
+  });
+  const captureLog = () =>
+    lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((entry) => entry.type === 'assistant.capture');
+
+  it('names the outcome of each proposed field and whether anything was stored, without the words', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'all u-stranger secretword' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: {
+        noteId: n.id,
+        locked: ['priority'],
+        timeZone: 'Europe/Berlin',
+        today: '2026-10-17',
+      },
+    });
+    const [entry] = captureLog();
+    expect(entry).toMatchObject({
+      noteId: n.id,
+      proposed: true,
+      stored: true,
+      locked: ['priority'],
+      outcomes: { dueDate: 'kept', priority: 'not_open', assignee: 'not_member' },
+    });
+    expect(entry!.open).toEqual(expect.arrayContaining(['dueDate', 'assignee']));
+    expect(lines.join('')).not.toContain('secretword');
+  });
+
+  it('says when it skipped the model because nothing was left to suggest', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'nothing here' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: {
+        noteId: n.id,
+        locked: [
+          'dueDate',
+          'priority',
+          'assignee',
+          'title',
+          'subtasks',
+          'links',
+          'horizon',
+          'visibility',
+          'tags',
+          'properties',
+          'description',
+          'reference',
+        ],
+        timeZone: 'Europe/Berlin',
+        today: '2026-10-17',
+      },
+    });
+    expect(captureLog()).toEqual([
+      expect.objectContaining({ noteId: n.id, skipped: 'nothing_open' }),
+    ]);
+  });
+});
+
 describe('capture suggestions', () => {
   let ctx: TestContext;
   beforeAll(async () => {

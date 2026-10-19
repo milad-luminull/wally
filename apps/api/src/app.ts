@@ -27,6 +27,8 @@ export interface BuildAppOptions {
   /** Overrides Firebase token verification — tests pass a fake to avoid real tokens. */
   authVerifier?: AuthVerifier;
   logger?: boolean;
+  /** Where log lines go instead of stdout: the tests read them. Implies `logger`. */
+  logStream?: { write: (line: string) => void };
   /** Overrides the model runner — tests pass a fake so no model is called. */
   assistantRunner?: TurnRunner;
   /** Overrides the capture suggestion runner — tests pass a fake so no model is called. */
@@ -56,8 +58,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const env = loadEnv();
 
   const app = Fastify({
-    logger:
-      (options.logger ?? env.NODE_ENV !== 'test') ? { serializers: requestLogSerializers } : false,
+    logger: options.logStream
+      ? { serializers: requestLogSerializers, stream: options.logStream }
+      : (options.logger ?? env.NODE_ENV !== 'test')
+        ? { serializers: requestLogSerializers }
+        : false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

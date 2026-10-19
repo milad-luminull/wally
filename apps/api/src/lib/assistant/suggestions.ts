@@ -44,7 +44,7 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import {
-  acceptCapture,
+  judgeCapture,
   buildCaptureCall,
   captureCandidates,
   captureNeedsBoard,
@@ -231,7 +231,18 @@ export async function suggestForCapture(
   // else's a keep could be refused after the call was paid for, and the answer is the same
   // 404 a note they cannot see gets.
   if (note.createdBy?.id !== actor.id) throw notFound();
-  if (!note.title.trim() && !note.description.trim()) return null;
+  /** A capture that ends before the model is called says why, so "nothing came" is never silent. */
+  const skipped = (reason: 'no_words' | 'nothing_open' | 'no_call') => {
+    deps.logger?.info({
+      type: 'assistant.capture',
+      boardId: board.id,
+      noteId: note.id,
+      skipped: reason,
+      locked: request.locked,
+    });
+    return null;
+  };
+  if (!note.title.trim() && !note.description.trim()) return skipped('no_words');
   const members = (await listMembers(db, actor, board.id)).data;
   const captureCtx: CaptureContext = {
     actorId: actor.id,
@@ -245,13 +256,13 @@ export async function suggestForCapture(
     canChangeVisibility: ctx.role !== 'VIEW',
   };
   const open = captureCandidates(note, captureCtx);
-  if (open.length === 0) return null;
+  if (open.length === 0) return skipped('nothing_open');
   // Every note the caller can see, done ones too, read once and only when the call uses them.
   const boardNotes = captureNeedsBoard(open)
     ? await listNotes(db, actor, board.id, { status: 'ALL' })
     : [];
   const call = buildCaptureCall(note, boardNotes, captureCtx);
-  if (!call) return null;
+  if (!call) return skipped('no_call');
   const { instructions, prompt } = call;
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
@@ -307,16 +318,22 @@ export async function suggestForCapture(
   } finally {
     clearTimeout(deadline);
   }
+  // Which rule kept or dropped each proposed field, by name only: the words never reach the log.
+  const judged = output.fields ? judgeCapture(output.fields, call, note, captureCtx) : null;
+  const fields = judged?.fields ?? null;
   deps.logger?.info({
     type: 'assistant.capture',
     boardId: board.id,
     noteId: note.id,
     proposed: output.fields !== null,
+    stored: fields !== null,
+    finishReason: output.finishReason,
+    open,
+    locked: request.locked,
+    outcomes: judged?.outcomes ?? {},
     usage: output.usage,
     ms: Date.now() - startedAt,
   });
-  if (!output.fields) return null;
-  const fields = acceptCapture(output.fields, call, note, captureCtx);
   if (!fields) return null;
 
   const now = clock();
