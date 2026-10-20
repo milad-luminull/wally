@@ -283,91 +283,121 @@ export function buildCaptureCall(
 }
 
 /**
+ * Why a field the model proposed was kept or dropped, for the capture's log line: rule names
+ * only, never the words. `not_open` is a field the note already has or the person typed.
+ */
+export type CaptureOutcome =
+  | 'kept'
+  | 'not_open'
+  | 'unsure'
+  | 'past'
+  | 'not_member'
+  | 'same'
+  | 'disagrees'
+  | 'empty'
+  | 'no_title'
+  | 'private';
+
+type AcceptedFields = AssistantSuggestionDoc['fields'];
+
+/**
  * Keeps a field only when it is a candidate, confident enough, (for a person) a member and
  * (for a link) one of the other notes the model was shown. A due date before the person's
  * today is dropped: nobody writes a task that was due last week. Both are YYYY-MM-DD, so the
- * string order is the calendar order. Null when nothing survived.
+ * string order is the calendar order. `fields` is null when nothing survived; `outcomes` says,
+ * for every field the model proposed, which rule kept or dropped it.
  */
+export function judgeCapture(
+  fields: ModelSuggestion,
+  call: CaptureCall,
+  note: CaptureNote,
+  ctx: CaptureContext,
+): {
+  fields: AcceptedFields | null;
+  outcomes: Partial<Record<SuggestionFieldKey, CaptureOutcome>>;
+} {
+  const { open } = call;
+  const outcomes: Partial<Record<SuggestionFieldKey, CaptureOutcome>> = {};
+  const memberIds = new Set(ctx.members.map((m) => m.id));
+  /**
+   * The rules every field shares, then its own: the first one that fails names the outcome.
+   * Returns the accepted value, or null with the reason recorded.
+   */
+  function judge<P extends { confidence: number }, A>(
+    key: SuggestionFieldKey,
+    proposed: P | null,
+    own: (p: P) => { value: A | null; failed?: CaptureOutcome },
+  ): A | null {
+    if (!proposed) return null;
+    if (!open.includes(key)) return ((outcomes[key] = 'not_open'), null);
+    if (proposed.confidence < SUGGESTION_MIN_CONFIDENCE) return ((outcomes[key] = 'unsure'), null);
+    const { value, failed } = own(proposed);
+    outcomes[key] = value === null ? (failed ?? 'empty') : 'kept';
+    return value;
+  }
+
+  const accepted: AcceptedFields = {
+    dueDate: judge('dueDate', fields.dueDate, (p) =>
+      p.value >= ctx.today
+        ? { value: { value: p.value, reason: p.reason } }
+        : { value: null, failed: 'past' },
+    ),
+    priority: judge('priority', fields.priority, (p) => ({
+      value: { value: p.value, reason: p.reason },
+    })),
+    assignee: judge('assignee', fields.assignee, (p) =>
+      memberIds.has(p.memberId)
+        ? { value: { value: p.memberId, reason: p.reason } }
+        : { value: null, failed: 'not_member' },
+    ),
+    // A "cleaner" title that is the person's own is nothing to offer.
+    title: judge('title', fields.title, (p) =>
+      p.value.trim() !== note.title.trim()
+        ? { value: { value: p.value.trim(), reason: p.reason } }
+        : { value: null, failed: 'same' },
+    ),
+    // A record of this release never proposes the single reference; properties replace it.
+    reference: null,
+    subtasks: judge('subtasks', fields.subtasks, (p) => ({ value: acceptSubtasks(p) })),
+    links: judge('links', fields.links, (p) => ({ value: acceptLinks(p, call.others) })),
+  };
+  const typedOrProposed = accepted.dueDate?.value ?? note.dueDate;
+  // A horizon must agree with the date, proposed or typed (`horizonForDueDate`, as Tidy files).
+  accepted.horizon = judge('horizon', fields.horizon, (p) =>
+    typedOrProposed === null || horizonForDueDate(typedOrProposed, ctx.today) === p.value
+      ? { value: { value: p.value, reason: p.reason } }
+      : { value: null, failed: 'disagrees' },
+  );
+  accepted.visibility = judge('visibility', fields.visibility, (p) => ({
+    value: { value: 'PRIVATE' as const, reason: p.reason },
+  }));
+  // A private note is always its author's: a person beside Private is never proposed.
+  if (accepted.visibility && accepted.assignee) {
+    accepted.assignee = null;
+    outcomes.assignee = 'private';
+  }
+  accepted.tags = judge('tags', fields.tags, (p) => ({ value: acceptTags(p, call.tags) }));
+  accepted.properties = judge('properties', fields.properties, (p) => ({
+    value: acceptProperties(p, call.fieldKeys),
+  }));
+  // The detail of a long title goes with a shorter title, never alone (it is taken with it).
+  accepted.description = judge('description', fields.description, (p) =>
+    accepted.title
+      ? { value: { value: p.value, reason: p.reason } }
+      : { value: null, failed: 'no_title' },
+  );
+  const any = Object.values(accepted).some((value) => (value ?? null) !== null);
+  return { fields: any ? accepted : null, outcomes };
+}
+
+/** The fields that survived `judgeCapture`'s rules, or null when nothing did. */
 export function acceptCapture(
   fields: ModelSuggestion,
   call: CaptureCall,
   note: CaptureNote,
   ctx: CaptureContext,
-): AssistantSuggestionDoc['fields'] | null {
-  const { open } = call;
-  const sure = (c: number) => c >= SUGGESTION_MIN_CONFIDENCE;
-  const memberIds = new Set(ctx.members.map((m) => m.id));
-  const accepted: AssistantSuggestionDoc['fields'] = {
-    dueDate:
-      open.includes('dueDate') &&
-      fields.dueDate &&
-      sure(fields.dueDate.confidence) &&
-      fields.dueDate.value >= ctx.today
-        ? { value: fields.dueDate.value, reason: fields.dueDate.reason }
-        : null,
-    priority:
-      open.includes('priority') && fields.priority && sure(fields.priority.confidence)
-        ? { value: fields.priority.value, reason: fields.priority.reason }
-        : null,
-    assignee:
-      open.includes('assignee') &&
-      fields.assignee &&
-      sure(fields.assignee.confidence) &&
-      memberIds.has(fields.assignee.memberId)
-        ? { value: fields.assignee.memberId, reason: fields.assignee.reason }
-        : null,
-    // A "cleaner" title that is the person's own is nothing to offer.
-    title:
-      open.includes('title') &&
-      fields.title &&
-      sure(fields.title.confidence) &&
-      fields.title.value.trim() !== note.title.trim()
-        ? { value: fields.title.value.trim(), reason: fields.title.reason }
-        : null,
-    // A record of this release never proposes the single reference; properties replace it.
-    reference: null,
-    subtasks:
-      open.includes('subtasks') && fields.subtasks && sure(fields.subtasks.confidence)
-        ? acceptSubtasks(fields.subtasks)
-        : null,
-    links:
-      open.includes('links') && fields.links && sure(fields.links.confidence)
-        ? acceptLinks(fields.links, call.others)
-        : null,
-  };
-  const typedOrProposed = accepted.dueDate?.value ?? note.dueDate;
-  accepted.horizon =
-    open.includes('horizon') &&
-    fields.horizon &&
-    sure(fields.horizon.confidence) &&
-    // A horizon must agree with the date, proposed or typed (`horizonForDueDate`, as Tidy files).
-    (typedOrProposed === null ||
-      horizonForDueDate(typedOrProposed, ctx.today) === fields.horizon.value)
-      ? { value: fields.horizon.value, reason: fields.horizon.reason }
-      : null;
-  accepted.visibility =
-    open.includes('visibility') && fields.visibility && sure(fields.visibility.confidence)
-      ? { value: 'PRIVATE', reason: fields.visibility.reason }
-      : null;
-  // A private note is always its author's: a person beside Private is never proposed.
-  if (accepted.visibility) accepted.assignee = null;
-  accepted.tags =
-    open.includes('tags') && fields.tags && sure(fields.tags.confidence)
-      ? acceptTags(fields.tags, call.tags)
-      : null;
-  accepted.properties =
-    open.includes('properties') && fields.properties && sure(fields.properties.confidence)
-      ? acceptProperties(fields.properties, call.fieldKeys)
-      : null;
-  // The detail of a long title goes with a shorter title, never alone (it is taken with it).
-  accepted.description =
-    open.includes('description') &&
-    accepted.title &&
-    fields.description &&
-    sure(fields.description.confidence)
-      ? { value: fields.description.value, reason: fields.description.reason }
-      : null;
-  return Object.values(accepted).some((value) => (value ?? null) !== null) ? accepted : null;
+): AcceptedFields | null {
+  return judgeCapture(fields, call, note, ctx).fields;
 }
 
 /** Each tag in the board's spelling when it has one, valid for a note, once, at most three. */

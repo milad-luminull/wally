@@ -6,8 +6,8 @@ const PREFIX = 'E2E ';
 
 async function deleteFromHome(page: Page, name: string) {
   await page.getByRole('button', { name: `Optionen für ${name}` }).click();
-  await page.getByRole('button', { name: 'Wand löschen' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Wand löschen' }).click();
+  await page.getByRole('button', { name: 'Board löschen' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Board löschen' }).click();
   await expect(page.getByRole('link', { name: `${name} öffnen` })).toHaveCount(0);
 }
 
@@ -27,15 +27,15 @@ test('creating, landing on, and deleting a second board', async ({ page }) => {
   await signIn(page);
   const name = `${PREFIX}${Date.now()}`;
 
-  await page.getByRole('button', { name: 'Wand wechseln' }).click();
-  await page.getByRole('button', { name: 'Neue Wand' }).click();
+  await page.getByRole('button', { name: 'Board wechseln' }).click();
+  await page.getByRole('button', { name: 'Neues Board' }).click();
   await page.getByLabel('Name').fill(name);
   await page.getByRole('button', { name: 'Anlegen' }).click();
   await page.waitForURL(/\/boards\/.+/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
 
-  await page.getByRole('link', { name: 'Zu deinen Wänden' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Wände');
+  await page.getByRole('link', { name: 'Zu deinen Boards' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Deine Boards');
   await expect(page.getByRole('link', { name: /Weitermachen/ })).toContainText(name);
 
   await deleteFromHome(page, name);

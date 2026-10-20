@@ -14,6 +14,8 @@ export interface AuthContextValue {
   status: AuthStatus;
   emailVerified: boolean;
   signedOut: boolean;
+  expired: { unsaved: number } | null;
+  verificationSendFailed: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;

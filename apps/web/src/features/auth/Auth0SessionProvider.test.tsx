@@ -53,6 +53,7 @@ describe('Auth0 application session', () => {
       expect(result.current.status).toBe('unauthenticated');
       expect(result.current.user).toBeNull();
       expect(result.current.authError).toBe('unavailable');
+      expect(result.current.expired).toEqual({ unsaved: 0 });
       expect(fixture.query.getQueryData(['private'])).toBeUndefined();
       expect(await getAuth0AccessToken()).toBeNull();
     },
@@ -125,6 +126,7 @@ describe('Auth0 application session', () => {
     fixture.query.setQueryData(['private'], 'belongs-to-original');
     expect(await getAuth0AccessToken()).toBe('access-token');
     await act(async () => result.current.signOut());
+    expect(result.current.expired).toBeNull();
     expect(result.current.status).toBe('unauthenticated');
     expect(fixture.query.getQueryData(['private'])).toBeUndefined();
     expect(await getAuth0AccessToken()).toBeNull();

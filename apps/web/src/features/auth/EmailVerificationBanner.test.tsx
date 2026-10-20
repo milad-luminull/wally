@@ -55,9 +55,7 @@ describe('EmailVerificationBanner', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Not confirmed yet');
     refreshUser.mockRejectedValue(new Error('offline'));
     await userEvent.click(screen.getByRole('button', { name: "I've confirmed" }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'That did not work. Please try again.',
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t check that. Try again.');
   });
 
   it('refetches boards after verification even when the old list is fresh in cache', async () => {
@@ -88,6 +86,14 @@ describe('EmailVerificationBanner', () => {
     // The address is named, so a typo at sign-up is visible rather than mysterious.
     expect(screen.getByText('max@example.com')).toBeInTheDocument();
     expect(screen.getByText(/you have been invited to/)).toBeInTheDocument();
+  });
+
+  it('says the email could not be sent at sign-up, never that it is on its way', () => {
+    arrange({ verificationSendFailed: true });
+    renderWithProviders(<EmailVerificationBanner />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t send the email. Try again.');
+    expect(screen.queryByText(/is on its way/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Resend email' })).toBeInTheDocument();
   });
 
   it('sends another verification email and confirms it went out', async () => {

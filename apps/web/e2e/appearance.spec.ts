@@ -87,7 +87,7 @@ test('public home exposes auth and retains every palette in both appearances', a
 test('signed-in palette and appearance survive a profile save and reload', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
   await signIn(page);
-  await page.getByRole('button', { name: 'Konto', exact: true }).click();
+  await page.getByRole('button', { name: 'Profil & Einstellungen', exact: true }).click();
   await page.getByRole('combobox', { name: 'Farbpalette' }).click();
   await page.getByRole('option', { name: 'Minimal', exact: true }).click();
   const saved = page.waitForResponse(
@@ -100,14 +100,16 @@ test('signed-in palette and appearance survive a profile save and reload', async
   await page.getByRole('button', { name: 'Dunkel', exact: true }).click();
   await saved;
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Konto', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Profil & Einstellungen', exact: true }),
+  ).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'minimal');
   await expect(page.locator('html')).toHaveClass(/dark/);
   // Docked dev tools and short laptop windows must not hide the relocated account menu.
   await page.setViewportSize({ width: 1080, height: 400 });
   await page.locator('.board-rail').hover();
   await page.mouse.wheel(0, 600);
-  const account = page.getByRole('button', { name: 'Konto', exact: true });
+  const account = page.getByRole('button', { name: 'Profil & Einstellungen', exact: true });
   await expect
     .poll(() => account.evaluate((el) => el.getBoundingClientRect().bottom))
     .toBeLessThanOrEqual(400);

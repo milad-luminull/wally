@@ -46,15 +46,16 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
   // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
-  // The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
-  // Gemini 3.8 Flash is served only on the `global` endpoint for this project. To use it,
-  // set ASSISTANT_MODEL=vertex:gemini-3.8-flash together with
-  // ASSISTANT_VERTEX_LOCATION=global; that moves processing outside the EU and needs the
-  // owner's decision under D4.
-  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-2.5-flash'),
-  // Vertex region and project for the deployment route. The project falls back to
-  // FIREBASE_PROJECT_ID. The Cloud Run service account needs roles/aiplatform.user.
-  ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('europe-west1'),
+  // The default is Gemini 3.8 Flash on the EU multi-region endpoint (location `eu`, below),
+  // which keeps processing in the EU (D4). Gemini 2.5 Flash, the earlier default, is retired
+  // by Google on 2026-10-20. Verified 2026-10-19 with free countTokens probes: 3.8/3.7/3.6
+  // Flash answer on `eu` for this project and 404 in europe-west1/3/4.
+  ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-3.8-flash'),
+  // Vertex location and project for the deployment route: `eu` is the EU multi-region
+  // endpoint (aiplatform.eu.rep.googleapis.com, which @ai-sdk/google-vertex builds for it). The
+  // project falls back to FIREBASE_PROJECT_ID. The Cloud Run service account needs
+  // roles/aiplatform.user.
+  ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('eu'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
   // Per-user daily cap, in tokens, on every key; and the deployment key's monthly cap in
   // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.

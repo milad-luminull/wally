@@ -19,7 +19,7 @@ import { useCreateInvite } from '../hooks/mutations/useCreateInvite';
 /** Message is a catalogue key, resolved at render — see the note in SignInForm. */
 const emailSchema = z.string().trim().toLowerCase().email('validation.email.invalid');
 
-export function InviteByEmailForm({ boardId }: { boardId: string }) {
+export function InviteByEmailForm({ boardId, boardName }: { boardId: string; boardName: string }) {
   const { t } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
   const createInvite = useCreateInvite(boardId);
@@ -42,19 +42,20 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
       {
         onSuccess: () => {
           setEmail('');
-          toast({ title: 'toast.inviteSent', values: { email: parsed.data } });
+          toast({ title: 'toast.inviteSent', values: { email: parsed.data, name: boardName } });
         },
+        onError: () => setError('share.inviteFailed'),
       },
     );
   }
 
   return (
-    /* One line: the role select sits inside the field's row so the email keeps the width. */
+    /* On phones the address keeps a full row; desktop keeps the compact inline form. */
     <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div
           className={cn(
-            'flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-surface shadow-e1',
+            'flex h-8 min-w-0 flex-1 basis-full items-center sm:basis-auto rounded-md border border-input bg-surface shadow-e1',
             'transition-[border-color,box-shadow] duration-150 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-[color:var(--ring-alpha)]',
             error && 'border-destructive',
             '[@media(pointer:coarse)]:h-11',
@@ -88,7 +89,7 @@ export function InviteByEmailForm({ boardId }: { boardId: string }) {
           type="submit"
           variant="accent"
           disabled={createInvite.isPending}
-          className="shrink-0"
+          className="ml-auto shrink-0"
         >
           {createInvite.isPending ? t('share.invite.pending') : t('share.invite.submit')}
         </Button>

@@ -176,7 +176,10 @@ follow, and `brandGuards.test.ts` enforces the first one.
    the card is an ordinary card again.
 4. Every AI action is reversible in one step, and the reversal is visible where the action
    happened.
-5. The AI never interrupts. No toasts, no modals, no badges counting suggestions.
+5. The AI never interrupts: no toasts, no modals, no badges counting suggestions. When it has
+   nothing to add or cannot help (busy, a limit, a decision that did not save), it says so in
+   one short line on its own card, answer or bar, and the person can dismiss it (the error
+   handling spec, 2026-10-19).
 6. It never writes a note the user didn't start. It completes, files and reorders; it doesn't
    author.
 7. A cleaner title never replaces the person's words on the card while the proposal waits: the

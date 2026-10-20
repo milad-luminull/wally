@@ -383,13 +383,13 @@ export const de = {
     conflict:
       'Dieser Eintrag wurde während der Bearbeitung geändert. Deine Änderung bleibt erhalten. Prüfe den aktuellen Stand, bevor du sie anwendest.',
     failed:
-      'Das Speichern konnte nicht bestätigt werden. Ein erneuter Versuch verwendet dieselbe Anfrage und erzeugt kein Duplikat.',
+      'Konnte das Speichern nicht bestätigen. Erneut versuchen sendet dieselbe Änderung, nichts wird doppelt angelegt.',
     latest: 'Aktuell gespeicherter Stand',
     proposed: 'Deine Änderung',
     apply: 'Geprüfte Änderung anwenden',
     discard: 'Änderung verwerfen',
     keep: 'Für später behalten',
-    unavailable: 'Der aktuelle Stand konnte nicht geladen werden. Deine Änderung bleibt erhalten.',
+    unavailable: 'Konnte den aktuellen Stand nicht laden. Deine Änderung bleibt erhalten.',
     reload:
       'Bitte lade Wally neu, um die aktualisierten Schutzfunktionen beim Speichern zu nutzen.',
     empty: 'Leer',
@@ -465,7 +465,7 @@ export const de = {
     shortDate: '{{date, datetime(day: 2-digit; month: 2-digit)}}',
   },
   account: {
-    menuAria: 'Konto',
+    menuAria: 'Profil & Einstellungen',
     signOut: 'Abmelden',
     shortcuts: 'Tastenkürzel',
     theme: { label: 'Darstellung', system: 'System', light: 'Hell', dark: 'Dunkel' },
@@ -474,7 +474,7 @@ export const de = {
       label: 'Sprache',
       review: 'Prüfe dieses Beispiel',
       saving: 'Wird gespeichert…',
-      saveFailed: 'Sprache konnte nicht gespeichert werden.',
+      saveFailed: 'Konnte die Sprache nicht speichern',
     },
     wallybot: {
       label: 'Wallybot',
@@ -510,6 +510,11 @@ export const de = {
       verify:
         'Bestätige deine E-Mail über die Nachricht unseres Anmeldedienstes und prüfe dann erneut.',
     },
+    sessionEnded: 'Deine Sitzung ist abgelaufen. Melde dich erneut an, um weiterzumachen.',
+    sessionEndedUnsaved_one:
+      'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderung ging verloren. Melde dich erneut an, um weiterzumachen.',
+    sessionEndedUnsaved_other:
+      'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderungen gingen verloren. Melde dich erneut an, um weiterzumachen.',
     emailLabel: 'E-Mail',
     passwordLabel: 'Passwort',
     passwordConfirmLabel: 'Passwort bestätigen',
@@ -542,30 +547,52 @@ export const de = {
       openBoard: 'Wand öffnen',
       sent: 'E-Mail gesendet. Schau auch im Spam-Ordner nach.',
       notYet: 'Noch nicht bestätigt. Klicke zuerst den Link in der E-Mail.',
-      tooMany: 'Zu viele Versuche. Bitte warte einen Moment.',
-      sendFailed: 'Die E-Mail konnte nicht gesendet werden. Bitte erneut versuchen.',
-      confirmFailed: 'Das hat nicht geklappt. Bitte erneut versuchen.',
+      tooMany: 'Zu viele Versuche. Warte einen Moment und versuch es dann erneut.',
+      sendFailed: 'Konnte die E-Mail nicht senden. Versuch es erneut.',
+      confirmFailed: 'Konnte das nicht prüfen. Versuch es erneut.',
     },
     errors: {
       invalidCredential: 'E-Mail oder Passwort ist falsch.',
-      tooManyRequests: 'Zu viele Versuche. Bitte später erneut versuchen.',
+      tooManyRequests: 'Zu viele Versuche. Versuch es später erneut.',
       popupClosed: 'Anmeldung abgebrochen.',
-      signInFailed: 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.',
+      signInFailed: 'Konnte dich nicht anmelden. Versuch es erneut.',
       emailInUse: 'Für diese E-Mail-Adresse besteht bereits ein Konto.',
       weakPassword: 'Das Passwort ist zu schwach.',
-      signUpFailed: 'Registrierung fehlgeschlagen. Bitte erneut versuchen.',
+      signUpFailed: 'Konnte dich nicht registrieren. Versuch es erneut.',
+    },
+  },
+  errors: {
+    crash: {
+      title: 'Etwas ist schiefgelaufen',
+      hint: 'Lade die Seite neu, um weiterzumachen.',
+      reload: 'Neu laden',
+    },
+    offline: 'Du bist offline. Änderungen werden gespeichert, sobald du wieder online bist.',
+    notesFailed: {
+      title: 'Konnte die Notizen nicht laden',
+      hint: 'Prüfe deine Verbindung und versuch es erneut.',
+    },
+    noteGone: 'Diese Notiz wurde gelöscht oder wird nicht mehr mit dir geteilt',
+    noteFailed: 'Konnte diese Notiz nicht laden',
+    saveFailed: 'Konnte die Änderung nicht speichern',
+    refused: {
+      forbidden: 'Das kannst du hier nicht ändern',
+      gone: 'Das wurde inzwischen gelöscht',
+      assignee: 'Diese Person ist nicht auf dieser Wand',
+      link: 'Diese Notiz lässt sich nicht verknüpfen',
+      other: 'Diese Änderung ist nicht erlaubt',
     },
   },
   toast: {
-    saveFailed: 'Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
-    prefsFailed: 'Ansicht konnte nicht gespeichert werden.',
+    saveFailed: 'Konnte die Änderung nicht speichern',
+    prefsFailed: 'Konnte deine Einstellungen nicht speichern',
     noteDeleted: '„{{title}}“ gelöscht',
     noteDeletedUntitled: 'Notiz gelöscht',
     noteDuplicated: '„{{title}}“ dupliziert',
     noteDuplicatedUntitled: 'Notiz dupliziert',
     memberRemoved: '{{name}} entfernt',
     undo: 'Rückgängig',
-    inviteSent: 'Einladung an {{email}} gesendet',
+    inviteSent: '{{email}} zu „{{name}}“ eingeladen',
     notePrivate: 'Jetzt privat. Nur du siehst diese Notiz.',
     noteShared: 'Jetzt für alle auf der Wand sichtbar.',
   },
@@ -615,15 +642,15 @@ export const de = {
   },
   board: {
     rail: {
-      wall: 'Wand',
-      views: 'Wandansichten',
+      wall: 'Board',
+      views: 'Board-Ansichten',
       whiteboard: 'Whiteboard',
       collapse: 'Seitenleiste einklappen',
       expand: 'Seitenleiste ausklappen',
     },
     rowStatus: { markOpen: 'Als offen markieren', markDone: 'Als erledigt markieren' },
-    switcherHeading: 'Wände',
-    switcherAria: 'Wand wechseln',
+    switcherHeading: 'Boards',
+    switcherAria: 'Board wechseln',
     priorityPrefix: 'Priorität: {{label}}',
     /** dnd-kit live-region announcements — the only feedback a screen-reader user gets
      * while dragging, so they are first-class copy, not debug text. */
@@ -638,23 +665,23 @@ export const de = {
       untitled: 'Notiz ohne Titel',
     },
     switcher: {
-      ownRole: 'Deine Wand',
-      all: 'Alle Wände',
+      ownRole: 'Dein Board',
+      all: 'Alle Boards',
     },
     topBar: {
-      home: 'Zu deinen Wänden',
+      home: 'Zu deinen Boards',
       axis: {
-        ariaLabel: 'Organisation',
+        ariaLabel: 'Gruppierung',
         horizon: { label: 'Diese Woche', hint: 'Nach Zeitraum ordnen' },
         priority: { label: 'Priorität', hint: 'Nach Dringlichkeit ordnen' },
-        free: { label: 'Frei', hint: 'Notizen frei auf der Wand platzieren' },
+        free: { label: 'Frei', hint: 'Notizen frei auf dem Board platzieren' },
       },
       view: {
         ariaLabel: 'Ansicht',
-        wall: 'Wand',
+        wall: 'Board',
         list: 'Liste',
       },
-      boardNameAria: 'Name der Wand',
+      boardNameAria: 'Board-Name',
       renameTitle: 'Name bearbeiten',
       open_one: '{{count}} offen',
       open_other: '{{count}} offen',
@@ -667,7 +694,7 @@ export const de = {
       newPrivateNote: 'Neue private Notiz',
       display: {
         label: 'Anzeige',
-        remembered: 'Wally merkt sich die Ansicht pro Wand.',
+        remembered: 'Wally merkt sich die Ansicht pro Board.',
         reset: 'Zurücksetzen',
       },
     },
@@ -910,6 +937,17 @@ export const de = {
       steps: 'Vorgeschlagene Schritte',
     },
     /** The pending card's footer: the countdown, Undo and Keep. */
+    outcome: {
+      nothing: 'Nichts zu ergänzen',
+      busy: 'Gerade ausgelastet',
+      limit: 'Limit erreicht',
+      limitDaily: 'Tageslimit erreicht · wieder verfügbar ab {{when}}',
+      limitMonthly: 'Monatslimit erreicht · wieder verfügbar ab {{when}}',
+      saveFailed: 'Konnte nicht speichern',
+      changed: 'Hat sich inzwischen geändert',
+      tryAgain: 'Erneut versuchen',
+      dismiss: 'Schließen',
+    },
     footer: {
       asking: 'Wird ausgefüllt',
       saving: 'Speichert in {{count}} s',
@@ -936,6 +974,11 @@ export const de = {
   },
   /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */
   tidy: {
+    failed: {
+      saveFailed: 'Konnte die Notizen nicht verschieben',
+      changed: 'Die Notizen haben sich inzwischen geändert',
+      undoFailed: 'Konnte das Verschieben nicht rückgängig machen',
+    },
     action_one: '{{count}} Notiz aufräumen',
     action_other: '{{count}} Notizen aufräumen',
     asking: 'Wird sortiert…',
@@ -957,45 +1000,45 @@ export const de = {
   },
   /** The board home at /boards (RFC BOARD_HOME §7–§10). */
   home: {
-    title: 'Deine Wände',
+    title: 'Deine Boards',
     shared: 'Mit dir geteilt',
     continue: 'Weitermachen',
     open: '{{name}} öffnen',
     openShared: '{{name}} öffnen, {{role}}',
     rowMenu: 'Optionen für {{name}}',
-    newBoard: 'Neue Wand',
+    newBoard: 'Neues Board',
     empty: {
-      title: 'Noch keine Wände',
+      title: 'Noch keine Boards',
       hint: 'Lege eine an, um Notizen zu platzieren.',
     },
     create: {
-      title: 'Neue Wand',
+      title: 'Neues Board',
       nameLabel: 'Name',
       submit: 'Anlegen',
-      limitReached: 'Du hast die Grenze von {{max}} Wänden erreicht.',
-      failed: 'Die Wand konnte nicht angelegt werden. Bitte versuche es noch einmal.',
+      limitReached: 'Du hast die Grenze von {{max}} Boards erreicht.',
+      failed: 'Konnte das Board nicht anlegen. Versuch es erneut.',
     },
     delete: {
-      action: 'Wand löschen',
+      action: 'Board löschen',
       title: '„{{name}}“ löschen?',
       body_one:
-        'Das entfernt die Wand, ihre {{count}} Notiz und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+        'Das entfernt das Board, seine {{count}} Notiz und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
       body_other:
-        'Das entfernt die Wand, ihre {{count}} Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+        'Das entfernt das Board, seine {{count}} Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
       bodyCounting:
-        'Das entfernt die Wand, ihre Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
-      confirm: 'Wand löschen',
+        'Das entfernt das Board, seine Notizen und den Zugang aller Mitglieder. Das lässt sich nicht rückgängig machen.',
+      confirm: 'Board löschen',
     },
     leave: {
-      action: 'Wand verlassen',
+      action: 'Board verlassen',
       title: '„{{name}}“ verlassen?',
-      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Deine Zuweisungen auf dieser Wand werden aufgehoben.',
-      confirm: 'Wand verlassen',
+      body: 'Du brauchst eine neue Einladung oder einen Freigabelink, um zurückzukommen. Deine Zuweisungen auf diesem Board werden aufgehoben.',
+      confirm: 'Board verlassen',
     },
   },
   routes: {
     home: {
-      loadFailed: 'Deine Wände konnten nicht geladen werden.',
+      loadFailed: 'Konnte deine Wände nicht laden',
     },
     login: {
       title: 'Willkommen zurück',
@@ -1017,9 +1060,9 @@ export const de = {
         body: 'Bitte die Person, die dir den Link geschickt hat, um einen neuen.',
       },
       failed: {
-        title: 'Das hat nicht geklappt',
+        title: 'Konnte den Link nicht öffnen',
         subtitle: 'Der Link konnte nicht eingelöst werden.',
-        body: 'Bitte versuche es noch einmal.',
+        body: 'Versuch es erneut.',
       },
       pending: {
         title: 'Einen Moment',
@@ -1028,19 +1071,42 @@ export const de = {
       toBoard: 'Zu deinen Wänden',
     },
     board: {
-      loadFailed: 'Die Wand konnte nicht geladen werden.',
+      loadFailed: 'Konnte diese Wand nicht laden',
     },
   },
   share: {
-    trigger: 'Teilen',
-    title: 'Wand teilen',
-    copy: 'Kopieren',
+    linkFailed: 'Konnte den Freigabelink nicht laden',
+    inviteFailed: 'Konnte die Einladung nicht senden',
+    scopeHint:
+      'Eingeladene Personen erhalten nur Zugriff auf dieses Board. Sie werden nicht zu deiner Organisation hinzugefügt und erhalten keinen Zugriff auf andere Boards.',
+    peopleAria: 'Personen auf diesem Board ({{count}})',
+    peopleTitle: 'Personen auf diesem Board',
+    peopleHint:
+      'Personen mit Zugriff auf dieses Board. Ausstehende Einladungen findest du in den Freigaben.',
+    membersFailed: 'Konnte die Mitglieder nicht laden',
+    linkSection: 'Board-Link',
+    linkLoadFailed: 'Die Link-Einstellungen konnten nicht geladen werden.',
+    enable: 'Link-Freigabe aktivieren',
+    disable: 'Link deaktivieren',
+    regenerate: 'Link erneuern',
+    replace: 'Link ersetzen',
+    regenerateHint:
+      'Der alte Link funktioniert danach nicht mehr. Personen, die bereits zu diesem Board hinzugefügt wurden, behalten ihren Zugriff.',
+    linkDisabled:
+      'Die Link-Freigabe ist aus. Nur Personen, die bereits zu diesem Board hinzugefügt wurden, haben Zugriff.',
+    linkSaveFailed:
+      'Die Link-Einstellungen konnten nicht gespeichert werden. Bitte versuche es erneut.',
+    linkUrlAria: 'Freigabelink für dieses Board',
+    copyFailed: 'Konnte nicht kopieren. Markiere den Link und kopiere ihn.',
+    trigger: 'Board teilen',
+    title: '„{{name}}“ teilen',
+    copy: 'Board-Link kopieren',
     copied: 'Kopiert',
     linkRoleAria: 'Rolle für den Link',
     linkLabel: 'Jeder mit dem Link',
     linkHint: {
       EDIT: 'Jeder mit dem Link kann Notizen anlegen und verschieben.',
-      VIEW: 'Jeder mit dem Link kann die Wand ansehen.',
+      VIEW: 'Jeder mit dem Link kann dieses Board ansehen.',
     },
     ownerOnly: 'Nur der Eigentümer kann Freigaben verwalten.',
     privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
@@ -1049,12 +1115,12 @@ export const de = {
       roleAria: 'Rolle von {{name}}',
       remove: '{{name}} entfernen',
     },
-    membersHeading: 'Mitglieder',
+    membersHeading: 'Personen mit Zugriff',
     invite: {
       placeholder: 'name@example.com',
       roleAria: 'Rolle',
       aria: 'E-Mail-Adresse einladen',
-      submit: 'Einladen',
+      submit: 'Zum Board einladen',
       pending: 'Lädt ein…',
     },
   },

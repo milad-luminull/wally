@@ -88,11 +88,21 @@ export async function buildTestApp(
     | 'tidyRunner'
     | 'assistantEnabled'
     | 'assistantDeadlineMs'
-  > = {},
+  > & {
+    /** Collects the app's log lines (one JSON object each) instead of discarding them. */
+    logLines?: string[];
+  } = {},
 ): Promise<TestContext> {
   const db = getTestDb(projectId);
   const { verifier, tokens } = createFakeAuthVerifier();
-  const app = await buildApp({ ...options, db, authVerifier: verifier, logger: false });
+  const { logLines, ...appOptions } = options;
+  const app = await buildApp({
+    ...appOptions,
+    db,
+    authVerifier: verifier,
+    logger: false,
+    ...(logLines ? { logStream: { write: (line: string) => void logLines.push(line) } } : {}),
+  });
   await app.ready();
   return {
     app,

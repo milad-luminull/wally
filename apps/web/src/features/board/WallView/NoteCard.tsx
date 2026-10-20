@@ -361,6 +361,8 @@ export function NoteCard({
         mark={reviewing.mark}
         onKeep={() => reviewing.onKeep('click')}
         onUndo={reviewing.onDiscard}
+        onRetry={reviewing.onRetry}
+        onDismiss={reviewing.onDismiss}
       />
     </>
   );

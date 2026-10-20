@@ -28,6 +28,8 @@ import {
 const PROJECT_ID = 'wally-test-assistant-suggestions';
 const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
 
+/** The prompts that already failed once with "busy" (the `flaky` titles). */
+const flakySeen = new Set<string>();
 /** The last prompt the fake saw, so a test can assert what reached the model. */
 let lastInput: SuggestionInput | null = null;
 
@@ -57,6 +59,18 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
     const checked = modelSuggestionSchema.safeParse(fields);
     return { fields: checked.success ? checked.data : null, usage, finishReason: 'stop' };
   };
+  // Busy once, then answers: the call is retried once after a short pause.
+  if (title.startsWith('flaky') && !flakySeen.has(input.prompt)) {
+    flakySeen.add(input.prompt);
+    throw Object.assign(new Error('busy'), { name: 'AI_APICallError', statusCode: 429 });
+  }
+  if (title.startsWith('flaky'))
+    return settle({
+      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
+      priority: null,
+      assignee: null,
+      ...noProposal,
+    });
   if (title.startsWith('fail'))
     throw Object.assign(new Error('quota for secret-project'), {
       name: 'AI_APICallError',
@@ -268,6 +282,172 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
     ...noProposal,
   });
 };
+
+/**
+ * The capture's log line says why "nothing came": which fields were open, which rule kept or
+ * dropped each proposed field, and the early exits, by name only, never the note's words.
+ */
+describe('the capture log line', () => {
+  let ctx: TestContext;
+  const lines: string[] = [];
+  beforeAll(async () => {
+    ctx = await buildTestApp(PROJECT_ID, {
+      suggestionRunner: fakeRunner,
+      assistantEnabled: true,
+      logLines: lines,
+    });
+  });
+  afterEach(async () => {
+    lines.length = 0;
+    await resetDatabase(PROJECT_ID);
+  });
+  afterAll(async () => {
+    await resetDatabase(PROJECT_ID);
+    await ctx.app.close();
+  });
+  const captureLog = () =>
+    lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((entry) => entry.type === 'assistant.capture');
+
+  it('names the outcome of each proposed field and whether anything was stored, without the words', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'all u-stranger secretword' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: {
+        noteId: n.id,
+        locked: ['priority'],
+        timeZone: 'Europe/Berlin',
+        today: '2026-10-17',
+      },
+    });
+    const [entry] = captureLog();
+    expect(entry).toMatchObject({
+      noteId: n.id,
+      proposed: true,
+      stored: true,
+      locked: ['priority'],
+      outcomes: { dueDate: 'kept', priority: 'not_open', assignee: 'not_member' },
+    });
+    expect(entry!.open).toEqual(expect.arrayContaining(['dueDate', 'assignee']));
+    expect(lines.join('')).not.toContain('secretword');
+  });
+
+  it('says when it skipped the model because nothing was left to suggest', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'nothing here' },
+      })
+    ).json();
+    await ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: {
+        noteId: n.id,
+        locked: [
+          'dueDate',
+          'priority',
+          'assignee',
+          'title',
+          'subtasks',
+          'links',
+          'horizon',
+          'visibility',
+          'tags',
+          'properties',
+          'description',
+          'reference',
+        ],
+        timeZone: 'Europe/Berlin',
+        today: '2026-10-17',
+      },
+    });
+    expect(captureLog()).toEqual([
+      expect.objectContaining({ noteId: n.id, skipped: 'nothing_open' }),
+    ]);
+  });
+});
+
+describe('a capture whose model is busy or slow', () => {
+  let ctx: TestContext;
+  beforeAll(async () => {
+    ctx = await buildTestApp(PROJECT_ID, { suggestionRunner: fakeRunner, assistantEnabled: true });
+  });
+  afterEach(async () => {
+    flakySeen.clear();
+    await resetDatabase(PROJECT_ID);
+  });
+  afterAll(async () => {
+    await resetDatabase(PROJECT_ID);
+    await ctx.app.close();
+  });
+  const captureOf = async (title: string, app: TestContext = ctx) => {
+    const fx = await createBoardFixture(app);
+    const n = (
+      await app.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: app.authHeader(fx.ownerToken),
+        payload: { title },
+      })
+    ).json();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: app.authHeader(fx.ownerToken),
+      payload: { noteId: n.id, locked: [], timeZone: 'Europe/Berlin', today: '2026-10-17' },
+    });
+    return { res, fx };
+  };
+
+  it('asks once more after a busy answer, and the person gets the suggestion', async () => {
+    const { res, fx } = await captureOf('flaky invoice');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().suggestion.fields.dueDate).toEqual({ value: '2026-10-23', reason: 'Friday' });
+    // Each attempt reserved on its own: the busy one keeps its reservation, as any failed
+    // attempt does, and the answer's was settled.
+    const usageDoc = (
+      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
+    ).data();
+    expect(Object.keys(usageDoc?.inFlight ?? {})).toHaveLength(1);
+  });
+
+  it('answers 504 ASSISTANT_TIMEOUT, retryable, when the model runs past the deadline', async () => {
+    const slow: SuggestionRunner = (input) =>
+      new Promise((_resolve, reject) =>
+        input.abortSignal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        ),
+      );
+    const app = await buildTestApp(PROJECT_ID, {
+      suggestionRunner: slow,
+      assistantEnabled: true,
+      assistantDeadlineMs: 50,
+    });
+    try {
+      const { res } = await captureOf('slow note', app);
+      expect(res.statusCode).toBe(504);
+      expect(res.json()).toMatchObject({ error: 'ASSISTANT_TIMEOUT', retryable: true });
+    } finally {
+      await app.app.close();
+    }
+  });
+});
 
 describe('capture suggestions', () => {
   let ctx: TestContext;
@@ -601,11 +781,16 @@ describe('capture suggestions', () => {
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'fail' })).json();
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(502);
-    expect(res.json()).toEqual({ error: 'ASSISTANT_PROVIDER_ERROR', message: expect.any(String) });
+    expect(res.json()).toEqual({
+      error: 'ASSISTANT_PROVIDER_ERROR',
+      message: expect.any(String),
+      retryable: true,
+    });
     expect(JSON.stringify(res.json())).not.toContain('secret-project');
     expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
-    // Usage is unknown after a failed call, so its reservation stays charged (R7).
-    expect(await inFlight(fx.ownerId)).toBe(1);
+    // Usage is unknown after a failed call, so its reservation stays charged (R7): the call
+    // and its one retry each hold one.
+    expect(await inFlight(fx.ownerId)).toBe(2);
   });
 
   it('keeps the reservation when the provider reports no usage', async () => {

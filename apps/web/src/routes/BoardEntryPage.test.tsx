@@ -85,6 +85,6 @@ describe('BoardEntryPage', () => {
     renderEntry();
     expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
     // It loads the list of boards, not one board.
-    expect(screen.getByText('Your boards could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('Couldn’t load your boards')).toBeInTheDocument();
   });
 });

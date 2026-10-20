@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryScopeContext } from '@/features/board/hooks/queryKeys';
 import { clearNoteDrafts } from '@/lib/noteDrafts';
-import { resetMutationSession } from '@/lib/mutationQueue';
+import { getRecoveries, resetMutationSession } from '@/lib/mutationQueue';
 import { resetToasts } from '@/lib/toast';
 import { discardPendingPreferences, flushPreferences } from '@/lib/preferencesQueue';
 import { AuthContext, type AuthContextValue } from './authContext';
@@ -28,6 +28,7 @@ export function Auth0SessionProvider({
   const [status, setStatus] = useState<AuthContextValue['status']>('loading');
   const [authError, setAuthError] = useState<AuthContextValue['authError']>(null);
   const [signedOut, setSignedOut] = useState(false);
+  const [expired, setExpired] = useState<{ unsaved: number } | null>(null);
   const generation = useRef(0);
   const userId = useRef<string | null>(null);
   const loggingOut = useRef(false);
@@ -48,8 +49,10 @@ export function Auth0SessionProvider({
     setLoaded(null);
   }, [queryClient, invalidate]);
   const expireSession = useCallback(() => {
+    const unsaved = getRecoveries().length;
     loggingOut.current = true;
     clear();
+    setExpired({ unsaved });
     setStatus('unauthenticated');
     setSignedOut(true);
     setAuthError('unavailable');
@@ -77,7 +80,10 @@ export function Auth0SessionProvider({
       setLoaded(next);
       setStatus(next ? 'authenticated' : 'unauthenticated');
       setAuthError(null);
-      if (next) setSignedOut(false);
+      if (next) {
+        setSignedOut(false);
+        setExpired(null);
+      }
       return next?.emailVerified ?? false;
     },
     [session, clear, expireSession],
@@ -110,6 +116,7 @@ export function Auth0SessionProvider({
       clear();
       setStatus('unauthenticated');
       setSignedOut(true);
+      setExpired(null);
     };
     window.addEventListener('storage', onLogout);
     return () => {
@@ -133,6 +140,7 @@ export function Auth0SessionProvider({
     await flushPreferences(queryClient).catch(() => {});
     clear();
     setSignedOut(true);
+    setExpired(null);
     setStatus('unauthenticated');
     try {
       localStorage.setItem('wally.auth0.logout', String(Date.now()));
@@ -149,6 +157,8 @@ export function Auth0SessionProvider({
         emailVerified: loaded?.emailVerified ?? false,
         status,
         signedOut,
+        expired,
+        verificationSendFailed: false,
         authError,
         hostedLogin,
         signOut,

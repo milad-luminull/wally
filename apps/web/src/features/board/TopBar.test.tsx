@@ -36,6 +36,8 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
 }));
 
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { membersApi } from '@/lib/resources';
+import { makeMember } from '@/test/fixtures';
 import { makeBoard } from '@/test/fixtures';
 import { TopBar } from './TopBar';
 
@@ -129,9 +131,9 @@ describe('TopBar at phone width', () => {
     renderTopBar();
     const controls = [
       screen.getByRole('button', { name: 'Display' }),
-      screen.getByRole('button', { name: 'Share' }),
+      screen.getByRole('button', { name: 'Share board' }),
       screen.getByRole('button', { name: 'New note' }),
-      screen.getByRole('button', { name: 'Account' }),
+      screen.getByRole('button', { name: 'Profile & preferences' }),
     ];
 
     const cluster = barSlot(screen.getByRole('button', { name: 'Display' }));
@@ -191,4 +193,25 @@ describe('independent board layout toggle', () => {
     expect(onSetView).toHaveBeenCalledWith('list');
     expect(onSetAxis).not.toHaveBeenCalled();
   });
+});
+
+it('opens every accepted contributor and their role from the header overflow', async () => {
+  vi.mocked(membersApi.list).mockResolvedValue([
+    ...Array.from({ length: 5 }, (_, i) =>
+      makeMember({
+        id: `member-${i}`,
+        userId: `person-${i}`,
+        displayName: `Contributor ${i}`,
+        role: 'VIEW',
+      }),
+    ),
+    makeMember({ id: 'pending', displayName: 'Pending person', status: 'PENDING' }),
+  ]);
+  renderTopBar({ isOwner: false, isDesktop: false, isBelowTablet: true });
+  const people = await screen.findByRole('button', { name: 'People on this board (5)' });
+  await userEvent.click(people);
+  expect(await screen.findByText('Contributor 4')).toBeInTheDocument();
+  expect(screen.getAllByText('Can view')).toHaveLength(5);
+  expect(screen.queryByText('Pending person')).not.toBeInTheDocument();
+  expect(screen.queryByText(/online|here now/i)).not.toBeInTheDocument();
 });

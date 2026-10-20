@@ -21,7 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QueryScopeContext } from '@/features/board/hooks/queryKeys';
 import { discardPendingPreferences, flushPreferences } from '@/lib/preferencesQueue';
 import { auth as firebaseAuth } from './firebase';
-import { resetMutationSession } from '@/lib/mutationQueue';
+import { getRecoveries, resetMutationSession } from '@/lib/mutationQueue';
 import { clearNoteDrafts } from '@/lib/noteDrafts';
 import { resetToasts } from '@/lib/toast';
 
@@ -61,6 +61,10 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [emailVerified, setEmailVerified] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
+  const [expired, setExpired] = useState<{ unsaved: number } | null>(null);
+  const [verificationSendFailed, setVerificationSendFailed] = useState(false);
+  /** The person asked to sign out: the sign-out that follows is theirs, not an ended session. */
+  const signingOut = useRef(false);
   // Firebase can fire onAuthStateChanged before the token is attached; track it so we
   // never flip to "authenticated" without a usable token.
   const tokenRef = useRef<string | null>(null);
@@ -92,8 +96,14 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Counted before the account change empties the queue.
+      const unsaved = getRecoveries().length;
       const previousUid = onIdentityChange(firebaseUser?.uid ?? null);
       if (!firebaseUser) {
+        // Signed out without asking: the session ended on its own, and the sign-in page says so.
+        const ended = typeof previousUid === 'string' && !signingOut.current;
+        signingOut.current = false;
+        setExpired(ended ? { unsaved } : null);
         setSignedOut(typeof previousUid === 'string');
         tokenRef.current = null;
         setUser(null);
@@ -119,6 +129,7 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         setIdToken(token);
         setEmailVerified(firebaseUser.emailVerified);
         setSignedOut(false);
+        setExpired(null);
         setStatus('authenticated');
       } catch {
         if (uidRef.current !== firebaseUser.uid) return;
@@ -147,10 +158,12 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         // address (see apps/api/src/plugins/auth.ts), and Firebase does not send this by
         // itself on sign-up — without it an invited colleague could never be let in.
         await sendEmailVerification(credential.user, verificationSettings());
+        setVerificationSendFailed(false);
       } catch {
-        // A failed send must never fail the sign-up: the account exists either way, and the
-        // banner in AppShell offers a manual resend. `auth/too-many-requests` is the common
-        // case when signing up repeatedly from one address.
+        // A failed send must never fail the sign-up: the account exists either way. The banner
+        // in AppShell says it did not go out and offers Resend. `auth/too-many-requests` is the
+        // common case when signing up repeatedly from one address.
+        setVerificationSendFailed(true);
       }
     },
     [auth],
@@ -160,6 +173,7 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
     const current = auth.currentUser;
     if (!current) throw new Error('resendVerificationEmail requires a signed-in user');
     await sendEmailVerification(current, verificationSettings());
+    setVerificationSendFailed(false);
   }, [auth]);
 
   const refreshUser = useCallback(async () => {
@@ -185,7 +199,11 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
     // A preference change still inside its debounce belongs to this account; send it while
     // its token is still the one attached. A failure has already been reported by the toast.
     await flushPreferences(queryClient).catch(() => {});
-    await firebaseSignOut(auth);
+    signingOut.current = true;
+    await firebaseSignOut(auth).catch((error: unknown) => {
+      signingOut.current = false;
+      throw error;
+    });
   }, [queryClient, auth]);
 
   const value = useMemo<AuthContextValue>(
@@ -195,6 +213,8 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
       status,
       emailVerified,
       signedOut,
+      expired,
+      verificationSendFailed,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,
@@ -208,6 +228,8 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
       status,
       emailVerified,
       signedOut,
+      expired,
+      verificationSendFailed,
       signInWithEmail,
       signUpWithEmail,
       signInWithGoogle,

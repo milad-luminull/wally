@@ -44,9 +44,18 @@ and web tests passed 95 files / 788 tests.
 
 CI keeps Firebase as the default. A new `auth0-validation` PR label provides a
 maintainer-controlled opt-in for real hosted-login tests without changing production
-or the repository-wide provider. The label has not been applied. Automatic approval
+or the repository-wide provider. The owner approved applying the label to draft PR #66; the run is pending. Automatic approval
 review rejected an always-on Auth0 CI matrix before real-login validation; that change
 was not applied. The isolated PR-scoped opt-in preserves the existing activation gate.
+
+### Main integration (2026-10-20)
+
+Merged main 0dece50c into the isolated candidate, preserving its error handling,
+session-expiry messages and assistant model defaults. Auth0 session expiry now
+exposes the same signed-out notice and explicit logout clears it. API build/typecheck
+and all 678 tests passed; web build/typecheck and all 845 tests passed. Formatting,
+web lint (warnings only) and 30 domain/Action script tests passed. One hosted-login
+test expectation was updated to the clearer verification error copy from main.
 
 ### CI account continuation (2026-10-20)
 

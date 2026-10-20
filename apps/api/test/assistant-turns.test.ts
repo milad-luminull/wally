@@ -318,6 +318,7 @@ describe('assistant turns', () => {
       expect(res.json()).toEqual({
         error: 'ASSISTANT_PROVIDER_ERROR',
         message: 'The model provider failed',
+        retryable: true,
       });
       expect(res.body).not.toContain('secret-project-42');
       // A reply given without reading the board is never shown as the answer.

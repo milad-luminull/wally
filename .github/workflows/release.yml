@@ -77,8 +77,8 @@ jobs:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       ASSISTANT_ENABLED: ${{ vars.ASSISTANT_ENABLED || 'false' }}
-      ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL || 'vertex:gemini-2.5-flash' }}
-      ASSISTANT_VERTEX_LOCATION: ${{ vars.ASSISTANT_VERTEX_LOCATION || 'europe-west1' }}
+      ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL || 'vertex:gemini-3.8-flash' }}
+      ASSISTANT_VERTEX_LOCATION: ${{ vars.ASSISTANT_VERTEX_LOCATION || 'eu' }}
       AUTH0_ENABLED: ${{ vars.AUTH0_ENABLED || 'false' }}
       AUTH0_SIGNUP_ENABLED: ${{ vars.AUTH0_SIGNUP_ENABLED || 'false' }}
       MCP_ENABLED: ${{ vars.MCP_ENABLED || 'false' }}

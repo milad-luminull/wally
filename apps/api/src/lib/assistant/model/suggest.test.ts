@@ -98,7 +98,7 @@ describe('createSuggestionRunner', () => {
     });
   });
 
-  it('makes one attempt and no retry on a retryable provider error, settling nothing', async () => {
+  it('makes one attempt and no retry on a provider error status, and settles it at zero', async () => {
     const model = new MockLanguageModelV3({
       doGenerate: async () => {
         throw new APICallError({
@@ -117,6 +117,23 @@ describe('createSuggestionRunner', () => {
     // maxRetries 0: the library would otherwise call again on a retryable error.
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(a.seen).toHaveLength(1);
+    // The provider answered with an error: nothing was processed, so nothing is billed, and
+    // the in-flight slot is free at once (a busy minute must not lock the person out).
+    expect(a.settled).toEqual([
+      { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+    ]);
+  });
+
+  it('keeps the reservation when the connection dropped and the usage is unknown', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new TypeError('fetch failed');
+      },
+    });
+    const a = attempts();
+    await expect(createSuggestionRunner(model)(input(a.onAttempt))).rejects.toBeInstanceOf(
+      TypeError,
+    );
     expect(a.settled).toEqual([]);
   });
 

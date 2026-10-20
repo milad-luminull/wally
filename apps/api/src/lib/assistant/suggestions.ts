@@ -44,17 +44,20 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import {
-  acceptCapture,
+  judgeCapture,
   buildCaptureCall,
   captureCandidates,
   captureNeedsBoard,
   type CaptureContext,
 } from './captureProposal.js';
 import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
+import { retryDelayMs, withOneRetry } from './model/retry.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 export const SUGGESTION_DEADLINE_MS = 20_000;
+/** A retry starts only when at least this much of the deadline is left for it. */
+export const MIN_ATTEMPT_MS = 4_000;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -231,7 +234,18 @@ export async function suggestForCapture(
   // else's a keep could be refused after the call was paid for, and the answer is the same
   // 404 a note they cannot see gets.
   if (note.createdBy?.id !== actor.id) throw notFound();
-  if (!note.title.trim() && !note.description.trim()) return null;
+  /** A capture that ends before the model is called says why, so "nothing came" is never silent. */
+  const skipped = (reason: 'no_words' | 'nothing_open' | 'no_call') => {
+    deps.logger?.info({
+      type: 'assistant.capture',
+      boardId: board.id,
+      noteId: note.id,
+      skipped: reason,
+      locked: request.locked,
+    });
+    return null;
+  };
+  if (!note.title.trim() && !note.description.trim()) return skipped('no_words');
   const members = (await listMembers(db, actor, board.id)).data;
   const captureCtx: CaptureContext = {
     actorId: actor.id,
@@ -245,13 +259,13 @@ export async function suggestForCapture(
     canChangeVisibility: ctx.role !== 'VIEW',
   };
   const open = captureCandidates(note, captureCtx);
-  if (open.length === 0) return null;
+  if (open.length === 0) return skipped('nothing_open');
   // Every note the caller can see, done ones too, read once and only when the call uses them.
   const boardNotes = captureNeedsBoard(open)
     ? await listNotes(db, actor, board.id, { status: 'ALL' })
     : [];
   const call = buildCaptureCall(note, boardNotes, captureCtx);
-  if (!call) return null;
+  if (!call) return skipped('no_call');
   const { instructions, prompt } = call;
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
@@ -262,41 +276,61 @@ export async function suggestForCapture(
     monthlyMicroUsd: env.ASSISTANT_MONTHLY_CAP_MICRO_USD,
   };
   const controller = new AbortController();
-  const deadline = setTimeout(() => controller.abort(), deps.deadlineMs ?? SUGGESTION_DEADLINE_MS);
+  const deadlineMs = deps.deadlineMs ?? SUGGESTION_DEADLINE_MS;
+  const deadline = setTimeout(() => controller.abort(), deadlineMs);
   const startedAt = Date.now();
   let output;
   try {
-    output = await deps.runner({
-      instructions,
-      prompt,
-      maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-      abortSignal: controller.signal,
-      onAttempt: async (info) => {
-        const reservation = await reserveAttempt(db, {
-          userId: actor.id,
-          now: clock(),
-          estimate: {
-            inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-            // The runner's allowance, thinking room included: everything the call may bill.
-            outputTokens: info.maxOutputTokens,
+    // A busy or failing provider gets one more try after a short pause, within the deadline.
+    output = await withOneRetry(
+      () =>
+        deps.runner({
+          instructions,
+          prompt,
+          maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
+          abortSignal: controller.signal,
+          onAttempt: async (info) => {
+            const reservation = await reserveAttempt(db, {
+              userId: actor.id,
+              now: clock(),
+              estimate: {
+                inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                // The runner's allowance, thinking room included: everything the call may bill.
+                outputTokens: info.maxOutputTokens,
+              },
+              price,
+              caps,
+            });
+            return {
+              settle: (usage) =>
+                settleAttempt(
+                  db,
+                  actor.id,
+                  reservation.attemptId,
+                  { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+                  clock(),
+                ),
+            };
           },
-          price,
-          caps,
-        });
-        return {
-          settle: (usage) =>
-            settleAttempt(
-              db,
-              actor.id,
-              reservation.attemptId,
-              { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
-              clock(),
-            ),
-        };
+        }),
+      {
+        signal: controller.signal,
+        deadlineAt: startedAt + deadlineMs,
+        minAttemptMs: MIN_ATTEMPT_MS,
+        delayMs: retryDelayMs,
       },
-    });
+    );
   } catch (error) {
     if (error instanceof AppError) throw error;
+    // Our own deadline, not the provider's fault: said as a timeout.
+    if (controller.signal.aborted) {
+      deps.logger?.warn({
+        type: 'assistant.timeout',
+        boardId: board.id,
+        ms: Date.now() - startedAt,
+      });
+      throw new AppError(504, 'ASSISTANT_TIMEOUT', 'The model did not answer in time');
+    }
     deps.logger?.warn({
       type: 'assistant.provider_error',
       boardId: board.id,
@@ -307,16 +341,22 @@ export async function suggestForCapture(
   } finally {
     clearTimeout(deadline);
   }
+  // Which rule kept or dropped each proposed field, by name only: the words never reach the log.
+  const judged = output.fields ? judgeCapture(output.fields, call, note, captureCtx) : null;
+  const fields = judged?.fields ?? null;
   deps.logger?.info({
     type: 'assistant.capture',
     boardId: board.id,
     noteId: note.id,
     proposed: output.fields !== null,
+    stored: fields !== null,
+    finishReason: output.finishReason,
+    open,
+    locked: request.locked,
+    outcomes: judged?.outcomes ?? {},
     usage: output.usage,
     ms: Date.now() - startedAt,
   });
-  if (!output.fields) return null;
-  const fields = acceptCapture(output.fields, call, note, captureCtx);
   if (!fields) return null;
 
   const now = clock();

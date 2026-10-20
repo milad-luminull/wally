@@ -186,11 +186,15 @@ export default fp(
 
       const header = request.headers.authorization;
       if (!header || !header.startsWith('Bearer ')) {
-        return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Missing bearer token' });
+        return reply
+          .code(401)
+          .send({ error: 'UNAUTHORIZED', message: 'Missing bearer token', retryable: false });
       }
       const token = header.slice('Bearer '.length).trim();
       if (!token) {
-        return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Missing bearer token' });
+        return reply
+          .code(401)
+          .send({ error: 'UNAUTHORIZED', message: 'Missing bearer token', retryable: false });
       }
 
       // Unverified issuer selects a verifier only. No claim is trusted until verification.
@@ -216,11 +220,15 @@ export default fp(
           decoded = await fastify.authVerifier.verifyIdToken(token);
         }
       } catch {
-        return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid token' });
+        return reply
+          .code(401)
+          .send({ error: 'UNAUTHORIZED', message: 'Invalid token', retryable: false });
       }
 
       if (!decoded.email) {
-        return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Token has no email' });
+        return reply
+          .code(401)
+          .send({ error: 'UNAUTHORIZED', message: 'Token has no email', retryable: false });
       }
 
       const db = fastify.db;

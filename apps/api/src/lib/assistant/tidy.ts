@@ -17,8 +17,10 @@ import { estimateTokens } from './budget/estimate.js';
 import { reserveAttempt, settleAttempt } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { tidySchemaJson, type TidyRunner } from './model/index.js';
+import { retryDelayMs, withOneRetry } from './model/retry.js';
 import { runOperation, type OperationContext } from './run.js';
 import {
+  MIN_ATTEMPT_MS,
   SUGGESTION_RETENTION_DAYS,
   type SuggestionContext,
   type SuggestionDeps,
@@ -191,40 +193,60 @@ export async function proposeTidy(
       monthlyMicroUsd: env.ASSISTANT_MONTHLY_CAP_MICRO_USD,
     };
     const controller = new AbortController();
-    const deadline = setTimeout(() => controller.abort(), deps.deadlineMs ?? TIDY_DEADLINE_MS);
+    const deadlineMs = deps.deadlineMs ?? TIDY_DEADLINE_MS;
+    const deadline = setTimeout(() => controller.abort(), deadlineMs);
     const startedAt = Date.now();
     let output;
     try {
-      output = await deps.runner({
-        instructions,
-        prompt,
-        maxOutputTokens: TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
-        abortSignal: controller.signal,
-        onAttempt: async (info) => {
-          const reservation = await reserveAttempt(db, {
-            userId: actor.id,
-            now: clock(),
-            estimate: {
-              inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-              outputTokens: info.maxOutputTokens,
+      // A busy or failing provider gets one more try after a short pause, within the deadline.
+      output = await withOneRetry(
+        () =>
+          deps.runner({
+            instructions,
+            prompt,
+            maxOutputTokens: TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
+            abortSignal: controller.signal,
+            onAttempt: async (info) => {
+              const reservation = await reserveAttempt(db, {
+                userId: actor.id,
+                now: clock(),
+                estimate: {
+                  inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                  outputTokens: info.maxOutputTokens,
+                },
+                price,
+                caps,
+              });
+              return {
+                settle: (used) =>
+                  settleAttempt(
+                    db,
+                    actor.id,
+                    reservation.attemptId,
+                    { inputTokens: used.inputTokens, outputTokens: used.outputTokens },
+                    clock(),
+                  ),
+              };
             },
-            price,
-            caps,
-          });
-          return {
-            settle: (used) =>
-              settleAttempt(
-                db,
-                actor.id,
-                reservation.attemptId,
-                { inputTokens: used.inputTokens, outputTokens: used.outputTokens },
-                clock(),
-              ),
-          };
+          }),
+        {
+          signal: controller.signal,
+          deadlineAt: startedAt + deadlineMs,
+          minAttemptMs: MIN_ATTEMPT_MS,
+          delayMs: retryDelayMs,
         },
-      });
+      );
     } catch (error) {
       if (error instanceof AppError) throw error;
+      // Our own deadline, not the provider's fault: said as a timeout.
+      if (controller.signal.aborted) {
+        deps.logger?.warn({
+          type: 'assistant.timeout',
+          boardId: board.id,
+          ms: Date.now() - startedAt,
+        });
+        throw new AppError(504, 'ASSISTANT_TIMEOUT', 'The model did not answer in time');
+      }
       deps.logger?.warn({
         type: 'assistant.provider_error',
         boardId: board.id,

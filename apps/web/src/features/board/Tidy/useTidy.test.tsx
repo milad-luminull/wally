@@ -196,6 +196,9 @@ describe('useTidy', () => {
     expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
     await settle();
     expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    // The refusal is said, briefly: the notes changed meanwhile.
+    expect(result.current).toMatchObject({ phase: 'failed', failure: { kind: 'changed' } });
+    await act(() => vi.advanceTimersByTimeAsync(EMPTY_NOTICE_MS));
     expect(result.current.phase).toBe('idle');
   });
 
@@ -469,13 +472,43 @@ describe('useTidy', () => {
     expect(result.current.phase).toBe('idle');
   });
 
-  it('a failed request goes back to idle with the affordance still there', async () => {
-    vi.mocked(assistantApi.tidy).mockRejectedValue(new Error('offline'));
+  it('a failed request says it is busy; Try again runs it again, × goes back to the affordance', async () => {
+    vi.mocked(assistantApi.tidy).mockRejectedValueOnce(
+      Object.assign(new Error('502'), { status: 502, code: 'ASSISTANT_PROVIDER_ERROR' }),
+    );
     const { result } = setup();
     expect(result.current.count).toBe(2);
     act(() => result.current.tidy());
     await settle();
-    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+    expect(result.current).toMatchObject({
+      phase: 'failed',
+      failure: { kind: 'busy', canRetry: true },
+    });
+    vi.mocked(assistantApi.tidy).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    act(() => result.current.retry());
+    await settle();
+    expect(assistantApi.tidy).toHaveBeenCalledTimes(2);
+    act(() => result.current.dismissFailure());
+    expect(result.current).toMatchObject({ phase: 'idle', count: 2, failure: null });
+  });
+
+  it('a request refused for its budget says when it lifts', async () => {
+    vi.mocked(assistantApi.tidy).mockRejectedValueOnce(
+      Object.assign(new Error('429'), {
+        status: 429,
+        code: 'ASSISTANT_MONTHLY_CAP',
+        resetsAt: '2026-11-01T00:00:00Z',
+      }),
+    );
+    const { result } = setup();
+    act(() => result.current.tidy());
+    await settle();
+    expect(result.current.failure).toEqual({
+      kind: 'limit',
+      code: 'ASSISTANT_MONTHLY_CAP',
+      resetsAt: '2026-11-01T00:00:00Z',
+      canRetry: false,
+    });
   });
 
   it('a keep answered with a status other than KEPT puts every card back and keeps the affordance', async () => {
@@ -491,19 +524,28 @@ describe('useTidy', () => {
     expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
     expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
     rerender({ list: cached() });
+    expect(result.current.failure?.kind).toBe('changed');
+    await act(() => vi.advanceTimersByTimeAsync(EMPTY_NOTICE_MS));
     expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
   });
 
-  it('a keep refused by the server keeps the affordance', async () => {
+  it('a keep that does not get through puts the cards back and says so; Try again runs Tidy again', async () => {
     vi.mocked(assistantApi.tidy).mockResolvedValue({ tidy: dto() });
-    vi.mocked(assistantApi.decideTidy).mockRejectedValueOnce(new Error('offline'));
+    vi.mocked(assistantApi.decideTidy).mockRejectedValueOnce(new TypeError('Failed to fetch'));
     const { result, cached, rerender } = setup();
     act(() => result.current.tidy());
     await settle();
     act(() => result.current.keep('click'));
     await settle();
     rerender({ list: cached() });
-    expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(result.current).toMatchObject({
+      phase: 'failed',
+      failure: { kind: 'saveFailed', canRetry: true },
+    });
+    act(() => result.current.retry());
+    await settle();
+    expect(result.current.phase).toBe('pending');
   });
 
   it('switched off while pending, the affordance is there again when it is back on', async () => {
@@ -592,7 +634,11 @@ describe('useTidy', () => {
     await settle();
     expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
     expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('SPAETER');
-    expect(result.current.phase).toBe('idle');
+    // The person asked for an undo that did not happen: it is said, with nothing to retry.
+    expect(result.current).toMatchObject({
+      phase: 'failed',
+      failure: { kind: 'undoFailed', canRetry: false },
+    });
   });
 
   it('a keep is remembered when its answer is applied: a note changed in the undo window brings the affordance back', async () => {
@@ -713,7 +759,7 @@ describe('useTidy', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
-    expect(result.current.phase).toBe('idle');
+    expect(result.current).toMatchObject({ phase: 'failed', failure: { kind: 'saveFailed' } });
   });
 
   it('while an undo is on its way the bar offers nothing and a Tidy is ignored; then the count follows the rule', async () => {

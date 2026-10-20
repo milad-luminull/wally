@@ -16,3 +16,4 @@ export * from './schemas/tidy.js';
 
 export * from './schemas/command.js';
 export * from './schemas/mcp.js';
+export * from './schemas/error.js';

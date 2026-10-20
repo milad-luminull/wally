@@ -8,7 +8,7 @@ import { AuthLayout } from './AuthLayout';
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { status, hostedLogin } = useAuth();
+  const { status, expired, hostedLogin } = useAuth();
   const location = useLocation();
   // Navigate only after AuthProvider has a usable token. Form completion can precede
   // that notification; entering the protected route early would lose the return path.
@@ -18,6 +18,13 @@ export function LoginPage() {
 
   return (
     <AuthLayout title={t('routes.login.title')} subtitle={t('routes.login.subtitle')}>
+      {expired && (
+        <p role="status" className="rounded-md bg-inset px-3 py-2 text-13 text-fg-2">
+          {expired.unsaved > 0
+            ? t('auth.sessionEndedUnsaved', { count: expired.unsaved })
+            : t('auth.sessionEnded')}
+        </p>
+      )}
       {hostedLogin ? <HostedLogin /> : <SignInForm />}
     </AuthLayout>
   );

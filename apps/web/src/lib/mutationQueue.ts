@@ -1,4 +1,5 @@
 import type { OperationMetadata } from '@wally/shared';
+import { failureOf } from './errors';
 
 export interface MutationTicket {
   operationId: string;
@@ -154,6 +155,14 @@ export async function enqueueMutation<T>(
       } catch (error) {
         assertCurrentSession(ticket.generation);
         const code = (error as { code?: string })?.code;
+        // A refusal for good (no permission, gone, invalid) cannot be fixed by sending it again:
+        // it is said once with its reason and rolled back, never kept to retry, and it does not
+        // hold up the writes behind it.
+        if (failureOf(error)?.kind === 'refused') {
+          // Whatever holds the refused words (a live field, a draft) lets go of them.
+          ticket.onDiscarded?.();
+          throw error;
+        }
         selected.blocked = true;
         recoveries = [
           ...recoveries.filter((r) => r.ticket.operationId !== ticket.operationId),

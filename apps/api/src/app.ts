@@ -20,9 +20,7 @@ import meRoutes from './routes/me.js';
 import type { SuggestionRunner, TidyRunner, TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
 import { createAuth0Verifier, type AccessTokenVerifier } from './lib/auth/auth0.js';
-
-/** gRPC status code Firestore raises when updating or reading a document that isn't there. */
-const GRPC_NOT_FOUND = 5;
+import { errorReplyFor } from './lib/errorBody.js';
 
 export interface BuildAppOptions {
   /** Overrides the shared Firestore client — tests pass one scoped to their own project. */
@@ -36,6 +34,8 @@ export interface BuildAppOptions {
   mcp?: McpRouteOptions;
   connections?: ConnectionRouteOptions;
   logger?: boolean;
+  /** Where log lines go instead of stdout: the tests read them. Implies `logger`. */
+  logStream?: { write: (line: string) => void };
   /** Overrides the model runner — tests pass a fake so no model is called. */
   assistantRunner?: TurnRunner;
   /** Overrides the capture suggestion runner — tests pass a fake so no model is called. */
@@ -65,36 +65,38 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const env = loadEnv();
 
   const app = Fastify({
-    logger:
-      (options.logger ?? env.NODE_ENV !== 'test') ? { serializers: requestLogSerializers } : false,
+    logger: options.logStream
+      ? { serializers: requestLogSerializers, stream: options.logStream }
+      : (options.logger ?? env.NODE_ENV !== 'test')
+        ? { serializers: requestLogSerializers }
+        : false,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  // One body for every error (the error handling spec, 2026-10-19): see errorReplyFor.
   app.setErrorHandler((err, request, reply) => {
-    if (err instanceof AppError) {
-      return reply.code(err.statusCode).send({ error: err.code, message: err.message });
-    }
-    // An update against a document that has since been deleted surfaces as a gRPC
-    // NOT_FOUND rather than an HTTP-shaped error, so translate it here.
-    if ((err as { code?: unknown }).code === GRPC_NOT_FOUND) {
-      return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
-    }
-    const statusCode =
-      typeof (err as { statusCode?: unknown }).statusCode === 'number'
-        ? (err as { statusCode: number }).statusCode
-        : 500;
-    if (statusCode >= 500)
+    const { status, body } = errorReplyFor(err);
+    if (status >= 500)
       request.log.error(
-        { code: (err as { code?: unknown }).code, name: (err as Error).name },
+        { code: (err as { code?: unknown }).code, name: (err as Error).name, error: body.error },
         'Request failed',
       );
-    return reply.code(statusCode).send({
-      error: statusCode === 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST',
-      message: statusCode === 500 ? 'Unexpected error' : (err as Error).message,
-    });
+    // A refusal from the assistant is logged by its code alone: "nothing came" is then never
+    // a mystery in production. The words of the request never reach the log.
+    else if (request.url.includes('/assistant/'))
+      request.log.warn({
+        type: 'request.refused',
+        code: body.error,
+        status,
+        route: request.routeOptions.url,
+      });
+    return reply.code(status).send(body);
   });
+  app.setNotFoundHandler((_request, reply) =>
+    reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found', retryable: false }),
+  );
 
   await app.register(cors, {
     origin: env.CORS_ORIGIN,

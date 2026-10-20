@@ -108,6 +108,21 @@ describe('AskCard', () => {
     expect(screen.queryByText('Only part of the matching notes was read.')).not.toBeInTheDocument();
   });
 
+  it('an empty answer stopped by the time limit or the read limit says that, not "No answer"', () => {
+    const first = renderCard(
+      session({ answer: answer({ text: '', chips: [], stopped: 'TIMEOUT' }) }),
+    );
+    expect(
+      screen.getByText('No answer within a minute. A narrower question helps.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No answer. Try again.')).not.toBeInTheDocument();
+    first.view.unmount();
+    renderCard(session({ answer: answer({ text: '', chips: [], stopped: 'TOOL_LIMIT' }) }));
+    expect(
+      screen.getByText('Stopped after twelve reads. A narrower question helps.'),
+    ).toBeInTheDocument();
+  });
+
   it('shows the answer, its stopped and partial lines and the notes read as rows', () => {
     renderCard(session({ answer: answer({ stopped: 'LENGTH', partial: true }) }));
     expect(screen.getByText('Two notes are open.')).toBeInTheDocument();
