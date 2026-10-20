@@ -3,7 +3,7 @@
 **Spec:** [rollout](../../rfcs/AUTH0_MCP_ROLLOUT.md), [MCP contract](../../rfcs/WALLY_MCP.md).
 
 The owner authorized implementation and asked to continue through the rollout rather than
-stop after a foundation. Work stays in the existing checkout, preserving unrelated edits.
+stop after a foundation. Work now stays in the isolated `wally-auth0-mcp` worktree, preserving the original checkout.
 Use test-driven development and review security boundaries before enabling production.
 
 ## Requirements and tasks
@@ -44,7 +44,7 @@ and web tests passed 95 files / 788 tests.
 
 CI keeps Firebase as the default. A new `auth0-validation` PR label provides a
 maintainer-controlled opt-in for real hosted-login tests without changing production
-or the repository-wide provider. The owner approved applying the label to draft PR #66; the run is pending. Automatic approval
+or the repository-wide provider. The owner approved the label on draft PR #66 and it is applied. Automatic approval
 review rejected an always-on Auth0 CI matrix before real-login validation; that change
 was not applied. The isolated PR-scoped opt-in preserves the existing activation gate.
 
@@ -57,6 +57,18 @@ and all 678 tests passed; web build/typecheck and all 845 tests passed. Formatti
 web lint (warnings only) and 30 domain/Action script tests passed. One hosted-login
 test expectation was updated to the clearer verification error copy from main.
 
+### Hosted-login validation (2026-10-20)
+
+GitHub run 39403192298 passed all checks at fbfb30b5: 22 browser tests executed,
+zero skipped; 21 passed immediately and the mobile test passed on retry. Real
+password login, board continuity, profile save/reload and return navigation passed.
+CI now uses the existing HTTPS app/API hostnames mapped only to loopback in its
+runner, with a temporary CA trusted by the system, browser and Node. Public DNS,
+Auth0 settings and production services are unchanged. Tokens remain memory-only.
+The mobile retry came from a substring selector matching board/note buttons;
+it now selects the exact desktop Wand control. Final rerun is pending.
+MCP real-host validation and production cutover remain pending.
+
 ### CI account continuation (2026-10-20)
 
 - [x] Apply the owner-approved Google mapping after fresh Firebase/Auth0 checks;
@@ -65,9 +77,9 @@ test expectation was updated to the clearer verification error copy from main.
 - [x] Preserve the Firebase CI path while adding an explicit Auth0 test mode.
 - [x] Bind the configured Auth0 database test subject to the seeded owner only in
       emulator project `wally-e2e`; reject other projects and missing emulator configuration.
-- [ ] Exercise hosted email/password login through the shared Playwright helper and
+- [x] Exercise hosted email/password login through the shared Playwright helper and
       retain strict token verification in the API.
-- [ ] Verify the Auth0 CI account with its owner-set password, then run the affected E2E
+- [x] Verify the Auth0 CI account with its owner-set password, then run the affected E2E
       flows before enabling Auth0 in CI or production.
 
 The owner confirmed both legacy password test accounts have no inbox and are disposable

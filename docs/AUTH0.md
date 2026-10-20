@@ -75,8 +75,10 @@ recovery and rollback checks remain required before cutover. See [the migration 
 The owner chose mandatory Auth0 password reset for existing email/password users.
 The import must preserve their Wally IDs, require verified recovery through Auth0 and
 provide a tested recovery path before Firebase is retired. Google identities need
-verified provider-subject continuity or proof of the old and new identities. Neither
-procedure has been executed against production.
+verified provider-subject continuity or proof of the old and new identities. One imported dummy password identity and the owner's verified Google identity have
+been mapped to their original production Wally IDs. Four other eligible Google
+identities remain unmapped. Dummy CI accounts use administrator-set passwords;
+mailbox-based recovery has not been tested. Production login remains Firebase.
 
 ## Verification and rollback
 

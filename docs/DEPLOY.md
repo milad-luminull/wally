@@ -910,11 +910,11 @@ required for the rollback path. These switches do not provision Auth0 tenant set
 import accounts, or grant connector access. Complete the [Auth0 activation checks](AUTH0.md)
 before opting in. Keep all switches off and provider `firebase` for the default release.
 
-**Repository secrets** — only two, and they belong to a throwaway Firebase Auth account that
-owns no data worth protecting:
-
-`E2E_USER_EMAIL`, `E2E_USER_PASSWORD`. Mirror both into Dependabot secrets as well, or
-Dependabot's pull requests will trip the vacuous-E2E guard.
+**Repository secrets:** retain `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for Firebase
+rollback tests. Auth0 validation uses `E2E_AUTH0_USER_PASSWORD` with the account email
+and subject stored as repository variables. Keep a separate password under that same
+secret name in Dependabot secrets, alongside its separate account variables. See the
+[E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
 
 > There is deliberately **no service-account key anywhere.** The organization enforces
 > `iam.disableServiceAccountKeyCreation`, and the API no longer needs one outside Google
