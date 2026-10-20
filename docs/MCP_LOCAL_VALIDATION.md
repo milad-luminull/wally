@@ -354,3 +354,54 @@ Observed results in ChatGPT conversation
 Final state: Wally grant revoked; development ChatGPT plugin remains installed;
 temporary tunnel runs until stopped or its one-day key expires. No new automated tests
 were run for this documentation-only evidence update. Production auth/MCP untouched.
+
+## Real ChatGPT write test (2026-10-21 Europe/Berlin)
+
+Explicitly approved Allow changes for only `mcp-local-owner` in Wally. Created a
+separate development plugin, **Wally local MCP write validation**, because the existing
+plugin was configured with read-only OAuth scopes. Reused the same tunnel and public
+PKCE client, callback, canonical audience and endpoint settings above, selecting both
+`wally:read` and `wally:write`. No production or Auth0 configuration was changed.
+Plugin: `plugin_asdk_app_6ad7e6c23fdc819190069a5e03336b93`.
+
+ChatGPT conversation: https://chatgpt.com/c/6ad7e707-db70-83eb-8259-d27b1a6d0844
+
+Requested a create, identical retry, title-only edit, and denied-board create. Four
+MCP requests reached the local API at 22:11:39, 41, 46 and 48 UTC on October 20.
+ChatGPT displayed “This response couldn’t load”; a summary-only follow-up and reload
+did not recover the response text. Do not treat its generated activity label as proof
+that the denied-board note was created.
+
+Independent read-only inspection of the isolated emulator verified:
+
+- Create operation `80c73b71-8a89-4db7-a8db-408b128354e0` has a durable receipt, MCP
+  provenance, result status 201, note `bbfYrH3yP36vhVnVmCQY`, revision 1 and title
+  `ChatGPT write validation 2026-10-21`.
+- Edit operation `bbbfd5a8-b23a-46d5-996b-abf86dfba29c` has a durable receipt, MCP
+  provenance, result status 200 for the same note at revision 2, title
+  `ChatGPT write validation edited`.
+- Exactly one new note exists. The two earlier fixture notes remain at revision 1.
+  No note exists on `mcp-local-unselected`, and no receipt exists for the requested
+  denied create `489fbd8a-3096-4476-a6ed-a29ce9b2fd18`.
+- These facts confirm create/edit effects and absence of a duplicate or unauthorized
+  write. The exact replay response and unselected-write error text were not recoverable
+  from this ChatGPT UI, so byte-for-byte replay equivalence is not claimed by this run.
+  The earlier Inspector evidence separately verifies identical replay and NOT_FOUND.
+
+Revoked the active write grant via Wally. A fresh ChatGPT conversation using the same
+write connector, without reconnecting, attempted an update of that note at revision 2
+with operation ID `5fde7e08-09b7-40bd-9090-051a34c893fd` and title
+`THIS REVOKED WRITE MUST NOT APPLY`. Accepted ChatGPT's **Allow once** prompt only for
+this synthetic probe. Tunnel logs at 22:14:59–22:15:00 UTC independently recorded HTTP
+403 for `tools/call` and its initialization retry. Final emulator inspection confirmed
+the title remained `ChatGPT write validation edited`, revision 2.
+
+Revocation conversation: https://chatgpt.com/c/6ad7e7bd-3820-83ed-a307-df4b18712156
+
+The ChatGPT response-rendering failure remains unresolved; it also affected the revoked
+write's final response. Server-side effects and rejection are verified, but this is not
+a clean end-to-end UI pass. No application code or security checks were changed to hide
+the issue. No new automated suite was run for this evidence-only update.
+
+Final state: all Wally test grants revoked; read and write development plugins remain
+installed, unpublished; temporary one-day tunnel remains running. Production unchanged.
