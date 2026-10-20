@@ -55,7 +55,13 @@ import { retryDelayMs, withOneRetry } from './model/retry.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
-export const SUGGESTION_DEADLINE_MS = 20_000;
+/**
+ * How long a capture waits for the model, its one retry included. The card never waits on it,
+ * and the provider bills a call it was given whether or not the answer is still awaited, so
+ * this is sized to the model's slow hours, not its usual ones: on 2026-10-20 Gemini 3.8 Flash
+ * on the EU endpoint took 20 to 50 s for a capture (Vertex's model_invocation_latencies).
+ */
+export const SUGGESTION_DEADLINE_MS = 40_000;
 /** A retry starts only when at least this much of the deadline is left for it. */
 export const MIN_ATTEMPT_MS = 4_000;
 /** As long as the receipts the keep and the undo rely on (WALLY_AGENT.md §3.2). */

@@ -292,3 +292,32 @@ it('waits longer for a question to the wall than the server allows it', async ()
     vi.useRealTimers();
   }
 });
+
+it('waits longer for a capture or a tidy than the server allows it, with room to spare', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          ),
+      ),
+    );
+    // The server's capture and tidy deadline is 40 s; the answer still has to travel back.
+    for (const path of ['/whiteboards/b1/assistant/captures', '/whiteboards/b1/assistant/tidies']) {
+      let settled = false;
+      const pending = api.post(path, {}, z.unknown()).catch((e) => {
+        settled = true;
+        return e;
+      });
+      await vi.advanceTimersByTimeAsync(50_000);
+      expect(settled, path).toBe(false);
+      await vi.advanceTimersByTimeAsync(AI_REQUEST_TIMEOUT_MS);
+      expect(await pending).toBeInstanceOf(RequestTimeoutError);
+    }
+  } finally {
+    vi.useRealTimers();
+  }
+});

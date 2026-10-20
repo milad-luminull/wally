@@ -22,8 +22,11 @@ export type ApiErrorKind =
 
 /** How long an ordinary request may take before it counts as failed (and can be retried). */
 export const REQUEST_TIMEOUT_MS = 30_000;
-/** The AI routes: the server's 20 s deadline plus its one retry. */
-export const AI_REQUEST_TIMEOUT_MS = 45_000;
+/**
+ * A capture or a tidy: longer than the server's 40 s deadline (its one retry included), so the
+ * app never gives up on an answer the server is still sending back.
+ */
+export const AI_REQUEST_TIMEOUT_MS = 55_000;
 /**
  * A question to the wall: longer than the server's 60 s turn deadline, so the app never gives
  * up on an answer the server is still writing (asking again could repeat its writes).

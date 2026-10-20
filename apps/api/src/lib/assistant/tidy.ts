@@ -34,7 +34,8 @@ import { buildTidyInstructions, buildTidyPrompt } from './tidyPrompt.js';
  */
 export const TIDY_OUTPUT_TOKENS_BASE = 128;
 export const TIDY_OUTPUT_TOKENS_PER_MOVE = 64;
-export const TIDY_DEADLINE_MS = 20_000;
+/** As a capture's (SUGGESTION_DEADLINE_MS): sized to the model's slow hours. */
+export const TIDY_DEADLINE_MS = 40_000;
 
 /** A tidy also calls the model (for the undated notes); a decision never does. */
 export interface TidyDeps extends SuggestionDeps {
