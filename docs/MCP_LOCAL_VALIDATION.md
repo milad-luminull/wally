@@ -264,3 +264,93 @@ docker compose -f docker-compose.mcp-local.yml exec -T web \
 
 The browser was left on Wally's login page following the intentional reload reproduction;
 Inspector retains the revoked test session. No new grant was created during investigation.
+
+## Real ChatGPT verification through a private tunnel (2026-10-21 Europe/Berlin)
+
+This supersedes the earlier “ChatGPT unverified” status **for read discovery,
+selected-board reads, denied-board reads and revocation only**. Explicit writes,
+idempotent write replay and denied writes remain real-Auth0 Inspector evidence;
+they have not yet been exercised through ChatGPT. No production change or merge
+was performed. The connector is a development plugin, not published to the workspace.
+
+The approved OpenAI Secure MCP Tunnel is associated with the Finlex ChatGPT workspace.
+Its separate runtime key has only Tunnels Read + Use and expires after one day.
+The key is outside the repository, mode 0600. Never put it in commands, logs or Git.
+OpenAI Platform/ChatGPT identity and the Wally fixture-owner identity are separate:
+sign in to Wally using the account already mapped by the fixture seeder.
+
+Verified runtime: official `openai/tunnel-client` release `v0.0.16`, Linux arm64,
+checked against its release SHA256SUMS. Download and unpack into
+`/private/tmp/wally-tunnel-v0.0.16/unpacked`; binary must be executable.
+`node:22-slim` has no OS CA bundle. The successful setup used its standard bundled
+public roots, keeping HTTPS verification enabled:
+
+```sh
+docker exec wally-mcp-local-api-1 node -e \
+  'process.stdout.write(require("tls").rootCertificates.join("\n"))' \
+  > /private/tmp/wally-tunnel-v0.0.16/ca-certificates.pem
+
+docker run -d --name wally-mcp-local-tunnel \
+  --network container:wally-mcp-local-api-1 \
+  --mount type=bind,src=/private/tmp/wally-tunnel-v0.0.16/unpacked/tunnel-client,dst=/usr/local/bin/tunnel-client,readonly \
+  --mount type=bind,src=/private/tmp/wally-tunnel-runtime.key,dst=/run/secrets/tunnel-key,readonly \
+  --mount type=bind,src=/private/tmp/wally-tunnel-v0.0.16/ca-certificates.pem,dst=/etc/ssl/certs/ca-certificates.crt,readonly \
+  node:22-slim tunnel-client run \
+  --control-plane.api-key file:/run/secrets/tunnel-key \
+  --control-plane.tunnel-id tunnel_6ad7e12ae9ac81918c9982be9bc388b8 \
+  --mcp.server-url http://localhost:4502/mcp \
+  --mcp.oauth-trusted-origin https://login.luminull.com \
+  --harpoon.allow-plaintext-http \
+  --health.listen-addr 127.0.0.1:6280
+```
+
+The named container already exists after this test; do not run the creation command
+again unnecessarily. The plaintext flag permits the existing loopback HTTP target
+inside the shared Docker network; OpenAI and Auth0 use verified HTTPS. No new host
+port is exposed. Stop this temporary connection with
+`docker stop wally-mcp-local-tunnel`. Its key expiry requires a new approved runtime
+key for later testing. `/readyz` alone is insufficient: it returned 200 even while
+control-plane TLS initially failed. Check successful tunnel metadata retrieval and
+actual ChatGPT requests in `docker logs wally-mcp-local-tunnel`.
+
+Successful UI sequence:
+
+1. In local Wally at `http://localhost:5174`, sign in and use Profile & preferences →
+   AI connections. Enable owner policy for the selected fixture, select only
+   `mcp-local-owner`, leave Allow changes unchecked, and approve selected boards.
+2. In ChatGPT Plugins → Add → Add custom MCP server, choose Tunnel and the ID above,
+   name it Wally local MCP validation, and retain OAuth authentication.
+3. Advanced OAuth settings discovered `https://login.luminull.com/` and the registered
+   callback `https://chatgpt.com/connector_platform_oauth_redirect`. Choose User-Defined
+   OAuth Client, client ID `tpc_oR2NUn5BAcms9r5Z5MhHVf`, no client secret and token
+   endpoint auth method `none`. Select only `wally:read`; base scopes are `openid`,
+   `profile`, `email`, one per line.
+4. Set Auth URL to
+   `https://login.luminull.com/authorize?audience=https%3A%2F%2Fapi.wally.luminull.com%2Fmcp`
+   and Resource to `https://api.wally.luminull.com/mcp`. Discovery initially rewrites
+   Resource to the tunnel-service URL; Wally still validates the canonical audience.
+5. Acknowledge the custom-server notice, Create as a plugin, Continue to Wally,
+   and complete real Auth0 sign-in with the mapped fixture-owner account.
+6. If board consent was created after OAuth, use Manage → connected-account actions →
+   Reconnect, then Refresh tools. Existing tokens predate the grant and must not be
+   accepted. Try in chat starts a conversation with this plugin selected.
+
+Observed results in ChatGPT conversation
+`https://chatgpt.com/c/6ad7e4d6-baf4-83ed-beda-9803d849452b`:
+
+- Initial sign-in succeeded but action discovery returned HTTP 403 while both previous
+  Wally grants were revoked. Approving read-only board consent and reconnecting resolved
+  discovery without a code change. Server logs then recorded successful MCP requests.
+- `list_boards` returned only `mcp-local-owner` (MCP selected board).
+- `get_board` returned that board at revision 1.
+- `list_notes` returned Synthetic MCP read fixture (`ED2sdgtByLAThLeDKgye`) and
+  Real Auth0 MCP write validation (`ms6RUlgqUBF9E3Yk8zjn`). These are synthetic fixtures.
+- `get_board` for `mcp-local-unselected` returned `NOT_FOUND`; ChatGPT wrapped the MCP
+  error in an outer `INVALID_ARGUMENT` exception. No unselected-board data was returned.
+- Revoking the active grant in Wally, then asking the same ChatGPT conversation for a
+  fresh `list_notes` without reconnecting returned `FORBIDDEN`. Tunnel logs independently
+  recorded HTTP 403 for `tools/call` and its initialization retry at 22:02:41–42 UTC.
+
+Final state: Wally grant revoked; development ChatGPT plugin remains installed;
+temporary tunnel runs until stopped or its one-day key expires. No new automated tests
+were run for this documentation-only evidence update. Production auth/MCP untouched.
