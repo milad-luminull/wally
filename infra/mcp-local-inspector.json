@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "wally-local": {
+      "type": "streamable-http",
+      "url": "http://localhost:4502/mcp",
+      "oauth": {
+        "clientId": "tpc_oR2NUn5BAcms9r5Z5MhHVf",
+        "scopes": "openid profile email wally:read",
+        "authorizationParams": {
+          "audience": "https://api.wally.luminull.com/mcp"
+        }
+      }
+    }
+  }
+}

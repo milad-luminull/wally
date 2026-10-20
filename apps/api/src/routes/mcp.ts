@@ -16,9 +16,9 @@ import { consumeMcpWriteBudget, type McpWriteLimits } from '../lib/mcp/rate.js';
 
 export const MCP_RESOURCE = 'https://api.wally.luminull.com/mcp';
 export const MCP_METADATA_PATH = '/.well-known/oauth-protected-resource/mcp';
-function oauthChallenge(scopes: string[], needsConsent = false): string {
+function oauthChallenge(resource: string, scopes: string[], needsConsent = false): string {
   return (
-    `Bearer resource_metadata="https://api.wally.luminull.com${MCP_METADATA_PATH}", scope="${scopes.join(' ')}"` +
+    `Bearer resource_metadata="${new URL(resource).origin}${MCP_METADATA_PATH}", scope="${scopes.join(' ')}"` +
     (needsConsent
       ? ', error="insufficient_scope", error_description="Approve board access in Wally, then reconnect"'
       : '')
@@ -35,6 +35,7 @@ export interface McpRouteOptions {
 
 export default async function mcpRoutes(app: FastifyInstance, options: McpRouteOptions) {
   const env = loadEnv();
+  const resource = env.MCP_LOCAL_URL ?? MCP_RESOURCE;
   const enabled =
     (options.enabled ?? env.MCP_ENABLED) &&
     (options.assistantEnabled ?? env.ASSISTANT_ENABLED) &&
@@ -47,7 +48,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
       ? createAuth0Verifier({ issuer: env.AUTH0_ISSUER, audience: MCP_RESOURCE })
       : undefined);
   app.get(MCP_METADATA_PATH, { config: { authBoundary: 'public-metadata' } }, async () => ({
-    resource: MCP_RESOURCE,
+    resource,
     authorization_servers: [env.AUTH0_ISSUER],
     scopes_supported: ['wally:read', 'wally:write'],
     bearer_methods_supported: ['header'],
@@ -61,13 +62,18 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
     async handler(request, reply) {
       reply.header('Cache-Control', 'no-store');
       const origin = request.headers.origin;
-      if (origin && origin !== env.CORS_ORIGIN && origin !== 'https://chatgpt.com')
+      if (
+        origin &&
+        origin !== env.CORS_ORIGIN &&
+        origin !== 'https://chatgpt.com' &&
+        !(env.MCP_LOCAL_URL && origin === 'http://localhost:6274')
+      )
         throw new AppError(403, 'FORBIDDEN', 'Origin is not allowed');
       if (!enabled || !verifier || !clientId)
         throw new AppError(503, 'MCP_DISABLED', 'External AI access is disabled');
       const unauthorized = () =>
         reply
-          .header('WWW-Authenticate', oauthChallenge(['wally:read']))
+          .header('WWW-Authenticate', oauthChallenge(resource, ['wally:read']))
           .code(401)
           .send({ error: 'UNAUTHORIZED', message: 'A valid MCP access token is required' });
       const bearer = request.headers.authorization?.match(/^Bearer ([^\s]+)$/i)?.[1];
@@ -155,7 +161,11 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
               return {
                 isError: true,
                 ...(error instanceof AppError && error.code === 'MCP_CONSENT_REQUIRED'
-                  ? { _meta: { 'mcp/www_authenticate': [oauthChallenge(toolScopes, true)] } }
+                  ? {
+                      _meta: {
+                        'mcp/www_authenticate': [oauthChallenge(resource, toolScopes, true)],
+                      },
+                    }
                   : {}),
                 content: [{ type: 'text' as const, text: JSON.stringify(result) }],
                 structuredContent: result,
@@ -173,7 +183,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
           else if (Array.isArray(value)) headers.set(name, value.join(', '));
         }
         const response = await transport.handleRequest(
-          new Request(MCP_RESOURCE, { method: 'POST', headers }),
+          new Request(resource, { method: 'POST', headers }),
           { parsedBody: request.body },
         );
         reply.code(response.status);

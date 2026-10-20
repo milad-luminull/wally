@@ -162,3 +162,9 @@ Before cutover, verify Google and password-reset login, stable existing board ID
 callback/logout/renewal, MCP discovery, read-only and write escalation, private notes,
 membership removal and revocation in ChatGPT. Local emulator/Inspector results do not
 prove real-tenant or production compatibility.
+
+## Isolated local MCP validation
+
+See [the current local validation record](MCP_LOCAL_VALIDATION.md) for the dedicated
+Docker profile, verified startup commands and explicit acceptance gaps. It preserves
+the original checkout/API and uses synthetic emulator data with real Auth0 validation.

@@ -1,4 +1,5 @@
 import { generateKeyPair, SignJWT } from 'jose';
+import { _resetEnvCacheForTests } from '../src/env.js';
 import { createAuth0Verifier } from '../src/lib/auth/auth0.js';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
@@ -96,8 +97,40 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const app of apps) await app.close();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  _resetEnvCacheForTests();
 });
 describe('stateless MCP HTTP boundary', () => {
+  it('advertises the isolated local transport and accepts only its explicit Inspector origin', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('MCP_LOCAL_URL', 'http://localhost:4502/mcp');
+    _resetEnvCacheForTests();
+    const app = await makeApp();
+    const discovery = await app.inject({ method: 'GET', url: MCP_METADATA_PATH });
+    expect(discovery.json().resource).toBe('http://localhost:4502/mcp');
+    const denied = await app.inject({ method: 'POST', url: '/mcp', payload: {} });
+    expect(denied.headers['www-authenticate']).toContain(
+      'http://localhost:4502/.well-known/oauth-protected-resource/mcp',
+    );
+    expect((await rpc(app, 'tools/list', {}, { origin: 'http://localhost:6274' })).statusCode).toBe(
+      200,
+    );
+    expect((await rpc(app, 'tools/list', {}, { origin: 'http://localhost:6279' })).statusCode).toBe(
+      403,
+    );
+    expect((await rpc(app, 'tools/list', {}, { origin: 'null' })).statusCode).toBe(403);
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/mcp',
+      headers: {
+        origin: 'http://localhost:6274',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,mcp-protocol-version',
+      },
+    });
+    expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:6274');
+  });
+
   it('publishes resource discovery publicly and challenges without using REST auth', async () => {
     const app = await makeApp();
     const discovery = await app.inject({ method: 'GET', url: MCP_METADATA_PATH });

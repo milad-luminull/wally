@@ -1,0 +1,99 @@
+# Standalone local validation stack; never combines with docker-compose.yml.
+name: wally-mcp-local
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    environment:
+      NODE_ENV: development
+      PORT: 4502
+      FIREBASE_PROJECT_ID: wally-mcp-local
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+      CORS_ORIGIN: http://localhost:5174
+      AUTH0_ENABLED: 'true'
+      AUTH0_SIGNUP_ENABLED: 'false'
+      ASSISTANT_ENABLED: 'true'
+      MCP_ENABLED: 'true'
+      MCP_WRITES_ENABLED: 'true'
+      MCP_CLIENT_ID: tpc_oR2NUn5BAcms9r5Z5MhHVf
+      MCP_LOCAL_URL: http://localhost:4502/mcp
+    ports:
+      - '127.0.0.1:4502:4502'
+      - '127.0.0.1:6274:6274'
+      - '127.0.0.1:6275:6275'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/config/node_modules
+    depends_on:
+      firestore:
+        condition: service_healthy
+  firestore:
+    build:
+      context: .
+      dockerfile: infra/firebase-emulator.Dockerfile
+    command: [firebase, 'emulators:start', --only, firestore, --project, wally-mcp-local]
+    volumes:
+      - ./firebase.json:/workspace/firebase.json:ro
+      - ./firestore.rules:/workspace/firestore.rules:ro
+      - ./firestore.indexes.json:/workspace/firestore.indexes.json:ro
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    environment:
+      VITE_API_BASE_URL: http://localhost:4502
+      VITE_AUTH_PROVIDER: auth0
+      VITE_AUTH0_CLIENT_ID: Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp
+    ports:
+      - '127.0.0.1:5174:5173'
+    volumes:
+      - .:/repo
+      - /repo/node_modules
+      - /repo/apps/api/node_modules
+      - /repo/apps/web/node_modules
+      - /repo/packages/shared/node_modules
+      - /repo/packages/config/node_modules
+    depends_on: [api]
+  inspector:
+    # The OAuth client and browser use the same localhost resource identifier.
+    network_mode: service:api
+    depends_on: [api]
+    image: node:22-slim
+    working_dir: /tmp
+    environment:
+      HOST: 0.0.0.0
+      # Required only inside this isolated Docker network; published ports stay loopback.
+      DANGEROUSLY_BIND_ALL_INTERFACES: 'true'
+      MCP_AUTO_OPEN_ENABLED: 'false'
+    command:
+      - sh
+      - -c
+      - >-
+        mkdir -p /root/.mcp-inspector &&
+        { test -f /root/.mcp-inspector/mcp.json || cp /etc/wally-inspector.json /root/.mcp-inspector/mcp.json; } &&
+        exec npx -y @modelcontextprotocol/inspector@2.11.0
+    volumes:
+      - inspector-cache:/root/.npm
+      - inspector-settings:/root/.mcp-inspector
+      - ./infra/mcp-local-inspector.json:/etc/wally-inspector.json:ro
+volumes:
+  inspector-cache:
+  inspector-settings:

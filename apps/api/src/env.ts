@@ -32,6 +32,8 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Local transport alias only. Auth0's registered MCP JWT audience stays canonical.
+  MCP_LOCAL_URL: z.string().url().optional(),
   MCP_CLIENT_ID: z.string().min(1).optional(),
   AUTH0_ISSUER: z.literal('https://login.luminull.com/').default('https://login.luminull.com/'),
   AUTH0_AUDIENCE: z
@@ -86,6 +88,25 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       'FIRESTORE_EMULATOR_HOST must never be set when NODE_ENV=production — it would send ' +
         'all Firestore traffic to a non-existent emulator instead of the real database.',
     );
+  }
+
+  if (parsed.data.MCP_LOCAL_URL) {
+    const url = new URL(parsed.data.MCP_LOCAL_URL);
+    if (
+      parsed.data.NODE_ENV !== 'development' ||
+      !parsed.data.FIRESTORE_EMULATOR_HOST ||
+      url.protocol !== 'http:' ||
+      url.hostname !== 'localhost' ||
+      !url.port ||
+      url.pathname !== '/mcp' ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new Error(
+        'MCP_LOCAL_URL requires a development emulator and an explicit http://localhost:PORT/mcp URL',
+      );
   }
 
   cached = parsed.data;

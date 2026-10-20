@@ -34,6 +34,47 @@ Use test-driven development and review security boundaries before enabling produ
 
 ## Current progress
 
+### Local MCP continuation (2026-10-20)
+
+The handoff was rechecked against PR #66 at `fd5ba5fc`: still draft/open with successful
+CI. Those hosted browser tests do not establish MCP OAuth compatibility. The existing
+local web/API mounted the original dirty checkout; that checkout and original API
+container/private migration evidence are preserved.
+
+A standalone `docker-compose.mcp-local.yml` now builds/mounts this PR worktree, with its
+own emulator and synthetic project, loopback API/web/Inspector ports and seeded Inspector
+settings. The original web container was stopped to reuse its registered callback port;
+it was not removed. The original API, review API and original emulator remain running.
+
+Ruling: use a guarded localhost transport alias with explicit canonical Auth0 audience
+in Inspector, rather than creating another API audience or changing the signed-profile
+Action. This retains issuer/audience/client/permission verification and restricts the
+alias to development plus emulator. Cost if wrong: real exchange will fail and local
+OAuth acceptance remains pending; no production fallback or relaxed JWT check is added.
+
+The owner explicitly approved the Inspector callback addition to the existing public
+PKCE client. The callback was saved and current delegated MCP grant readback checked.
+Inspector reached real Auth0 login and Google's account chooser. Automatic approval
+review rejected selecting the owner's private account without account-specific consent;
+the browser is awaiting the owner. No token exchange or authenticated MCP tool result
+has been claimed. A separate local web login tab is also open.
+
+Synthetic fixture seeding was exercised; it creates no board policies or MCP consent.
+New regression tests cover local discovery/origins, fail-closed environment configuration
+and emulator-only fixture guards. An initial full API run passed 686 tests before adding
+three fixture tests; a later 689-test run timed out in the existing concurrent board-safety
+test. A second unrestricted run failed the concurrent Auth0-signup test with one 500;
+emulator logs showed transaction lock timeouts. All 65 files / 689 tests then passed
+with two file workers and unchanged assertions. API lint, typecheck and build passed
+after correcting fixture generic inference. Formatting and diff checks passed.
+The web suite was not rerun in this continuation. Final evidence belongs in
+[the local validation record](../../MCP_LOCAL_VALIDATION.md).
+
+Outstanding: complete actual Auth0 MCP exchange; verify board consent, reads, denials,
+revocation, explicit write scope/consent, retries and revoked replay; verify the running
+AI connections UI; then record working acceptance steps. ChatGPT and rollout/recovery/
+privacy/Free-entitlement gates remain separate. No merge, deploy or production switch.
+
 ### Isolated release candidate (2026-10-20)
 
 Auth0/MCP changes were copied into the managed `wally-auth0-mcp` worktree from the
@@ -203,3 +244,18 @@ Remaining: verify Free-compatible client authentication; authorized migration
 review/import/recovery; actual Google login/token exchange, refresh/logout and
 ChatGPT read/write escalation; privacy/erasure operational gates; coordinated deployment
 and rollback verification. Do not mark the rollout complete from local test success.
+
+### Local real Auth0 acceptance update — 2026-10-20
+
+The owner completed Auth0 consent for local Wally and Inspector. Real PKCE exchange,
+strict-verifier MCP initialization, five read tools, selected-board metadata/note reads,
+unselected-board NOT_FOUND, and immediate read denial after revocation passed.
+Explicit board write consent plus fresh Auth0 read/write consent exposed 13 tools.
+create_note succeeded; identical operation retry returned the same note/revision;
+unselected-board write returned NOT_FOUND; replay after revocation returned
+MCP_CONSENT_REQUIRED. Local connections were left revoked. Exact exercised UI steps,
+UUIDs, commands and limitations are in docs/MCP_LOCAL_VALIDATION.md.
+
+This supersedes earlier pending-real-login status. It is real Auth0 Inspector evidence,
+not ChatGPT verification. Full-navigation web session persistence and schema-portability
+warnings remain follow-up items. No production activation, deployment, merge or push.
