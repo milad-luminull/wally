@@ -264,6 +264,8 @@ jobs:
             [ "$(getent ahostsv4 "$host" | awk '{print $1}' | sort -u)" = '127.0.0.1' ]
           done
           echo "AUTH0_CI_TLS_DIR=$tls_dir" >> "$GITHUB_ENV"
+          # Playwright route.fetch runs in Node, which has a separate CA store.
+          echo "NODE_EXTRA_CA_CERTS=$tls_dir/ca.crt" >> "$GITHUB_ENV"
           echo 'COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml:docker-compose.auth0-ci.yml' >> "$GITHUB_ENV"
           echo 'PLAYWRIGHT_BASE_URL=https://wally.luminull.com' >> "$GITHUB_ENV"
 
@@ -304,6 +306,10 @@ jobs:
             peer=$(curl --fail --silent --show-error --output /dev/null --write-out '%{remote_ip}' "https://$host$path")
             [ "$peer" = '127.0.0.1' ]
           done
+
+      - name: Verify Node trusts the test certificate
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        run: node -e "fetch('https://api.wally.luminull.com/health').then(r => { if (!r.ok) process.exit(1); }).catch(e => { console.error(e.message); process.exit(1); })"
 
       - name: Seed
         run: |
