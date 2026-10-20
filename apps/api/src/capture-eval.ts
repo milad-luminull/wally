@@ -42,7 +42,7 @@ for (const fixture of CAPTURE_FIXTURES) {
         instructions: call.instructions,
         prompt: call.prompt,
         maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-        onAttempt: async () => ({ settle: async () => {} }),
+        onAttempt: async () => ({ settle: async () => {}, release: async () => {} }),
       });
       accepted = output.fields ? acceptCapture(output.fields, call, note, ctx) : null;
     } catch (error) {

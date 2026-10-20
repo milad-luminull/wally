@@ -41,7 +41,7 @@ import type {
 import { AppError } from '../errors.js';
 import { canSeeNote, isValidAssignee } from '../notes.js';
 import { estimateTokens } from './budget/estimate.js';
-import { reserveAttempt, settleAttempt } from './budget/ledger.js';
+import { trackAttempts } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import {
   judgeCapture,
@@ -279,40 +279,50 @@ export async function suggestForCapture(
   const deadlineMs = deps.deadlineMs ?? SUGGESTION_DEADLINE_MS;
   const deadline = setTimeout(() => controller.abort(), deadlineMs);
   const startedAt = Date.now();
+  const attempts = trackAttempts(db, actor.id, {
+    clock,
+    // The slot then stays until its lease expires; said by shape only, like a provider error.
+    onReleaseError: (error) =>
+      deps.logger?.warn({
+        type: 'assistant.release_failed',
+        boardId: board.id,
+        name: (error as { name?: unknown } | null)?.name,
+        code: (error as { code?: unknown } | null)?.code,
+      }),
+  });
   let output;
   try {
     // A busy or failing provider gets one more try after a short pause, within the deadline.
+    // Each try frees whatever slot it still holds before the next one reserves.
     output = await withOneRetry(
       () =>
-        deps.runner({
-          instructions,
-          prompt,
-          maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-          abortSignal: controller.signal,
-          onAttempt: async (info) => {
-            const reservation = await reserveAttempt(db, {
-              userId: actor.id,
-              now: clock(),
-              estimate: {
-                inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-                // The runner's allowance, thinking room included: everything the call may bill.
-                outputTokens: info.maxOutputTokens,
-              },
-              price,
-              caps,
-            });
-            return {
-              settle: (usage) =>
-                settleAttempt(
-                  db,
-                  actor.id,
-                  reservation.attemptId,
-                  { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
-                  clock(),
-                ),
-            };
-          },
-        }),
+        deps
+          .runner({
+            instructions,
+            prompt,
+            maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
+            abortSignal: controller.signal,
+            onAttempt: async (info) => {
+              const { attemptId } = await attempts.reserve({
+                estimate: {
+                  inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                  // The runner's allowance, thinking room included: everything the call may bill.
+                  outputTokens: info.maxOutputTokens,
+                },
+                price,
+                caps,
+              });
+              return {
+                settle: (usage) =>
+                  attempts.settle(attemptId, {
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                  }),
+                release: () => attempts.release(attemptId),
+              };
+            },
+          })
+          .finally(attempts.releaseRest),
       {
         signal: controller.signal,
         deadlineAt: startedAt + deadlineMs,

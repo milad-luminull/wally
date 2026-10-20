@@ -14,7 +14,7 @@ import {
 import type { AssistantTidyDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { estimateTokens } from './budget/estimate.js';
-import { reserveAttempt, settleAttempt } from './budget/ledger.js';
+import { trackAttempts } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { tidySchemaJson, type TidyRunner } from './model/index.js';
 import { retryDelayMs, withOneRetry } from './model/retry.js';
@@ -196,39 +196,50 @@ export async function proposeTidy(
     const deadlineMs = deps.deadlineMs ?? TIDY_DEADLINE_MS;
     const deadline = setTimeout(() => controller.abort(), deadlineMs);
     const startedAt = Date.now();
+    const attempts = trackAttempts(db, actor.id, {
+      clock,
+      // The slot then stays until its lease expires; said by shape only, like a provider error.
+      onReleaseError: (error) =>
+        deps.logger?.warn({
+          type: 'assistant.release_failed',
+          boardId: board.id,
+          name: (error as { name?: unknown } | null)?.name,
+          code: (error as { code?: unknown } | null)?.code,
+        }),
+    });
     let output;
     try {
       // A busy or failing provider gets one more try after a short pause, within the deadline.
+      // Each try frees whatever slot it still holds before the next one reserves.
       output = await withOneRetry(
         () =>
-          deps.runner({
-            instructions,
-            prompt,
-            maxOutputTokens: TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
-            abortSignal: controller.signal,
-            onAttempt: async (info) => {
-              const reservation = await reserveAttempt(db, {
-                userId: actor.id,
-                now: clock(),
-                estimate: {
-                  inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-                  outputTokens: info.maxOutputTokens,
-                },
-                price,
-                caps,
-              });
-              return {
-                settle: (used) =>
-                  settleAttempt(
-                    db,
-                    actor.id,
-                    reservation.attemptId,
-                    { inputTokens: used.inputTokens, outputTokens: used.outputTokens },
-                    clock(),
-                  ),
-              };
-            },
-          }),
+          deps
+            .runner({
+              instructions,
+              prompt,
+              maxOutputTokens:
+                TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
+              abortSignal: controller.signal,
+              onAttempt: async (info) => {
+                const { attemptId } = await attempts.reserve({
+                  estimate: {
+                    inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                    outputTokens: info.maxOutputTokens,
+                  },
+                  price,
+                  caps,
+                });
+                return {
+                  settle: (used) =>
+                    attempts.settle(attemptId, {
+                      inputTokens: used.inputTokens,
+                      outputTokens: used.outputTokens,
+                    }),
+                  release: () => attempts.release(attemptId),
+                };
+              },
+            })
+            .finally(attempts.releaseRest),
         {
           signal: controller.signal,
           deadlineAt: startedAt + deadlineMs,

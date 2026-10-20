@@ -6,7 +6,7 @@ import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { suggestionCallSettings } from './config.js';
 import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } from './suggest.js';
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
-import type { ModelRef } from './types.js';
+import type { ModelRef, SuggestionInput } from './types.js';
 
 /** The fields this reply proposes nothing for. */
 const none = {
@@ -19,7 +19,7 @@ const none = {
   properties: null,
   description: null,
 };
-const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
+const input = (onAttempt: SuggestionInput['onAttempt']) => ({
   instructions: 'Fill in the fields.',
   prompt: 'Title: Call Müller Friday',
   maxOutputTokens: 256,
@@ -122,9 +122,30 @@ describe('createSuggestionRunner', () => {
     expect(a.settled).toEqual([
       { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
     ]);
+    expect(a.released).toEqual([]);
   });
 
-  it('keeps the reservation when the connection dropped and the usage is unknown', async () => {
+  it('passes the provider error through, releasing the attempt, when settling it at zero fails', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw Object.assign(new Error('quota'), { name: 'AI_APICallError', statusCode: 429 });
+      },
+    });
+    const released: string[] = [];
+    const onAttempt = vi.fn(async () => ({
+      settle: async () => {
+        throw new Error('datastore unavailable');
+      },
+      release: () => void released.push('released'),
+    }));
+    await expect(createSuggestionRunner(model)(input(onAttempt))).rejects.toMatchObject({
+      name: 'AI_APICallError',
+      statusCode: 429,
+    });
+    expect(released).toEqual(['released']);
+  });
+
+  it('releases the attempt, keeping its charge, when the connection dropped and the usage is unknown', async () => {
     const model = new MockLanguageModelV3({
       doGenerate: async () => {
         throw new TypeError('fetch failed');
@@ -135,9 +156,32 @@ describe('createSuggestionRunner', () => {
       TypeError,
     );
     expect(a.settled).toEqual([]);
+    expect(a.released).toHaveLength(1);
   });
 
-  it('settles nothing when the provider reports no usage, so the reservation stays', async () => {
+  it('releases the attempt when the call is aborted', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: ({ abortSignal }) =>
+        new Promise((_resolve, reject) =>
+          abortSignal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          ),
+        ),
+    });
+    const a = attempts();
+    const controller = new AbortController();
+    const call = createSuggestionRunner(model)({
+      ...input(a.onAttempt),
+      abortSignal: controller.signal,
+    });
+    await vi.waitFor(() => expect(model.doGenerateCalls).toHaveLength(1));
+    controller.abort();
+    await expect(call).rejects.toMatchObject({ name: 'AbortError' });
+    expect(a.settled).toEqual([]);
+    expect(a.released).toHaveLength(1);
+  });
+
+  it('settles nothing and releases the attempt when the provider reports no usage', async () => {
     const model = new MockLanguageModelV3({
       doGenerate: [
         {
@@ -166,6 +210,7 @@ describe('createSuggestionRunner', () => {
     expect(out.usage).toBeNull();
     expect(a.seen).toHaveLength(1);
     expect(a.settled).toEqual([]);
+    expect(a.released).toHaveLength(1);
   });
 
   it('returns no fields when the wire shape fits but the date or a member id does not', async () => {

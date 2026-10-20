@@ -4,6 +4,7 @@ import { APICallError, zodSchema } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { createTidyRunner, modelTidySchema, modelTidyWireSchema, tidySchemaJson } from './tidy.js';
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
+import type { TidyInput } from './types.js';
 
 describe('modelTidySchema', () => {
   it('keeps well-formed moves and cuts a long reason', () => {
@@ -40,7 +41,7 @@ describe('modelTidySchema', () => {
   });
 });
 
-const input = (onAttempt: ReturnType<typeof attempts>['onAttempt']) => ({
+const input = (onAttempt: TidyInput['onAttempt']) => ({
   instructions: 'Place the notes.',
   prompt: 'Notes in Today, newest first:\nn1: Plan the offsite next month',
   maxOutputTokens: 256,
@@ -94,6 +95,63 @@ describe('createTidyRunner', () => {
     expect(a.settled).toEqual([
       { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
     ]);
+    expect(a.released).toEqual([]);
+  });
+
+  it('passes the provider error through, releasing the attempt, when settling it at zero fails', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw Object.assign(new Error('quota'), { name: 'AI_APICallError', statusCode: 429 });
+      },
+    });
+    const released: string[] = [];
+    const onAttempt = async () => ({
+      settle: async () => {
+        throw new Error('datastore unavailable');
+      },
+      release: () => void released.push('released'),
+    });
+    await expect(createTidyRunner(model)(input(onAttempt))).rejects.toMatchObject({
+      name: 'AI_APICallError',
+      statusCode: 429,
+    });
+    expect(released).toEqual(['released']);
+  });
+
+  it('releases the attempt, keeping its charge, when the connection dropped and the usage is unknown', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new TypeError('fetch failed');
+      },
+    });
+    const a = attempts();
+    await expect(createTidyRunner(model)(input(a.onAttempt))).rejects.toBeInstanceOf(TypeError);
+    expect(a.settled).toEqual([]);
+    expect(a.released).toHaveLength(1);
+  });
+
+  it('releases the attempt when the provider reports no usage', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        {
+          ...reply('{"moves":[]}'),
+          usage: {
+            inputTokens: {
+              total: undefined,
+              noCache: undefined,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: { total: undefined, text: undefined, reasoning: undefined },
+          },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createTidyRunner(model)(input(a.onAttempt));
+    expect(out.usage).toBeNull();
+    expect(a.settled).toEqual([]);
+    expect(a.released).toHaveLength(1);
   });
 
   it('sends and announces the answer allowance plus the thinking room, with the options', async () => {
