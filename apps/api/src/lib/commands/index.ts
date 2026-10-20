@@ -89,7 +89,13 @@ export async function executeBoardCommand(
   actor: Actor,
   rawCommand: unknown,
   rawMetadata: unknown,
-  options: { baseUrl?: string; logger?: CommandLogger; provenance?: Provenance } = {},
+  options: {
+    baseUrl?: string;
+    logger?: CommandLogger;
+    provenance?: Provenance;
+    /** Additional trusted authorization reads participate in this write transaction. */
+    authorize?: (tx: Transaction, boardId: string) => Promise<void>;
+  } = {},
 ): Promise<CommandResult> {
   const parsed = boardCommandSchema.safeParse(rawCommand);
   if (!parsed.success) throw new AppError(400, 'BAD_REQUEST', 'Invalid command input');
@@ -147,8 +153,9 @@ export async function executeBoardCommand(
                   ? (result.data as { id: string }).id
                   : null,
             commandType: command.type,
-            conversationId: provenance.conversationId,
-            approvalId: provenance.approvalId,
+            ...(provenance.via === 'assistant'
+              ? { conversationId: provenance.conversationId, approvalId: provenance.approvalId }
+              : { via: 'mcp' as const, connectionId: provenance.connectionId }),
             revision: result.revision,
             occurredAt,
             expiresAt: Timestamp.fromMillis(
@@ -162,6 +169,7 @@ export async function executeBoardCommand(
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
         const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
+        await options.authorize?.(tx, receipt.boardId);
         // Receipts written before roles were stored fall back to the note-free rule.
         requireAccess(board, actor.id, receipt.roles ?? rolesFor(command, null, actor.id));
         if (receipt.fingerprint !== fingerprint)
@@ -170,6 +178,24 @@ export async function executeBoardCommand(
             'IDEMPOTENCY_KEY_REUSED',
             'Operation ID was already used for different input',
           );
+        // A note may have become private since the original response. Recheck its
+        // current visibility before disclosing a cached result (deletions have no target).
+        const targetId =
+          'noteId' in command
+            ? command.noteId
+            : command.type === 'note.create'
+              ? (receipt.result?.data as { id?: string } | undefined)?.id
+              : undefined;
+        if (targetId && command.type !== 'note.delete') {
+          const target = withId(await tx.get(notesCol(db).doc(targetId)));
+          if (
+            !target ||
+            target.deletedAt ||
+            target.whiteboardId !== receipt.boardId ||
+            !canSeeNote(target, actor.id)
+          )
+            notFound();
+        }
         return { result: receipt.result as CommandResult, replayed: true };
       }
 
@@ -196,6 +222,7 @@ export async function executeBoardCommand(
         notFound();
       const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
+      await options.authorize?.(tx, boardId);
       const roles = rolesFor(command, note, actor.id);
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();

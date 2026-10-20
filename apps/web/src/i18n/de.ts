@@ -6,6 +6,51 @@
  * content, so re-wording copy never means renaming a key.
  */
 export const de = {
+  connections: {
+    title: 'KI-Verbindungen',
+    back: 'Zurück zu den Boards',
+    description:
+      'Wähle, auf welche Boards eine externe KI zugreifen darf. Deine Board-Berechtigungen gelten weiterhin. Du kannst den Zugriff jederzeit widerrufen.',
+    loading: 'Verbindungen werden geladen…',
+    loadError: 'Verbindungen konnten nicht geladen werden.',
+    boardLoadError:
+      'Board-Zugriff konnte nicht geladen werden. Bestehende Verbindungen kannst du weiterhin widerrufen.',
+    retry: 'Erneut versuchen',
+    disabled: 'Externe KI-Verbindungen sind für diese Bereitstellung nicht aktiviert.',
+    boardsTitle: 'Board-Zugriff',
+    boardsHint:
+      'Board-Eigentümer müssen externen KI-Zugriff zuerst erlauben. Wähle dann nur die Boards aus, die du freigeben möchtest. Der Zugriff ist zunächst nur lesend.',
+    noBoards: 'Du hast noch keine Boards zum Verbinden.',
+    selectBoard: '{{name}} auswählen',
+    boardPolicy: 'Externer KI-Zugriff auf {{name}}',
+    boardAllowed: 'Externer KI-Zugriff erlaubt',
+    boardBlocked: 'Externer KI-Zugriff gesperrt',
+    ownerOnly: 'Vom Eigentümer festgelegt',
+    allowChanges: 'Änderungen erlauben',
+    writeHint:
+      'Erlaube unterstützte Erstellungs- und Bearbeitungsaktionen auf ausgewählten Boards mit Bearbeitungsrechten. Löschen und Teilen sind nicht erlaubt. Du kannst den Zugriff jederzeit widerrufen.',
+    consentHint:
+      'Erlaube {{client}} den Zugriff auf die ausgewählten Boards. Private Notizen und Daten außerhalb deiner Berechtigungen bleiben geschützt.',
+    existingHint: 'Widerrufe die bestehende Verbindung, bevor du den Zugriff neu auswählst.',
+    approve: 'Ausgewählte Boards freigeben',
+    saveError:
+      'Die Änderung konnte nicht gespeichert werden. Prüfe deine Berechtigungen und versuche es erneut.',
+    saving: 'Wird gespeichert…',
+    saved: 'Verbindungseinstellungen gespeichert.',
+    activeTitle: 'Deine Verbindungen',
+    none: 'Noch keine Verbindungen freigegeben.',
+    revoked: 'Widerrufen',
+    active: 'Aktiv',
+    readOnly: 'Nur lesen',
+    readWrite: 'Lesen und ändern',
+    unavailableBoard: 'Nicht verfügbares Board',
+    revokeNamed: '{{name}} widerrufen',
+    revoke: 'Zugriff widerrufen',
+    setupTitle: 'Deine KI verbinden',
+    setupHint:
+      'Gib zuerst Boards frei. Füge danach diese Verbindungs-URL in deiner KI hinzu und melde dich mit deinem Wally-Konto an. Verbinde die KI nach einer neuen Freigabe erneut, damit sie eine neue Autorisierung erhält.',
+    endpoint: 'Verbindungs-URL',
+  },
   welcome: {
     open: 'Wally öffnen',
     brand: 'Wally',
@@ -451,6 +496,20 @@ export const de = {
     },
   },
   auth: {
+    hosted: {
+      description: 'Melde dich sicher mit Google oder deiner E-Mail auf unserer Anmeldeseite an.',
+      passwordReset:
+        'Du nutzt bereits E-Mail und Passwort? Wähle auf der nächsten Seite „Passwort vergessen“, um dein Passwort für die neue Anmeldung zurückzusetzen.',
+      migration:
+        'Dein Konto ist noch nicht für die neue Anmeldung bereit. Deine Boards sind sicher. Wende dich an den Wally-Betreiber oder nutze ein anderes Konto.',
+      unavailable: 'Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
+      pending: 'Verbindung wird hergestellt…',
+      login: 'Weiter zur Anmeldung',
+      signup: 'Weiter zur Registrierung',
+      switchAccount: 'Anderes Konto verwenden',
+      verify:
+        'Bestätige deine E-Mail über die Nachricht unseres Anmeldedienstes und prüfe dann erneut.',
+    },
     emailLabel: 'E-Mail',
     passwordLabel: 'Passwort',
     passwordConfirmLabel: 'Passwort bestätigen',

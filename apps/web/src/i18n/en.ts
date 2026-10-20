@@ -1,5 +1,48 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
+  connections: {
+    title: 'AI connections',
+    back: 'Back to boards',
+    description:
+      'Choose which boards an external AI client may access. Your board permissions still apply, and you can revoke access at any time.',
+    loading: 'Loading connections…',
+    loadError: 'Could not load connections.',
+    boardLoadError: 'Could not load board access. Existing connections can still be revoked.',
+    retry: 'Try again',
+    disabled: 'External AI connections are not enabled for this deployment.',
+    boardsTitle: 'Board access',
+    boardsHint:
+      'Board owners must enable external AI access first. Then select only the boards you want to share. Access starts read-only.',
+    noBoards: 'You have no boards to connect yet.',
+    selectBoard: 'Select {{name}}',
+    boardPolicy: 'External AI access for {{name}}',
+    boardAllowed: 'External AI access allowed',
+    boardBlocked: 'External AI access blocked',
+    ownerOnly: 'Controlled by the owner',
+    allowChanges: 'Allow changes',
+    writeHint:
+      'Allow supported create and edit actions on selected boards you can edit. This does not allow deleting or sharing. You can revoke access at any time.',
+    consentHint:
+      'Approve {{client}} to access the selected boards. Private notes and data outside your permissions stay protected.',
+    existingHint: 'Revoke the existing connection before choosing different access.',
+    approve: 'Approve selected boards',
+    saveError: 'Could not save this change. Check your permissions and try again.',
+    saving: 'Saving…',
+    saved: 'Connection settings saved.',
+    activeTitle: 'Your connections',
+    none: 'No connections approved yet.',
+    revoked: 'Revoked',
+    active: 'Active',
+    readOnly: 'Read-only',
+    readWrite: 'Read and change',
+    unavailableBoard: 'Unavailable board',
+    revokeNamed: 'Revoke {{name}}',
+    revoke: 'Revoke access',
+    setupTitle: 'Connect your AI client',
+    setupHint:
+      'After approving board access, add this connector URL in your AI client and sign in with your Wally account. Reconnect after changing consent so the client receives a new authorization.',
+    endpoint: 'Connector URL',
+  },
   welcome: {
     open: 'Open Wally',
     brand: 'Wally',
@@ -437,6 +480,19 @@ export const en = {
     },
   },
   auth: {
+    hosted: {
+      description: 'Sign in securely with Google or your email on our login page.',
+      passwordReset:
+        'Already using an email and password? Select “Forgot password” on the next page to reset your password for the new sign-in.',
+      migration:
+        'Your account is not ready for the new sign-in yet. Your boards are safe. Please contact the Wally owner or use another account.',
+      unavailable: 'We could not finish signing you in. Please try again.',
+      pending: 'Connecting…',
+      login: 'Continue to sign in',
+      signup: 'Continue to create account',
+      switchAccount: 'Use another account',
+      verify: 'Verify your email using the message from our login service, then check again.',
+    },
     emailLabel: 'Email',
     passwordLabel: 'Password',
     passwordConfirmLabel: 'Confirm password',

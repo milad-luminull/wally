@@ -14,6 +14,16 @@ import {
 } from '../lib/db/collections.js';
 import { activatePendingInvitesForEmail } from '../lib/members.js';
 import { languageFromAcceptLanguage } from '../lib/language.js';
+import { decodeJwt } from 'jose';
+import type { AccessTokenVerifier } from '../lib/auth/auth0.js';
+import { resolveIdentity, resolveOrCreateIdentity } from '../lib/auth/identities.js';
+import { AppError } from '../lib/errors.js';
+
+interface AuthPluginOptions {
+  auth0Verifier?: AccessTokenVerifier;
+  auth0Issuer: string;
+  auth0SignupEnabled?: boolean;
+}
 
 export interface AuthenticatedUser {
   id: string;
@@ -38,6 +48,9 @@ export interface AuthenticatedUser {
 }
 
 declare module 'fastify' {
+  interface FastifyContextConfig {
+    authBoundary?: 'mcp' | 'public-metadata';
+  }
   interface FastifyRequest {
     user: AuthenticatedUser;
   }
@@ -76,12 +89,16 @@ async function provisionUser(
    * current preference — that lives on the profile and is changed only via PATCH /me.
    */
   signupLanguage: Language,
+  allowCreate: boolean,
 ): Promise<ProvisionResult> {
   const userRef = usersCol(db).doc(uid);
   const boardRef = whiteboardsCol(db).doc(uid);
 
   return db.runTransaction(async (tx) => {
     const existing = withId(await tx.get(userRef));
+    if (!existing && !allowCreate) {
+      throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+    }
     // Read only for a new identity, and only so a leftover board under this uid (a user record
     // removed by hand) is kept rather than overwritten. That includes a tombstoned board still
     // being cleaned up: its notes still point at this id, so a fresh board here would show them
@@ -157,10 +174,15 @@ async function provisionUser(
  * actually changed, and the pending-invite sweep only runs when provisioning wrote.
  */
 export default fp(
-  async function authPlugin(fastify: FastifyInstance) {
+  async function authPlugin(fastify: FastifyInstance, options: AuthPluginOptions) {
     fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
       const path = request.url.split('?')[0] ?? request.url;
       if (request.method === 'GET' && PUBLIC_PATHS.has(path)) return;
+      if (
+        request.routeOptions.config.authBoundary === 'mcp' ||
+        (request.method === 'GET' && request.routeOptions.config.authBoundary === 'public-metadata')
+      )
+        return;
 
       const header = request.headers.authorization;
       if (!header || !header.startsWith('Bearer ')) {
@@ -171,9 +193,28 @@ export default fp(
         return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Missing bearer token' });
       }
 
-      let decoded;
+      // Unverified issuer selects a verifier only. No claim is trusted until verification.
+      let isAuth0 = false;
       try {
-        decoded = await fastify.authVerifier.verifyIdToken(token);
+        isAuth0 = decodeJwt(token).iss === options.auth0Issuer;
+      } catch {
+        /* Firebase rejects malformed tokens. */
+      }
+      let decoded;
+      let externalIdentity;
+      try {
+        if (isAuth0) {
+          if (!options.auth0Verifier) throw new Error('Auth0 is disabled');
+          externalIdentity = await options.auth0Verifier.verify(token);
+          decoded = {
+            uid: '',
+            email: externalIdentity.email,
+            emailVerified: externalIdentity.emailVerified,
+            name: externalIdentity.name,
+          };
+        } else {
+          decoded = await fastify.authVerifier.verifyIdToken(token);
+        }
       } catch {
         return reply.code(401).send({ error: 'UNAUTHORIZED', message: 'Invalid token' });
       }
@@ -183,12 +224,28 @@ export default fp(
       }
 
       const db = fastify.db;
+      let identityCreated = false;
+      if (externalIdentity) {
+        if (options.auth0SignupEnabled) {
+          const resolved = await resolveOrCreateIdentity(
+            db,
+            externalIdentity,
+            languageFromAcceptLanguage(request.headers['accept-language']),
+          );
+          decoded.uid = resolved.userId;
+          identityCreated = resolved.created;
+        } else decoded.uid = await resolveIdentity(db, externalIdentity);
+      }
       const email = normalizeEmail(decoded.email);
       const displayName = decoded.name ?? null;
 
       const userSnapshot = await usersCol(db).doc(decoded.uid).get();
       const emailVerified = decoded.emailVerified;
       const existing = withId(userSnapshot);
+      // Imported mappings must never resurrect a deleted account or create an empty one.
+      if (externalIdentity && !existing) {
+        throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+      }
 
       // emailVerified MUST take part in this comparison. Without it, a user who verifies
       // later keeps a stale `false` on their record forever, and the pending invite waiting
@@ -201,7 +258,7 @@ export default fp(
         existing.emailVerified === emailVerified;
 
       let user: WithId<UserDoc>;
-      let provisioned = false;
+      let provisioned = identityCreated;
       if (upToDate) {
         user = existing;
       } else {
@@ -212,9 +269,10 @@ export default fp(
           displayName,
           emailVerified,
           languageFromAcceptLanguage(request.headers['accept-language']),
+          !externalIdentity,
         );
         user = result.user;
-        provisioned = result.changed;
+        provisioned = provisioned || result.changed;
       }
 
       // Auto-activate any pending invite addressed to this email, on any whiteboard —

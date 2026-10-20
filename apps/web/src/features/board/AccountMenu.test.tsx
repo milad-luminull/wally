@@ -61,6 +61,14 @@ describe('AccountMenu', () => {
     expect(screen.getByLabelText('Language')).toHaveTextContent('English');
   });
 
+  it('links to account connection settings', async () => {
+    await openMenu();
+    expect(screen.getByRole('link', { name: 'AI connections' })).toHaveAttribute(
+      'href',
+      '/settings/connections',
+    );
+  });
+
   /**
    * Given a longer timeout than the 20s default: this drives two nested Radix layers (the
    * popover, then the select), and Radix in jsdom costs ~8s per layer in this repo — see the

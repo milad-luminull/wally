@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -21,12 +20,15 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryScopeContext } from '@/features/board/hooks/queryKeys';
 import { discardPendingPreferences, flushPreferences } from '@/lib/preferencesQueue';
-import { auth } from './firebase';
+import { auth as firebaseAuth } from './firebase';
 import { resetMutationSession } from '@/lib/mutationQueue';
 import { clearNoteDrafts } from '@/lib/noteDrafts';
 import { resetToasts } from '@/lib/toast';
 
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+export type { AuthStatus } from './authContext';
+import { AuthContext, type AuthContextValue, type AuthStatus } from './authContext';
+import { Auth0SessionProvider } from './Auth0SessionProvider';
+import { getAuth0AccessToken } from './auth0Session';
 
 /**
  * Sends the verification link back to this app instead of leaving the user on Firebase's
@@ -42,38 +44,17 @@ function verificationSettings() {
   return { url: `${window.location.origin}/`, handleCodeInApp: false };
 }
 
-interface AuthContextValue {
-  user: User | null;
-  idToken: string | null;
-  status: AuthStatus;
-  /**
-   * Reactive mirror of `user.emailVerified`. Firebase mutates the `User` object in place —
-   * `reload()` returns the very same instance — so re-setting it is an Object.is bailout
-   * and reading `user.emailVerified` in a component never re-renders. This primitive is the
-   * only safe source of truth for verification state.
-   */
-  emailVerified: boolean;
-  /**
-   * True from the moment a signed-in account became signed out in this page, false once
-   * someone is authenticated again. ProtectedRoute uses it to drop the previous account's
-   * location instead of handing it to whoever signs in next.
-   */
-  signedOut: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signOut: () => Promise<void>;
-  resendVerificationEmail: () => Promise<void>;
-  /**
-   * Re-reads the Firebase user, then force-refreshes the ID token so the API starts seeing
-   * `email_verified: true`. Resolves to the freshly read verification state.
-   */
-  refreshUser: () => Promise<boolean>;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return import.meta.env.VITE_AUTH_PROVIDER === 'auth0' ? (
+    <Auth0SessionProvider>{children}</Auth0SessionProvider>
+  ) : (
+    <FirebaseAuthProvider>{children}</FirebaseAuthProvider>
+  );
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
+function FirebaseAuthProvider({ children }: { children: ReactNode }) {
+  const auth = firebaseAuth;
+  if (!auth) throw new Error('Firebase authentication is not configured');
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -149,31 +130,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     return unsubscribe;
-  }, [queryClient]);
+  }, [queryClient, auth]);
 
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  }, []);
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      await signInWithEmailAndPassword(auth, email, password);
+    },
+    [auth],
+  );
 
-  const signUpWithEmail = useCallback(async (email: string, password: string) => {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    try {
-      // The API refuses to activate a pending board invite until Firebase confirms the
-      // address (see apps/api/src/plugins/auth.ts), and Firebase does not send this by
-      // itself on sign-up — without it an invited colleague could never be let in.
-      await sendEmailVerification(credential.user, verificationSettings());
-    } catch {
-      // A failed send must never fail the sign-up: the account exists either way, and the
-      // banner in AppShell offers a manual resend. `auth/too-many-requests` is the common
-      // case when signing up repeatedly from one address.
-    }
-  }, []);
+  const signUpWithEmail = useCallback(
+    async (email: string, password: string) => {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      try {
+        // The API refuses to activate a pending board invite until Firebase confirms the
+        // address (see apps/api/src/plugins/auth.ts), and Firebase does not send this by
+        // itself on sign-up — without it an invited colleague could never be let in.
+        await sendEmailVerification(credential.user, verificationSettings());
+      } catch {
+        // A failed send must never fail the sign-up: the account exists either way, and the
+        // banner in AppShell offers a manual resend. `auth/too-many-requests` is the common
+        // case when signing up repeatedly from one address.
+      }
+    },
+    [auth],
+  );
 
   const resendVerificationEmail = useCallback(async () => {
     const current = auth.currentUser;
     if (!current) throw new Error('resendVerificationEmail requires a signed-in user');
     await sendEmailVerification(current, verificationSettings());
-  }, []);
+  }, [auth]);
 
   const refreshUser = useCallback(async () => {
     const current = auth.currentUser;
@@ -188,18 +175,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIdToken(token);
     setEmailVerified(current.emailVerified);
     return current.emailVerified;
-  }, []);
+  }, [auth]);
 
   const signInWithGoogle = useCallback(async () => {
     await signInWithPopup(auth, new GoogleAuthProvider());
-  }, []);
+  }, [auth]);
 
   const signOut = useCallback(async () => {
     // A preference change still inside its debounce belongs to this account; send it while
     // its token is still the one attached. A failure has already been reported by the toast.
     await flushPreferences(queryClient).catch(() => {});
     await firebaseSignOut(auth);
-  }, [queryClient]);
+  }, [queryClient, auth]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -249,7 +236,8 @@ export function useAuth(): AuthContextValue {
  * client lives outside React and must not depend on component state.
  */
 export async function getFreshIdToken(forceRefresh = false): Promise<string | null> {
-  const current = auth.currentUser;
+  if (import.meta.env.VITE_AUTH_PROVIDER === 'auth0') return getAuth0AccessToken(forceRefresh);
+  const current = firebaseAuth?.currentUser;
   if (!current) return null;
   return current.getIdToken(forceRefresh);
 }

@@ -42,14 +42,15 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
 
-    // NEVER enable traces, video or HAR in CI. This repository is PUBLIC, so Actions
+    // NEVER enable traces, video or HAR for credentialed runs, locally or in CI.
+    // This repository is PUBLIC, so Actions
     // artifacts are downloadable by anyone holding the run URL. A Playwright trace records
     // every action's input value verbatim — including e2e/support.ts's
     // `getByLabel('Passwort').fill(PASSWORD)` — along with full request bodies, so it would
     // publish the E2E account's password and its Firebase ID tokens. GitHub's log masking
     // does not apply to artifact contents. Screenshots are safe: the password field renders
     // masked.
-    trace: isCI ? 'off' : 'on-first-retry',
+    trace: 'off',
     video: 'off',
     screenshot: 'only-on-failure',
 

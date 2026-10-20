@@ -4,15 +4,41 @@ const EMAIL = process.env.E2E_USER_EMAIL ?? '';
 const PASSWORD = process.env.E2E_USER_PASSWORD ?? '';
 
 export const hasE2eCredentials = Boolean(EMAIL && PASSWORD);
+const provider = process.env.E2E_AUTH_PROVIDER ?? 'firebase';
+if (!['firebase', 'auth0'].includes(provider)) throw new Error('Invalid E2E_AUTH_PROVIDER');
+
+/** Start from Wally's login page; use the real provider without bypassing API verification. */
+export async function completeSignIn(page: Page) {
+  const appOrigin = new URL(page.url()).origin;
+  if (provider === 'auth0') {
+    await page.getByRole('button', { name: 'Weiter zur Anmeldung', exact: true }).click();
+    await page.waitForURL((url) => url.origin === 'https://login.luminull.com');
+    // Never submit CI credentials to an unexpected redirect destination.
+    expect(new URL(page.url()).origin).toBe('https://login.luminull.com');
+    await page.locator('input[name="username"]').fill(EMAIL);
+    await page.getByLabel(/^(Password|Passwort)\s*$/).fill(PASSWORD);
+    await page.getByRole('button', { name: /^(Continue|Weiter)$/ }).click();
+    await page.waitForURL(
+      (url) =>
+        (url.origin === appOrigin && /^\/boards(?:\/|$)/.test(url.pathname)) ||
+        (url.origin === 'https://login.luminull.com' && url.pathname.startsWith('/u/consent')),
+    );
+    if (new URL(page.url()).origin === 'https://login.luminull.com') {
+      // Localhost requires interactive consent even for a first-party application.
+      await page.getByRole('button', { name: /^(Accept|Akzeptieren|Zustimmen)$/ }).click();
+    }
+  } else {
+    await page.getByLabel('E-Mail').fill(EMAIL);
+    await page.getByLabel('Passwort').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
+  }
+  // One board lands in it; several land on the board home (RFC BOARD_HOME §6).
+  await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
+}
 
 export async function signIn(page: Page) {
   await page.goto('/login');
-  await page.getByLabel('E-Mail').fill(EMAIL);
-  await page.getByLabel('Passwort').fill(PASSWORD);
-  // `exact`: name matching is substring by default, and "Mit Google anmelden" contains it.
-  await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
-  // One board lands in it; several land on the board home (RFC BOARD_HOME §6).
-  await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
+  await completeSignIn(page);
   if (new URL(page.url()).pathname === '/boards') {
     // boards.spec.ts may have a second board open in parallel. The first board is the one
     // provisioned for the test account, which every other spec works on.

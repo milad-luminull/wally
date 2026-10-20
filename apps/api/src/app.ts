@@ -11,12 +11,15 @@ import { loadEnv } from './env.js';
 import firestorePlugin from './plugins/firestore.js';
 import firebasePlugin, { type AuthVerifier } from './plugins/firebase.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
+import connectionRoutes, { type ConnectionRouteOptions } from './routes/connections.js';
+import mcpRoutes, { type McpRouteOptions } from './routes/mcp.js';
 import assistantRoutes from './routes/assistant.js';
 import boardRoutes from './routes/boards.js';
 import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
 import type { SuggestionRunner, TidyRunner, TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
+import { createAuth0Verifier, type AccessTokenVerifier } from './lib/auth/auth0.js';
 
 /** gRPC status code Firestore raises when updating or reading a document that isn't there. */
 const GRPC_NOT_FOUND = 5;
@@ -26,6 +29,12 @@ export interface BuildAppOptions {
   db?: Firestore;
   /** Overrides Firebase token verification — tests pass a fake to avoid real tokens. */
   authVerifier?: AuthVerifier;
+  /** Auth0 access-token verification seam; production remains opt-in. */
+  auth0Verifier?: AccessTokenVerifier;
+  auth0SignupEnabled?: boolean;
+  /** MCP-specific test overrides; never reuses the REST audience verifier. */
+  mcp?: McpRouteOptions;
+  connections?: ConnectionRouteOptions;
   logger?: boolean;
   /** Overrides the model runner — tests pass a fake so no model is called. */
   assistantRunner?: TurnRunner;
@@ -99,13 +108,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       'Accept-Language',
       'Idempotency-Key',
       'X-Expected-Revision',
+      'MCP-Protocol-Version',
     ],
-    exposedHeaders: ['X-Resource-Revision'],
+    exposedHeaders: ['X-Resource-Revision', 'WWW-Authenticate'],
   });
 
   await app.register(firestorePlugin, { db: options.db });
   await app.register(firebasePlugin, { verifier: options.authVerifier });
-  await app.register(authPlugin);
+  await app.register(authPlugin, {
+    auth0Verifier:
+      options.auth0Verifier ??
+      (env.AUTH0_ENABLED
+        ? createAuth0Verifier({ issuer: env.AUTH0_ISSUER, audience: env.AUTH0_AUDIENCE })
+        : undefined),
+    auth0Issuer: env.AUTH0_ISSUER,
+    auth0SignupEnabled: options.auth0SignupEnabled ?? env.AUTH0_SIGNUP_ENABLED,
+  });
 
   /**
    * Registered AFTER the auth plugin and hooked into `preHandler` rather than the default
@@ -138,6 +156,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     errorResponseBuilder: () => new AppError(429, 'RATE_LIMITED', 'Too many requests'),
   });
 
+  await app.register(mcpRoutes, {
+    ...options.mcp,
+    assistantEnabled: options.mcp?.assistantEnabled ?? options.assistantEnabled,
+  });
+  await app.register(
+    connectionRoutes,
+    options.connections ?? {
+      enabled:
+        env.MCP_ENABLED && (options.assistantEnabled ?? env.ASSISTANT_ENABLED) && env.AUTH0_ENABLED,
+      writesEnabled: env.MCP_WRITES_ENABLED,
+      clientId: env.MCP_CLIENT_ID,
+    },
+  );
   await app.register(healthRoutes);
   await app.register(meRoutes);
   await app.register(boardRoutes);

@@ -9,6 +9,7 @@ import { BoardPage } from '@/routes/BoardPage';
 import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
 import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
+import { ConnectionsPage } from '@/routes/ConnectionsPage';
 
 export function App() {
   return (
@@ -18,6 +19,14 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/" element={<HomePage />} />
+        <Route
+          path="/settings/connections"
+          element={
+            <ProtectedRoute>
+              <ConnectionsPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/app"
           element={

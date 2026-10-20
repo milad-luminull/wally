@@ -180,8 +180,10 @@ export type AssistantAuditDoc = {
   /** The note the command targeted, or the note it created; null for board commands. */
   targetId: string | null;
   commandType: BoardCommand['type'];
-  conversationId: string;
-  approvalId: string;
+  conversationId?: string;
+  approvalId?: string;
+  via?: 'mcp';
+  connectionId?: string;
   revision: number;
   occurredAt: Timestamp;
   expiresAt: Timestamp;

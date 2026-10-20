@@ -55,6 +55,13 @@ services:
       FIRESTORE_EMULATOR_HOST: firestore:8080
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
+      AUTH0_ENABLED: ${AUTH0_ENABLED:-false}
+      AUTH0_SIGNUP_ENABLED: ${AUTH0_SIGNUP_ENABLED:-false}
+      AUTH0_ISSUER: https://login.luminull.com/
+      AUTH0_AUDIENCE: https://api.wally.luminull.com
+      MCP_ENABLED: ${MCP_ENABLED:-false}
+      MCP_WRITES_ENABLED: ${MCP_WRITES_ENABLED:-false}
+      # Optional MCP_CLIENT_ID is inherited from .env; do not inject an empty string.
     ports:
       - '4000:4000'
     depends_on:
@@ -89,6 +96,8 @@ services:
       - .env
     environment:
       VITE_API_BASE_URL: http://localhost:4000
+      VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-firebase}
+      VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID:-}
     ports:
       # Host 5173 is already taken by another project on this machine — publish on 5174
       # instead. The container's own Vite server still listens on 5173 internally.

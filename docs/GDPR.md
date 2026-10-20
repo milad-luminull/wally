@@ -577,3 +577,34 @@ real Firebase sign-in account; whoever holds that account has to reissue it unde
 address before `make e2e` proves anything. And git history still contains every original
 reference — rewriting it was judged disproportionate (GAP-10), so the history is not clean
 even though the working tree is.
+
+## Auth0 and MCP rollout data (opt-in)
+
+The Auth0 implementation adds `authIdentities` with issuer, provider subject, stable
+Wally user ID and creation timestamp. These are personal identifiers; no password, token
+or email is stored in this collection. The server reads them to resolve imported accounts.
+Account erasure must remove these mappings as well as provider and application records;
+there is currently no automatic deletion/retention job for this new collection. The existing
+account-erasure and retention gaps therefore remain release gates.
+
+Auth0 already processes the two CI test accounts and the owner's Google identity.
+Its DPA, tenant
+region, subprocessors, retention and privacy notice must be reviewed before production
+cutover. All production switches default off. The approved password and owner Google
+identity mappings have been written, but production Auth0 login has not been activated.
+See [Auth0 activation and migration](AUTH0.md).
+
+MCP adds private `users/{uid}/mcpConnections` records containing client identifier, selected
+board IDs, granted scopes, creation time and revocation time. `mcpBoardPolicies/{boardId}`
+stores the approving owner ID, enabled flag and update time. A bounded rolling
+`users/{uid}/mcpLimits/writes` counter supports shared write limits. Command audit entries
+identify the MCP connection. No access/refresh tokens are stored in these records.
+These records require inclusion in account/board erasure and export procedures; revoked
+connection retention still needs an operational policy before production rollout.
+
+External AI access requires both current-owner permission and each user's selected-board
+grant. Host-visible content follows current membership and note privacy. Users must be
+told that selected board content is processed by their external AI host; host retention
+and training terms are separate from Wally's. Write permission does not permit deletion
+or sharing administration. Revoking in Wally blocks subsequent calls and transactional
+writes/replays, but cannot retract content already delivered to the host.

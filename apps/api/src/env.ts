@@ -16,6 +16,27 @@ const envSchema = z.object({
   // because the project's "(default)" database was auto-created in the US.
   FIRESTORE_DATABASE_ID: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
+  AUTH0_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  AUTH0_SIGNUP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MCP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MCP_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MCP_CLIENT_ID: z.string().min(1).optional(),
+  AUTH0_ISSUER: z.literal('https://login.luminull.com/').default('https://login.luminull.com/'),
+  AUTH0_AUDIENCE: z
+    .literal('https://api.wally.luminull.com')
+    .default('https://api.wally.luminull.com'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // The assistant's deployment switch. Off by default: with it off, the board response
   // reports `assistantEnabled: false` and every assistant operation answers 404.

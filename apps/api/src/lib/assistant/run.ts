@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import type { BoardCommand, NoteDetailDto, NoteDto } from '@wally/shared';
 import { executeBoardCommand, type Actor, type CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
@@ -23,6 +23,7 @@ export interface OperationContext {
   assistantEnabled: boolean;
   provenance: Provenance;
   logger?: CommandLogger;
+  authorize?: (tx: Transaction, boardId: string) => Promise<void>;
 }
 export interface OperationCall {
   name: string;
@@ -81,7 +82,7 @@ export async function runOperation(
     ctx.actor,
     command,
     { operationId: call.operationId, expectedRevision },
-    { logger: ctx.logger, provenance: ctx.provenance },
+    { logger: ctx.logger, provenance: ctx.provenance, authorize: ctx.authorize },
   );
   return { data: result.data, revision: result.revision };
 }

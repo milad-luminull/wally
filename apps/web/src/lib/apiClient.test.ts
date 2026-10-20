@@ -223,3 +223,14 @@ it('reviews a stale board deletion with the board name and the change spelled ou
   expect(reviewed.revision).toBe(4);
   expect(reviewed.proposed).toEqual({ name: 'Project North', change: 'Delete board' });
 });
+
+it('keeps MCP board policy updates outside board mutation recovery and revisions', async () => {
+  rememberResource('board:b', 8);
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ enabled: true }, 1));
+  vi.stubGlobal('fetch', fetcher);
+  await api.patch('/whiteboards/b/mcp-access', { enabled: true });
+  expect(headersOf(fetcher)['Idempotency-Key']).toBeUndefined();
+  expect(headersOf(fetcher)['X-Expected-Revision']).toBeUndefined();
+  expect(getRecoveries()).toEqual([]);
+  expect(captureMutation('board:b').revision).toBe(8);
+});

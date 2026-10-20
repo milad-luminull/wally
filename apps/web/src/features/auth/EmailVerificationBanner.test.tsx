@@ -47,6 +47,34 @@ describe('EmailVerificationBanner', () => {
     arrange();
   });
 
+  it('shows failed and still-unverified checks in hosted login mode', async () => {
+    arrange({ hostedLogin: async () => {} });
+    refreshUser.mockResolvedValue(false);
+    renderWithProviders(<EmailVerificationBanner />);
+    await userEvent.click(screen.getByRole('button', { name: "I've confirmed" }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not confirmed yet');
+    refreshUser.mockRejectedValue(new Error('offline'));
+    await userEvent.click(screen.getByRole('button', { name: "I've confirmed" }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That did not work. Please try again.',
+    );
+  });
+
+  it('refetches boards after verification even when the old list is fresh in cache', async () => {
+    arrange({ hostedLogin: async () => {} });
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(['u', 'anon', 'me', 'boards'], []);
+    vi.mocked(boardsApi.list).mockResolvedValue([
+      makeBoard({ id: 'shared', name: 'New Team', currentUserRole: 'EDIT' }),
+    ]);
+    renderWithProviders(<EmailVerificationBanner />, { queryClient });
+    await userEvent.click(screen.getByRole('button', { name: "I've confirmed" }));
+    expect(await screen.findByRole('link', { name: 'Open board' })).toHaveAttribute(
+      'href',
+      '/boards/shared',
+    );
+  });
+
   it('renders nothing once the address is verified', () => {
     arrange({ emailVerified: true });
     const { container } = renderWithProviders(<EmailVerificationBanner />);

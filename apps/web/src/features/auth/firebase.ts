@@ -8,5 +8,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+// Hosted authentication must boot even when Firebase browser config has been removed.
+export const firebaseApp =
+  import.meta.env.VITE_AUTH_PROVIDER === 'auth0' ? null : initializeApp(firebaseConfig);
+export const auth = firebaseApp ? getAuth(firebaseApp) : null;

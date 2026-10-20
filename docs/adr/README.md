@@ -61,3 +61,5 @@ A guide changes by normal PR as long as it stays inside its ADR. Changing the de
 | [0012](0012-skip-e2e-on-documentation-only-pull-requests.md)         | Skip E2E on documentation-only pull requests                                                   | proposed |
 | [0013](0013-model-library-behind-an-owned-boundary.md)               | The Vercel AI SDK as the model library, behind a boundary Wally owns                           | accepted |
 | [0014](0014-english-identifiers-and-persisted-values.md)             | English identifiers and persisted values, migrated in place (expand, migrate, contract)        | proposed |
+| [0015](0015-cloudflare-dns-and-wally-custom-domains.md)              | Cloudflare DNS for Wally custom domains                                                        | proposed |
+| [0016](0016-auth0-for-web-and-mcp.md)                                | Auth0 for web login and MCP authorization                                                      | proposed |

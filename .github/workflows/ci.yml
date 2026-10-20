@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -131,6 +132,10 @@ jobs:
     name: E2E (full stack)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Keep Firebase until the Auth0 hosted-login suite has passed with its own CI identity.
+      # A maintainer can opt one PR into validation without changing the repository default.
+      E2E_AUTH_PROVIDER: ${{ contains(github.event.pull_request.labels.*.name, 'auth0-validation') && 'auth0' || vars.E2E_AUTH_PROVIDER || 'firebase' }}
     # Only run where the secrets actually exist. `github.event.pull_request` is null for
     # push, so the event check short-circuits and the job runs on main, whose result
     # release.yml requires before deploying. Comparing full_name (rather than `.fork`) also
@@ -186,8 +191,26 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
         run: |
           set -euo pipefail
+          if [ "$E2E_AUTH_PROVIDER" = "auth0" ]; then
+            [ -n "$VITE_AUTH0_CLIENT_ID" ] || { echo "::error::VITE_AUTH0_CLIENT_ID is required"; exit 1; }
+            cat > .env <<EOF
+          PORT=4000
+          CORS_ORIGIN=http://localhost:5174
+          FIREBASE_PROJECT_ID=wally-e2e
+          VITE_API_BASE_URL=http://localhost:4000
+          AUTH0_ENABLED=true
+          AUTH0_SIGNUP_ENABLED=false
+          VITE_AUTH_PROVIDER=auth0
+          VITE_AUTH0_CLIENT_ID=${VITE_AUTH0_CLIENT_ID}
+          MCP_ENABLED=false
+          ASSISTANT_ENABLED=false
+          EOF
+            exit 0
+          fi
+          [ "$E2E_AUTH_PROVIDER" = "firebase" ] || { echo "::error::Invalid E2E_AUTH_PROVIDER"; exit 1; }
           missing=0
           for v in FIREBASE_PROJECT_ID VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN \
                    VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
@@ -236,13 +259,34 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.ci.yml \
             run --rm api pnpm --filter @wally/api seed
 
+      - name: Bind Auth0 CI identity in the emulator
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        env:
+          E2E_AUTH0_SUBJECT: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_SUBJECT' || 'E2E_AUTH0_SUBJECT'] }}
+          E2E_AUTH0_EMAIL: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_EMAIL' || 'E2E_AUTH0_EMAIL'] }}
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            exec -T -e E2E_AUTH0_SUBJECT -e E2E_AUTH0_EMAIL api \
+            pnpm --filter @wally/api exec tsx src/seed-auth0-e2e.ts
+
       - name: Run Playwright
         env:
           # compose publishes web on 5174; playwright.config.ts defaults to 5173.
           PLAYWRIGHT_BASE_URL: http://localhost:5174
-          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
-          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        run: pnpm --filter @wally/web exec playwright test
+          FIREBASE_E2E_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          FIREBASE_E2E_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          AUTH0_E2E_EMAIL: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_EMAIL' || 'E2E_AUTH0_EMAIL'] }}
+          AUTH0_E2E_PASSWORD: ${{ secrets.E2E_AUTH0_USER_PASSWORD }}
+        run: |
+          if [ "$E2E_AUTH_PROVIDER" = "auth0" ]; then
+            export E2E_USER_EMAIL="$AUTH0_E2E_EMAIL" E2E_USER_PASSWORD="$AUTH0_E2E_PASSWORD"
+          else
+            export E2E_USER_EMAIL="$FIREBASE_E2E_EMAIL" E2E_USER_PASSWORD="$FIREBASE_E2E_PASSWORD"
+          fi
+          [ -n "$E2E_USER_EMAIL" ] && [ -n "$E2E_USER_PASSWORD" ] || {
+            echo "::error::The selected provider's E2E credentials are missing"; exit 1;
+          }
+          pnpm --filter @wally/web exec playwright test
 
       # Every spec opens with test.skip(!hasE2eCredentials, ...), so a missing secret
       # produces a PASSING run that tested nothing. test.skip() inside a test body still
