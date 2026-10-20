@@ -1,11 +1,41 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { AuthContext, type AuthContextValue } from './authContext';
 import { HostedLogin } from './HostedLogin';
 
+function LocationProbe() {
+  const location = useLocation();
+  return <output aria-label="Return path">{location.state?.from}</output>;
+}
+
 describe('hosted sign-in', () => {
+  it.each([false, true])(
+    'keeps login/signup navigation and the board return path (signup=%s)',
+    async (signup) => {
+      render(
+        <MemoryRouter
+          initialEntries={[
+            { pathname: signup ? '/signup' : '/login', state: { from: '/boards/known' } },
+          ]}
+        >
+          <AuthContext.Provider
+            value={{ hostedLogin: async () => {} } as unknown as AuthContextValue}
+          >
+            <HostedLogin signup={signup} />
+            <LocationProbe />
+          </AuthContext.Provider>
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('link', { name: signup ? 'Sign in' : 'Sign up' })).toHaveAttribute(
+        'href',
+        signup ? '/login' : '/signup',
+      );
+      await userEvent.click(screen.getByRole('link', { name: signup ? 'Sign in' : 'Sign up' }));
+      expect(screen.getByLabelText('Return path')).toHaveTextContent('/boards/known');
+    },
+  );
   it('offers hosted login and explains required password reset without collecting a password', async () => {
     let target: unknown;
     render(

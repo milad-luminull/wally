@@ -16,7 +16,8 @@ export async function completeSignIn(page: Page) {
     // Never submit CI credentials to an unexpected redirect destination.
     expect(new URL(page.url()).origin).toBe('https://login.luminull.com');
     await page.locator('input[name="username"]').fill(EMAIL);
-    await page.getByLabel(/^(Password|Passwort)\s*$/).fill(PASSWORD);
+    // Auth0's required marker is part of its label; target the inspected password field.
+    await page.locator('input[name="password"][type="password"]').fill(PASSWORD);
     await page.getByRole('button', { name: /^(Continue|Weiter)$/ }).click();
     await page.waitForURL(
       (url) =>

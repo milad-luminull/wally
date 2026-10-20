@@ -286,7 +286,7 @@ jobs:
           [ -n "$E2E_USER_EMAIL" ] && [ -n "$E2E_USER_PASSWORD" ] || {
             echo "::error::The selected provider's E2E credentials are missing"; exit 1;
           }
-          pnpm --filter @wally/web exec playwright test
+          pnpm --filter @wally/web exec playwright test --max-failures=3
 
       # Every spec opens with test.skip(!hasE2eCredentials, ...), so a missing secret
       # produces a PASSING run that tested nothing. test.skip() inside a test body still

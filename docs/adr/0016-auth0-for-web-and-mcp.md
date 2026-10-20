@@ -6,7 +6,7 @@
 
 ## Context and problem statement
 
-Wally currently uses Firebase Authentication and has no MCP implementation. The owner
+At the start of this decision, Wally used Firebase Authentication and had no MCP implementation. The owner
 has selected Auth0 and requires a Free-plan design with clear boundaries and existing
 accounts preserved. The [MCP RFC](../rfcs/WALLY_MCP.md) specifies delegated board access
 but leaves the authorization implementation open. Which system should issue web and MCP
@@ -25,7 +25,7 @@ tokens, and how should Wally retain ownership of identity and permissions?
 
 Choose **Auth0 for web login and MCP authorization**, delivered in stages. Google remains
 the sign-in option; this authentication rollout keeps Google hosting and uses the active
-application data store. The [Supabase migration](../rfcs/FIRESTORE_TO_SUPABASE.md) is separate.
+application data store. Any database migration is separate.
 This proposed decision
 replaces ADR-0004's Firebase-specific identity source when accepted and implemented,
 not its application-owned permissions or safe user provisioning. Local/CI authentication
@@ -56,10 +56,10 @@ claims and libraries at authentication boundaries, outside board business logic.
 - Good: one managed issuer, reusable login at `login.luminull.com`, and shared permission
   enforcement for browser, assistant and external clients.
 - Bad: another service dependency and data processor; free limits or feature changes may
-  require payment or migration. Existing email/password accounts need a migration decision.
+  require payment or migration. Existing email/password accounts require an Auth0 password reset; dummy CI accounts use administrator-set passwords.
 - Bad: Wally still owns safe identity mapping and durable connection revocation; managed
   OAuth does not make those automatic.
-- Neutral: domain verification is complete, but web migration and all MCP work remain pending.
+- Neutral: domain verification and local implementation are complete; hosted-login validation, external-host checks and production activation remain release gates.
 
 ### Confirmation
 

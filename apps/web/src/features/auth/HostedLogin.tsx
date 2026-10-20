@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { useAuth } from './AuthProvider';
@@ -48,6 +48,16 @@ export function HostedLogin({ signup = false }: { signup?: boolean }) {
               : 'auth.hosted.login',
         )}
       </Button>
+      <p className="mt-2 text-center text-13 text-fg-3">
+        {t(signup ? 'auth.signUp.haveAccount' : 'auth.signIn.noAccount')}{' '}
+        <Link
+          to={signup ? '/login' : '/signup'}
+          state={{ from: readReturnPath(location.state) }}
+          className="font-medium text-fg-1 underline-offset-4 hover:underline"
+        >
+          {t(signup ? 'auth.signUp.toSignIn' : 'auth.signIn.toSignUp')}
+        </Link>
+      </p>
       {authError && (
         <Button variant="outline" disabled={pending} onClick={() => void run(signOut)}>
           {t('auth.hosted.switchAccount')}
