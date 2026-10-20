@@ -74,7 +74,13 @@ The owner uses the `+1` dummy account for ordinary CI and `+2` for Dependabot.
 Both are mapped only into the ephemeral emulator when tests run; the bot does not
 need a production Wally identity mapping.
 
-Localhost currently returns to login after silent session restoration times out.
-Interactive login succeeds, but reload-dependent tests remain a cutover blocker.
+The Auth0 CI override serves the existing app/API hostnames over HTTPS, mapped to
+loopback only inside the disposable runner. An ephemeral CA is trusted in that runner
+and its browser certificate store; normal TLS validation remains enabled. The proxy
+forwards only to the local web/API containers, and DNS/socket checks must pass before
+Playwright starts. Public DNS, production services and Auth0 callbacks are unchanged.
+
+Plain localhost requires interactive Auth0 consent again after a page reload.
+The HTTPS setup validates same-site restoration while retaining memory-only tokens.
 Do not relax consent, persist tokens in local storage, skip these tests, or count
 the Firebase-mode CI run as Auth0 validation.
