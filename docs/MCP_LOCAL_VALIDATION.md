@@ -451,3 +451,23 @@ single fresh probe. The prior edited note remains at revision 2. No application
 code was changed, no automated suite was rerun, and nothing was merged or deployed.
 The remaining acceptance gap is readable successful write/replay/denial results in
 ChatGPT. Do not weaken schemas or permission checks without evidence of a server defect.
+
+## Manual testing continuity (2026-10-21)
+
+The owner requested that the manual test connection remain usable. Do not revoke its
+Wally grant, disconnect its ChatGPT account, stop its containers/tunnel, or reset the
+`wally-mcp-local` emulator project as routine cleanup. Revocation tests belong in the
+isolated automated test projects. If another manual revocation test is needed, arrange
+a separate disposable identity/client first rather than interrupting the owner's session.
+
+Earlier “final state: revoked” entries are historical. Read/write consent for only
+`mcp-local-owner` was restored through Wally AI connections; the two blocked boards
+remain blocked. Fresh OAuth is required after restoring consent because old tokens
+predate the new grant. Do not weaken the token issuance-time check to avoid reconnecting.
+The tunnel's previously recorded key expiry still applies; this is not a permanent
+production endpoint. Do not rotate or extend credentials without the required approval.
+
+The existing ChatGPT write-validation plugin was reconnected using the existing Chrome
+Auth0 session. A live `list_boards` call through that connector succeeded and returned
+only `mcp-local-owner` with role `OWNER`, with `isError: false`. No write was needed for
+this restoration check. The active grant and local services are intentionally retained.

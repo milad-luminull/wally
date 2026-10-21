@@ -1,3 +1,6 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { CallToolResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { generateKeyPair, SignJWT } from 'jose';
 import { _resetEnvCacheForTests } from '../src/env.js';
 import { createAuth0Verifier } from '../src/lib/auth/auth0.js';
@@ -101,6 +104,140 @@ afterEach(async () => {
   _resetEnvCacheForTests();
 });
 describe('stateless MCP HTTP boundary', () => {
+  it('round-trips every tool through the SDK HTTP client with matching JSON text and structured data', async () => {
+    const app = await makeApp();
+    const address = await app.listen({ host: '127.0.0.1', port: 0 });
+    const client = new Client({ name: 'wally-wire-audit', version: '1' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL('/mcp', address), {
+        requestInit: { headers: { authorization: headers.authorization } },
+      }),
+    );
+    try {
+      const listed = ListToolsResultSchema.parse(await client.listTools());
+      expect(listed.tools).toHaveLength(13);
+      const seen = new Set<string>();
+      const invoke = async (name: string, args: Record<string, unknown>) => {
+        const result = CallToolResultSchema.parse(await client.callTool({ name, arguments: args }));
+        expect(result.isError, JSON.stringify(result)).not.toBe(true);
+        expect(result.content).toHaveLength(1);
+        const block = result.content[0]!;
+        expect(block.type).toBe('text');
+        if (block.type !== 'text') throw new Error('Expected text result');
+        expect(JSON.parse(block.text)).toEqual(result.structuredContent);
+        seen.add(name);
+        return result.structuredContent as { data: Record<string, unknown>; revision: number };
+      };
+      await invoke('list_boards', {});
+      await invoke('get_board', { boardId: 'board' });
+      await invoke('list_members', { boardId: 'board' });
+      const created = await invoke('create_note', {
+        boardId: 'board',
+        operationId: randomUUID(),
+        input: { title: 'Quotes " / Unicode ☃', description: 'Line 1\nLine 2' },
+      });
+      const noteId = created.data.id;
+      await invoke('get_note', { boardId: 'board', noteId });
+      await invoke('list_notes', { boardId: 'board' });
+      let revision = created.revision;
+      const write = async (name: string, extra: Record<string, unknown> = {}) => {
+        const result = await invoke(name, {
+          boardId: 'board',
+          noteId,
+          expectedRevision: revision,
+          operationId: randomUUID(),
+          ...extra,
+        });
+        revision = result.revision;
+        return result;
+      };
+      await write('update_note', { input: { title: 'Updated' } });
+      await write('move_note', { input: { mode: 'HORIZON', horizon: 'SPAETER' } });
+      await write('complete_note');
+      await write('reopen_note');
+      await write('assign_note', { input: { assigneeId: null } });
+      const subtask = await write('add_subtask', { input: { text: 'Synthetic subtask' } });
+      await write('toggle_subtask', { subtaskId: subtask.data.id, input: { done: true } });
+      expect([...seen].sort()).toEqual(listed.tools.map((tool) => tool.name).sort());
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('preserves result envelopes and data on replay, conflicts and denied-board writes', async () => {
+    const app = await makeApp();
+    const check = async (name: string, args: unknown, error?: string) => {
+      const response = await call(app, name, args);
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('application/json');
+      const envelope = response.json();
+      expect(envelope).toMatchObject({ jsonrpc: '2.0', id: 1 });
+      expect(envelope.error).toBeUndefined();
+      const result = CallToolResultSchema.parse(envelope.result);
+      const block = result.content[0]!;
+      if (block.type !== 'text') throw new Error('Expected text result');
+      expect(JSON.parse(block.text)).toEqual(result.structuredContent);
+      if (error) {
+        expect(result.isError).toBe(true);
+        expect(result.structuredContent).toMatchObject({ error });
+        expect(result.structuredContent).not.toHaveProperty('data');
+      } else expect(result.isError).not.toBe(true);
+      return envelope.result;
+    };
+    const args = { boardId: 'board', operationId: randomUUID(), input: { title: 'Once' } };
+    const first = await check('create_note', args);
+    expect(await check('create_note', args)).toEqual(first);
+    await check(
+      'create_note',
+      { ...args, input: { title: 'Different' } },
+      'IDEMPOTENCY_KEY_REUSED',
+    );
+    const update = {
+      boardId: 'board',
+      noteId: first.structuredContent.data.id,
+      expectedRevision: 1,
+      operationId: randomUUID(),
+      input: { title: 'Edited' },
+    };
+    const edited = await check('update_note', update);
+    expect(await check('update_note', update)).toEqual(edited);
+    await check(
+      'update_note',
+      { ...update, operationId: randomUUID(), input: { title: 'Stale' } },
+      'STALE_REVISION',
+    );
+    await check(
+      'create_note',
+      { ...args, boardId: 'unselected', operationId: randomUUID() },
+      'NOT_FOUND',
+    );
+    expect((await notesCol(db).get()).size).toBe(1);
+    const note = (await notesCol(db).doc(first.structuredContent.data.id).get()).data();
+    expect(note).toMatchObject({ title: 'Edited', revision: 2 });
+    await revokeConnection(db, actor.id, grantId);
+    expect((await call(app, 'update_note', update)).statusCode).toBe(403);
+  });
+
+  it('acknowledges notifications without a body and rejects malformed JSON without effects', async () => {
+    const app = await makeApp();
+    const notification = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers,
+      payload: { jsonrpc: '2.0', method: 'notifications/initialized' },
+    });
+    expect(notification.statusCode).toBe(202);
+    expect(notification.body).toBe('');
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: { ...headers, 'content-type': 'application/json' },
+      payload: '{bad json',
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect((await notesCol(db).get()).size).toBe(0);
+  });
+
   it('advertises the isolated local transport and accepts only its explicit Inspector origin', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('MCP_LOCAL_URL', 'http://localhost:4502/mcp');
