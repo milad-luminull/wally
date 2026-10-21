@@ -1,12 +1,11 @@
 # Local Auth0 MCP validation
 
-Status on 2026-10-20: the isolated Docker environment starts from the PR worktree,
-public discovery and unauthenticated challenges work, and synthetic boards are seeded.
-Inspector 2.11.0 completed discovery and reached the real Auth0 / Google account chooser.
-**Real Auth0 code exchange, read-only MCP tools, board consent and revocation have now
-been verified. Explicit write consent, creation, retry and revoked replay also passed.
-ChatGPT compatibility remains unverified.** Do not treat this document as a completed
-real-client acceptance report. The prior Inspector smoke used synthetic authentication.
+Status on 2026-10-21: real Auth0 Inspector read/write, consent, replay and
+revocation checks passed. ChatGPT discovery, reads and read revocation passed.
+ChatGPT writes reached the server and produced the expected synthetic effects, but
+its final responses repeatedly failed to render, including a fresh conversation.
+**ChatGPT write UI acceptance remains incomplete.** See dated evidence below;
+automated tests and synthetic-authentication tests are separate evidence.
 
 ## Environment and isolation
 
@@ -405,3 +404,50 @@ the issue. No new automated suite was run for this evidence-only update.
 
 Final state: all Wally test grants revoked; read and write development plugins remain
 installed, unpublished; temporary one-day tunnel remains running. Production unchanged.
+
+## Recovery and focused rendering reproduction (2026-10-21, 10:13–10:23 UTC)
+
+The implementation worktree directory had lost its tracked files and Git registration;
+only residual dependency directories remained. The branch still resolved to
+`42448e35dc2a4adb7f340a9549cea41918eabaee`. Recovered that exact branch using a
+separate Git worktree, preserved the residual directory as
+`/Users/mr_user/.codex/worktrees/wally-auth0-mcp/wally-residual-backup-20261021`,
+and moved the recovered worktree to its original Docker source path. No cause for
+the removal was established. Restarted only the isolated API/web, then the temporary
+tunnel after repeated control-plane timeouts. Original containers and emulator data
+were preserved. API health returned 200; unauthenticated MCP still returned 401;
+the restored web completed real Auth0 login and displayed all three fixture boards.
+
+The original ChatGPT write conversation still failed to render even for a new
+summary-only request explicitly making no tool calls. A later denial response in
+the separate revoked-write conversation displayed FORBIDDEN normally. Neither
+observation proves the root cause. Browser diagnostics included a React error #418
+and Statsig networking/cache errors, without evidence tying either to the answer failure.
+
+Temporarily approved writes for only `mcp-local-owner`, reconnected the existing
+write plugin with unchanged scopes, and refreshed tools successfully. No Auth0
+configuration or production settings were changed.
+
+Fresh ChatGPT conversation:
+https://chatgpt.com/c/6ad891dd-c544-83ed-b561-c12e7ec2710e
+
+- Created title `ChatGPT clean render probe`, operation
+  `8f6ea1f9-d07d-4828-a06e-4c8b668df09c`. Independent emulator inspection found
+  note `7OLYvLV0lloywKfhCqsN`, revision 1, on the selected board.
+- Requested an identical replay and an unselected-board create using operation
+  `a0e7e267-a614-4758-98f0-d8c4af30c4a7` and title `Denied clean render probe`.
+  Both ChatGPT final answers displayed “This response couldn’t load”. Exact
+  tool-result text remains unavailable from that UI; activity labels are not evidence.
+- Separately used the same real OAuth-backed development connector from Codex:
+  get_note returned the new note; create_note replay with the same UUID and title
+  returned the same ID, revision 1 and original creation/update timestamp
+  `2026-10-21T10:20:20.154Z`; the unselected-board create returned NOT_FOUND
+  (outer INVALID_ARGUMENT). These are real connector results, not ChatGPT UI passes.
+- Revoked the temporary Wally grant through AI connections. Replaying the same
+  create through the connector then failed FORBIDDEN / HTTP 403.
+
+Final state: all test grants revoked. Four synthetic notes remain, including the
+single fresh probe. The prior edited note remains at revision 2. No application
+code was changed, no automated suite was rerun, and nothing was merged or deployed.
+The remaining acceptance gap is readable successful write/replay/denial results in
+ChatGPT. Do not weaken schemas or permission checks without evidence of a server defect.
