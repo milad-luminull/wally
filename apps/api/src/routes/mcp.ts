@@ -12,6 +12,7 @@ import {
   requireConnection,
 } from '../lib/mcp/grants.js';
 import { availableMcpTools, runMcpTool, type McpToolContext } from '../lib/mcp/tools.js';
+import { registerCardViews } from '../lib/mcp/views.js';
 import { consumeMcpWriteBudget, type McpWriteLimits } from '../lib/mcp/rate.js';
 
 export const MCP_RESOURCE = 'https://api.wally.luminull.com/mcp';
@@ -174,6 +175,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
           },
         );
       }
+      registerCardViews(server, context, env.CORS_ORIGIN);
       const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
       try {
         await server.connect(transport);

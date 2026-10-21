@@ -104,6 +104,51 @@ afterEach(async () => {
   _resetEnvCacheForTests();
 });
 describe('stateless MCP HTTP boundary', () => {
+  it('serves authorized card views and a self-contained UI resource without changing notes', async () => {
+    const app = await makeApp();
+    const created = (
+      await call(app, 'create_note', {
+        boardId: 'board',
+        operationId: randomUUID(),
+        input: { title: '<script>unsafe</script>', description: 'A card' },
+      })
+    ).json().result.structuredContent;
+    const card = (
+      await call(app, 'show_card', { boardId: 'board', noteId: created.data.id })
+    ).json().result;
+    expect(card.isError, JSON.stringify(card)).not.toBe(true);
+    expect(card.structuredContent).toMatchObject({
+      view: 'card',
+      board: { id: 'board', name: 'Board' },
+      total: 1,
+      cards: [{ id: created.data.id, title: '<script>unsafe</script>', revision: 1 }],
+    });
+    const url = new URL(card.structuredContent.cards[0].url);
+    expect(url.pathname).toBe('/boards/board');
+    expect(url.searchParams.get('note')).toBe(created.data.id);
+    const list = (await call(app, 'show_cards', { boardId: 'board' })).json().result;
+    expect(list.structuredContent).toMatchObject({ view: 'list', total: 1, nextCursor: null });
+    expect(list.structuredContent.cards).toHaveLength(1);
+    const denied = (await call(app, 'show_cards', { boardId: 'unselected' })).json().result;
+    expect(denied).toMatchObject({ isError: true });
+    expect(denied.structuredContent).toBeUndefined();
+    const listed = (await rpc(app, 'tools/list')).json().result.tools;
+    const display = listed.find((tool: { name: string }) => tool.name === 'show_card');
+    expect(display.outputSchema).toMatchObject({ type: 'object' });
+    const uri = display._meta.ui.resourceUri;
+    const resources = (await rpc(app, 'resources/list')).json().result.resources;
+    expect(resources).toContainEqual(
+      expect.objectContaining({ uri, mimeType: 'text/html;profile=mcp-app' }),
+    );
+    const resource = (await rpc(app, 'resources/read', { uri })).json().result.contents[0];
+    expect(resource.text).toContain('ui/initialize');
+    expect(resource.text).not.toContain(created.data.id);
+    expect(resource._meta.ui.csp).toMatchObject({ connectDomains: [], resourceDomains: [] });
+    expect((await notesCol(db).get()).size).toBe(1);
+    await revokeConnection(db, actor.id, grantId);
+    expect((await rpc(app, 'resources/read', { uri })).statusCode).toBe(403);
+  });
+
   it('round-trips every tool through the SDK HTTP client with matching JSON text and structured data', async () => {
     const app = await makeApp();
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
@@ -115,7 +160,7 @@ describe('stateless MCP HTTP boundary', () => {
     );
     try {
       const listed = ListToolsResultSchema.parse(await client.listTools());
-      expect(listed.tools).toHaveLength(13);
+      expect(listed.tools).toHaveLength(15);
       const seen = new Set<string>();
       const invoke = async (name: string, args: Record<string, unknown>) => {
         const result = CallToolResultSchema.parse(await client.callTool({ name, arguments: args }));
@@ -139,6 +184,8 @@ describe('stateless MCP HTTP boundary', () => {
       const noteId = created.data.id;
       await invoke('get_note', { boardId: 'board', noteId });
       await invoke('list_notes', { boardId: 'board' });
+      await invoke('show_card', { boardId: 'board', noteId });
+      await invoke('show_cards', { boardId: 'board' });
       let revision = created.revision;
       const write = async (name: string, extra: Record<string, unknown> = {}) => {
         const result = await invoke(name, {
@@ -317,7 +364,7 @@ describe('stateless MCP HTTP boundary', () => {
     const valid = await signed(MCP_RESOURCE);
     expect(
       (await rpc(app, 'tools/list', {}, { authorization: `Bearer ${valid}` })).json().result.tools,
-    ).toHaveLength(5);
+    ).toHaveLength(7);
   });
   it('initializes without server sessions, lists bounded tools and supports lost-response retry across instances', async () => {
     const app = await makeApp();
@@ -330,7 +377,7 @@ describe('stateless MCP HTTP boundary', () => {
     expect(init.headers['mcp-session-id']).toBeUndefined();
     expect(init.json().result.serverInfo.name).toBe('wally');
     const listing = await rpc(app, 'tools/list');
-    expect(listing.json().result.tools).toHaveLength(13);
+    expect(listing.json().result.tools).toHaveLength(15);
     for (const tool of listing.json().result.tools) {
       const scopes = tool.annotations.readOnlyHint ? ['wally:read'] : ['wally:read', 'wally:write'];
       expect(tool.securitySchemes).toEqual([{ type: 'oauth2', scopes }]);
@@ -397,10 +444,10 @@ describe('stateless MCP HTTP boundary', () => {
       503,
     );
     const writesOff = await makeApp({ writesEnabled: false });
-    expect((await rpc(writesOff, 'tools/list')).json().result.tools).toHaveLength(5);
+    expect((await rpc(writesOff, 'tools/list')).json().result.tools).toHaveLength(7);
     for (const app of [writesOff, await makeApp()]) {
       identity.scopes = ['wally:read'];
-      expect((await rpc(app, 'tools/list')).json().result.tools).toHaveLength(5);
+      expect((await rpc(app, 'tools/list')).json().result.tools).toHaveLength(7);
       const denied = await call(app, 'create_note', {
         boardId: 'board',
         operationId: randomUUID(),
