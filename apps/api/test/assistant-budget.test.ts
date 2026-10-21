@@ -5,9 +5,11 @@ import {
   MAX_IN_FLIGHT,
   monthKey,
   nextDayStart,
+  releaseAttempt,
   reservationFailure,
   reserveAttempt,
   settleAttempt,
+  trackAttempts,
 } from '../src/lib/assistant/budget/ledger.js';
 import { AppError } from '../src/lib/errors.js';
 import {
@@ -233,6 +235,117 @@ describe('assistant budget ledger', () => {
     expect((await assistantAttemptsCol(ctx.db, 'u1').doc(r.attemptId).get()).data()).toMatchObject({
       state: 'RESERVED',
     });
+  });
+
+  it('frees the slot of an attempt released without usage at once, and keeps its worst-case charge', async () => {
+    const a = await reserve();
+    await reserve();
+    await expect(reserve()).rejects.toMatchObject({ code: 'ASSISTANT_BUSY' });
+
+    await releaseAttempt(ctx.db, 'u1', a.attemptId, now);
+    const usage = (await assistantUsageCol(ctx.db, 'u1').doc(a.day).get()).data();
+    expect(Object.keys(usage!.inFlight)).not.toContain(a.attemptId);
+    expect(usage!.tokens).toBe(2 * 3000);
+    expect((await assistantSpendCol(ctx.db).doc(a.month).get()).data()).toMatchObject({
+      microUsd: 2 * 10500,
+    });
+    expect((await assistantAttemptsCol(ctx.db, 'u1').doc(a.attemptId).get()).data()).toMatchObject({
+      state: 'ABANDONED',
+    });
+    // Well within the lease: the freed slot is usable right away.
+    await expect(reserve()).resolves.toMatchObject({ reservedTokens: 3000 });
+  });
+
+  it('leaves a settled attempt alone on release, and lets late usage replace a released charge', async () => {
+    const settled = await reserve();
+    await settleAttempt(
+      ctx.db,
+      'u1',
+      settled.attemptId,
+      { inputTokens: 10, outputTokens: 10 },
+      now,
+    );
+    await releaseAttempt(ctx.db, 'u1', settled.attemptId, now);
+    expect(
+      (await assistantAttemptsCol(ctx.db, 'u1').doc(settled.attemptId).get()).data(),
+    ).toMatchObject({ state: 'SETTLED', settledTokens: 20 });
+
+    const released = await reserve();
+    await releaseAttempt(ctx.db, 'u1', released.attemptId, now);
+    await releaseAttempt(ctx.db, 'u1', released.attemptId, now);
+    await settleAttempt(
+      ctx.db,
+      'u1',
+      released.attemptId,
+      { inputTokens: 100, outputTokens: 50 },
+      now,
+    );
+    expect((await assistantUsageCol(ctx.db, 'u1').doc(released.day).get()).data()).toMatchObject({
+      tokens: 20 + 150,
+      inFlight: {},
+    });
+    expect(
+      (await assistantAttemptsCol(ctx.db, 'u1').doc(released.attemptId).get()).data(),
+    ).toMatchObject({ state: 'SETTLED', settledTokens: 150 });
+  });
+
+  it('frees every slot an operation still holds when it ends, and none it settled or another holds', async () => {
+    const other = await reserve();
+    const attempts = trackAttempts(ctx.db, 'u1', { clock: () => now });
+    const kept = await attempts.reserve({ estimate, price, caps });
+    await attempts.settle(kept.attemptId, { inputTokens: 10, outputTokens: 10 });
+    const failed = await attempts.reserve({ estimate, price, caps });
+
+    await attempts.releaseRest();
+    const usage = (await assistantUsageCol(ctx.db, 'u1').doc(failed.day).get()).data();
+    expect(Object.keys(usage!.inFlight)).toEqual([other.attemptId]);
+    expect(usage!.tokens).toBe(3000 + 20 + 3000);
+    const states = Object.fromEntries(
+      (await assistantAttemptsCol(ctx.db, 'u1').get()).docs.map((d) => [d.id, d.data().state]),
+    );
+    expect(states).toEqual({
+      [other.attemptId]: 'RESERVED',
+      [kept.attemptId]: 'SETTLED',
+      [failed.attemptId]: 'ABANDONED',
+    });
+  });
+
+  it('frees the slot of an operation whose settlement was refused', async () => {
+    const attempts = trackAttempts(ctx.db, 'u1', { clock: () => now });
+    const r = await attempts.reserve({ estimate, price, caps });
+    await expect(
+      attempts.settle(r.attemptId, { inputTokens: Number.NaN, outputTokens: 1 }),
+    ).rejects.toThrow('Unknown usage');
+    await attempts.releaseRest();
+    expect((await assistantUsageCol(ctx.db, 'u1').doc(r.day).get()).data()).toMatchObject({
+      tokens: 3000,
+      inFlight: {},
+    });
+  });
+
+  it('reports a release that failed instead of throwing it, and the slot stays until its lease expires', async () => {
+    // The datastore refuses transactions once the reservation is in.
+    let failing = false;
+    const db = new Proxy(ctx.db, {
+      get: (target, key) => {
+        if (key === 'runTransaction' && failing)
+          return () => Promise.reject(new Error('unavailable'));
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const errors: unknown[] = [];
+    const attempts = trackAttempts(db, 'u1', {
+      clock: () => now,
+      onReleaseError: (error) => errors.push(error),
+    });
+    const r = await attempts.reserve({ estimate, price, caps });
+    failing = true;
+    await expect(attempts.releaseRest()).resolves.toBeUndefined();
+    expect(errors).toEqual([expect.objectContaining({ message: 'unavailable' })]);
+    expect(
+      Object.keys((await assistantUsageCol(ctx.db, 'u1').doc(r.day).get()).data()!.inFlight),
+    ).toEqual([r.attemptId]);
   });
 });
 

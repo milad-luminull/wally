@@ -66,8 +66,9 @@ permissions and command layer. See [WALLYBOT_INLINE.md](WALLYBOT_INLINE.md) for 
 - **Budgeting:** reserve an upper bound before each model attempt in a shared ledger;
   enforce a per-user daily token cap and a deployment-key monthly money cap using approved
   prices. Settle actual usage once and retain reservations when usage is unknown. Allow at
-  most two concurrent calls per user; disable hidden retries. Caps refuse the call and
-  report the reset time.
+  most two concurrent calls per user; a call that ends (answered, failed or timed out) frees
+  its slot at once, and an unknown usage keeps only the charge. Disable hidden retries. Caps
+  refuse the call and report the reset time.
 - **Failures:** distinguish rejection, an uncertain outcome and a committed write whose
   reply failed. Preserve the user's note when enrichment fails, and show failure/refusal
   on the relevant card or control with retry/reset information when applicable.

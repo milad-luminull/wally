@@ -13,7 +13,7 @@ import { listNotes } from '../commands/queries.js';
 import type { AssistantConversationDoc, WhiteboardDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { CHARS_PER_TOKEN, estimateTokens } from './budget/estimate.js';
-import { reserveAttempt, settleAttempt } from './budget/ledger.js';
+import { trackAttempts } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
 import { resolveChips } from './chips.js';
 import {
@@ -185,6 +185,18 @@ export async function runAssistantTurn(
   };
 
   const startedAt = Date.now();
+  // Every slot this turn reserves is free again when the runner is done, however it ended.
+  const attempts = trackAttempts(db, actor.id, {
+    clock,
+    // The slot then stays until its lease expires; said by shape only, like a provider error.
+    onReleaseError: (error) =>
+      deps.logger?.warn({
+        type: 'assistant.release_failed',
+        boardId: board.id,
+        name: (error as { name?: unknown } | null)?.name,
+        code: (error as { code?: unknown } | null)?.code,
+      }),
+  });
   const userEntry: AssistantEntry = {
     role: 'user',
     text: request.message,
@@ -213,27 +225,19 @@ export async function runAssistantTurn(
           info.messageCount * 16;
         // A step announced after the turn stopped never reaches the model: reserve nothing.
         if (controller.signal.aborted) throw controller.signal.reason;
-        const reservation = await reserveAttempt(db, {
-          userId: actor.id,
-          now: clock(),
-          estimate: { inputTokens, outputTokens: MAX_OUTPUT_TOKENS },
-          price,
-          caps,
-        }).catch((error: unknown) => {
-          throw own(error);
-        });
-        if (controller.signal.aborted) {
-          // The turn stopped while the reservation was being written. No model call follows,
-          // so settle it at zero now rather than hold its slot until the lease expires.
-          await settleAttempt(
-            db,
-            actor.id,
-            reservation.attemptId,
-            { inputTokens: 0, outputTokens: 0 },
-            clock(),
-          ).catch((error: unknown) => {
+        const { attemptId } = await attempts
+          .reserve({ estimate: { inputTokens, outputTokens: MAX_OUTPUT_TOKENS }, price, caps })
+          .catch((error: unknown) => {
             throw own(error);
           });
+        if (controller.signal.aborted) {
+          // The turn stopped while the reservation was being written. No model call follows,
+          // so settle it at zero now rather than charge its worst case.
+          await attempts
+            .settle(attemptId, { inputTokens: 0, outputTokens: 0 })
+            .catch((error: unknown) => {
+              throw own(error);
+            });
           throw controller.signal.reason;
         }
         await ensureConversation().catch((error: unknown) => {
@@ -242,15 +246,15 @@ export async function runAssistantTurn(
         return {
           // The providers' output count already includes reasoning (thinking) tokens.
           settle: (usage: TurnUsage) =>
-            settleAttempt(
-              db,
-              actor.id,
-              reservation.attemptId,
-              { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
-              clock(),
-            ).catch((error: unknown) => {
-              throw own(error);
-            }),
+            attempts
+              .settle(attemptId, {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+              })
+              .catch((error: unknown) => {
+                throw own(error);
+              }),
+          release: () => attempts.release(attemptId),
         };
       },
     });
@@ -272,6 +276,7 @@ export async function runAssistantTurn(
     }
   } finally {
     clearTimeout(deadline);
+    await attempts.releaseRest();
   }
   // A stopped turn can still come back with output: when the stop falls in the last allowed
   // step, the loop ends without another model call to throw on the aborted signal. The turn

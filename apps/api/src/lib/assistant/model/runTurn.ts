@@ -98,6 +98,8 @@ export function createTurnRunner(
     const settled: TurnUsage[] = [];
     let unsettledSteps = 0;
     const executed: ToolCallRecord[] = [];
+    // A step that throws (the provider failed, the call was aborted) never reaches onStepEnd,
+    // so its lease is released here; without that its slot would stay held.
     const result = await generateText({
       model,
       instructions: input.instructions,
@@ -130,11 +132,15 @@ export function createTurnRunner(
       onStepEnd: async (step) => {
         const usage = toUsage(step.usage);
         // Usage the provider did not report keeps the reservation (WALLY_AGENT.md §3.2):
-        // the step may have been billed, so its worst case stays charged.
+        // the step may have been billed, so its worst case stays charged; its slot is freed
+        // before the next step reserves one.
         if (usage) {
           settled.push(usage);
           await lease?.settle(usage);
-        } else unsettledSteps++;
+        } else {
+          unsettledSteps++;
+          await lease?.release();
+        }
         lease = undefined;
       },
       onToolExecutionEnd: ({ toolCall, toolOutput }) => {
@@ -145,6 +151,9 @@ export function createTurnRunner(
           ...(toolOutput.type === 'tool-result' ? { output: toolOutput.output } : {}),
         });
       },
+    }).catch(async (error: unknown) => {
+      await lease?.release();
+      throw error;
     });
 
     const pendingApprovals: PendingApproval[] = result.content

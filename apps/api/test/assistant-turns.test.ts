@@ -515,6 +515,21 @@ describe('assistant turns', () => {
     expect(res.json().conversation.entries[1]).toMatchObject({ text: '', stopped: 'TIMEOUT' });
   });
 
+  it('frees the slot of a turn that failed or ran past the deadline, and keeps its charge', async () => {
+    const fx = await createBoardFixture(ctx);
+    expect((await turn(fx.ownerToken, fx.boardId, 'provider-error')).statusCode).toBe(502);
+    expect((await turn(fx.ownerToken, fx.boardId, 'hang')).statusCode).toBe(200);
+    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    expect(usageDoc?.inFlight).toEqual({});
+    const attempts = (await assistantAttemptsCol(ctx.db, fx.ownerId).get()).docs.map((d) =>
+      d.data(),
+    );
+    expect(attempts.map((a) => a.state)).toEqual(['ABANDONED', 'ABANDONED']);
+    expect(usageDoc?.tokens).toBe(attempts.reduce((sum, a) => sum + a.reservedTokens, 0));
+    // Both slots are free again: the next question is answered, not refused as busy.
+    expect((await turn(fx.ownerToken, fx.boardId, 'hello')).statusCode).toBe(200);
+  });
+
   it('refuses a cap with a code and the reset time, and makes no call', async () => {
     const fx = await createBoardFixture(ctx);
     const day = usageDay();

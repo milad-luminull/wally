@@ -39,9 +39,14 @@ export interface AttemptInfo {
   maxOutputTokens: number;
 }
 
-/** Returned by `onAttempt`; settled once with the step's actual usage. */
+/**
+ * Returned by `onAttempt`. Ends once: settled with the step's actual usage, or released when
+ * the usage will not be known (the call failed, was aborted or reported none), which frees the
+ * slot and keeps the reservation charged.
+ */
 export interface AttemptLease {
   settle: (usage: TurnUsage) => Promise<void> | void;
+  release: () => Promise<void> | void;
 }
 
 export interface TurnInput {

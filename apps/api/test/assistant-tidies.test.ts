@@ -221,8 +221,13 @@ describe('tidies', () => {
     const res = await tidy(fx.ownerToken, fx.boardId);
     expect(res.statusCode).toBe(502);
     expect(res.body).not.toContain('secret-project');
-
+    // This fake fails without usage, as a dropped connection does: the call and its retry stay
+    // charged, but hold no slot once the tidy answered.
     const day = dayKey(new Date());
+    const failedDay = (await assistantUsageCol(ctx.db, fx.ownerId).doc(day).get()).data();
+    expect(failedDay?.inFlight).toEqual({});
+    expect(failedDay?.tokens).toBeGreaterThan(0);
+
     await assistantUsageCol(ctx.db, fx.ownerId)
       .doc(day)
       .set({ tokens: 300_000, inFlight: {}, updatedAt: Timestamp.now() });

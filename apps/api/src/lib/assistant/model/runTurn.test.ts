@@ -44,11 +44,24 @@ function tools(overrides: Partial<Record<'list_notes' | 'create_note', Partial<T
 function attempts() {
   const seen: AttemptInfo[] = [];
   const settled: TurnUsage[] = [];
+  const released: number[] = [];
+  /** Every attempt's reserve, settle and release, in order, by step number. */
+  const log: string[] = [];
   const onAttempt = vi.fn(async (info: AttemptInfo) => {
     seen.push(info);
-    return { settle: (u: TurnUsage) => void settled.push(u) };
+    log.push(`reserve ${info.stepNumber}`);
+    return {
+      settle: (u: TurnUsage) => {
+        settled.push(u);
+        log.push(`settle ${info.stepNumber}`);
+      },
+      release: () => {
+        released.push(info.stepNumber);
+        log.push(`release ${info.stepNumber}`);
+      },
+    };
   });
-  return { onAttempt, seen, settled };
+  return { onAttempt, seen, settled, released, log };
 }
 
 function input(partial: Partial<TurnInput>, t = tools()): TurnInput {
@@ -83,6 +96,7 @@ describe('createTurnRunner', () => {
       { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
       { inputTokens: 10, cachedInputTokens: 2, outputTokens: 5, reasoningTokens: 1 },
     ]);
+    expect(a.released).toEqual([]);
     expect(out.unsettledSteps).toBe(0);
     expect(out.usage).toEqual({
       inputTokens: 20,
@@ -101,9 +115,10 @@ describe('createTurnRunner', () => {
     });
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(a.seen).toEqual([{ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 }]);
-    // The library throws before the step ends: the reservation stays held, as for any
-    // provider error.
+    // The library throws before the step ends: the usage is unknown, so the attempt is
+    // released, keeping its charge, as for any provider error.
     expect(a.settled).toEqual([]);
+    expect(a.released).toEqual([0]);
   });
 
   it('executes a read tool and continues to the answer, one attempt per step', async () => {
@@ -396,7 +411,7 @@ describe('createTurnRunner', () => {
     let calls = 0;
     const onAttempt = vi.fn(async () => {
       if (calls++ === 1) throw new Error('OVER_BUDGET');
-      return { settle: () => {} };
+      return { settle: () => {}, release: () => {} };
     });
     await expect(createTurnRunner(model)(input({ onAttempt }, t))).rejects.toThrow('OVER_BUDGET');
     expect(model.doGenerateCalls).toHaveLength(1);
@@ -523,7 +538,7 @@ describe('createTurnRunner', () => {
     for (const call of model.doGenerateCalls) expect(call.abortSignal).toBe(controller.signal);
   });
 
-  it('leaves the reservation unsettled when the provider reports no usage', async () => {
+  it('leaves the reservation unsettled when the provider reports no usage, freeing each slot before the next step', async () => {
     const unreported = {
       inputTokens: {
         total: undefined,
@@ -544,6 +559,7 @@ describe('createTurnRunner', () => {
     expect(out.text).toBe('Not counted.');
     expect(a.seen).toHaveLength(2);
     expect(a.settled).toEqual([]);
+    expect(a.log).toEqual(['reserve 0', 'release 0', 'reserve 1', 'release 1']);
     expect(out.unsettledSteps).toBe(2);
     expect(out.usage).toEqual({
       inputTokens: 0,

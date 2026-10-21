@@ -300,7 +300,9 @@ export function createSuggestionRunner(
         abortSignal: input.abortSignal,
       });
       const usage = toUsage(result.usage);
+      // No usage reported: the reservation stays charged, the slot is freed (R7).
       if (usage) await lease.settle(usage);
+      else await lease.release();
       return {
         fields: result.output,
         usage,
@@ -310,13 +312,18 @@ export function createSuggestionRunner(
       if (NoObjectGeneratedError.isInstance(error)) {
         const usage = error.usage ? toUsage(error.usage) : null;
         if (usage) await lease.settle(usage);
+        else await lease.release();
         return { fields: null, usage, finishReason: error.finishReason ?? 'other' };
       }
       // The provider answered with an error status (busy, a fault): nothing was processed or
-      // billed, so the attempt settles at zero and its in-flight slot is free at once. A
-      // dropped connection leaves the usage unknown, and the reservation stays (R7).
+      // billed, so the attempt settles at zero. A dropped connection or an aborted call leaves
+      // the usage unknown: the reservation stays charged (R7). Either way the in-flight slot
+      // is free at once, so a retry or the person's next call is not refused as busy.
+      // A settlement that fails is not the provider's error: the provider's is what the
+      // caller reads (and retries), and the slot is released instead.
       if (typeof (error as { statusCode?: unknown } | null)?.statusCode === 'number')
-        await lease.settle(NOTHING_BILLED);
+        await Promise.resolve(lease.settle(NOTHING_BILLED)).catch(() => lease.release());
+      else await lease.release();
       throw error;
     }
   };

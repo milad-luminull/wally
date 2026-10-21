@@ -205,7 +205,10 @@ export type AssistantSpendDoc = {
   updatedAt: Timestamp;
 };
 
-/** users/{uid}/assistantAttempts/{attemptId}: one reserved, then settled, model call. */
+/**
+ * users/{uid}/assistantAttempts/{attemptId}: one reserved model call, then settled with its
+ * usage, or abandoned without it (its worst case stays charged, its slot is freed).
+ */
 export type AssistantAttemptDoc = {
   day: string;
   month: string;
@@ -214,11 +217,12 @@ export type AssistantAttemptDoc = {
   /** The price at reservation, used again at settlement; both 0 on the user's own key. */
   inputMicroUsdPerToken: number;
   outputMicroUsdPerToken: number;
-  state: 'RESERVED' | 'SETTLED';
+  state: 'RESERVED' | 'SETTLED' | 'ABANDONED';
   settledTokens?: number;
   settledMicroUsd?: number;
   createdAt: Timestamp;
   settledAt?: Timestamp;
+  abandonedAt?: Timestamp;
   /** createdAt + ATTEMPT_RETENTION_DAYS; the TTL field. */
   expiresAt: Timestamp;
 };
