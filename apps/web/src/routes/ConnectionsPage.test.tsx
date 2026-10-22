@@ -3,147 +3,110 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { api } from '@/lib/apiClient';
-import { boardsApi } from '@/lib/resources';
 import { ConnectionsSettings } from './ConnectionsPage';
 import type { McpConnections } from '@wally/shared';
-vi.mock('@/lib/apiClient', () => ({
-  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
-}));
-vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn() } }));
-const active: McpConnections['connections'][number] = {
+vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn(async () => []) } }));
+vi.mock('@/lib/apiClient', () => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
+const connection: McpConnections['connections'][number] = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'ChatGPT',
   clientId: 'client',
-  boardIds: ['one'],
-  scopes: ['wally:read'],
+  boardIds: [],
+  access: 'all',
+  scopes: ['wally:read', 'wally:write'],
   createdAt: '2026-10-19T00:00:00.000Z',
   revokedAt: null,
 };
-let config: {
-  enabled: boolean;
-  writesEnabled: boolean;
-  client: { id: string; name: string };
-  connections: (typeof active)[];
-};
+let config: McpConnections;
 beforeEach(() => {
   vi.resetAllMocks();
   config = {
     enabled: true,
-    writesEnabled: false,
+    writesEnabled: true,
     client: { id: 'client', name: 'ChatGPT' },
     connections: [],
   };
-  vi.mocked(boardsApi.list).mockResolvedValue([
-    { id: 'one', name: 'My board', currentUserRole: 'OWNER' },
-    { id: 'shared', name: 'Shared board', currentUserRole: 'VIEW' },
-  ]);
-  vi.mocked(api.get).mockImplementation(async (path) =>
-    path === '/me/connections' ? config : { enabled: true },
-  );
+  vi.mocked(api.get).mockImplementation(async () => config);
   vi.mocked(api.post).mockImplementation(async () => {
-    config = { ...config, connections: [active] };
-    return active;
+    config = { ...config, connections: [connection] };
+    return connection;
   });
-  vi.mocked(api.patch).mockResolvedValue({ enabled: false });
   vi.mocked(api.delete).mockImplementation(async () => {
-    config = {
-      ...config,
-      connections: [{ ...active, revokedAt: '2026-10-19T01:00:00.000Z' } as typeof active],
-    };
+    config = { ...config, connections: [{ ...connection, revokedAt: '2026-10-22T10:00:00.000Z' }] };
   });
 });
-it('requires selected boards and defaults consent to read-only', async () => {
+it('explains OAuth connection without board selection or owner switches', async () => {
+  renderWithProviders(<ConnectionsSettings />);
+  expect(
+    await screen.findByRole('heading', { name: 'Connected apps', level: 1 }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  expect(api.get).toHaveBeenCalledTimes(1);
+  expect(await screen.findByText(/sign in with your Wally account/i)).toBeInTheDocument();
+});
+it('shows ordinary permissions and only Disconnect for an active account-wide connection', async () => {
+  config.connections = [connection];
   const user = userEvent.setup();
   renderWithProviders(<ConnectionsSettings />);
-  const approve = await screen.findByRole('button', { name: 'Approve selected boards' });
-  expect(approve).toBeDisabled();
-  expect(screen.queryByRole('checkbox', { name: 'Allow changes' })).not.toBeInTheDocument();
-  await user.click(screen.getByRole('checkbox', { name: 'Select My board' }));
-  await user.click(approve);
+  await user.click(await screen.findByRole('button', { name: 'Disconnect ChatGPT' }));
+  await waitFor(() => expect(api.delete).toHaveBeenCalledWith(`/me/connections/${connection.id}`));
+  expect(await screen.findByRole('button', { name: 'Reconnect ChatGPT' })).toBeInTheDocument();
+});
+it('requires an explicit upgrade for a legacy connection', async () => {
+  config.connections = [
+    { ...connection, access: undefined, boardIds: ['one'], scopes: ['wally:read'] },
+  ];
+  const user = userEvent.setup();
+  renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findByText(/previously selected boards/i)).toBeInTheDocument();
+  expect(api.post).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Use my Wally permissions' }));
   await waitFor(() =>
     expect(api.post).toHaveBeenCalledWith(
-      '/me/connections',
-      { clientId: 'client', boardIds: ['one'], write: false },
+      '/me/connections/connect',
+      { clientId: 'client' },
       expect.anything(),
     ),
   );
-  expect(await screen.findByRole('button', { name: 'Revoke ChatGPT' })).toBeInTheDocument();
-});
-it('only owners can change board policy', async () => {
-  const user = userEvent.setup();
-  renderWithProviders(<ConnectionsSettings />);
-  await user.click(await screen.findByRole('switch', { name: 'External AI access for My board' }));
-  expect(
-    screen.queryByRole('switch', { name: 'External AI access for Shared board' }),
-  ).not.toBeInTheDocument();
   await waitFor(() =>
-    expect(api.patch).toHaveBeenCalledWith(
-      '/whiteboards/one/mcp-access',
-      { enabled: false },
-      expect.anything(),
-    ),
+    expect(
+      screen.queryByRole('button', { name: 'Use my Wally permissions' }),
+    ).not.toBeInTheDocument(),
   );
 });
-it('shows disabled configuration without offering approval', async () => {
-  config.enabled = false;
+it('does not show old revoked entries alongside an active replacement', async () => {
+  config.connections = [
+    {
+      ...connection,
+      id: '00000000-0000-4000-8000-000000000002',
+      revokedAt: '2026-10-20T00:00:00.000Z',
+    },
+    connection,
+  ];
   renderWithProviders(<ConnectionsSettings />);
-  expect(
-    await screen.findByText('External AI connections are not enabled for this deployment.'),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Approve selected boards' })).not.toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Disconnect ChatGPT' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Reconnect ChatGPT' })).not.toBeInTheDocument();
 });
-it('revokes existing access even when new connections are disabled', async () => {
+it('keeps Disconnect available when rollout is disabled', async () => {
   config.enabled = false;
-  config.connections = [active];
-  const user = userEvent.setup();
+  config.connections = [connection];
   renderWithProviders(<ConnectionsSettings />);
-  await user.click(await screen.findByRole('button', { name: 'Revoke ChatGPT' }));
-  await waitFor(() => expect(api.delete).toHaveBeenCalledWith(`/me/connections/${active.id}`));
-  expect(await screen.findByText(/Revoked/)).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Disconnect ChatGPT' })).toBeEnabled();
 });
-it('shows a recoverable error when settings cannot load', async () => {
-  vi.mocked(api.get).mockRejectedValue(new Error('offline'));
+it('shows a recoverable load error', async () => {
+  vi.mocked(api.get).mockRejectedValue(new Error('network'));
   renderWithProviders(<ConnectionsSettings />);
-  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load connections.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load connections');
   expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
 });
-it('offers write consent only when deployment allows it and blocks view-only boards', async () => {
-  config.writesEnabled = true;
-  const user = userEvent.setup();
-  renderWithProviders(<ConnectionsSettings />);
-  const write = await screen.findByRole('checkbox', { name: 'Allow changes' });
-  expect(write).not.toBeChecked();
-  await user.click(write);
-  expect(screen.getByRole('checkbox', { name: 'Select Shared board' })).toBeDisabled();
-});
 
-it('keeps revoke available when a board policy cannot load and blocks that board selection', async () => {
-  config.connections = [active];
-  vi.mocked(api.get).mockImplementation(async (path) => {
-    if (path === '/me/connections') return config;
-    if (path.includes('/one/')) throw new Error('board unavailable');
-    return { enabled: true };
-  });
+it('reports a failed disconnect without hiding the active connection', async () => {
+  config.connections = [connection];
+  vi.mocked(api.delete).mockRejectedValue(new Error('network'));
   const user = userEvent.setup();
   renderWithProviders(<ConnectionsSettings />);
-  const revoke = await screen.findByRole('button', { name: 'Revoke ChatGPT' });
-  await screen.findByText(
-    'Could not load board access. Existing connections can still be revoked.',
-  );
-  expect(screen.getByRole('checkbox', { name: 'Select My board' })).toBeDisabled();
-  await user.click(revoke);
-  await waitFor(() => expect(api.delete).toHaveBeenCalled());
-});
-
-it('shows a failed save and keeps selected consent for a retry', async () => {
-  vi.mocked(api.post).mockRejectedValueOnce(new Error('forbidden'));
-  const user = userEvent.setup();
-  renderWithProviders(<ConnectionsSettings />);
-  const board = await screen.findByRole('checkbox', { name: 'Select My board' });
-  await waitFor(() => expect(board).not.toBeDisabled());
-  await user.click(board);
-  await user.click(screen.getByRole('button', { name: 'Approve selected boards' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Could not save this change.');
-  expect(board).toBeChecked();
-  expect(screen.getByRole('button', { name: 'Approve selected boards' })).not.toBeDisabled();
+  await user.click(await screen.findByRole('button', { name: 'Disconnect ChatGPT' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not save this change');
+  expect(screen.getByRole('button', { name: 'Disconnect ChatGPT' })).toBeEnabled();
 });

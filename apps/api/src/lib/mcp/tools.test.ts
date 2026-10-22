@@ -65,7 +65,7 @@ describe('MCP operations', () => {
       .doc('second')
       .set({ ...source, name: 'Second' });
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
-    context.allowedBoardIds.push('second');
+    context.allowedBoardIds!.push('second');
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(2);
     context.allowedBoardIds = [];
     expect((await runMcpTool(context, 'list_boards', {})).data).toEqual([]);
@@ -127,7 +127,7 @@ describe('MCP operations', () => {
     await expect(
       runMcpTool(context, 'get_note', { boardId: 'board', noteId: privateNote.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    context.allowedBoardIds.push('other');
+    context.allowedBoardIds!.push('other');
     await expect(
       runMcpTool(context, 'get_note', { boardId: 'other', noteId: shared.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
@@ -160,7 +160,7 @@ describe('MCP operations', () => {
     await expect(
       runMcpTool(context, 'list_notes', { boardId: 'board', cursor: first.nextCursor }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-    context.allowedBoardIds.push('other');
+    context.allowedBoardIds!.push('other');
     await expect(
       runMcpTool(context, 'list_notes', { ...args, boardId: 'other', cursor: first.nextCursor }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });

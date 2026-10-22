@@ -11,6 +11,8 @@ export interface ConnectionGrant {
   clientId: string;
   name: string;
   boardIds: string[];
+  /** Missing means a legacy, explicitly selected-board grant. */
+  access?: 'all';
   scopes: ('wally:read' | 'wally:write')[];
   createdAt: string;
   issuedAfter: number;
@@ -111,22 +113,77 @@ export async function revokeConnection(db: Firestore, userId: string, id: string
       tx.update(ref, { revokedAt: new Date().toISOString() });
   });
 }
+/** Auto-establishment is only permitted after the transport verifies identity and client. */
 export async function requireConnection(
   db: Firestore,
   userId: string,
   token: { clientId: string; issuedAt: number; scopes: string[] },
+  establish = false,
 ): Promise<ConnectionGrant> {
-  const grants = (
-    await connections(db, userId).where('clientId', '==', token.clientId).get()
-  ).docs.map((doc) => doc.data() as ConnectionGrant);
-  const grant = grants.find((row) => row.revokedAt === null && token.issuedAt > row.issuedAfter);
-  if (!grant || !token.scopes.includes('wally:read'))
-    throw new AppError(
-      403,
-      'MCP_CONSENT_REQUIRED',
-      'Approve board access in Wally, then reconnect your AI client',
-    );
+  if (!token.scopes.includes('wally:read')) throw consentRequired();
+  const grant = await db.runTransaction(async (tx) => {
+    const rows = (
+      await tx.get(connections(db, userId).where('clientId', '==', token.clientId))
+    ).docs.map((doc) => doc.data() as ConnectionGrant);
+    const active = rows.find((row) => row.revokedAt === null);
+    if (active) {
+      if (token.issuedAt <= active.issuedAfter) throw consentRequired();
+      return active;
+    }
+    // A refreshed access token is not proof that the user chose to reconnect.
+    // Retain revoked records as tombstones; reconnect requires an explicit Wally action.
+    if (!establish || rows.length) throw consentRequired();
+    const created = accountConnection(token.clientId, token.issuedAt - 1);
+    tx.create(connections(db, userId).doc(created.id), created);
+    return created;
+  });
   return { ...grant, scopes: grant.scopes.filter((scope) => token.scopes.includes(scope)) };
+}
+function consentRequired() {
+  return new AppError(
+    403,
+    'MCP_CONSENT_REQUIRED',
+    'This app is disconnected. Reconnect it in Wally Connected apps, then sign in again.',
+  );
+}
+function accountConnection(clientId: string, issuedAfter: number): ConnectionGrant {
+  return {
+    id: randomUUID(),
+    clientId,
+    name: 'ChatGPT',
+    access: 'all',
+    boardIds: [],
+    scopes: ['wally:read', 'wally:write'],
+    createdAt: new Date().toISOString(),
+    issuedAfter,
+    revokedAt: null,
+  };
+}
+/** Explicit authenticated upgrade/reconnect. Never invoked by an MCP token. */
+export async function connectAccount(
+  db: Firestore,
+  userId: string,
+  clientId: string,
+): Promise<ConnectionGrant> {
+  return db.runTransaction(async (tx) => {
+    const rows = (await tx.get(connections(db, userId).where('clientId', '==', clientId))).docs.map(
+      (doc) => doc.data() as ConnectionGrant,
+    );
+    const active = rows.find((row) => row.revokedAt === null);
+    if (active) {
+      const upgraded: ConnectionGrant = {
+        ...active,
+        access: 'all',
+        boardIds: [],
+        scopes: ['wally:read', 'wally:write'],
+      };
+      tx.set(connections(db, userId).doc(active.id), upgraded);
+      return upgraded;
+    }
+    const created = accountConnection(clientId, Math.floor(Date.now() / 1000));
+    tx.create(connections(db, userId).doc(created.id), created);
+    return created;
+  });
 }
 /** Shared transaction guard: command receipts and writes see revocation/policy atomically. */
 export async function authorizeConnectionBoardInTransaction(
@@ -144,11 +201,16 @@ export async function authorizeConnectionBoardInTransaction(
   if (
     !grant ||
     grant.revokedAt ||
-    !grant.boardIds.includes(boardId) ||
+    (grant.access !== 'all' && !grant.boardIds.includes(boardId)) ||
     !grant.scopes.includes(write ? 'wally:write' : 'wally:read')
   )
     throw new AppError(403, 'MCP_CONSENT_REQUIRED', 'Connection does not permit this operation');
-  await checkBoard(db, tx, actor, boardId, write);
+  if (grant.access === 'all') {
+    const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
+    requireAccess(board, actor.id, write ? ['OWNER', 'EDIT'] : ['OWNER', 'EDIT', 'VIEW']);
+  } else {
+    await checkBoard(db, tx, actor, boardId, write);
+  }
 }
 export async function authorizeConnectionBoard(
   db: Firestore,

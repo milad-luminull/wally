@@ -594,17 +594,20 @@ cutover. All production switches default off. The approved password and owner Go
 identity mappings have been written, but production Auth0 login has not been activated.
 See [Auth0 activation and migration](AUTH0.md).
 
-MCP adds private `users/{uid}/mcpConnections` records containing client identifier, selected
-board IDs, granted scopes, creation time and revocation time. `mcpBoardPolicies/{boardId}`
+MCP adds private `users/{uid}/mcpConnections` records containing client identifier, access
+mode, scope ceiling, creation time and revocation time. Legacy records also contain selected
+board IDs. New connections use current Wally permissions across all accessible boards. `mcpBoardPolicies/{boardId}`
 stores the approving owner ID, enabled flag and update time. A bounded rolling
 `users/{uid}/mcpLimits/writes` counter supports shared write limits. Command audit entries
 identify the MCP connection. No access/refresh tokens are stored in these records.
 These records require inclusion in account/board erasure and export procedures; revoked
 connection retention still needs an operational policy before production rollout.
 
-External AI access requires both current-owner permission and each user's selected-board
-grant. Host-visible content follows current membership and note privacy. Users must be
-told that selected board content is processed by their external AI host; host retention
+New external AI connections inherit the user's current board membership and role after
+OAuth approval; a separate board-owner approval is not required. Legacy grants retain
+owner policy and selected-board restrictions until explicitly upgraded. Host-visible
+content follows current membership and note privacy. Users must be told that content
+from accessible boards can be processed by their external AI host; host retention
 and training terms are separate from Wally's. Write permission does not permit deletion
 or sharing administration. Revoking in Wally blocks subsequent calls and transactional
 writes/replays, but cannot retract content already delivered to the host.

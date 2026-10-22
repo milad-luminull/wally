@@ -124,3 +124,30 @@ it('requires verified email before granting access', async () => {
   });
   expect((await enable()).statusCode).toBe(403);
 });
+
+it('explicitly upgrades only the authenticated user and requires the configured client', async () => {
+  await enable();
+  const legacy = await app.inject({
+    method: 'POST',
+    url: '/test/me/connections',
+    headers: headers(),
+    payload: { clientId: 'chatgpt', boardIds: ['owner'] },
+  });
+  const connect = (clientId: string, authHeaders = headers()) =>
+    app.inject({
+      method: 'POST',
+      url: '/test/me/connections/connect',
+      headers: authHeaders,
+      payload: { clientId },
+    });
+  expect((await connect('wrong')).statusCode).toBe(400);
+  expect((await connect('chatgpt', {} as ReturnType<typeof headers>)).statusCode).toBe(401);
+  const upgraded = await connect('chatgpt');
+  expect(upgraded.statusCode).toBe(200);
+  expect(upgraded.json()).toMatchObject({ id: legacy.json().id, access: 'all', boardIds: [] });
+  expect(upgraded.json()).not.toHaveProperty('issuedAfter');
+  expect(
+    (await app.inject({ url: '/test/me/connections', headers: headers('editor') })).json()
+      .connections,
+  ).toEqual([]);
+});

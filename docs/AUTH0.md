@@ -26,7 +26,7 @@ register the corresponding origins for web origins and logout URLs. The SPA requ
 configure refresh-token rotation and test login, callback, renewal and logout in that tenant.
 Never put a client secret in a `VITE_*` variable.
 
-MCP activation additionally requires `MCP_ENABLED=true`, `ASSISTANT_ENABLED=true` and `MCP_CLIENT_ID` for the
+MCP activation additionally requires `MCP_ENABLED=true` and `MCP_CLIENT_ID` for the
 approved MCP client. Keep `MCP_WRITES_ENABLED=false` until the write rollout gates pass.
 Leave `MCP_CLIENT_ID` absent when unused, rather than setting an empty value. Docker
 inherits this optional value from `.env` without injecting a blank default. Recreate the
@@ -146,10 +146,12 @@ promoted to domain-level connections and verified enabled for this client. These
 providers are consequently available to all tenant third-party applications;
 API grants and Wally board authorization remain separate requirements.
 
-Set `MCP_CLIENT_ID` to the approved client's verified token client identifier. In Wally,
-open `/settings/connections`, enable owner permission, select boards and approve a grant.
-Connect ChatGPT only after that grant exists. Writes additionally require the deployment
-switch, user grant and token scope. A read-only token must be reauthorized with
+Set `MCP_CLIENT_ID` to the approved client's verified token client identifier. Connect
+from ChatGPT and complete OAuth; the first verified request establishes access using the
+user's current Wally permissions. No board-selection setup is required for new connections.
+Legacy selected-board grants need an explicit upgrade in Connected apps. Writes require
+current edit permission, the deployment switch and token scope. See
+[the connection model](MCP_CONNECTION_MODEL.md) for disconnect and reconnect behavior. A read-only token must be reauthorized with
 `wally:write` before write tools become available. Verify this escalation in the real host.
 No API key or client secret is shipped to the browser.
 

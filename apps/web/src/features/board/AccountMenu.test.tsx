@@ -63,7 +63,7 @@ describe('AccountMenu', () => {
 
   it('links to account connection settings', async () => {
     await openMenu();
-    expect(screen.getByRole('link', { name: 'AI connections' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Connected apps' })).toHaveAttribute(
       'href',
       '/settings/connections',
     );

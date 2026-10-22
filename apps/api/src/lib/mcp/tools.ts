@@ -14,7 +14,7 @@ export interface McpToolContext {
   actor: Actor;
   connectionId: string;
   scopes: string[];
-  allowedBoardIds: string[];
+  allowedBoardIds: string[] | null;
   authorizeBoard: (boardId: string, write: boolean) => Promise<void>;
   authorizeWrite?: (tx: Transaction, boardId: string) => Promise<void>;
 }
@@ -41,8 +41,8 @@ export const mcpToolInputs = {
 export type McpToolName = keyof typeof mcpToolInputs;
 export const mcpToolNames = Object.keys(mcpToolInputs) as McpToolName[];
 const descriptions: Record<McpToolName, string> = {
-  list_boards: 'List currently accessible boards allowed by this connection, including your role.',
-  get_board: 'Read metadata, revision and assistant availability for an explicitly selected board.',
+  list_boards: 'List your currently accessible boards, including your role.',
+  get_board: 'Read metadata, revision and assistant availability for a board you can access.',
   list_notes:
     'List visible notes with app filters, at most 100 per page. Pass nextCursor with identical filters and board to continue. Pages are live offset views: concurrent edits can cause skips or repeats; restart traversal for a fresh view.',
   get_note: 'Read a visible note on the selected board, including subtasks and history.',
@@ -125,7 +125,7 @@ export async function runMcpTool(
     const boards = await listBoards(context.db, context.actor);
     const allowed = [];
     for (const board of boards) {
-      if (!context.allowedBoardIds.includes(board.id)) continue;
+      if (context.allowedBoardIds && !context.allowedBoardIds.includes(board.id)) continue;
       try {
         await context.authorizeBoard(board.id, false);
       } catch (error) {
@@ -138,7 +138,7 @@ export async function runMcpTool(
     return { data: allowed, revision: null };
   }
   const args = parsed.data as { boardId: string };
-  if (!context.allowedBoardIds.includes(args.boardId))
+  if (context.allowedBoardIds && !context.allowedBoardIds.includes(args.boardId))
     throw new AppError(404, 'NOT_FOUND', 'Not found');
   await context.authorizeBoard(args.boardId, !isRead(name));
   const { db, actor } = context;

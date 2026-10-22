@@ -162,8 +162,8 @@ jobs:
             echo "::error::AUTH0_SIGNUP_ENABLED requires AUTH0_ENABLED=true"; exit 1
           fi
           if [ "$MCP_ENABLED" = true ]; then
-            [ "$AUTH0_ENABLED" = true ] && [ "$ASSISTANT_ENABLED" = true ] && [ -n "$MCP_CLIENT_ID" ] \
-              || { echo "::error::MCP requires AUTH0_ENABLED=true, ASSISTANT_ENABLED=true and MCP_CLIENT_ID"; exit 1; }
+            [ "$AUTH0_ENABLED" = true ] && [ -n "$MCP_CLIENT_ID" ] \
+              || { echo "::error::MCP requires AUTH0_ENABLED=true and MCP_CLIENT_ID"; exit 1; }
           fi
           if [ "$MCP_WRITES_ENABLED" = true ] && [ "$MCP_ENABLED" != true ]; then
             echo "::error::MCP_WRITES_ENABLED requires MCP_ENABLED=true"; exit 1

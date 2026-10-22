@@ -896,7 +896,7 @@ that anyone can download, so hiding them would buy nothing:
 `MCP_WRITES_ENABLED` default to `false`; `VITE_AUTH_PROVIDER` defaults to `firebase`.
 For Auth0 browser login, explicitly set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0`
 and `VITE_AUTH0_CLIENT_ID` to the public SPA client ID. For MCP, also set
-`MCP_ENABLED=true`, `ASSISTANT_ENABLED=true` and `MCP_CLIENT_ID` to the approved MCP client ID. Set
+`MCP_ENABLED=true` and `MCP_CLIENT_ID` to the approved MCP client ID. Set
 `MCP_WRITES_ENABLED=true` only after the write rollout gates pass. Both client IDs are
 public identifiers, never client secrets. The release validates combinations before any
 deployment and reads the exact API flags and client ID back after deployment. Missing

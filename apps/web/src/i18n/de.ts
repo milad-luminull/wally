@@ -7,48 +7,33 @@
  */
 export const de = {
   connections: {
-    title: 'KI-Verbindungen',
+    title: 'Verbundene Apps',
     back: 'Zurück zu den Boards',
     description:
-      'Wähle, auf welche Boards eine externe KI zugreifen darf. Deine Board-Berechtigungen gelten weiterhin. Du kannst den Zugriff jederzeit widerrufen.',
+      'Verbundene Apps nutzen deine Wally-Berechtigungen. Sie können deine zugänglichen Boards lesen und dort unterstützte Änderungen vornehmen, wo du bearbeiten darfst. Deine privaten Notizen bleiben vor anderen Nutzern geschützt.',
     loading: 'Verbindungen werden geladen…',
     loadError: 'Verbindungen konnten nicht geladen werden.',
-    boardLoadError:
-      'Board-Zugriff konnte nicht geladen werden. Bestehende Verbindungen kannst du weiterhin widerrufen.',
     retry: 'Erneut versuchen',
-    disabled: 'Externe KI-Verbindungen sind für diese Bereitstellung nicht aktiviert.',
-    boardsTitle: 'Board-Zugriff',
-    boardsHint:
-      'Board-Eigentümer müssen externen KI-Zugriff zuerst erlauben. Wähle dann nur die Boards aus, die du freigeben möchtest. Der Zugriff ist zunächst nur lesend.',
-    noBoards: 'Du hast noch keine Boards zum Verbinden.',
-    selectBoard: '{{name}} auswählen',
-    boardPolicy: 'Externer KI-Zugriff auf {{name}}',
-    boardAllowed: 'Externer KI-Zugriff erlaubt',
-    boardBlocked: 'Externer KI-Zugriff gesperrt',
-    ownerOnly: 'Vom Eigentümer festgelegt',
-    allowChanges: 'Änderungen erlauben',
-    writeHint:
-      'Erlaube unterstützte Erstellungs- und Bearbeitungsaktionen auf ausgewählten Boards mit Bearbeitungsrechten. Löschen und Teilen sind nicht erlaubt. Du kannst den Zugriff jederzeit widerrufen.',
-    consentHint:
-      'Erlaube {{client}} den Zugriff auf die ausgewählten Boards. Private Notizen und Daten außerhalb deiner Berechtigungen bleiben geschützt.',
-    existingHint: 'Widerrufe die bestehende Verbindung, bevor du den Zugriff neu auswählst.',
-    approve: 'Ausgewählte Boards freigeben',
-    saveError:
-      'Die Änderung konnte nicht gespeichert werden. Prüfe deine Berechtigungen und versuche es erneut.',
+    disabled: 'App-Verbindungen sind derzeit nicht verfügbar.',
+    saveError: 'Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
     saving: 'Wird gespeichert…',
-    saved: 'Verbindungseinstellungen gespeichert.',
-    activeTitle: 'Deine Verbindungen',
-    none: 'Noch keine Verbindungen freigegeben.',
-    revoked: 'Widerrufen',
-    active: 'Aktiv',
-    readOnly: 'Nur lesen',
-    readWrite: 'Lesen und ändern',
-    unavailableBoard: 'Nicht verfügbares Board',
-    revokeNamed: '{{name}} widerrufen',
-    revoke: 'Zugriff widerrufen',
-    setupTitle: 'Deine KI verbinden',
+    saved:
+      'Verbindung aktualisiert. Melde dich nach dem Wiederverbinden erneut in deiner KI-App an.',
+    none: 'Noch keine verbundenen Apps.',
+    revoked: 'Getrennt. Verbinde die App hier erneut und melde dich dann in deiner KI-App an.',
+    inherited: 'Verbunden · Nutzt deine aktuellen Wally-Berechtigungen, auch für neue Boards.',
+    legacy:
+      'Diese Verbindung nutzt noch deine zuvor ausgewählten Boards und Berechtigungen. Die Umstellung umfasst alle zugänglichen Boards und unterstützte Änderungen, wo du bearbeiten darfst, im Rahmen des beim Verbinden bestätigten Zugriffs.',
+    upgrade: 'Meine Wally-Berechtigungen nutzen',
+    revokeNamed: '{{name}} trennen',
+    revoke: 'Trennen',
+    reconnectNamed: '{{name}} erneut verbinden',
+    reconnect: 'Erneut verbinden',
+    setupTitle: 'Eine App verbinden',
     setupHint:
-      'Gib zuerst Boards frei. Füge danach diese Verbindungs-URL in deiner KI hinzu und melde dich mit deinem Wally-Konto an. Verbinde die KI nach einer neuen Freigabe erneut, damit sie eine neue Autorisierung erhält.',
+      'Füge Wally in ChatGPT mit dieser Verbindungs-URL hinzu, melde dich mit deinem Wally-Konto an und bestätige den angeforderten Zugriff. Eine Board-Auswahl ist nicht nötig.',
+    localSetupHint:
+      'Melde dich aus deiner KI-App mit deinem Wally-Konto an. Diese lokale URL funktioniert nur mit Clients auf diesem Computer; ChatGPT benötigt den für deine Verbindung eingerichteten erreichbaren Test-Endpunkt.',
     endpoint: 'Verbindungs-URL',
   },
   welcome: {

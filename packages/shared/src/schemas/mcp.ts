@@ -18,6 +18,7 @@ export const mcpConnectionSchema = z.object({
   clientId: z.string(),
   name: z.string(),
   boardIds: z.array(mcpBoardIdSchema),
+  access: z.literal('all').optional(),
   scopes: z.array(mcpScopeSchema),
   createdAt: z.string().datetime(),
   revokedAt: z.string().datetime().nullable(),

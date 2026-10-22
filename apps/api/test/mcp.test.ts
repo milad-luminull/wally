@@ -104,6 +104,47 @@ afterEach(async () => {
   _resetEnvCacheForTests();
 });
 describe('stateless MCP HTTP boundary', () => {
+  it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
+    await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
+    await setBoardPolicy(db, actor, 'board', false);
+    await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });
+    const app = await makeApp({ assistantEnabled: false });
+    const listed = (await call(app, 'list_boards', {})).json().result;
+    expect(listed.structuredContent.data.map((board: { id: string }) => board.id)).toEqual([
+      'board',
+    ]);
+    const auto = (await db.collection('users').doc(actor.id).collection('mcpConnections').get())
+      .docs[0]!;
+    expect(auto.data().access).toBe('all');
+    const args = {
+      boardId: 'board',
+      operationId: randomUUID(),
+      input: { title: 'Inherited permissions' },
+    };
+    const created = (await call(app, 'create_note', args)).json().result;
+    expect(created.isError).not.toBe(true);
+    expect((await call(app, 'create_note', args)).json().result).toEqual(created);
+    expect((await notesCol(db).get()).size).toBe(1);
+    const board = (await whiteboardsCol(db).doc('board').get()).data()!;
+    await whiteboardsCol(db)
+      .doc('new-board')
+      .set({ ...board, name: 'New board' });
+    expect((await call(app, 'list_boards', {})).json().result.structuredContent.data).toHaveLength(
+      2,
+    );
+    await whiteboardsCol(db)
+      .doc('board')
+      .update({ ownerId: 'someone-else', memberRoles: { [actor.id]: 'VIEW' } });
+    expect((await call(app, 'get_board', { boardId: 'board' })).json().result.isError).not.toBe(
+      true,
+    );
+    expect((await call(app, 'create_note', args)).json().result.isError).toBe(true);
+    await whiteboardsCol(db).doc('board').update({ memberRoles: {} });
+    expect((await call(app, 'get_board', { boardId: 'board' })).json().result.isError).toBe(true);
+    await revokeConnection(db, actor.id, auto.id);
+    identity.issuedAt! += 100;
+    expect((await rpc(app, 'tools/list')).statusCode).toBe(403);
+  });
   it('serves authorized card views and a self-contained UI resource without changing notes', async () => {
     const app = await makeApp();
     const created = (
@@ -441,7 +482,7 @@ describe('stateless MCP HTTP boundary', () => {
   it('honors deployment and board switches and withholds write tools for readonly connections', async () => {
     expect((await rpc(await makeApp({ enabled: false }), 'tools/list')).statusCode).toBe(503);
     expect((await rpc(await makeApp({ assistantEnabled: false }), 'tools/list')).statusCode).toBe(
-      503,
+      200,
     );
     const writesOff = await makeApp({ writesEnabled: false });
     expect((await rpc(writesOff, 'tools/list')).json().result.tools).toHaveLength(7);
@@ -460,6 +501,44 @@ describe('stateless MCP HTTP boundary', () => {
     expect(disabled.json().result.structuredContent.error).toBe('MCP_BOARD_DISABLED');
     expect((await notesCol(db).get()).size).toBe(0);
   });
+  it.each(['revoke-new', 'revoke-replay', 'membership-new', 'membership-replay'])(
+    'rechecks account-wide access inside the write transaction: %s',
+    async (scenario) => {
+      const upgraded = await grants.connectAccount(db, actor.id, 'chatgpt');
+      let interrupt = false;
+      const context: McpToolContext = {
+        db,
+        actor,
+        connectionId: upgraded.id,
+        scopes: ['wally:read', 'wally:write'],
+        allowedBoardIds: null,
+        async authorizeBoard(boardId, write) {
+          await authorizeConnectionBoard(db, actor, upgraded.id, boardId, write, true);
+          if (interrupt) {
+            if (scenario.startsWith('revoke')) await revokeConnection(db, actor.id, upgraded.id);
+            else
+              await whiteboardsCol(db)
+                .doc(boardId)
+                .update({ ownerId: 'someone-else', memberRoles: {} });
+          }
+        },
+        authorizeWrite: (tx, boardId) =>
+          authorizeConnectionBoardInTransaction(db, tx, actor, upgraded.id, boardId, true, true),
+      };
+      const args = {
+        boardId: 'board',
+        operationId: randomUUID(),
+        input: { title: 'Guarded account access' },
+      };
+      const replay = scenario.endsWith('replay');
+      if (replay) await runMcpTool(context, 'create_note', args);
+      interrupt = true;
+      await expect(runMcpTool(context, 'create_note', args)).rejects.toMatchObject({
+        code: scenario.startsWith('revoke') ? 'MCP_CONSENT_REQUIRED' : 'NOT_FOUND',
+      });
+      expect((await notesCol(db).get()).size).toBe(replay ? 1 : 0);
+    },
+  );
   it.each(['revoke-new', 'revoke-replay', 'policy-new', 'policy-replay'])(
     'rechecks durable authorization inside the command transaction: %s',
     async (scenario) => {

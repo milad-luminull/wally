@@ -1,5 +1,12 @@
 # Local Auth0 MCP validation
 
+> **2026-10-22 model update:** The owner approved account-wide MCP access based on
+> current Wally membership and roles. New OAuth connections require no board selection
+> or owner AI switch. Existing selected-board grants remain restricted until explicitly
+> upgraded. See [the current connection model](MCP_CONNECTION_MODEL.md). Older selected-board validation below
+> records historical behavior and is not the setup procedure for new connections.
+
+
 Status on 2026-10-21: real Auth0 Inspector read/write, consent, replay and
 revocation checks passed. ChatGPT discovery, reads and read revocation passed.
 ChatGPT writes reached the server and produced the expected synthetic effects, but

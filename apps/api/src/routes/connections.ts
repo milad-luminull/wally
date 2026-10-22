@@ -10,6 +10,7 @@ import {
 } from '@wally/shared';
 import {
   createConnection,
+  connectAccount,
   getBoardPolicy,
   listConnections,
   revokeConnection,
@@ -57,6 +58,23 @@ export default async function connectionRoutes(
         request.body.write,
       );
       return reply.code(201).send(grant);
+    },
+  );
+  app.post(
+    '/me/connections/connect',
+    {
+      schema: {
+        body: z.object({ clientId: z.string().min(1).max(200) }).strict(),
+        response: { 200: mcpConnectionSchema },
+      },
+    },
+    async (request) => {
+      if (!enabled) throw new AppError(503, 'MCP_DISABLED', 'External AI access is disabled');
+      if (!request.user.emailVerified)
+        throw new AppError(403, 'EMAIL_NOT_VERIFIED', 'Verify your email first');
+      if (request.body.clientId !== options.clientId)
+        throw new AppError(400, 'UNSUPPORTED_CLIENT', 'Unsupported AI client');
+      return connectAccount(app.db, request.user.id, request.body.clientId);
     },
   );
   app.delete(

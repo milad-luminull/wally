@@ -165,8 +165,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(
     connectionRoutes,
     options.connections ?? {
-      enabled:
-        env.MCP_ENABLED && (options.assistantEnabled ?? env.ASSISTANT_ENABLED) && env.AUTH0_ENABLED,
+      enabled: env.MCP_ENABLED && env.AUTH0_ENABLED,
       writesEnabled: env.MCP_WRITES_ENABLED,
       clientId: env.MCP_CLIENT_ID,
     },

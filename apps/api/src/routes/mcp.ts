@@ -21,7 +21,7 @@ function oauthChallenge(resource: string, scopes: string[], needsConsent = false
   return (
     `Bearer resource_metadata="${new URL(resource).origin}${MCP_METADATA_PATH}", scope="${scopes.join(' ')}"` +
     (needsConsent
-      ? ', error="insufficient_scope", error_description="Approve board access in Wally, then reconnect"'
+      ? ', error="insufficient_scope", error_description="Reconnect in Wally Connected apps, then sign in again"'
       : '')
   );
 }
@@ -38,9 +38,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
   const env = loadEnv();
   const resource = env.MCP_LOCAL_URL ?? MCP_RESOURCE;
   const enabled =
-    (options.enabled ?? env.MCP_ENABLED) &&
-    (options.assistantEnabled ?? env.ASSISTANT_ENABLED) &&
-    (env.AUTH0_ENABLED || Boolean(options.verifier));
+    (options.enabled ?? env.MCP_ENABLED) && (env.AUTH0_ENABLED || Boolean(options.verifier));
   const writesEnabled = options.writesEnabled ?? env.MCP_WRITES_ENABLED;
   const clientId = options.clientId ?? env.MCP_CLIENT_ID;
   const verifier =
@@ -95,7 +93,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
       if (!(await usersCol(app.db).doc(userId).get()).exists)
         throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
       const token = { clientId, issuedAt: identity.issuedAt, scopes: identity.scopes };
-      const grant = await requireConnection(app.db, userId, token);
+      const grant = await requireConnection(app.db, userId, token, identity.emailVerified);
       if (request.method !== 'POST')
         return reply
           .header('Allow', 'POST')
@@ -108,7 +106,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         actor,
         connectionId: grant.id,
         scopes,
-        allowedBoardIds: grant.boardIds,
+        allowedBoardIds: grant.access === 'all' ? null : grant.boardIds,
         async authorizeWrite(tx, boardId) {
           await authorizeConnectionBoardInTransaction(
             app.db,
