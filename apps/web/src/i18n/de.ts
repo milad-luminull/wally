@@ -18,20 +18,21 @@ export const de = {
     saveError: 'Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
     saving: 'Wird gespeichert…',
     saved:
-      'Verbindung aktualisiert. Melde dich nach dem Wiederverbinden erneut in deiner KI-App an.',
+      'Verbindung aktualisiert. Kehre nach dem Wiederverbinden zu ChatGPT, Claude oder deinem gewählten Anbieter zurück und melde dich erneut bei Wally an.',
     none: 'Nicht verbunden',
     revoked: 'Getrennt',
-    reconnectHint: 'Wähle Erneut verbinden und melde dich dann in deiner KI-App an.',
+    reconnectHint:
+      'Wähle Erneut verbinden. Kehre dann zu ChatGPT, Claude oder deinem gewählten Anbieter zurück und melde dich erneut bei Wally an.',
     issue: 'Verbindungsproblem',
     inherited: 'Verbunden',
     revokeNamed: '{{name}} trennen',
     revoke: 'Trennen',
     reconnectNamed: '{{name}} erneut verbinden',
     reconnect: 'Erneut verbinden',
-    setupTitle: 'Eine App verbinden',
+    setupTitle: 'Wally mit deinem KI-Anbieter verbinden',
     setupSteps: 'Schritte zum Verbinden',
     setupOpen:
-      'Öffne in deiner KI-App Apps oder Konnektoren und füge einen eigenen MCP-Server namens Wally hinzu.',
+      'Öffne in ChatGPT, Claude oder deinem bevorzugten KI-Anbieter die Einstellungen und suche nach Apps oder Konnektoren. Füge eine eigene MCP-Verbindung namens Wally hinzu.',
     setupUrl:
       'Füge die Verbindungs-URL unten als Server-URL ein und wähle OAuth als Authentifizierung.',
     setupLocalUrl:

@@ -11,19 +11,22 @@ export const en = {
     disabled: 'App connections are currently unavailable.',
     saveError: 'Could not save this change. Please try again.',
     saving: 'Saving…',
-    saved: 'Connection updated. After reconnecting, sign in again from your AI app.',
+    saved:
+      'Connection updated. After reconnecting, return to ChatGPT, Claude or your chosen provider and sign in to Wally again.',
     none: 'Not connected',
     revoked: 'Disconnected',
-    reconnectHint: 'Choose Reconnect, then sign in again from your AI app.',
+    reconnectHint:
+      'Choose Reconnect, then return to ChatGPT, Claude or your chosen provider and sign in to Wally again.',
     issue: 'Connection issue',
     inherited: 'Connected',
     revokeNamed: 'Disconnect {{name}}',
     revoke: 'Disconnect',
     reconnectNamed: 'Reconnect {{name}}',
     reconnect: 'Reconnect',
-    setupTitle: 'Connect an app',
+    setupTitle: 'Connect Wally to your AI provider',
     setupSteps: 'Connection setup steps',
-    setupOpen: 'In your AI app, open Apps or Connectors and add a custom MCP server named Wally.',
+    setupOpen:
+      'In ChatGPT, Claude or your preferred AI provider, open Settings and look for Apps or Connectors. Add a custom MCP connection named Wally.',
     setupUrl: 'Paste the connector URL below as the server URL and choose OAuth authentication.',
     setupLocalUrl:
       'For ChatGPT, select the configured Wally test tunnel. For a local MCP client, paste the URL below. Choose OAuth authentication.',
