@@ -196,3 +196,10 @@ It appears only in the German catalogue (`Wand`, `'Wally — Meine Wand'`) and i
 default board name. Code names are English (`WallView`, `WallCanvas`, `board.topBar.view.wall`;
 [ADR-0014](adr/0014-english-identifiers-and-persisted-values.md) renames what still carries
 it). The guard test matches lucide import specifiers only, never catalogue values.
+
+### Connection status lights
+
+Connected apps has an explicit exception to the text-only status colour rule: small
+green, gray and red dots show connected, not connected and disconnected/error states.
+Each dot accompanies a visible text label. This exception does not permit tinted rows,
+cards or banners. Approved by the owner on 2026-10-22.

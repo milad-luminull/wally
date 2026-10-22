@@ -69,6 +69,10 @@ describe('AI has no iconography', () => {
  * and nowhere else." A `bg-` or `border-` carrying a status hue is the exact thing that rule
  * forbids, and it is the natural thing to reach for when adding a banner or a chip.
  */
+// User-approved exception: Connected apps uses small green/red connection lights.
+// This does not permit tinted cards, rows or banners elsewhere.
+const CONNECTION_LIGHTS = new Set(['bg-status-success', 'bg-status-danger']);
+
 describe('status colour stays text', () => {
   it('never fills a surface with a status token', () => {
     const offences: string[] = [];
@@ -79,6 +83,7 @@ describe('status colour stays text', () => {
         offences.push(`${file}: ${match[0]}`);
       }
       for (const match of text.matchAll(/\b(bg|border|ring|fill)-status-[\w-]+/g)) {
+        if (file === 'routes/ConnectionsPage.tsx' && CONNECTION_LIGHTS.has(match[0])) continue;
         offences.push(`${file}: ${match[0]}`);
       }
     }
