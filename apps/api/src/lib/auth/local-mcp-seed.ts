@@ -30,11 +30,11 @@ export async function seedMcpLocal(
     { id: 'mcp-local-other', email: 'other@example.invalid', displayName: 'Synthetic owner' },
   ];
   const boards: (Pick<WhiteboardDoc, 'name' | 'ownerId' | 'memberRoles'> & { id: string })[] = [
-    { id: ownerId, name: 'MCP selected board', ownerId, memberRoles: {} },
-    { id: 'mcp-local-unselected', name: 'MCP unselected board', ownerId, memberRoles: {} },
+    { id: ownerId, name: 'MCP test board 1', ownerId, memberRoles: {} },
+    { id: 'mcp-local-unselected', name: 'MCP test board 2', ownerId, memberRoles: {} },
     {
       id: 'mcp-local-shared',
-      name: 'MCP shared owner-blocked board',
+      name: 'MCP shared test board',
       ownerId: 'mcp-local-other',
       memberRoles: { [ownerId]: 'EDIT' as const },
     },
