@@ -84,5 +84,18 @@ it('reports a failed disconnect without hiding the active connection', async () 
   renderWithProviders(<ConnectionsSettings />);
   await user.click(await screen.findByRole('button', { name: 'Disconnect ChatGPT' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not save this change');
+  expect(screen.getByText('Connection issue')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Disconnect ChatGPT' })).toBeEnabled();
+});
+
+it('shows a gray not-connected state and numbered setup steps', async () => {
+  renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findByText('Not connected')).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Connection setup steps' }).children).toHaveLength(3);
+});
+it('shows disconnected as an issue and keeps reconnect available', async () => {
+  config.connections = [{ ...connection, revokedAt: '2026-10-22T10:00:00.000Z' }];
+  renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findByText('Disconnected')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Reconnect ChatGPT' })).toBeEnabled();
 });

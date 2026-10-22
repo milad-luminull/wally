@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +9,24 @@ import { api } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+
+function ConnectionStatus({
+  tone,
+  children,
+}: {
+  tone: 'green' | 'gray' | 'red';
+  children: ReactNode;
+}) {
+  const color = { green: 'bg-status-success', gray: 'bg-neutral-400', red: 'bg-status-danger' }[
+    tone
+  ];
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-fg-3">
+      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
+      {children}
+    </span>
+  );
+}
 
 export function ConnectionsSettings() {
   const { t } = useTranslation();
@@ -38,6 +57,13 @@ export function ConnectionsSettings() {
     const rows = data!.connections.filter((connection) => connection.clientId === clientId);
     return rows.find((connection) => !connection.revokedAt) ?? rows[0]!;
   });
+  const hasIssue = (connection: (typeof connections)[number]) =>
+    !data?.enabled ||
+    settings.isError ||
+    (mutation.isError &&
+      (mutation.variables?.kind === 'disconnect'
+        ? mutation.variables.id === connection.id
+        : mutation.variables?.clientId === connection.clientId));
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
       <div className="space-y-3">
@@ -52,7 +78,7 @@ export function ConnectionsSettings() {
       {settings.isPending && <p role="status">{t('connections.loading')}</p>}
       {settings.isError && (
         <div role="alert" className="space-y-3">
-          <p>{t('connections.loadError')}</p>
+          <ConnectionStatus tone="red">{t('connections.loadError')}</ConnectionStatus>
           <Button variant="outline" onClick={() => void settings.refetch()}>
             {t('connections.retry')}
           </Button>
@@ -65,7 +91,9 @@ export function ConnectionsSettings() {
               {t('connections.disabled')}
             </p>
           )}
-          {!connections.length && <p className="text-sm text-fg-3">{t('connections.none')}</p>}
+          {!connections.length && (
+            <ConnectionStatus tone="gray">{t('connections.none')}</ConnectionStatus>
+          )}
           <ul className="space-y-3">
             {connections.map((connection) => (
               <li
@@ -74,9 +102,20 @@ export function ConnectionsSettings() {
               >
                 <div className="min-w-0 flex-1 space-y-2">
                   <h2 className="font-medium">{connection.name}</h2>
-                  <p className="text-sm text-fg-3">
-                    {t(connection.revokedAt ? 'connections.revoked' : 'connections.inherited')}
-                  </p>
+                  <ConnectionStatus
+                    tone={connection.revokedAt || hasIssue(connection) ? 'red' : 'green'}
+                  >
+                    {t(
+                      connection.revokedAt
+                        ? 'connections.revoked'
+                        : hasIssue(connection)
+                          ? 'connections.issue'
+                          : 'connections.inherited',
+                    )}
+                  </ConnectionStatus>
+                  {connection.revokedAt && (
+                    <p className="text-sm text-fg-3">{t('connections.reconnectHint')}</p>
+                  )}
                 </div>
                 {!connection.revokedAt ? (
                   <Button
@@ -125,9 +164,19 @@ export function ConnectionsSettings() {
               <h2 id="connections-setup-title" className="text-base font-semibold">
                 {t('connections.setupTitle')}
               </h2>
-              <p className="text-sm leading-relaxed text-fg-3">
-                {t(localEndpoint ? 'connections.localSetupHint' : 'connections.setupHint')}
-              </p>
+              <ol
+                aria-label={t('connections.setupSteps')}
+                className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-fg-3"
+              >
+                <li>{t('connections.setupOpen')}</li>
+                <li>{t(localEndpoint ? 'connections.setupLocalUrl' : 'connections.setupUrl')}</li>
+                <li>{t('connections.setupSignIn')}</li>
+              </ol>
+              {localEndpoint && (
+                <p className="text-xs leading-relaxed text-fg-3">
+                  {t('connections.localSetupHint')}
+                </p>
+              )}
               <Label htmlFor="connection-url">{t('connections.endpoint')}</Label>
               <Input
                 id="connection-url"

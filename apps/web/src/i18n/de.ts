@@ -19,18 +19,27 @@ export const de = {
     saving: 'Wird gespeichert…',
     saved:
       'Verbindung aktualisiert. Melde dich nach dem Wiederverbinden erneut in deiner KI-App an.',
-    none: 'Noch keine verbundenen Apps.',
-    revoked: 'Getrennt. Verbinde die App hier erneut und melde dich dann in deiner KI-App an.',
+    none: 'Nicht verbunden',
+    revoked: 'Getrennt',
+    reconnectHint: 'Wähle Erneut verbinden und melde dich dann in deiner KI-App an.',
+    issue: 'Verbindungsproblem',
     inherited: 'Verbunden',
     revokeNamed: '{{name}} trennen',
     revoke: 'Trennen',
     reconnectNamed: '{{name}} erneut verbinden',
     reconnect: 'Erneut verbinden',
     setupTitle: 'Eine App verbinden',
-    setupHint:
-      'Füge Wally in ChatGPT mit dieser Verbindungs-URL hinzu, melde dich mit deinem Wally-Konto an und bestätige den angeforderten Zugriff. Eine Board-Auswahl ist nicht nötig.',
+    setupSteps: 'Schritte zum Verbinden',
+    setupOpen:
+      'Öffne in deiner KI-App Apps oder Konnektoren und füge einen eigenen MCP-Server namens Wally hinzu.',
+    setupUrl:
+      'Füge die Verbindungs-URL unten als Server-URL ein und wähle OAuth als Authentifizierung.',
+    setupLocalUrl:
+      'Wähle in ChatGPT den eingerichteten Wally-Testtunnel. Für einen lokalen MCP-Client nutze die URL unten. Wähle OAuth als Authentifizierung.',
+    setupSignIn:
+      'Melde dich mit deinem Wally-Konto an und bestätige den Zugriff. Wähle dann Wally in einem Chat und probiere „Zeig meine Boards“.',
     localSetupHint:
-      'Melde dich aus deiner KI-App mit deinem Wally-Konto an. Diese lokale URL funktioniert nur mit Clients auf diesem Computer; ChatGPT benötigt den für deine Verbindung eingerichteten erreichbaren Test-Endpunkt.',
+      'Dies ist ein lokaler Testserver. ChatGPT kann localhost nicht direkt erreichen und benötigt einen funktionierenden Tunnel.',
     endpoint: 'Verbindungs-URL',
   },
   welcome: {

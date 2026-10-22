@@ -12,18 +12,25 @@ export const en = {
     saveError: 'Could not save this change. Please try again.',
     saving: 'Saving…',
     saved: 'Connection updated. After reconnecting, sign in again from your AI app.',
-    none: 'No connected apps yet.',
-    revoked: 'Disconnected. Reconnect here, then sign in again from your AI app.',
+    none: 'Not connected',
+    revoked: 'Disconnected',
+    reconnectHint: 'Choose Reconnect, then sign in again from your AI app.',
+    issue: 'Connection issue',
     inherited: 'Connected',
     revokeNamed: 'Disconnect {{name}}',
     revoke: 'Disconnect',
     reconnectNamed: 'Reconnect {{name}}',
     reconnect: 'Reconnect',
     setupTitle: 'Connect an app',
-    setupHint:
-      'Add Wally in ChatGPT using this connector URL, then sign in with your Wally account and approve the requested access. No board setup is needed.',
+    setupSteps: 'Connection setup steps',
+    setupOpen: 'In your AI app, open Apps or Connectors and add a custom MCP server named Wally.',
+    setupUrl: 'Paste the connector URL below as the server URL and choose OAuth authentication.',
+    setupLocalUrl:
+      'For ChatGPT, select the configured Wally test tunnel. For a local MCP client, paste the URL below. Choose OAuth authentication.',
+    setupSignIn:
+      'Sign in with your Wally account and approve access. Then select Wally in a chat and try “Show my boards”.',
     localSetupHint:
-      'Sign in with your Wally account from your AI app. This local connector URL works only with clients on this computer; ChatGPT needs the reachable test endpoint configured for your connection.',
+      'This is a local test server. ChatGPT cannot reach localhost directly; it needs a working tunnel.',
     endpoint: 'Connector URL',
   },
   welcome: {
