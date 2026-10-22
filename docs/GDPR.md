@@ -597,7 +597,8 @@ See [Auth0 activation and migration](AUTH0.md).
 MCP adds private `users/{uid}/mcpConnections` records containing client identifier, access
 scope ceiling, creation time and revocation time. Connections use current Wally permissions
 across all accessible boards. No selected-board list or board-level MCP policy is stored. A bounded rolling
-`users/{uid}/mcpLimits/writes` counter supports shared write limits. Command audit entries
+`users/{uid}/mcpLimits/writes` counter supports shared write limits; a second
+`mcpLimits/requests` counter bounds authenticated requests across API instances. Command audit entries
 identify the MCP connection. No access/refresh tokens are stored in these records.
 These records require inclusion in account/board erasure and export procedures; revoked
 connection retention still needs an operational policy before production rollout.

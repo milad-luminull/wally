@@ -43,7 +43,10 @@ creation. New automatic connections require a verified email and an existing map
 user. Explicit reconnect uses authenticated REST and the configured client ID.
 Connection creation runs in a transaction so concurrent initial requests share one record.
 Reads recheck current membership; writes recheck membership and revocation transactionally.
-Existing revision, operation-ID, note privacy, audit and rate-limit behavior stays in place.
+Existing revision, operation-ID, note privacy and audit behavior stays in place.
+Authenticated MCP requests share a 300/minute per-user and per-connection budget across
+instances; writes additionally retain their 60/user and 30/connection per-minute budget.
+Exhausted request budgets return HTTP 429 with Retry-After: 60 before tool execution.
 
 Tests use dedicated emulator project IDs only, never the manual `wally-mcp-local` project.
 No production data, Auth0 configuration or manual session should be changed as cleanup.

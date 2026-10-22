@@ -13,7 +13,11 @@ import {
 } from '../lib/mcp/grants.js';
 import { availableMcpTools, runMcpTool, type McpToolContext } from '../lib/mcp/tools.js';
 import { registerCardViews } from '../lib/mcp/views.js';
-import { consumeMcpWriteBudget, type McpWriteLimits } from '../lib/mcp/rate.js';
+import {
+  consumeMcpRequestBudget,
+  consumeMcpWriteBudget,
+  type McpWriteLimits,
+} from '../lib/mcp/rate.js';
 
 export const MCP_RESOURCE = 'https://api.wally.luminull.com/mcp';
 export const MCP_METADATA_PATH = '/.well-known/oauth-protected-resource/mcp';
@@ -32,6 +36,7 @@ export interface McpRouteOptions {
   clientId?: string;
   verifier?: AccessTokenVerifier;
   writeLimits?: McpWriteLimits;
+  requestLimits?: McpWriteLimits;
 }
 
 export default async function mcpRoutes(app: FastifyInstance, options: McpRouteOptions) {
@@ -94,6 +99,13 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
       const token = { clientId, issuedAt: identity.issuedAt, scopes: identity.scopes };
       const grant = await requireConnection(app.db, userId, token, identity.emailVerified);
+      try {
+        await consumeMcpRequestBudget(app.db, userId, grant.id, options.requestLimits);
+      } catch (error) {
+        if (error instanceof AppError && error.statusCode === 429)
+          reply.header('Retry-After', '60');
+        throw error;
+      }
       if (request.method !== 'POST')
         return reply
           .header('Allow', 'POST')

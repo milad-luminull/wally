@@ -103,6 +103,22 @@ afterEach(async () => {
   _resetEnvCacheForTests();
 });
 describe('stateless MCP HTTP boundary', () => {
+  it('shares the authenticated request budget across instances and blocks reads before execution', async () => {
+    const options = { requestLimits: { user: 2, connection: 2 } };
+    const first = await makeApp(options);
+    const second = await makeApp(options);
+    expect(
+      (await rpc(first, 'tools/list', {}, { authorization: 'Bearer invalid' })).statusCode,
+    ).toBe(401);
+    expect((await call(first, 'list_notes', { boardId: 'board', limit: 1 })).statusCode).toBe(200);
+    expect((await rpc(second, 'tools/list')).statusCode).toBe(200);
+    const denied = await call(first, 'show_cards', { boardId: 'board', limit: 1 });
+    expect(denied.statusCode).toBe(429);
+    expect(denied.json().error).toBe('RATE_LIMITED');
+    expect(denied.headers['retry-after']).toBe('60');
+    expect((await notesCol(db).get()).size).toBe(0);
+  });
+
   it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
     await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
     await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });

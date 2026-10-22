@@ -66,7 +66,7 @@ not evidence of an MCP execution defect or a proven server-side fix.
 - [ ] Close the Auth0/MCP erasure, export and retention release gates documented in
       GDPR.md, including authIdentities, mcpConnections, write limits
       and audit records. Obtain the required privacy notice/provider review.
-- [ ] Complete the RFC-required security review for the full authentication/MCP boundary.
+- [x] Complete the RFC-required security review for the full authentication/MCP boundary.
       The focused card-widget review is not a substitute for this review.
 - [ ] Verify the card and compact-list UI in ChatGPT with CSP enforcement enabled.
 - [ ] Record a recoverable prior API revision and Hosting version and validate the paired
@@ -135,3 +135,57 @@ confirmed:
 This captures the current API/Hosting pair for rollback planning. It does not prove a
 rollback exercise or close the remaining identity, Auth0 configuration, privacy,
 security review, recovery and ChatGPT CSP acceptance gates. No deployment was performed.
+
+### Security and identity follow-up
+
+Independent source review at `71b9f516` covered JWT/identity resolution, REST/MCP auth
+boundaries, connection transactions, permissions/private notes, command replay,
+widgets, web sessions, migration and release configuration. No confirmed auth or
+permission bypass was found. One availability issue was identified: MCP bypassed the
+application request limiter and only writes had a shared budget. The fix adds a shared
+300/minute authenticated request budget before tool execution, preserving the separate
+write budget. A regression first failed (200 instead of 429), then passed; all 20 MCP
+transport tests and the full 699-test API suite (66 files, one worker) passed. API
+typecheck and focused lint passed. This is a source review, not security certification.
+
+A fresh read-only Firebase/Firestore inventory found nine Firebase accounts, seven
+Wally users and two stored identity mappings. No mapping targeted a missing Wally user.
+Among source identities with an existing Wally record and no disabled/duplicate-email
+exclusion, six Google identities were found: one exact subject/UID mapping and five
+without a matching mapping. One password identity has its expected deterministic
+mapping. Two Firebase accounts were excluded from this comparison. These are source
+and mapping counts, not verification that the remaining subjects exist in Auth0 or are
+migration-ready. The historical four-unmapped count must not be used for cutover.
+No account identities or emails are included in this report, and no mapping was written.
+
+Privacy inspection confirms the existing GAP-01/02/03/04 work is still open: account
+erasure, export, notice and retention need implementation/owner decisions, not a checkbox
+change. The new bounded request counter is included in the GDPR data inventory. Do not
+expire revoked-connection tombstones in isolation: deleting the last history can allow
+an old still-valid OAuth connection to auto-establish again.
+
+ChatGPT's “Enforce CSP for custom apps” setting was enabled and its checked state
+verified. Historical card/list widgets could not reopen. A fresh read-only call through
+the installed local connector failed at the OpenAI tunnel probe with HTTP 429, before a
+successful Wally response. Thus CSP rendering acceptance remains open; this is not
+evidence of a Wally serialization or CSP defect. The manual Wally connection was not
+revoked, no tunnel was rotated, and no notes were changed.
+
+Auth0 dashboard readback confirms the configured MCP client is a third-party SPA with
+only the ChatGPT callback and approved localhost Inspector callback. Authorization Code
+and Refresh Token grants are checked; Client Credentials is disabled. Refresh rotation
+is enabled, idle lifetime 604800 seconds, maximum 2592000 seconds, overlap zero.
+The MCP API shows two of two user-delegated permissions granted, no client access and
+zero anonymous permissions. Public issuer discovery returns `https://login.luminull.com/`
+and advertises S256. This alone does not prove per-client PKCE enforcement. The dashboard
+still reports 19 trial days remaining. Current [Auth0 pricing](https://auth0.com/pricing)
+lists a custom domain with credit-card verification; tenant billing/entitlements beyond
+the trial still require confirmation. No Auth0 settings or grants were modified.
+
+Wally Web dashboard readback also confirms production/local callback and logout URLs
+(`https://wally.luminull.com/login`, `http://localhost:5174/login`) and matching web
+origins. Its refresh rotation is enabled with seven-day idle and thirty-day maximum
+lifetimes. Auth0's current user list shows the two documented password test fixtures
+and the owner's Google identity; this does not provide ready verified subjects for the
+five remaining source Google identities. The recovery test is awaiting an owner-controlled
+real inbox and explicit permission to send one reset email; no password was requested.
