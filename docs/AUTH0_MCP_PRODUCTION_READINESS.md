@@ -189,3 +189,15 @@ lifetimes. Auth0's current user list shows the two documented password test fixt
 and the owner's Google identity; this does not provide ready verified subjects for the
 five remaining source Google identities. The recovery test is awaiting an owner-controlled
 real inbox and explicit permission to send one reset email; no password was requested.
+
+The owner subsequently confirmed neither password test account has an inbox; only the
+owner's Google account has a working inbox. No reset was sent. Testing Auth0 password
+recovery would require a separately authorized disposable password identity with a real
+inbox; Google recovery is not an equivalent test.
+
+Auth0 Teams subscription readback shows the current plan is Free ($0), with 25,000
+users and 1,000 M2M tokens. Its feature table marks social/database connections,
+custom domains and a custom email provider Included, while email workflow, custom
+page templates and several enterprise/session APIs are Trial. This verifies the basic
+Free-plan premise, but does not demonstrate every enabled tenant feature after expiry.
+No billing or subscription setting was changed.
