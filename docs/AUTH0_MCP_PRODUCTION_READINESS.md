@@ -64,7 +64,7 @@ not evidence of an MCP execution defect or a proven server-side fix.
 - [ ] Verify genuine mailbox recovery, HTTPS session restoration and Firebase rollback.
       The two CI accounts have no inboxes and do not prove password-email delivery.
 - [ ] Close the Auth0/MCP erasure, export and retention release gates documented in
-      GDPR.md, including authIdentities, mcpConnections, mcpBoardPolicies, write limits
+      GDPR.md, including authIdentities, mcpConnections, write limits
       and audit records. Obtain the required privacy notice/provider review.
 - [ ] Complete the RFC-required security review for the full authentication/MCP boundary.
       The focused card-widget review is not a substitute for this review.
@@ -82,10 +82,11 @@ not evidence of an MCP execution defect or a proven server-side fix.
    AUTH0_ENABLED=true, VITE_AUTH_PROVIDER=auth0, validated VITE_AUTH0_CLIENT_ID;
    keep MCP_ENABLED=false and MCP_WRITES_ENABLED=false. Keep signup disabled unless
    separately accepted. Verify login/logout, identity continuity and recovery.
-4. Enable read-only MCP in a subsequent approved release: ASSISTANT_ENABLED=true,
-   MCP_ENABLED=true, validated MCP_CLIENT_ID, MCP_WRITES_ENABLED=false. Use the
+4. Enable read-only MCP in a subsequent approved release: AUTH0_ENABLED=true,
+   MCP_ENABLED=true, validated MCP_CLIENT_ID, MCP_WRITES_ENABLED=false.
+   The built-in assistant switch is independent of MCP. Use the
    permanent endpoint `https://api.wally.luminull.com/mcp`, not the temporary tunnel.
-   Verify public discovery, real OAuth, selected-board reads and denied access with
+   Verify public discovery, real OAuth, current-membership reads and denied access with
    designated acceptance fixtures. Verify revocation on a separate test connection.
 5. Enable bounded writes only after explicit acceptance: MCP_WRITES_ENABLED=true.
    Validate revisions, operation replay without duplication and denial using approved
@@ -94,3 +95,22 @@ not evidence of an MCP execution defect or a proven server-side fix.
 Production smoke checks are read-only by default. Any future production acceptance
 fixtures or writes need explicit authorization. Do not revoke the owner's local manual
 test connection or stop its tunnel as cleanup.
+
+## Readiness follow-up — 2026-10-22
+
+The account-wide connection implementation plan is complete. Production activation
+remains gated by the unchecked items above; the October 21 audit is historical evidence,
+not a current production-state assertion.
+
+At `28fb4e7d`, lint/format, typecheck/build and full-stack browser CI passed. The unit
+job failed because the brand guard rejected the explicitly approved connection status
+lights. Commit `1a1917f0` permits those two status tokens on the connection page and
+documents the design exception. All 10 focused brand/connection tests passed locally;
+the new CI run is [39818316642](https://github.com/milad-luminull/wally/actions/runs/39818316642).
+Do not infer a green run from the earlier candidate's results.
+
+Read-only production inspection was attempted again for `luminull-wally` in
+`europe-west1`, confirmed from repository variables. Google Cloud credential refresh
+failed with “Reauthentication failed”; the serving revision, traffic and runtime flags
+remain unverified. The owner has been asked to renew CLI authentication. No runtime
+settings, accounts, connections, deployment or production content were changed.
