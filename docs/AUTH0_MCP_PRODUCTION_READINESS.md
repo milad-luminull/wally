@@ -54,7 +54,7 @@ not evidence of an MCP execution defect or a proven server-side fix.
 
 ## Outstanding activation gates
 
-- [ ] Reauthenticate Google Cloud; record the serving Cloud Run revision/image, traffic,
+- [x] Reauthenticate Google Cloud; record the serving Cloud Run revision/image, traffic,
       runtime flags and Hosting version. Check production environment variable overrides.
 - [ ] Freshly verify Auth0 tenant/client/API configuration, allowed production origins and
       callbacks, scopes, PKCE, issuer/audiences and Free-plan capabilities beyond trial.
@@ -114,3 +114,24 @@ Read-only production inspection was attempted again for `luminull-wally` in
 failed with “Reauthentication failed”; the serving revision, traffic and runtime flags
 remain unverified. The owner has been asked to renew CLI authentication. No runtime
 settings, accounts, connections, deployment or production content were changed.
+
+### Live inspection after renewed authentication
+
+The credential block above was resolved during the same follow-up. Read-only inspection
+confirmed:
+
+- Project `luminull-wally`, region `europe-west1`, service `wally-api`.
+- Serving revision `wally-api-rel-0dece50` receives 100% of traffic.
+- The serving revision's resolved image is
+  `europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api@sha256:e9695aa5f6384bd91a2290a84c5c0eceff11345a5bacdf510b9bdbc600b36a70`.
+  This is the immutable revision's reported image digest, not the service template image.
+- `ASSISTANT_ENABLED=true`; Auth0/signup/MCP/write flags are absent from that revision.
+  Absence is recorded rather than treated as proof about an uninspected image's defaults.
+- GitHub production environment has no Auth0/signup/MCP/write/provider variable overrides.
+- Hosting release `sites/luminull-wally/releases/1792443034085000`, released
+  `2026-10-19T20:50:34.085Z`, uses version
+  `sites/luminull-wally/versions/308db1a2383aeaa3`.
+
+This captures the current API/Hosting pair for rollback planning. It does not prove a
+rollback exercise or close the remaining identity, Auth0 configuration, privacy,
+security review, recovery and ChatGPT CSP acceptance gates. No deployment was performed.
