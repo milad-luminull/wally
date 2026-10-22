@@ -11,8 +11,6 @@ const connection: McpConnections['connections'][number] = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'ChatGPT',
   clientId: 'client',
-  boardIds: [],
-  access: 'all',
   scopes: ['wally:read', 'wally:write'],
   createdAt: '2026-10-19T00:00:00.000Z',
   revokedAt: null,
@@ -52,28 +50,6 @@ it('shows ordinary permissions and only Disconnect for an active account-wide co
   await user.click(await screen.findByRole('button', { name: 'Disconnect ChatGPT' }));
   await waitFor(() => expect(api.delete).toHaveBeenCalledWith(`/me/connections/${connection.id}`));
   expect(await screen.findByRole('button', { name: 'Reconnect ChatGPT' })).toBeInTheDocument();
-});
-it('requires an explicit upgrade for a legacy connection', async () => {
-  config.connections = [
-    { ...connection, access: undefined, boardIds: ['one'], scopes: ['wally:read'] },
-  ];
-  const user = userEvent.setup();
-  renderWithProviders(<ConnectionsSettings />);
-  expect(await screen.findByText(/previously selected boards/i)).toBeInTheDocument();
-  expect(api.post).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: 'Use my Wally permissions' }));
-  await waitFor(() =>
-    expect(api.post).toHaveBeenCalledWith(
-      '/me/connections/connect',
-      { clientId: 'client' },
-      expect.anything(),
-    ),
-  );
-  await waitFor(() =>
-    expect(
-      screen.queryByRole('button', { name: 'Use my Wally permissions' }),
-    ).not.toBeInTheDocument(),
-  );
 });
 it('does not show old revoked entries alongside an active replacement', async () => {
   config.connections = [

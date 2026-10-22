@@ -75,28 +75,8 @@ export function ConnectionsSettings() {
                 <div className="min-w-0 flex-1 space-y-2">
                   <h2 className="font-medium">{connection.name}</h2>
                   <p className="text-sm text-fg-3">
-                    {t(
-                      connection.revokedAt
-                        ? 'connections.revoked'
-                        : connection.access === 'all'
-                          ? 'connections.inherited'
-                          : 'connections.legacy',
-                    )}
+                    {t(connection.revokedAt ? 'connections.revoked' : 'connections.inherited')}
                   </p>
-                  {!connection.revokedAt &&
-                    connection.access !== 'all' &&
-                    data.enabled &&
-                    connection.clientId === data.client?.id && (
-                      <Button
-                        variant="outline"
-                        disabled={mutation.isPending}
-                        onClick={() =>
-                          mutation.mutate({ kind: 'connect', clientId: connection.clientId })
-                        }
-                      >
-                        {t('connections.upgrade')}
-                      </Button>
-                    )}
                 </div>
                 {!connection.revokedAt ? (
                   <Button

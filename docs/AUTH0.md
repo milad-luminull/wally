@@ -149,7 +149,7 @@ API grants and Wally board authorization remain separate requirements.
 Set `MCP_CLIENT_ID` to the approved client's verified token client identifier. Connect
 from ChatGPT and complete OAuth; the first verified request establishes access using the
 user's current Wally permissions. No board-selection setup is required for new connections.
-Legacy selected-board grants need an explicit upgrade in Connected apps. Writes require
+Writes require
 current edit permission, the deployment switch and token scope. See
 [the connection model](MCP_CONNECTION_MODEL.md) for disconnect and reconnect behavior. A read-only token must be reauthorized with
 `wally:write` before write tools become available. Verify this escalation in the real host.

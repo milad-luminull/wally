@@ -2,8 +2,8 @@
 
 > **2026-10-22 model update:** The owner approved account-wide MCP access based on
 > current Wally membership and roles. New OAuth connections require no board selection
-> or owner AI switch. Existing selected-board grants remain restricted until explicitly
-> upgraded. See [the current connection model](MCP_CONNECTION_MODEL.md). Older selected-board validation below
+> or owner AI switch. This is the first release: the earlier experimental connection
+> model has been removed, with no migration or upgrade flow. See [the current connection model](MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
 Audit: 2026-10-21. Candidate: `202311734a65b2833f9fb970f865f1fca8d6cbec`, draft PR #66.

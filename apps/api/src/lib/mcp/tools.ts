@@ -14,7 +14,6 @@ export interface McpToolContext {
   actor: Actor;
   connectionId: string;
   scopes: string[];
-  allowedBoardIds: string[] | null;
   authorizeBoard: (boardId: string, write: boolean) => Promise<void>;
   authorizeWrite?: (tx: Transaction, boardId: string) => Promise<void>;
 }
@@ -125,7 +124,6 @@ export async function runMcpTool(
     const boards = await listBoards(context.db, context.actor);
     const allowed = [];
     for (const board of boards) {
-      if (context.allowedBoardIds && !context.allowedBoardIds.includes(board.id)) continue;
       try {
         await context.authorizeBoard(board.id, false);
       } catch (error) {
@@ -138,8 +136,6 @@ export async function runMcpTool(
     return { data: allowed, revision: null };
   }
   const args = parsed.data as { boardId: string };
-  if (context.allowedBoardIds && !context.allowedBoardIds.includes(args.boardId))
-    throw new AppError(404, 'NOT_FOUND', 'Not found');
   await context.authorizeBoard(args.boardId, !isRead(name));
   const { db, actor } = context;
   if (name === 'get_board') {

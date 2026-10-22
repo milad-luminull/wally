@@ -14,10 +14,7 @@ export const en = {
     saved: 'Connection updated. After reconnecting, sign in again from your AI app.',
     none: 'No connected apps yet.',
     revoked: 'Disconnected. Reconnect here, then sign in again from your AI app.',
-    inherited: 'Connected · Uses your current Wally permissions, including new boards.',
-    legacy:
-      'This connection still uses your previously selected boards and permissions. Upgrade to include all boards you can access and supported changes where you can edit, within the access you approved when connecting.',
-    upgrade: 'Use my Wally permissions',
+    inherited: 'Connected',
     revokeNamed: 'Disconnect {{name}}',
     revoke: 'Disconnect',
     reconnectNamed: 'Reconnect {{name}}',

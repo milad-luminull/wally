@@ -21,10 +21,7 @@ export const de = {
       'Verbindung aktualisiert. Melde dich nach dem Wiederverbinden erneut in deiner KI-App an.',
     none: 'Noch keine verbundenen Apps.',
     revoked: 'Getrennt. Verbinde die App hier erneut und melde dich dann in deiner KI-App an.',
-    inherited: 'Verbunden · Nutzt deine aktuellen Wally-Berechtigungen, auch für neue Boards.',
-    legacy:
-      'Diese Verbindung nutzt noch deine zuvor ausgewählten Boards und Berechtigungen. Die Umstellung umfasst alle zugänglichen Boards und unterstützte Änderungen, wo du bearbeiten darfst, im Rahmen des beim Verbinden bestätigten Zugriffs.',
-    upgrade: 'Meine Wally-Berechtigungen nutzen',
+    inherited: 'Verbunden',
     revokeNamed: '{{name}} trennen',
     revoke: 'Trennen',
     reconnectNamed: '{{name}} erneut verbinden',

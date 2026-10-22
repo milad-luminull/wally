@@ -1,18 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
-import { mcpGrantInputSchema } from '@wally/shared';
 import { liveWhiteboard, whiteboardsCol } from '../db/collections.js';
 import { requireAccess, type Actor } from '../commands/context.js';
 import { AppError } from '../errors.js';
 
-export const grantInputSchema = mcpGrantInputSchema;
 export interface ConnectionGrant {
   id: string;
   clientId: string;
   name: string;
-  boardIds: string[];
-  /** Missing means a legacy, explicitly selected-board grant. */
-  access?: 'all';
   scopes: ('wally:read' | 'wally:write')[];
   createdAt: string;
   issuedAfter: number;
@@ -20,87 +15,6 @@ export interface ConnectionGrant {
 }
 const connections = (db: Firestore, userId: string) =>
   db.collection('users').doc(userId).collection('mcpConnections');
-const policy = (db: Firestore, boardId: string) => db.collection('mcpBoardPolicies').doc(boardId);
-async function checkBoard(
-  db: Firestore,
-  tx: Transaction,
-  actor: Actor,
-  boardId: string,
-  write: boolean,
-) {
-  const [boardSnapshot, setting] = await Promise.all([
-    tx.get(whiteboardsCol(db).doc(boardId)),
-    tx.get(policy(db, boardId)),
-  ]);
-  const board = liveWhiteboard(boardSnapshot);
-  requireAccess(board, actor.id, write ? ['OWNER', 'EDIT'] : ['OWNER', 'EDIT', 'VIEW']);
-  if (
-    board!.assistantDisabled ||
-    setting.data()?.enabled !== true ||
-    setting.data()?.ownerId !== board!.ownerId
-  ) {
-    throw new AppError(403, 'MCP_BOARD_DISABLED', 'The board owner must enable external AI access');
-  }
-}
-export async function setBoardPolicy(
-  db: Firestore,
-  actor: Actor,
-  boardId: string,
-  enabled: boolean,
-) {
-  await db.runTransaction(async (tx) => {
-    const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
-    requireAccess(board, actor.id, ['OWNER']);
-    tx.set(policy(db, boardId), {
-      enabled,
-      ownerId: actor.id,
-      updatedAt: new Date().toISOString(),
-    });
-  });
-  return { enabled };
-}
-export async function getBoardPolicy(db: Firestore, actor: Actor, boardId: string) {
-  return db.runTransaction(
-    async (tx) => {
-      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
-      requireAccess(board, actor.id, ['OWNER', 'EDIT', 'VIEW']);
-      const setting = (await tx.get(policy(db, boardId))).data();
-      return { enabled: setting?.enabled === true && setting.ownerId === board!.ownerId };
-    },
-    { readOnly: true },
-  );
-}
-export async function createConnection(
-  db: Firestore,
-  actor: Actor,
-  clientId: string,
-  boardIds: string[],
-  write: boolean,
-): Promise<ConnectionGrant> {
-  const input = grantInputSchema.parse({ clientId, boardIds, write });
-  const grant: ConnectionGrant = {
-    id: randomUUID(),
-    clientId,
-    name: 'ChatGPT',
-    boardIds: [...new Set(input.boardIds)],
-    scopes: write ? ['wally:read', 'wally:write'] : ['wally:read'],
-    createdAt: new Date().toISOString(),
-    issuedAfter: Math.floor(Date.now() / 1000),
-    revokedAt: null,
-  };
-  await db.runTransaction(async (tx) => {
-    const existing = await tx.get(connections(db, actor.id).where('clientId', '==', clientId));
-    if (existing.docs.some((doc) => doc.data().revokedAt === null))
-      throw new AppError(
-        409,
-        'CONNECTION_EXISTS',
-        'Revoke the existing connection before changing its access',
-      );
-    for (const boardId of grant.boardIds) await checkBoard(db, tx, actor, boardId, write);
-    tx.create(connections(db, actor.id).doc(grant.id), grant);
-  });
-  return grant;
-}
 export async function listConnections(db: Firestore, userId: string): Promise<ConnectionGrant[]> {
   return (await connections(db, userId).get()).docs.map((doc) => doc.data() as ConnectionGrant);
 }
@@ -151,15 +65,13 @@ function accountConnection(clientId: string, issuedAfter: number): ConnectionGra
     id: randomUUID(),
     clientId,
     name: 'ChatGPT',
-    access: 'all',
-    boardIds: [],
     scopes: ['wally:read', 'wally:write'],
     createdAt: new Date().toISOString(),
     issuedAfter,
     revokedAt: null,
   };
 }
-/** Explicit authenticated upgrade/reconnect. Never invoked by an MCP token. */
+/** Explicit authenticated reconnect. Never invoked by an MCP token. */
 export async function connectAccount(
   db: Firestore,
   userId: string,
@@ -170,22 +82,13 @@ export async function connectAccount(
       (doc) => doc.data() as ConnectionGrant,
     );
     const active = rows.find((row) => row.revokedAt === null);
-    if (active) {
-      const upgraded: ConnectionGrant = {
-        ...active,
-        access: 'all',
-        boardIds: [],
-        scopes: ['wally:read', 'wally:write'],
-      };
-      tx.set(connections(db, userId).doc(active.id), upgraded);
-      return upgraded;
-    }
+    if (active) return active;
     const created = accountConnection(clientId, Math.floor(Date.now() / 1000));
     tx.create(connections(db, userId).doc(created.id), created);
     return created;
   });
 }
-/** Shared transaction guard: command receipts and writes see revocation/policy atomically. */
+/** Shared transaction guard: command receipts and writes see revocation/membership atomically. */
 export async function authorizeConnectionBoardInTransaction(
   db: Firestore,
   tx: Transaction,
@@ -198,19 +101,10 @@ export async function authorizeConnectionBoardInTransaction(
   if (!enabled) throw new AppError(503, 'MCP_DISABLED', 'External AI access is disabled');
   const grant = (await tx.get(connections(db, actor.id).doc(connectionId))).data() as
     ConnectionGrant | undefined;
-  if (
-    !grant ||
-    grant.revokedAt ||
-    (grant.access !== 'all' && !grant.boardIds.includes(boardId)) ||
-    !grant.scopes.includes(write ? 'wally:write' : 'wally:read')
-  )
+  if (!grant || grant.revokedAt || !grant.scopes.includes(write ? 'wally:write' : 'wally:read'))
     throw new AppError(403, 'MCP_CONSENT_REQUIRED', 'Connection does not permit this operation');
-  if (grant.access === 'all') {
-    const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
-    requireAccess(board, actor.id, write ? ['OWNER', 'EDIT'] : ['OWNER', 'EDIT', 'VIEW']);
-  } else {
-    await checkBoard(db, tx, actor, boardId, write);
-  }
+  const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
+  requireAccess(board, actor.id, write ? ['OWNER', 'EDIT'] : ['OWNER', 'EDIT', 'VIEW']);
 }
 export async function authorizeConnectionBoard(
   db: Firestore,

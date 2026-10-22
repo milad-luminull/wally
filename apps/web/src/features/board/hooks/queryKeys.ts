@@ -16,7 +16,6 @@ export function scopedQueryKeys(uid: string | null) {
   return {
     meBoards: () => [...root, 'me', 'boards'] as const,
     connections: () => [...root, 'me', 'connections'] as const,
-    mcpBoardPolicy: (boardId: string) => [...root, 'mcp-policy', boardId] as const,
     /** NOTE: shares the ['me'] prefix with meBoards, so never invalidate the bare prefix —
      * that would throw away the boards list too. Always invalidate this exact key. */
     profile: () => [...root, 'me', 'profile'] as const,

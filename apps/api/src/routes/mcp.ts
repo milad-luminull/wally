@@ -106,7 +106,6 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         actor,
         connectionId: grant.id,
         scopes,
-        allowedBoardIds: grant.access === 'all' ? null : grant.boardIds,
         async authorizeWrite(tx, boardId) {
           await authorizeConnectionBoardInTransaction(
             app.db,

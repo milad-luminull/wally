@@ -595,17 +595,15 @@ identity mappings have been written, but production Auth0 login has not been act
 See [Auth0 activation and migration](AUTH0.md).
 
 MCP adds private `users/{uid}/mcpConnections` records containing client identifier, access
-mode, scope ceiling, creation time and revocation time. Legacy records also contain selected
-board IDs. New connections use current Wally permissions across all accessible boards. `mcpBoardPolicies/{boardId}`
-stores the approving owner ID, enabled flag and update time. A bounded rolling
+scope ceiling, creation time and revocation time. Connections use current Wally permissions
+across all accessible boards. No selected-board list or board-level MCP policy is stored. A bounded rolling
 `users/{uid}/mcpLimits/writes` counter supports shared write limits. Command audit entries
 identify the MCP connection. No access/refresh tokens are stored in these records.
 These records require inclusion in account/board erasure and export procedures; revoked
 connection retention still needs an operational policy before production rollout.
 
 New external AI connections inherit the user's current board membership and role after
-OAuth approval; a separate board-owner approval is not required. Legacy grants retain
-owner policy and selected-board restrictions until explicitly upgraded. Host-visible
+OAuth approval; a separate board-owner approval is not required. Host-visible
 content follows current membership and note privacy. Users must be told that content
 from accessible boards can be processed by their external AI host; host retention
 and training terms are separate from Wally's. Write permission does not permit deletion

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import {
-  addTestMember,
   createFakeAuthVerifier,
   createTestBoard,
   createTestUser,
@@ -36,28 +35,24 @@ afterAll(async () => {
   await resetDatabase(project);
 });
 const headers = (id = 'owner') => ({ authorization: `Bearer ${id}` });
-const enable = () =>
+const connect = (
+  payload: Record<string, unknown> = { clientId: 'chatgpt' },
+  authHeaders = headers(),
+) =>
   app.inject({
-    method: 'PATCH',
-    url: '/test/whiteboards/owner/mcp-access',
-    headers: headers(),
-    payload: { enabled: true },
+    method: 'POST',
+    url: '/test/me/connections/connect',
+    headers: authHeaders,
+    payload,
   });
-it('requires authentication and owner approval, then supports private revocation', async () => {
+it('connects without board setup and isolates disconnect by user', async () => {
   expect((await app.inject({ url: '/test/me/connections' })).statusCode).toBe(401);
-  const create = () =>
-    app.inject({
-      method: 'POST',
-      url: '/test/me/connections',
-      headers: headers(),
-      payload: { clientId: 'chatgpt', boardIds: ['owner'] },
-    });
-  expect((await create()).statusCode).toBe(403);
-  expect((await enable()).statusCode).toBe(200);
-  const created = await create();
-  expect(created.statusCode).toBe(201);
+  const created = await connect();
+  expect(created.statusCode).toBe(200);
   expect(created.json()).not.toHaveProperty('issuedAfter');
-  const id = created.json().id as string;
+  expect(created.json()).not.toHaveProperty('boardIds');
+  expect(created.json()).not.toHaveProperty('access');
+  expect((await connect()).json().id).toBe(created.json().id);
   expect(
     (await app.inject({ url: '/test/me/connections', headers: headers('editor') })).json()
       .connections,
@@ -66,88 +61,45 @@ it('requires authentication and owner approval, then supports private revocation
     (
       await app.inject({
         method: 'DELETE',
-        url: `/test/me/connections/${id}`,
+        url: `/test/me/connections/${created.json().id}`,
         headers: headers('editor'),
       })
     ).statusCode,
   ).toBe(404);
-  for (let attempt = 0; attempt < 2; attempt++)
+  for (let i = 0; i < 2; i++)
     expect(
       (
         await app.inject({
           method: 'DELETE',
-          url: `/test/me/connections/${id}`,
+          url: `/test/me/connections/${created.json().id}`,
           headers: headers(),
         })
       ).statusCode,
     ).toBe(204);
-  expect(
-    (await app.inject({ url: '/test/me/connections', headers: headers() })).json().connections[0]
-      .revokedAt,
-  ).toEqual(expect.any(String));
 });
-it('rejects client substitution, write escalation, and enabling by members', async () => {
-  await addTestMember(db, 'owner', 'editor', 'EDIT');
+it('rejects client substitution, unauthenticated requests and obsolete board-selection input', async () => {
+  expect((await connect({ clientId: 'wrong' })).statusCode).toBe(400);
+  expect(
+    (await connect({ clientId: 'chatgpt' }, {} as ReturnType<typeof headers>)).statusCode,
+  ).toBe(401);
+  expect((await connect({ clientId: 'chatgpt', boardIds: ['owner'] })).statusCode).toBe(400);
   expect(
     (
       await app.inject({
         method: 'PATCH',
         url: '/test/whiteboards/owner/mcp-access',
-        headers: headers('editor'),
+        headers: headers(),
         payload: { enabled: true },
       })
     ).statusCode,
-  ).toBe(403);
-  await enable();
-  for (const payload of [
-    { clientId: 'attacker', boardIds: ['owner'] },
-    { clientId: 'chatgpt', boardIds: ['owner'], write: true },
-  ]) {
-    expect(
-      (
-        await app.inject({
-          method: 'POST',
-          url: '/test/me/connections',
-          headers: headers(),
-          payload,
-        })
-      ).statusCode,
-    ).toBe(payload.write ? 403 : 400);
-  }
+  ).toBe(404);
 });
-it('requires verified email before granting access', async () => {
+it('requires verified email before connecting', async () => {
   auth.tokens.set('owner', {
     uid: 'owner',
     email: 'owner@example.com',
     emailVerified: false,
     name: null,
   });
-  expect((await enable()).statusCode).toBe(403);
-});
-
-it('explicitly upgrades only the authenticated user and requires the configured client', async () => {
-  await enable();
-  const legacy = await app.inject({
-    method: 'POST',
-    url: '/test/me/connections',
-    headers: headers(),
-    payload: { clientId: 'chatgpt', boardIds: ['owner'] },
-  });
-  const connect = (clientId: string, authHeaders = headers()) =>
-    app.inject({
-      method: 'POST',
-      url: '/test/me/connections/connect',
-      headers: authHeaders,
-      payload: { clientId },
-    });
-  expect((await connect('wrong')).statusCode).toBe(400);
-  expect((await connect('chatgpt', {} as ReturnType<typeof headers>)).statusCode).toBe(401);
-  const upgraded = await connect('chatgpt');
-  expect(upgraded.statusCode).toBe(200);
-  expect(upgraded.json()).toMatchObject({ id: legacy.json().id, access: 'all', boardIds: [] });
-  expect(upgraded.json()).not.toHaveProperty('issuedAfter');
-  expect(
-    (await app.inject({ url: '/test/me/connections', headers: headers('editor') })).json()
-      .connections,
-  ).toEqual([]);
+  expect((await connect()).statusCode).toBe(403);
 });

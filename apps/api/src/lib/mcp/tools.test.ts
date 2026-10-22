@@ -26,7 +26,6 @@ beforeEach(async () => {
     actor: { id: 'owner', email: 'owner@example.com', emailVerified: true },
     connectionId: 'connection',
     scopes: ['wally:read', 'wally:write'],
-    allowedBoardIds: ['board'],
     authorizeBoard: async () => {},
   };
 });
@@ -59,17 +58,15 @@ describe('MCP operations', () => {
     };
     expect((await runMcpTool(context, 'list_boards', {})).data).toEqual([]);
   });
-  it('restricts discovery to allowed boards and current board policy', async () => {
+  it('discovers newly accessible boards and excludes nonmember boards', async () => {
     const source = (await whiteboardsCol(db).doc('board').get()).data()!;
     await whiteboardsCol(db)
       .doc('second')
       .set({ ...source, name: 'Second' });
-    expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
-    context.allowedBoardIds!.push('second');
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(2);
-    context.allowedBoardIds = [];
-    expect((await runMcpTool(context, 'list_boards', {})).data).toEqual([]);
-    await expect(runMcpTool(context, 'get_board', { boardId: 'board' })).rejects.toMatchObject({
+    await whiteboardsCol(db).doc('second').update({ ownerId: 'other' });
+    expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
+    await expect(runMcpTool(context, 'get_board', { boardId: 'second' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
   });
@@ -127,7 +124,6 @@ describe('MCP operations', () => {
     await expect(
       runMcpTool(context, 'get_note', { boardId: 'board', noteId: privateNote.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    context.allowedBoardIds!.push('other');
     await expect(
       runMcpTool(context, 'get_note', { boardId: 'other', noteId: shared.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
@@ -160,7 +156,6 @@ describe('MCP operations', () => {
     await expect(
       runMcpTool(context, 'list_notes', { boardId: 'board', cursor: first.nextCursor }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-    context.allowedBoardIds!.push('other');
     await expect(
       runMcpTool(context, 'list_notes', { ...args, boardId: 'other', cursor: first.nextCursor }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });

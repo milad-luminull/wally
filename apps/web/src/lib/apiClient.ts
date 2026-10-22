@@ -116,15 +116,12 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
  * parsing strings.
  */
 export function resourceForPath(path: string): string | undefined {
-  // Connector policies have their own lifecycle, independent of board content revisions.
-  if (/^\/whiteboards\/[^/]+\/mcp-access$/.test(path)) return undefined;
   const parts = path.split('/');
   if (parts[1] === 'notes' && parts[2]) return `note:${parts[2]}`;
   if (parts[1] === 'whiteboards' && parts[2]) return `board:${parts[2]}`;
   return undefined;
 }
 function observeResponse(path: string, data: unknown, revision: number | undefined) {
-  if (/^\/whiteboards\/[^/]+\/mcp-access$/.test(path)) return;
   if (revision !== undefined && path.startsWith('/whiteboards/') && !path.endsWith('/notes')) {
     for (const item of Array.isArray(data) ? data : [data])
       if (item && typeof item === 'object') Object.assign(item, { boardRevision: revision });

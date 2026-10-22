@@ -12,7 +12,7 @@ import { AppError } from '../src/lib/errors.js';
 import { buildApp } from '../src/app.js';
 import { createTestUser, getTestDb, resetDatabase } from './helpers.js';
 import { bindImportedIdentity } from '../src/lib/auth/identities.js';
-import { createConnection, revokeConnection, setBoardPolicy } from '../src/lib/mcp/grants.js';
+import { connectAccount, revokeConnection } from '../src/lib/mcp/grants.js';
 import { runMcpTool, type McpToolContext } from '../src/lib/mcp/tools.js';
 import {
   authorizeConnectionBoard,
@@ -94,8 +94,7 @@ beforeEach(async () => {
     issuedAt: Math.floor(Date.now() / 1000) + 2,
   };
   await bindImportedIdentity(db, identity, actor.id);
-  await setBoardPolicy(db, actor, 'board', true);
-  grantId = (await createConnection(db, actor, 'chatgpt', ['board'], true)).id;
+  grantId = (await connectAccount(db, actor.id, 'chatgpt')).id;
 });
 afterEach(async () => {
   for (const app of apps) await app.close();
@@ -106,7 +105,6 @@ afterEach(async () => {
 describe('stateless MCP HTTP boundary', () => {
   it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
     await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
-    await setBoardPolicy(db, actor, 'board', false);
     await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });
     const app = await makeApp({ assistantEnabled: false });
     const listed = (await call(app, 'list_boards', {})).json().result;
@@ -115,7 +113,6 @@ describe('stateless MCP HTTP boundary', () => {
     ]);
     const auto = (await db.collection('users').doc(actor.id).collection('mcpConnections').get())
       .docs[0]!;
-    expect(auto.data().access).toBe('all');
     const args = {
       boardId: 'board',
       operationId: randomUUID(),
@@ -479,7 +476,7 @@ describe('stateless MCP HTTP boundary', () => {
       400,
     );
   });
-  it('honors deployment and board switches and withholds write tools for readonly connections', async () => {
+  it('honors deployment switches and withholds write tools for readonly connections', async () => {
     expect((await rpc(await makeApp({ enabled: false }), 'tools/list')).statusCode).toBe(503);
     expect((await rpc(await makeApp({ assistantEnabled: false }), 'tools/list')).statusCode).toBe(
       200,
@@ -496,9 +493,8 @@ describe('stateless MCP HTTP boundary', () => {
       });
       expect(denied.json().result?.isError ?? Boolean(denied.json().error)).toBe(true);
     }
-    await setBoardPolicy(db, actor, 'board', false);
     const disabled = await call(await makeApp(), 'get_board', { boardId: 'board' });
-    expect(disabled.json().result.structuredContent.error).toBe('MCP_BOARD_DISABLED');
+    expect(disabled.json().result.isError).not.toBe(true);
     expect((await notesCol(db).get()).size).toBe(0);
   });
   it.each(['revoke-new', 'revoke-replay', 'membership-new', 'membership-replay'])(
@@ -511,7 +507,6 @@ describe('stateless MCP HTTP boundary', () => {
         actor,
         connectionId: upgraded.id,
         scopes: ['wally:read', 'wally:write'],
-        allowedBoardIds: null,
         async authorizeBoard(boardId, write) {
           await authorizeConnectionBoard(db, actor, upgraded.id, boardId, write, true);
           if (interrupt) {
@@ -537,37 +532,6 @@ describe('stateless MCP HTTP boundary', () => {
         code: scenario.startsWith('revoke') ? 'MCP_CONSENT_REQUIRED' : 'NOT_FOUND',
       });
       expect((await notesCol(db).get()).size).toBe(replay ? 1 : 0);
-    },
-  );
-  it.each(['revoke-new', 'revoke-replay', 'policy-new', 'policy-replay'])(
-    'rechecks durable authorization inside the command transaction: %s',
-    async (scenario) => {
-      let interrupt = false;
-      const context: McpToolContext = {
-        db,
-        actor,
-        connectionId: grantId,
-        scopes: ['wally:read', 'wally:write'],
-        allowedBoardIds: ['board'],
-        async authorizeBoard(boardId, write) {
-          await authorizeConnectionBoard(db, actor, grantId, boardId, write, true);
-          if (interrupt) {
-            if (scenario.startsWith('revoke')) await revokeConnection(db, actor.id, grantId);
-            else await setBoardPolicy(db, actor, boardId, false);
-          }
-        },
-        authorizeWrite: (tx, boardId) =>
-          authorizeConnectionBoardInTransaction(db, tx, actor, grantId, boardId, true, true),
-      };
-      const args = { boardId: 'board', operationId: randomUUID(), input: { title: 'Guarded' } };
-      const replay = scenario.endsWith('replay');
-      if (replay) await runMcpTool(context, 'create_note', args);
-      interrupt = true;
-      await expect(runMcpTool(context, 'create_note', args)).rejects.toMatchObject({
-        code: scenario.startsWith('revoke') ? 'MCP_CONSENT_REQUIRED' : 'MCP_BOARD_DISABLED',
-      });
-      expect((await notesCol(db).get()).size).toBe(replay ? 1 : 0);
-      expect((await db.collection('assistantAudit').get()).size).toBe(replay ? 1 : 0);
     },
   );
   it('keeps the production Auth0 switch mandatory without a verifier test override', async () => {
