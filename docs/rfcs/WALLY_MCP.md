@@ -6,7 +6,6 @@
 > upgraded. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-
 **Status:** the first MCP surface is implemented locally; production remains disabled pending release validation.
 **Last checked:** 2026-10-20. The API includes MCP routes, OAuth resource discovery and authorization checks.
 

@@ -6,7 +6,6 @@
 > upgraded. See [the current connection model](MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-
 Status on 2026-10-21: real Auth0 Inspector read/write, consent, replay and
 revocation checks passed. ChatGPT discovery, reads and read revocation passed.
 ChatGPT writes reached the server and produced the expected synthetic effects, but

@@ -6,7 +6,6 @@
 > upgraded. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-
 - **Status:** Auth0/MCP implemented locally; external-host validation and production cutover pending.
 - **Date:** 2026-10-19
 - **Decision:** [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md)
