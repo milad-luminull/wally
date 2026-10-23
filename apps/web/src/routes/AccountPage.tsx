@@ -107,6 +107,9 @@ export function AccountSettings() {
           >
             <DialogHeader>
               <DialogTitle>{t('accountData.deleteTitle')}</DialogTitle>
+              <p className="break-all text-sm font-medium">
+                {t('accountData.account', { email: user?.email ?? '' })}
+              </p>
               <DialogDescription>{t('accountData.warning')}</DialogDescription>
             </DialogHeader>
             <Button
@@ -153,32 +156,36 @@ export function AccountSettings() {
                     {reauthError && <p role="alert">{t('accountData.reauthError')}</p>}
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label htmlFor="account-delete-confirmation">
-                    {t('accountData.confirmation')}
-                  </Label>
-                  <Input
-                    id="account-delete-confirmation"
-                    autoComplete="off"
-                    value={confirmation}
-                    onChange={(event) => setConfirmation(event.target.value)}
-                    disabled={deletion.isPending}
-                  />
-                </div>
-                <Button
-                  variant="destructive"
-                  disabled={
-                    confirmation !== 'DELETE' ||
-                    !preview.data.recentAuthentication ||
-                    deletion.isPending ||
-                    preview.isFetching ||
-                    preview.isError ||
-                    download.isPending
-                  }
-                  onClick={() => deletion.mutate()}
-                >
-                  {t(deletion.isPending ? 'accountData.deleting' : 'accountData.delete')}
-                </Button>
+                {preview.data.recentAuthentication && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="account-delete-confirmation">
+                        {t('accountData.confirmation')}
+                      </Label>
+                      <Input
+                        id="account-delete-confirmation"
+                        autoComplete="off"
+                        value={confirmation}
+                        onChange={(event) => setConfirmation(event.target.value)}
+                        disabled={deletion.isPending}
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      disabled={
+                        confirmation !== 'DELETE' ||
+                        !preview.data.recentAuthentication ||
+                        deletion.isPending ||
+                        preview.isFetching ||
+                        preview.isError ||
+                        download.isPending
+                      }
+                      onClick={() => deletion.mutate()}
+                    >
+                      {t(deletion.isPending ? 'accountData.deleting' : 'accountData.delete')}
+                    </Button>
+                  </>
+                )}
               </>
             )}
             {deletion.isError && <p role="alert">{t('accountData.deleteError')}</p>}

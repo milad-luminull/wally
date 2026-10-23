@@ -1,6 +1,7 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   accountData: {
+    account: 'Account: {{email}}',
     title: 'Account and data',
     exportTitle: 'Your data',
     exportHint:

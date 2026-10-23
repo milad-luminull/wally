@@ -6,7 +6,11 @@ import { api } from '@/lib/apiClient';
 import { AccountSettings } from './AccountPage';
 vi.mock('@/lib/apiClient', () => ({ api: { get: vi.fn(), deleteWithBody: vi.fn() } }));
 vi.mock('@/features/auth/AuthProvider', () => ({
-  useAuth: () => ({ signOut: vi.fn(), reauthenticate: vi.fn() }),
+  useAuth: () => ({
+    user: { uid: 'test-owner', email: 'disposable@example.com' },
+    signOut: vi.fn(),
+    reauthenticate: vi.fn(),
+  }),
 }));
 beforeEach(() => {
   vi.resetAllMocks();
@@ -23,6 +27,9 @@ it('names the owned boards, offers export, and requires explicit typed confirmat
   expect(screen.queryByLabelText('Type DELETE to confirm')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Delete account' }));
   expect(await screen.findByText('Team planning')).toBeInTheDocument();
+  expect(
+    within(screen.getByRole('dialog')).getByText('Account: disposable@example.com'),
+  ).toBeInTheDocument();
   expect(
     within(screen.getByRole('dialog')).getByRole('button', { name: 'Download my data' }),
   ).toBeEnabled();
@@ -42,7 +49,8 @@ it('requires sign-in again before allowing deletion with an old session', async 
   renderWithProviders(<AccountSettings />);
   await user.click(screen.getByRole('button', { name: 'Delete account' }));
   expect(await screen.findByRole('button', { name: 'Sign in again' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Delete my account' })).toBeDisabled();
+  expect(screen.queryByLabelText('Type DELETE to confirm')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Delete my account' })).not.toBeInTheDocument();
 });
 
 it('allows deletion with zero boards after confirmation and clears confirmation on cancel', async () => {

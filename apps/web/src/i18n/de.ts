@@ -7,6 +7,7 @@
  */
 export const de = {
   accountData: {
+    account: 'Konto: {{email}}',
     title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
     exportHint:
