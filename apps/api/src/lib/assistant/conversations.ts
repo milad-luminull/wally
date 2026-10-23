@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
@@ -49,7 +50,10 @@ export async function createConversation(
     lastTurnAt: stamp,
     expiresAt: expiry(now),
   };
-  await ref.create(doc);
+  await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
+    tx.create(ref, doc);
+  });
   return { ...doc, id: ref.id };
 }
 
@@ -124,6 +128,7 @@ export async function appendTurn(
 ): Promise<WithId<AssistantConversationDoc>> {
   const ref = assistantConversationsCol(db, userId).doc(id);
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw new AppError(404, 'NOT_FOUND', 'Not found');
     if (current.status !== 'OPEN')

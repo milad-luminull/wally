@@ -1,3 +1,4 @@
+import { assertAccountActive, assertIdentityActive } from '../account/access.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { INITIAL_BOARD_NAME, type Language } from '@wally/shared';
 import type { VerifiedIdentity } from './auth0.js';
@@ -24,10 +25,12 @@ function identityRef(db: Firestore, identity: ExternalIdentity) {
 }
 
 export async function resolveIdentity(db: Firestore, identity: ExternalIdentity): Promise<string> {
+  await assertIdentityActive(db, identity.issuer, identity.subject);
   const record = (await identityRef(db, identity).get()).data() as AuthIdentityDoc | undefined;
   if (!record || record.issuer !== identity.issuer || record.subject !== identity.subject) {
     throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
   }
+  await assertAccountActive(db, record.userId);
   return record.userId;
 }
 
@@ -39,6 +42,8 @@ export async function bindImportedIdentity(
 ): Promise<void> {
   const ref = identityRef(db, identity);
   await db.runTransaction(async (tx) => {
+    await assertIdentityActive(db, identity.issuer, identity.subject, tx);
+    await assertAccountActive(db, userId, tx);
     const [mapping, user] = await Promise.all([tx.get(ref), tx.get(usersCol(db).doc(userId))]);
     if (!user.exists) throw new AppError(404, 'USER_NOT_FOUND', 'Migration target does not exist');
     if (mapping.exists) {
@@ -69,8 +74,10 @@ export async function resolveOrCreateIdentity(
   const boardRef = whiteboardsCol(db).doc(userId);
   const email = normalizeEmail(identity.email);
   return db.runTransaction(async (tx) => {
+    await assertIdentityActive(db, identity.issuer, identity.subject, tx);
     const mapping = (await tx.get(mappingRef)).data() as AuthIdentityDoc | undefined;
     if (mapping) {
+      await assertAccountActive(db, mapping.userId, tx);
       if (
         mapping.issuer !== identity.issuer ||
         mapping.subject !== identity.subject ||

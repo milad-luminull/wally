@@ -72,29 +72,33 @@ not evidence of an MCP execution defect or a proven server-side fix.
 - [ ] Record a recoverable prior API revision and Hosting version and validate the paired
       rollback procedure. Keep Firebase accounts and verifier available.
 
-## Staged release sequence after gates and explicit authorization
+## Approved single release — 2026-10-23
 
-1. Finalize PR review and merge; wait for CI on the resulting main SHA. A green PR run
-   does not satisfy the release workflow's separate main-SHA check.
-2. Deploy an explicitly approved release tag with new features disabled if code delivery
-   is desired before activation. Recheck effective environment variables first.
-3. Activate Auth0 web login in a separate approved release:
-   AUTH0_ENABLED=true, VITE_AUTH_PROVIDER=auth0, validated VITE_AUTH0_CLIENT_ID;
-   keep MCP_ENABLED=false and MCP_WRITES_ENABLED=false. Keep signup disabled unless
-   separately accepted. Verify login/logout, identity continuity and recovery.
-4. Enable read-only MCP in a subsequent approved release: AUTH0_ENABLED=true,
-   MCP_ENABLED=true, validated MCP_CLIENT_ID, MCP_WRITES_ENABLED=false.
-   The built-in assistant switch is independent of MCP. Use the
-   permanent endpoint `https://api.wally.luminull.com/mcp`, not the temporary tunnel.
-   Verify public discovery, real OAuth, current-membership reads and denied access with
-   designated acceptance fixtures. Verify revocation on a separate test connection.
-5. Enable bounded writes only after explicit acceptance: MCP_WRITES_ENABLED=true.
-   Validate revisions, operation replay without duplication and denial using approved
-   disposable fixtures. Never use normal user content as a test target.
+The owner's approved plan supersedes the former staged sequence. Ship Auth0 login and
+signup, MCP reads **and writes**, card/list rendering and self-service export/deletion
+in one release. There is no read-only MCP stage.
 
-Production smoke checks are read-only by default. Any future production acceptance
-fixtures or writes need explicit authorization. Do not revoke the owner's local manual
-test connection or stop its tunnel as cleanup.
+1. Complete the account-control implementation and acceptance gates in
+   [ACCOUNT_CONTROLS_RELEASE.md](ACCOUNT_CONTROLS_RELEASE.md), privacy/provider approval,
+   and verified migration paths for every existing account.
+2. Finalize review, merge #66 and its narrowly scoped account controls, then require green
+   CI on the exact resulting main commit.
+3. Configure AUTH0_ENABLED=true, AUTH0_SIGNUP_ENABLED=true, VITE_AUTH_PROVIDER=auth0,
+   the verified Web client, MCP_ENABLED=true, MCP_WRITES_ENABLED=true and the verified
+   ChatGPT PKCE client. Preserve the built-in assistant settings independently.
+4. Capture the current serving API revision and Hosting version. Tag the next unused
+   patch version and use the existing production approval/deployment workflow, including
+   the durable cleanup worker before publishing the API/Hosting pair.
+5. Validate login, signup, account continuity, real OAuth at
+   `https://api.wally.luminull.com/mcp`, reads/writes/conflicts/retries/denial/revocation,
+   both widgets under enforced CSP and account controls using disposable acceptance data.
+6. Observe for 30 minutes and record versions and results. Immediately roll back the API
+   and Hosting pair for account lockout, unauthorized access, duplicate writes, broken
+   login or failed core MCP acceptance. Preserve identity mappings and Firebase identities.
+
+The user authorized implementation and the planned release actions after these gates.
+Passwords, notice/provider approval and required production-environment approval remain
+human steps. Do not reset the owner's local sessions, containers or test connections.
 
 ## Readiness follow-up — 2026-10-22
 

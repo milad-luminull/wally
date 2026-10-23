@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { TIDY_MAX_MOVES, type TidyDecision, type TidyDto, type TidyRequest } from '@wally/shared';
@@ -85,6 +86,7 @@ export async function claimTidy(
 ): Promise<{ doc: WithId<AssistantTidyDoc>; claimed: boolean }> {
   const ref = assistantTidiesCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current || current.boardId !== boardId) throw notFound();
     if (current.status === to) return { doc: current, claimed: false };
@@ -115,6 +117,7 @@ async function discardPending(db: Firestore, actor: Actor, boardId: string, now:
   const stamp = Timestamp.fromDate(now);
   const col = assistantTidiesCol(db, actor.id);
   await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
     for (const snap of await tx.getAll(...pending.map((doc) => col.doc(doc.id))))
       if (snap.data()?.status === 'PENDING')
         tx.update(snap.ref, {
@@ -293,7 +296,10 @@ export async function proposeTidy(
     expiresAt: Timestamp.fromMillis(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
   };
   const ref = assistantTidiesCol(db, actor.id).doc();
-  await ref.create(doc);
+  await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
+    tx.create(ref, doc);
+  });
   return toTidyDto({ ...doc, id: ref.id });
 }
 
@@ -388,6 +394,7 @@ async function completeKeep(
   const ref = assistantTidiesCol(deps.db, ctx.actor.id).doc(doc.id);
   const now = deps.now?.() ?? new Date();
   return deps.db.runTransaction(async (tx) => {
+    await assertAccountActive(deps.db, ctx.actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw notFound();
     if (current.status !== 'KEPT' || current.applied) return current;

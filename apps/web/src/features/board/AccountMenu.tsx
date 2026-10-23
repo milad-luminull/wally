@@ -168,6 +168,12 @@ export function AccountMenu({
         >
           {t('connections.title')}
         </Link>
+        <Link
+          to="/settings/account"
+          className="flex min-h-9 items-center rounded px-2 text-13 text-fg-1 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t('accountData.title')}
+        </Link>
         <MenuItem icon={<LogOut strokeWidth={1.75} />} onClick={() => void signOut()}>
           {t('account.signOut')}
         </MenuItem>

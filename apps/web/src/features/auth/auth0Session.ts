@@ -10,7 +10,12 @@ export interface Auth0ClientPort {
   handleRedirectCallback(): Promise<{ appState?: { returnPath?: unknown } }>;
   loginWithRedirect(options: {
     appState: { returnPath: string | null };
-    authorizationParams: { screen_hint?: 'signup'; connection?: string; prompt?: 'login' };
+    authorizationParams: {
+      screen_hint?: 'signup';
+      connection?: string;
+      prompt?: 'login';
+      max_age?: number;
+    };
   }): Promise<void>;
   logout(options: { logoutParams: { returnTo: string } }): Promise<void>;
 }

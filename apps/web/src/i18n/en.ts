@@ -1,5 +1,49 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
+  accountData: {
+    title: 'Account and data',
+    exportTitle: 'Your data',
+    exportHint:
+      'Download your profile, accessible boards and cards, history, and connected-app records as JSON. Other people’s private cards and access credentials are excluded.',
+    download: 'Download my data',
+    downloading: 'Preparing download…',
+    exportError: 'The download failed. Please try again.',
+    deleteTitle: 'Delete account',
+    warning:
+      'This permanently deletes your account and every board you own, including their cards, for everyone. Your private cards on other boards are removed. Shared cards you contributed to other people’s boards remain with your identity removed. Download your data first.',
+    loading: 'Loading your boards…',
+    loadError: 'Could not load the boards affected by deletion.',
+    ownedBoards: 'Boards that will be deleted for everyone: {{count}}',
+    reauthHint:
+      'For your security, sign in again before deleting your account. Then return here to confirm.',
+    reauth: 'Sign in again',
+    reauthError: 'Could not start sign-in. Please try again.',
+    confirmation: 'Type DELETE to confirm',
+    delete: 'Delete my account',
+    deleting: 'Requesting deletion…',
+    deleteError:
+      'Deletion could not be confirmed. Sign in again if your session is old, then retry. If the account is already blocked, contact support to check the cleanup status.',
+    requested: 'Account deletion requested',
+    pending:
+      'Your account access is blocked and connected apps have been revoked. Cleanup is still in progress, including removal of your login identities. Contact milad@luminull.com if you need confirmation of completion.',
+  },
+  privacy: {
+    title: 'Privacy information',
+    intro:
+      'Wally is operated by Luminull. Contact milad@luminull.com for privacy questions, access requests, corrections or deletion help.',
+    serviceTitle: 'Account and shared content',
+    service:
+      'We process your email address, display name, login identifiers, preferences, boards, cards, membership and activity records to provide Wally. People with access to a shared board can see its shared content and member details. Private cards remain visible only to their author. Service data is processed to provide your account; limited security and operational records protect the service.',
+    providersTitle: 'Login, hosting and AI',
+    providers:
+      'Auth0 (Okta) handles login, signup and recovery. Google provides hosting, database and legacy Firebase login infrastructure. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider. When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
+    retentionTitle: 'Retention and account controls',
+    retention:
+      'Your boards and cards do not expire automatically. You can download your data or request account deletion in Account and data. Deletion blocks access immediately, removes owned boards for everyone, removes private cards, and anonymizes your shared contributions on other owners’ boards. Cleanup retries if a provider is unavailable. Minimal security denial records remain while needed to reject old tokens and revoked connections. Operational history and provider backups may follow separate retention schedules; contact us for details.',
+    rightsTitle: 'Your choices',
+    rights:
+      'You can request access, correction, deletion or portability of your personal data and object to processing based on legitimate interests. You may complain to your competent data-protection authority. Provider arrangements, international-transfer safeguards and the legal bases for processing are subject to the operator’s release approval.',
+  },
   connections: {
     title: 'Connected apps',
     back: 'Back to boards',

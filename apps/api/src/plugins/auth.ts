@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../lib/account/access.js';
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -26,6 +27,7 @@ interface AuthPluginOptions {
 }
 
 export interface AuthenticatedUser {
+  authenticatedAt?: number;
   id: string;
   email: string;
   /**
@@ -95,6 +97,7 @@ async function provisionUser(
   const boardRef = whiteboardsCol(db).doc(uid);
 
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, uid, tx);
     const existing = withId(await tx.get(userRef));
     if (!existing && !allowCreate) {
       throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
@@ -212,6 +215,7 @@ export default fp(
           externalIdentity = await options.auth0Verifier.verify(token);
           decoded = {
             uid: '',
+            authenticatedAt: externalIdentity.authenticatedAt,
             email: externalIdentity.email,
             emailVerified: externalIdentity.emailVerified,
             name: externalIdentity.name,
@@ -244,6 +248,7 @@ export default fp(
           identityCreated = resolved.created;
         } else decoded.uid = await resolveIdentity(db, externalIdentity);
       }
+      await assertAccountActive(db, decoded.uid);
       const email = normalizeEmail(decoded.email);
       const displayName = decoded.name ?? null;
 
@@ -300,6 +305,7 @@ export default fp(
 
       request.user = {
         id: user.id,
+        authenticatedAt: decoded.authenticatedAt,
         email: user.email,
         emailVerified,
         displayName: user.displayName,

@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import { createHash } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 import { AppError } from '../errors.js';
@@ -42,6 +43,7 @@ async function consumeBudget(
   const connectionKey = createHash('sha256').update(connectionId).digest('hex');
   const ref = db.collection('users').doc(actorId).collection('mcpLimits').doc(kind);
   await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actorId, tx);
     const row = (await tx.get(ref)).data();
     const current = row?.window === window;
     const count = current ? Number(row.count ?? 0) : 0;

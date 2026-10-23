@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { useContext, type ReactNode } from 'react';
 import { AuthContext } from './authContext';
 import { Auth0SessionProvider } from './Auth0SessionProvider';
@@ -145,5 +145,19 @@ describe('Auth0 application session', () => {
     await act(async () => finish(new Response(JSON.stringify(profile))));
     expect(result.current.user).toBeNull();
     expect(await getAuth0AccessToken()).toBeNull();
+  });
+});
+
+it('requests fresh interactive authentication and returns to account settings', async () => {
+  const fixture = setup(async () => new Response(JSON.stringify(profile)));
+  fixture.client.loginWithRedirect = vi.fn(async () => {});
+  const { result } = renderHook(() => useContext(AuthContext)!, { wrapper: fixture.wrapper });
+  await waitFor(() => expect(result.current.status).toBe('authenticated'));
+  await act(async () => {
+    await result.current.reauthenticate!('/settings/account');
+  });
+  expect(fixture.client.loginWithRedirect).toHaveBeenCalledWith({
+    appState: { returnPath: '/settings/account' },
+    authorizationParams: { prompt: 'login', max_age: 0 },
   });
 });

@@ -10,6 +10,7 @@ export interface VerifiedIdentity {
   clientId?: string;
   scopes?: string[];
   issuedAt?: number;
+  authenticatedAt?: number;
 }
 
 export interface AccessTokenVerifier {
@@ -55,6 +56,10 @@ export function createAuth0Verifier(
           ? { scopes: payload.scope.split(' ').filter(Boolean) }
           : {}),
         issuedAt: payload.iat,
+        authenticatedAt:
+          typeof payload[`${namespace}auth_time`] === 'number'
+            ? (payload[`${namespace}auth_time`] as number)
+            : undefined,
       };
     },
   };

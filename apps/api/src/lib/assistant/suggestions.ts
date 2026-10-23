@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type {
@@ -386,7 +387,10 @@ export async function suggestForCapture(
     expiresAt: Timestamp.fromMillis(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
   };
   const ref = assistantSuggestionsCol(db, actor.id).doc();
-  await ref.create(doc);
+  await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
+    tx.create(ref, doc);
+  });
   return toDto(db, board, actor.id, { ...doc, id: ref.id });
 }
 
@@ -429,6 +433,7 @@ async function claim(
   const field = to === 'UNDONE' ? 'undone' : 'decision';
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current || current.boardId !== boardId) throw notFound();
     if (current.status === to) return { doc: current, claimed: false };
@@ -894,6 +899,7 @@ async function settleKeep(
 ): Promise<WithId<AssistantSuggestionDoc>> {
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw notFound();
     if (current.status !== 'KEPT' || current.applied) return current;
@@ -1213,6 +1219,7 @@ export async function pendingSuggestions(
     // again in the transaction, so one kept or discarded in another tab since the query is
     // left as that tab decided it.
     await db.runTransaction(async (tx) => {
+      await assertAccountActive(db, actor.id, tx);
       for (const snap of await tx.getAll(...refs))
         if (snap.data()?.status === 'PENDING')
           tx.update(snap.ref, { status: 'DISCARDED', updatedAt: stamp });
