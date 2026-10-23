@@ -18,6 +18,11 @@ gcloud run jobs deploy wally-account-cleanup \
   --tasks=1 --parallelism=1 --max-retries=3 --task-timeout=1800s \
   --set-env-vars="^@^NODE_ENV=production@FIREBASE_PROJECT_ID=${GCP_PROJECT_ID}@FIRESTORE_DATABASE_ID=wally@AUTH0_ISSUER=https://login.luminull.com/@AUTH0_MANAGEMENT_DOMAIN=${AUTH0_MANAGEMENT_DOMAIN}@AUTH0_CLEANUP_CLIENT_ID=${AUTH0_CLEANUP_CLIENT_ID}" \
   --set-secrets="AUTH0_CLEANUP_CLIENT_SECRET=${AUTH0_CLEANUP_SECRET_VERSION}"
+# Grant invocation on this job itself. Cloud Run does not support resource.name
+# conditions for a project-level job invocation binding.
+gcloud run jobs add-iam-policy-binding wally-account-cleanup \
+  --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
+  --member="serviceAccount:${scheduler}" --role=roles/run.invoker
 verb=create
 if gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" >/dev/null 2>&1; then verb=update; fi
 gcloud scheduler jobs "$verb" http wally-account-cleanup \

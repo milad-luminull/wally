@@ -170,7 +170,13 @@ jobs:
       # The Azure mirror stalled package downloads twice before any browser test ran.
       # Use Ubuntu's standard archive; distribution, packages and signature checks stay intact.
       - name: Use the standard Ubuntu archive for browser dependencies
-        run: sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list.d/ubuntu.sources
+        run: |
+          # Hosted images can select mirrors indirectly through mirror+file URIs.
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources /etc/apt/*mirrors*.txt; do
+            if [ -f "$source" ]; then
+              sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' "$source"
+            fi
+          done
 
       # chromium AND webkit: the mobile-list-only project uses devices['iPhone 13'], whose
       # defaultBrowserType is 'webkit'. Installing only chromium silently breaks it.

@@ -125,3 +125,28 @@ The privacy/deletion contact is now privacy@luminull.com in both languages; the 
 confirmed this mailbox receives mail. Candidate b2442104 passed full CI, including the
 browser gate. The subsequent migration change passed 43 focused authentication/migration
 tests, API typecheck and focused lint; its final candidate CI remains required.
+
+## Cleanup infrastructure preparation, 2026-10-23
+
+The owner approved the dedicated Auth0 cleanup client. Its client-credentials exchange
+was verified to return exactly `delete:users`. The generated secret is stored as version
+1 of `wally-auth0-account-cleanup` in Secret Manager (europe-west1); the secret-level
+accessor binding names only the cleanup worker. No secret is stored in GitHub variables
+or the public API. The temporary local secret copy was removed.
+
+Dedicated worker and scheduler service accounts now exist. Worker Firestore access is
+conditioned on database `wally`; its Firebase custom role has only `firebaseauth.users.delete`.
+The deployer can attach these service accounts. Scheduled-job deployment uses a custom
+create/get/update role. The release script binds invocation directly on the cleanup job;
+it does not rely on unsupported project-level resource-name conditions for Cloud Run.
+Cloud Scheduler and Secret Manager APIs are enabled. The job and schedule are not yet
+deployed or exercised.
+
+The reviewed `infra/auth0-post-login.cjs` Action was deployed; the dashboard reports it
+up to date. Live recent-authentication acceptance is still required. Production serving
+API/Hosting remain unchanged; enabling Auth0/MCP is still part of the single release.
+
+CI on a671757a passed units, lint and build but stalled before browser tests. Live logs
+showed an indirect `/etc/apt/apt-mirrors.txt` selection still using the Azure mirror.
+The CI mirror replacement now covers both direct sources and mirror-list files; the
+full browser gate remains required.
