@@ -10,7 +10,7 @@ self-service account export/deletion. Preserve every existing user's identity/da
       retries, races, tombstones, operator CLI and scheduled worker; tests.
 - [ ] 3. English/German account controls and privacy notice; browser and unit tests.
 - [ ] 4. Independent review and complete final CI; resolve concrete blockers.
-- [ ] 5. Fresh source/Auth0 inventory; verify and map all remaining identities without email linking.
+- [ ] 5. Fresh source inventory; prepare exact Google-subject mappings for next-login migration; verify imported password identities without email linking.
 - [x] 6. Separate real-inbox password recovery fixture; owner enters passwords; verify delivery/replay.
 - [ ] 7. Owner approves finished privacy notice/provider arrangements.
 - [ ] 8. Merge, exact-main CI, next patch tag, production environment approval; both MCP flags true.
@@ -34,3 +34,8 @@ Provider failures keep the job pending. Never remove revocation protection prema
 - Tasks 1–3 share auth identity, account routes, localized UI and data visibility.
 - Tasks 2 and 8 share cleanup worker credentials/schedule; deployment must configure them.
 - User authorization includes merge/migration/release/fixture writes after the plan gates.
+
+- Owner correction, 2026-10-23: existing Google users migrate at their next normal sign-in;
+  do not require advance authentication or user outreach. Prepare mappings from fresh
+  Firebase provider IDs; signed Auth0 proof is still required at login.
+- Owner confirms privacy@luminull.com receives mail; EN/DE privacy and deletion contact updated.

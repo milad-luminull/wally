@@ -44,6 +44,21 @@ describe('migration command safeguards', () => {
     ).toThrow();
     expect(() => parseMigrationArgs([...args, '--unknown'])).toThrow();
   });
+  it('requires a reviewed plan and explicit apply confirmation for Google preparation', () => {
+    const args = [
+      'prepare-google',
+      '--project',
+      'p',
+      '--connection',
+      'db',
+      '--plan',
+      '/tmp/plan.json',
+    ];
+    expect(parseMigrationArgs(args).apply).toBe(false);
+    expect(() => parseMigrationArgs([...args, '--apply'])).toThrow();
+    expect(parseMigrationArgs([...args, '--apply', '--confirm-project', 'p']).apply).toBe(true);
+    expect(() => parseMigrationArgs(args.slice(0, -2))).toThrow();
+  });
   it('projects only permitted metadata while paging Firebase users', async () => {
     const result = await readMigrationSource(async (_, token) =>
       token === 'next'

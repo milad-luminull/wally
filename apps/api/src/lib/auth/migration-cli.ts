@@ -20,12 +20,12 @@ export function parseMigrationArgs(argv: string[]) {
   const command = positionals[0];
   if (
     positionals.length !== 1 ||
-    !['export', 'verify'].includes(command ?? '') ||
+    !['export', 'verify', 'prepare-google'].includes(command ?? '') ||
     !values.project ||
     !values.connection
   ) {
     throw new Error(
-      'Usage: auth-migrate.ts export|verify --project ID --connection NAME [--uids UID,UID] (--output NEW_DIRECTORY | --plan FILE) [--apply --confirm-project ID]',
+      'Usage: auth-migrate.ts export|verify|prepare-google --project ID --connection NAME [--uids UID,UID] (--output NEW_DIRECTORY | --plan FILE) [--apply --confirm-project ID]',
     );
   }
   if (
@@ -33,7 +33,7 @@ export function parseMigrationArgs(argv: string[]) {
     (!values.output || values.plan || values.apply || values['confirm-project'])
   )
     throw new Error('Export requires --output and cannot apply');
-  if (command === 'verify' && (!values.plan || values.output))
+  if (command !== 'export' && (!values.plan || values.output))
     throw new Error('Verification requires --plan');
   if (values.apply && values['confirm-project'] !== values.project)
     throw new Error('Apply requires --confirm-project matching --project');

@@ -110,3 +110,18 @@ A subsequent compose-only candidate encountered another stalled Ubuntu mirror do
 Candidate `b2442104d171625304561f515aacde177dfc8c7c` changes that download source to Ubuntu's
 standard archive, retaining package signature verification and the full browser gate.
 Its CI result must be checked before merge. No production activation has occurred.
+
+## Next-login migration, 2026-10-23
+
+Following the owner’s correction, existing Google users do not need advance sign-in.
+The operator exported and revalidated the current Firebase provider inventory, then
+prepared all six Google-subject mappings. Five mappings were added; the owner’s existing
+mapping was unchanged. Production readback confirmed six exact Google mappings, seven
+total mappings and the original seven Wally users. Auth0 still requires each user’s
+Google authentication at next login. No user outreach or email-based linking occurred.
+The source Firebase identities and rollback path remain intact.
+
+The privacy/deletion contact is now privacy@luminull.com in both languages; the owner
+confirmed this mailbox receives mail. Candidate b2442104 passed full CI, including the
+browser gate. The subsequent migration change passed 43 focused authentication/migration
+tests, API typecheck and focused lint; its final candidate CI remains required.

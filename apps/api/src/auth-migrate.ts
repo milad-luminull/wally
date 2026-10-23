@@ -51,7 +51,8 @@ try {
   } else {
     assertReviewedPlan(plan, JSON.parse(await readFile(args.plan!, 'utf8')));
     const token = process.env.AUTH0_MIGRATION_TOKEN;
-    if (!token) throw new Error('AUTH0_MIGRATION_TOKEN with read:users is required');
+    if (args.command === 'verify' && !token)
+      throw new Error('AUTH0_MIGRATION_TOKEN with read:users is required');
     const reports = await executeMigration(
       plan,
       async (subject) => {
@@ -68,6 +69,7 @@ try {
       },
       (identity, userId) => bindImportedIdentity(db, identity, userId),
       args.apply,
+      args.command === 'prepare-google' ? 'google-first-login' : 'auth0-evidence',
     );
     process.stdout.write(
       `${JSON.stringify({ dryRun: !args.apply, quarantinedUsers: plan.issues.length, reports })}\n`,

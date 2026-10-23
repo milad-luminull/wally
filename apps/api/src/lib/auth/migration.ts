@@ -160,7 +160,7 @@ export function verifyMigrationIdentity(
 export interface MigrationReport {
   userId: string;
   subject: string;
-  status: 'verified' | 'bound' | 'failed';
+  status: 'verified' | 'prepared' | 'bound' | 'failed';
   errorCode?: string;
 }
 /** Preflight the entire batch, then use the transactional immutable binding for resumability. */
@@ -169,12 +169,32 @@ export async function executeMigration(
   readUser: (subject: string) => Promise<unknown>,
   bind: (identity: ExternalIdentity, userId: string) => Promise<void>,
   apply = false,
+  mode: 'auth0-evidence' | 'google-first-login' = 'auth0-evidence',
 ): Promise<MigrationReport[]> {
-  for (const identity of plan.identities)
-    verifyMigrationIdentity(plan, identity, await readUser(identity.subject));
+  if (mode === 'google-first-login') {
+    // Operator-only preparation from a freshly revalidated Firebase Admin inventory.
+    // This grants no login: the normal verifier must later prove this exact subject
+    // with a signed token from our issuer. Never derive a mapping from an email.
+    if (
+      plan.issuer !== 'https://login.luminull.com/' ||
+      plan.issues.length ||
+      plan.importUsers.length ||
+      !plan.identities.length ||
+      plan.identities.some(
+        (identity) =>
+          identity.provider !== 'google-oauth2' ||
+          !/^[0-9]+$/.test(identity.providerId) ||
+          identity.subject !== `google-oauth2|${identity.providerId}`,
+      )
+    )
+      throw new Error('Google preparation requires an unambiguous Google-only source plan');
+  } else {
+    for (const identity of plan.identities)
+      verifyMigrationIdentity(plan, identity, await readUser(identity.subject));
+  }
   const report: MigrationReport[] = [];
   for (const identity of plan.identities) {
-    let status: MigrationReport['status'] = 'verified';
+    let status: MigrationReport['status'] = mode === 'google-first-login' ? 'prepared' : 'verified';
     let errorCode: string | undefined;
     if (apply) {
       try {

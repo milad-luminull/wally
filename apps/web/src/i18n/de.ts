@@ -31,12 +31,12 @@ export const de = {
       'Die Löschung konnte nicht bestätigt werden. Melde dich bei einer älteren Sitzung erneut an und versuche es noch einmal. Ist das Konto bereits gesperrt, kontaktiere den Support zum Status der Bereinigung.',
     requested: 'Kontolöschung angefordert',
     pending:
-      'Dein Kontozugriff ist gesperrt und verbundene Apps wurden getrennt. Die Bereinigung läuft noch, einschließlich der Entfernung deiner Anmeldeidentitäten. Für eine Abschlussbestätigung kontaktiere milad@luminull.com.',
+      'Dein Kontozugriff ist gesperrt und verbundene Apps wurden getrennt. Die Bereinigung läuft noch, einschließlich der Entfernung deiner Anmeldeidentitäten. Für eine Abschlussbestätigung kontaktiere privacy@luminull.com.',
   },
   privacy: {
     title: 'Datenschutzinformationen',
     intro:
-      'Wally wird von Luminull betrieben. Für Datenschutzfragen, Auskünfte, Berichtigungen oder Hilfe bei der Löschung kontaktiere milad@luminull.com.',
+      'Wally wird von Luminull betrieben. Für Datenschutzfragen, Auskünfte, Berichtigungen oder Hilfe bei der Löschung kontaktiere privacy@luminull.com.',
     serviceTitle: 'Konto und geteilte Inhalte',
     service:
       'Wir verarbeiten E-Mail-Adresse, Anzeigename, Anmeldekennungen, Einstellungen, Boards, Karten, Mitgliedschaften und Aktivitätsdaten, um Wally bereitzustellen. Personen mit Board-Zugriff sehen geteilte Inhalte und Mitgliederdaten. Private Karten sind nur für ihre Ersteller sichtbar. Dienstdaten dienen der Bereitstellung deines Kontos; begrenzte Sicherheits- und Betriebsdaten schützen den Dienst.',

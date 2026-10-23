@@ -25,12 +25,12 @@ export const en = {
       'Deletion could not be confirmed. Sign in again if your session is old, then retry. If the account is already blocked, contact support to check the cleanup status.',
     requested: 'Account deletion requested',
     pending:
-      'Your account access is blocked and connected apps have been revoked. Cleanup is still in progress, including removal of your login identities. Contact milad@luminull.com if you need confirmation of completion.',
+      'Your account access is blocked and connected apps have been revoked. Cleanup is still in progress, including removal of your login identities. Contact privacy@luminull.com if you need confirmation of completion.',
   },
   privacy: {
     title: 'Privacy information',
     intro:
-      'Wally is operated by Luminull. Contact milad@luminull.com for privacy questions, access requests, corrections or deletion help.',
+      'Wally is operated by Luminull. Contact privacy@luminull.com for privacy questions, access requests, corrections or deletion help.',
     serviceTitle: 'Account and shared content',
     service:
       'We process your email address, display name, login identifiers, preferences, boards, cards, membership and activity records to provide Wally. People with access to a shared board can see its shared content and member details. Private cards remain visible only to their author. Service data is processed to provide your account; limited security and operational records protect the service.',

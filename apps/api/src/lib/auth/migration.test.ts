@@ -150,6 +150,38 @@ describe('controlled migration', () => {
     ).toBe(true);
     expect(writes).toBe(2);
   });
+  it('prepares Google subjects before their first Auth0 login without querying Auth0', async () => {
+    const result = plan([source('a', [{ providerId: 'google.com', uid: '12345' }])]);
+    let reads = 0;
+    let writes = 0;
+    const read = async () => {
+      reads += 1;
+      throw new Error('User does not exist yet');
+    };
+    const bind = async () => {
+      writes += 1;
+    };
+    expect(
+      (await executeMigration(result, read, bind, false, 'google-first-login'))[0]?.status,
+    ).toBe('prepared');
+    expect(writes).toBe(0);
+    expect(
+      (await executeMigration(result, read, bind, true, 'google-first-login'))[0]?.status,
+    ).toBe('bound');
+    expect(reads).toBe(0);
+    expect(writes).toBe(1);
+    for (const invalid of [
+      plan([source('password')]),
+      { ...result, issues: [{ userId: 'a', reasons: ['disabled-source'] }] },
+      { ...result, identities: [{ ...result.identities[0]!, subject: 'google-oauth2|other' }] },
+      { ...result, issuer: 'https://other.example/' },
+    ]) {
+      await expect(
+        executeMigration(invalid as typeof result, read, bind, true, 'google-first-login'),
+      ).rejects.toThrow();
+    }
+    expect(writes).toBe(1);
+  });
   it('reports mapping conflicts per subject without swallowing progress', async () => {
     const result = plan([
       source('a', [{ providerId: 'google.com', uid: '123' }]),

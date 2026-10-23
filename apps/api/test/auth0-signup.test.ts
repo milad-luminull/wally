@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
+import { buildMigrationPlan, executeMigration } from '../src/lib/auth/migration.js';
 import { bindImportedIdentity } from '../src/lib/auth/identities.js';
 import {
   createFakeAuthVerifier,
@@ -85,6 +86,61 @@ describe('opt-in Auth0 signup', () => {
       preferences: { theme: 'dark' },
     });
     expect((await db.collection('whiteboards').get()).empty).toBe(true);
+  });
+
+  it('first Google login uses the prepared account and boards, but same-email subjects cannot', async () => {
+    await createTestUser(db, 'google-original', 'new@example.com');
+    await createTestBoard(db, 'google-original');
+    const plan = buildMigrationPlan(
+      project,
+      'db',
+      [
+        {
+          uid: 'google-original',
+          email: 'new@example.com',
+          emailVerified: true,
+          disabled: false,
+          providers: [{ providerId: 'google.com', uid: '12345' }],
+        },
+      ],
+      ['google-original'],
+    );
+    const prepare = () =>
+      executeMigration(
+        plan,
+        async () => {
+          throw new Error('No Auth0 profile yet');
+        },
+        (value, uid) => bindImportedIdentity(db, value, uid),
+        true,
+        'google-first-login',
+      );
+    expect((await prepare())[0]?.status).toBe('bound');
+    expect((await prepare())[0]?.status).toBe('bound');
+    const responses = await Promise.all([me('google-oauth2|12345'), me('google-oauth2|12345')]);
+    expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
+    expect(responses.every((r) => r.json().id === 'google-original')).toBe(true);
+    expect((await me('google-oauth2|67890')).statusCode).toBe(403);
+    expect((await me('auth0|same-email')).statusCode).toBe(403);
+    expect((await db.collection('users').get()).size).toBe(1);
+    expect((await db.collection('whiteboards').get()).docs.map((d) => d.id)).toEqual([
+      'google-original',
+    ]);
+    expect((await db.collection('whiteboards').doc('google-original').get()).data()?.ownerId).toBe(
+      'google-original',
+    );
+    await createTestUser(db, 'wrong-owner', 'other@example.com');
+    expect(
+      (
+        await executeMigration(
+          { ...plan, identities: plan.identities.map((i) => ({ ...i, userId: 'wrong-owner' })) },
+          async () => null,
+          (value, uid) => bindImportedIdentity(db, value, uid),
+          true,
+          'google-first-login',
+        )
+      )[0]?.errorCode,
+    ).toBe('IDENTITY_CONFLICT');
   });
 
   it('leaves unmapped accounts blocked by default', async () => {

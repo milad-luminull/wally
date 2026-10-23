@@ -7,7 +7,11 @@ migration directory. On 2026-10-20, after explicit owner approval and a fresh CL
 verification, the one password identity was bound in production database `wally`.
 Readback confirmed the original Wally user ID. The owner's Google identity was also
 verified and mapped on 2026-10-20 after explicit approval, fresh source/Auth0 checks
-and production readback. Four Google subjects remain unmapped.
+and production readback. On 2026-10-23, a fresh source export and the owner-approved
+Google-first-login preparation bound all six exact Google subjects (five new mappings,
+one unchanged retry). Readback confirmed six exact Google mappings, seven total mappings
+and the same seven Wally users. No source identities or boards were modified. Users
+complete Google authentication and any required consent at their next normal login.
 The temporary verifier grant was revoked and its local
 credential copies removed after the operation.
 Real Google sign-in and logout passed against an isolated emulator fixture. HTTPS
@@ -79,11 +83,29 @@ password login. `wally_password_reset_required` documents the import policy; it 
 an Auth0 enforcement toggle. The CLI never sends reset emails or sets passwords.
 See [Auth0's password-free import behavior](https://support.auth0.com/center/s/article/auth0-bulk-user-import-without-password-hashes).
 
-Google accounts are not database imports. They must exist in Auth0 after a controlled
-Google login before verification can succeed. A first login may correctly show migration
-required until the operator binds the verified identity. No email-based auto-linking is
-used. Select ready users with `--uids` so an unavailable Google account does not block
-an unrelated batch. Users with both providers must have both Auth0 subjects ready.
+Google accounts are not database imports. The owner-approved release now prepares their
+exact Google-subject mappings before the first Auth0 login; existing users do not need
+advance sign-in or an announcement. Auth0 creates the social profile when they next
+choose Google. Their verified token must match the prepared issuer and subject before
+Wally resolves their existing account. No email-based linking or replacement account is
+introduced.
+
+For a Google-only batch, export a fresh reviewed plan with `--uids` as above, then use
+`prepare-google` instead of `verify`. It re-reads the complete trusted Firebase inventory,
+runs global ambiguity checks before selection, compares the reviewed plan, and rejects
+quarantined users, password imports, non-Google identities or malformed Google subjects.
+Dry run reports `prepared`, not Auth0-verified. Applying requires the same explicit
+`--apply --confirm-project SOURCE_PROJECT` flags. Mapping transactions preserve conflict,
+deleted-account and idempotency protections. This command makes no Auth0 API call and
+requires no Management API token. Do not use it with a plan from client input.
+
+The ordinary `verify` path below remains unchanged for imported password identities and
+already-existing Auth0 profiles. A prepared mapping is not evidence that its owner has
+completed Auth0 login; production acceptance records must distinguish those states.
+
+References: [Google stable subject identifiers](https://developers.google.com/identity/openid-connect/openid-connect),
+[Auth0 provider identities](https://support.auth0.com/center/s/article/Searching-for-Users-by-Identity-Provider-ID),
+and [Auth0 social-profile creation](https://support.auth0.com/center/s/article/Prevent-User-creation-from-Social-logins).
 
 ## Verify and explicitly apply
 
