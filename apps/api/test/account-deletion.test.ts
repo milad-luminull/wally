@@ -18,6 +18,24 @@ async function owner(recent = true) {
   await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
   return token;
 }
+it('previews owned boards and recent authentication without including shared boards', async () => {
+  const token = await owner();
+  const other = registerTestUser(ctx, 'other', 'other@example.com');
+  await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(other) });
+  const { addTestMember } = await import('./helpers.js');
+  await addTestMember(ctx.db, 'other', 'owner', 'EDIT');
+  const response = await ctx.inject({
+    method: 'GET',
+    url: '/me/deletion',
+    headers: ctx.authHeader(token),
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toMatchObject({
+    ownedBoards: [{ id: 'owner', name: expect.any(String) }],
+    recentAuthentication: true,
+  });
+  expect(response.json().ownedBoards).toHaveLength(1);
+});
 it('requires recent interactive authentication and explicit confirmation', async () => {
   const stale = await owner(false);
   const response = await ctx.inject({

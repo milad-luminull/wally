@@ -9,6 +9,7 @@ export const en = {
     downloading: 'Preparing download…',
     exportError: 'The download failed. Please try again.',
     deleteTitle: 'Delete account',
+    deleteHint: 'Review what will be removed before confirming account deletion.',
     warning:
       'This permanently deletes your account and every board you own, including their cards, for everyone. Your private cards on other boards are removed. Shared cards you contributed to other people’s boards remain with your identity removed. Download your data first.',
     loading: 'Loading your boards…',

@@ -15,6 +15,7 @@ export const de = {
     downloading: 'Download wird vorbereitet…',
     exportError: 'Der Download ist fehlgeschlagen. Bitte versuche es erneut.',
     deleteTitle: 'Konto löschen',
+    deleteHint: 'Prüfe vor der Bestätigung, welche Daten mit deinem Konto gelöscht werden.',
     warning:
       'Dadurch werden dein Konto und alle Boards, die dir gehören, mit ihren Karten dauerhaft für alle gelöscht. Deine privaten Karten auf anderen Boards werden entfernt. Deine geteilten Beiträge auf Boards anderer Personen bleiben ohne Bezug zu deiner Identität erhalten. Lade deine Daten vorher herunter.',
     loading: 'Deine Boards werden geladen…',
