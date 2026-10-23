@@ -13,7 +13,7 @@ services:
       FIRESTORE_EMULATOR_HOST: firestore:8080
       CORS_ORIGIN: http://localhost:5174
       AUTH0_ENABLED: 'true'
-      AUTH0_SIGNUP_ENABLED: 'false'
+      AUTH0_SIGNUP_ENABLED: 'true'
       ASSISTANT_ENABLED: 'true'
       MCP_ENABLED: 'true'
       MCP_WRITES_ENABLED: 'true'

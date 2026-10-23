@@ -27,7 +27,10 @@ These build/start commands were exercised. The project name is `wally-mcp-local`
 The API binds this worktree at `/app`; the web binds it at `/repo`. Its Firestore
 emulator has no published ports and project ID `wally-mcp-local`. It has no production
 credentials, no original-checkout `.env`, and no production database connection.
-`AUTH0_SIGNUP_ENABLED=false`; identity mapping is an operator-controlled fixture.
+`AUTH0_SIGNUP_ENABLED=true` in the release-validation profile. Existing identities still
+require their exact subject mappings; email collisions never link accounts. Containers
+started with the older migration-only profile retain `false` until deliberately recreated;
+do not recreate a live Inspector stack merely to change this flag.
 The assistant switch is required for MCP; these MCP tools do not invoke a model.
 MCP writes are enabled only in this disposable local profile to test explicit consent.
 
