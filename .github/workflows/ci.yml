@@ -167,6 +167,11 @@ jobs:
           # Exact match only — a partial hit restores the wrong browser build.
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
 
+      # The Azure mirror stalled package downloads twice before any browser test ran.
+      # Use Ubuntu's standard archive; distribution, packages and signature checks stay intact.
+      - name: Use the standard Ubuntu archive for browser dependencies
+        run: sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list.d/ubuntu.sources
+
       # chromium AND webkit: the mobile-list-only project uses devices['iPhone 13'], whose
       # defaultBrowserType is 'webkit'. Installing only chromium silently breaks it.
       - if: steps.pw-cache.outputs.cache-hit != 'true'
