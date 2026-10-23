@@ -1,6 +1,6 @@
 # Account controls release record
 
-Status: implementation in progress; **not activated or deployed**. This record extends the
+Status: implementation and independent review complete; release acceptance in progress; **not activated or deployed**. This record extends the
 approved single Auth0 + full MCP release, not a separate read-only rollout.
 
 ## Implemented interfaces
@@ -60,10 +60,9 @@ are not proof of live Auth0 behavior.
 
 ## Release gates still open
 
-- Final cleanup race/data coverage review, final regression suites, CI on the candidate.
+- CI on the latest release candidate (independent review and local regression suites passed).
 - Owner approval of notice, legal bases, retention, provider contracts and transfer safeguards.
 - Fresh identity inventory and exact-subject verification of every existing account.
-- Working-inbox password recovery test, with owner-entered passwords.
 - Real recent-authentication and provider-cleanup acceptance on disposable identities.
 - Worker IAM, secret, schedule and retry/status verification.
 - Merge and green CI on exact main; capture current API + Hosting rollback pair.
@@ -90,3 +89,24 @@ lint, formatting and deployment-shell syntax passed. The unchanged web implement
 retains its prior **854/854** test result. These are local automated tests; real provider
 cleanup, password recovery, production OAuth/widgets and post-deployment observation
 remain separate acceptance gates.
+
+## Recovery acceptance and CI status, 2026-10-23
+
+The owner-created, separate password-test identity received the reset email. The owner
+reset its password; Auth0 History independently recorded a successful password change.
+The owner then confirmed consent followed by Wally login with the new password, and
+confirmed that reopening the used reset link displayed **Invalid Link**. No passwords or
+reset links were recorded. The existing Google identity was unchanged.
+
+The local stack still had signup disabled from migration-only testing. The exact verified
+test subject was provisioned through the existing identity resolver in the isolated local
+emulator, without restarting containers or disturbing ongoing sessions. The successful
+recovery login is therefore **not live signup acceptance**. The compose profile now enables
+signup on its next deliberate start.
+
+Candidate `1a463ab205f45f0906ad05b059284aff979c87a0` passed the entire CI gate, including
+browser tests ([run 39925954122](https://github.com/milad-luminull/wally/actions/runs/39925954122)).
+A subsequent compose-only candidate encountered another stalled Ubuntu mirror download.
+Candidate `b2442104d171625304561f515aacde177dfc8c7c` changes that download source to Ubuntu's
+standard archive, retaining package signature verification and the full browser gate.
+Its CI result must be checked before merge. No production activation has occurred.

@@ -11,7 +11,7 @@ self-service account export/deletion. Preserve every existing user's identity/da
 - [ ] 3. English/German account controls and privacy notice; browser and unit tests.
 - [ ] 4. Independent review and complete final CI; resolve concrete blockers.
 - [ ] 5. Fresh source/Auth0 inventory; verify and map all remaining identities without email linking.
-- [ ] 6. Separate real-inbox password recovery fixture; owner enters passwords; verify delivery/replay.
+- [x] 6. Separate real-inbox password recovery fixture; owner enters passwords; verify delivery/replay.
 - [ ] 7. Owner approves finished privacy notice/provider arrangements.
 - [ ] 8. Merge, exact-main CI, next patch tag, production environment approval; both MCP flags true.
 - [ ] 9. Production disposable acceptance fixtures, OAuth and CSP widgets, export/deletion, rollback pair.
