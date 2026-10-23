@@ -30,3 +30,7 @@ gcloud scheduler jobs "$verb" http wally-account-cleanup \
 # This verification is read-only: deployment must not itself delete production accounts.
 gcloud run jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --region="$GCP_REGION" --format='value(name)'
 gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" --format='value(state,schedule)'
+
+# Only completed jobs receive expiresAt. Pending cleanup and denial markers never expire.
+gcloud firestore fields ttls update expiresAt --collection-group=accountDeletionJobs \
+  --database=wally --project="$GCP_PROJECT_ID" --enable-ttl --quiet

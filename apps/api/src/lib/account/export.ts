@@ -65,6 +65,52 @@ export async function exportAccount(db: Firestore, user: AuthenticatedUser) {
     'createdAt',
     'expiresAt',
   ]);
+  const visibleBoards = new Set(boards.map((board) => board.id));
+  const visibleNotes = new Set(boards.flatMap((board) => board.notes.map((note) => note.id)));
+  const history = async (collection: string) =>
+    (await root.collection(collection).get()).docs.filter((doc) =>
+      visibleBoards.has(doc.data().boardId),
+    );
+  const conversations = (await history('assistantConversations')).map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...pick(data, ['boardId', 'status', 'turns', 'model', 'createdAt', 'lastTurnAt']),
+      entries: (data.entries ?? []).map((entry: Record<string, unknown>) => ({
+        ...pick(entry, ['role', 'partial', 'stopped', 'at']),
+        // Generated prose has no complete source provenance: a note may now be private.
+        // Keep the user's own words and the event, never opaque SDK messages/tool results.
+        ...(entry.role === 'user'
+          ? { text: entry.text }
+          : { text: null, redacted: 'generated_content_without_current_visibility_proof' }),
+      })),
+    };
+  });
+  const decisions = async (collection: string) =>
+    (await history(collection)).map((doc) => {
+      const data = doc.data();
+      const decision = (value: Record<string, unknown> | null) =>
+        value ? pick(value, ['source', 'fields', 'at']) : null;
+      return {
+        id: doc.id,
+        ...pick(data, ['boardId', 'status', 'createdAt', 'updatedAt']),
+        ...(visibleNotes.has(data.noteId) ? { noteId: data.noteId } : {}),
+        decision: decision(data.decision),
+        undone: decision(data.undone),
+        redacted: 'generated_content_without_current_visibility_proof',
+      };
+    });
+  const assistantHistory = {
+    conversations,
+    suggestions: await decisions('assistantSuggestions'),
+    tidies: await decisions('assistantTidies'),
+  };
+  const assistantDaily = (await root.collection('assistantUsage').get()).docs.map((doc) => ({
+    day: doc.id,
+    ...pick(doc.data(), ['tokens', 'updatedAt']),
+  }));
+  // Recheck membership after collecting historical records as well.
+  for (const board of boards) await getBoard(db, user, board.id);
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -73,7 +119,8 @@ export async function exportAccount(db: Firestore, user: AuthenticatedUser) {
     connections,
     identities,
     audit,
-    usage: { mcp, assistant },
+    usage: { mcp, assistant, assistantDaily },
+    assistantHistory,
     operations,
   };
 }

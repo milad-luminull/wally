@@ -19,6 +19,12 @@ function anonymize(value: unknown, userId: string, email: string): unknown {
   if (Array.isArray(value)) return value.map((child) => anonymize(child, userId, email));
   if (!value || typeof value !== 'object') return value;
   const record = value as Record<string, unknown>;
+  if (
+    record.assignee &&
+    typeof record.assignee === 'object' &&
+    (record.assignee as Record<string, unknown>).value === userId
+  )
+    return anonymize({ ...record, assignee: null }, userId, email);
   if (record.id === userId && ('email' in record || 'displayName' in record)) return null;
   return Object.fromEntries(
     Object.entries(record).map(([key, child]) => [
@@ -117,12 +123,26 @@ export async function processAccountDeletion(
         }
       });
     }
+    const privateNoteIds = new Set<string>(job.privateNoteIds ?? []);
+    const privateBoardIds = new Set<string>(job.privateBoardIds ?? []);
     for (const row of (await notesCol(db).get()).docs) {
       const remove = await db.runTransaction(async (tx) => {
         const note = (await tx.get(row.ref)).data();
         if (!note) return false;
         if (note.createdById === userId && note.visibility === 'PRIVATE') {
+          // Persist the cache cleanup targets before removing the source note.
+          const boardRef = whiteboardsCol(db).doc(note.whiteboardId);
+          const board = (await tx.get(boardRef)).data();
+          const currentJob = (await tx.get(ref)).data();
+          if (currentJob?.lease !== lease) throw new Error('Deletion lease lost');
+          tx.update(ref, {
+            privateNoteIds: FieldValue.arrayUnion(row.id),
+            privateBoardIds: FieldValue.arrayUnion(note.whiteboardId),
+          });
+          if (board) tx.update(boardRef, { revision: (board.revision ?? 0) + 1, updatedAt: now() });
           tx.update(row.ref, { deletedAt: now() });
+          privateNoteIds.add(row.id);
+          privateBoardIds.add(note.whiteboardId);
           return true;
         }
         if (note.createdById === userId || note.assigneeId === userId)
@@ -144,7 +164,15 @@ export async function processAccountDeletion(
       'assistantTidies',
     ]) {
       for (const row of (await db.collectionGroup(collection).get()).docs) {
-        if (ownedIds.includes(row.data().boardId)) {
+        const data = row.data();
+        const affectedBoard = ownedIds.includes(data.boardId) || privateBoardIds.has(data.boardId);
+        // Model prose may contain a note without an explicit reference. Erase the
+        // affected board's assistant caches; preserve authored notes and receipts.
+        const affected =
+          ownedIds.includes(data.boardId) ||
+          (collection.startsWith('assistant') && affectedBoard) ||
+          (collection === 'boardOperations' && privateNoteIds.has(data.result?.data?.id));
+        if (affected) {
           if (collection === 'boardOperations') {
             // Keep the operation fingerprint, but erase cached deleted board contents.
             await row.ref.update({ 'result.data': null });
@@ -195,6 +223,11 @@ export async function processAccountDeletion(
       status: 'complete',
       phase: 'complete',
       completedAt: now(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 30 * 86_400_000),
+      ownedBoardIds: FieldValue.delete(),
+      privateNoteIds: FieldValue.delete(),
+      privateBoardIds: FieldValue.delete(),
+      lastError: FieldValue.delete(),
       email: FieldValue.delete(),
       identities: FieldValue.delete(),
       auth0Deleted: FieldValue.delete(),

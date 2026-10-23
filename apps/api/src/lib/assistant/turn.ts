@@ -312,6 +312,7 @@ export async function runAssistantTurn(
   const target = await ensureConversation();
   const stored = await appendTurn(db, actor.id, target.id, {
     expectedTurns: target.turns,
+    expectedBoardRevision: board.revision ?? 0,
     user: userEntry,
     assistant: assistantEntry,
     messages: output ? output.messages : null,

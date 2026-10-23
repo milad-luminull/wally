@@ -1,4 +1,8 @@
-import { assertAccountActive } from '../account/access.js';
+import {
+  assertAccountActive,
+  assertAssistantBoardActive,
+  assertAssistantNotesActive,
+} from '../account/access.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { TIDY_MAX_MOVES, type TidyDecision, type TidyDto, type TidyRequest } from '@wally/shared';
@@ -89,6 +93,7 @@ export async function claimTidy(
     await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current || current.boardId !== boardId) throw notFound();
+    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
     const stamp = Timestamp.fromDate(now);
@@ -298,6 +303,8 @@ export async function proposeTidy(
   const ref = assistantTidiesCol(db, actor.id).doc();
   await db.runTransaction(async (tx) => {
     await assertAccountActive(db, actor.id, tx);
+    await assertAssistantBoardActive(db, actor.id, board.id, tx, board.revision ?? 0);
+    await assertAssistantNotesActive(db, actor.id, board.id, tx, notes);
     tx.create(ref, doc);
   });
   return toTidyDto({ ...doc, id: ref.id });
@@ -397,6 +404,7 @@ async function completeKeep(
     await assertAccountActive(deps.db, ctx.actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw notFound();
+    await assertAssistantBoardActive(deps.db, ctx.actor.id, current.boardId, tx);
     if (current.status !== 'KEPT' || current.applied) return current;
     const next: WithId<AssistantTidyDoc> = {
       ...current,

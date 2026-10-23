@@ -1,4 +1,8 @@
-import { assertAccountActive } from '../account/access.js';
+import {
+  assertAccountActive,
+  assertAssistantBoardActive,
+  assertAssistantNotesActive,
+} from '../account/access.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type {
@@ -389,6 +393,9 @@ export async function suggestForCapture(
   const ref = assistantSuggestionsCol(db, actor.id).doc();
   await db.runTransaction(async (tx) => {
     await assertAccountActive(db, actor.id, tx);
+    await assertAssistantBoardActive(db, actor.id, board.id, tx, board.revision ?? 0);
+    await assertAssistantNotesActive(db, actor.id, board.id, tx, [note, ...boardNotes]);
+    if (fields.assignee?.value) await assertAccountActive(db, fields.assignee.value, tx);
     tx.create(ref, doc);
   });
   return toDto(db, board, actor.id, { ...doc, id: ref.id });
@@ -436,6 +443,7 @@ async function claim(
     await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current || current.boardId !== boardId) throw notFound();
+    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
     const next: WithId<AssistantSuggestionDoc> = {
@@ -902,6 +910,7 @@ async function settleKeep(
     await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw notFound();
+    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status !== 'KEPT' || current.applied) return current;
     const next: WithId<AssistantSuggestionDoc> = {
       ...current,

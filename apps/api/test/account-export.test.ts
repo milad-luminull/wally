@@ -116,3 +116,78 @@ it('exports identity, connection, usage and audit records through explicit safe 
   expect(response.json().audit).toEqual([expect.objectContaining({ operationId: 'operation' })]);
   expect(response.body).not.toContain('never-export');
 });
+
+it('exports personal assistant history and counters without cached model content or hidden-board data', async () => {
+  const token = registerTestUser(ctx, 'owner', 'owner@example.com');
+  await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+  const root = ctx.db.collection('users').doc('owner');
+  await root
+    .collection('assistantConversations')
+    .doc('conversation')
+    .set({
+      boardId: 'owner',
+      status: 'OPEN',
+      turns: 1,
+      model: 'test',
+      entries: [
+        { role: 'user', text: 'My personal question', chips: [], at: new Date() },
+        {
+          role: 'assistant',
+          text: 'cached private content',
+          chips: [{ id: 'hidden-note', title: 'cached private content' }],
+          at: new Date(),
+        },
+      ],
+      messages: [{ credential: 'never-export-model-message' }],
+    });
+  await root
+    .collection('assistantConversations')
+    .doc('revoked')
+    .set({
+      boardId: 'no-longer-accessible',
+      entries: [{ role: 'user', text: 'revoked board text' }],
+    });
+  await root
+    .collection('assistantSuggestions')
+    .doc('suggestion')
+    .set({
+      boardId: 'owner',
+      noteId: 'deleted-note',
+      status: 'KEPT',
+      decision: { source: 'user', fields: ['title'], at: new Date() },
+      fields: { title: { value: 'cached private content', reason: 'private' } },
+    });
+  await root
+    .collection('assistantTidies')
+    .doc('tidy')
+    .set({
+      boardId: 'owner',
+      status: 'DISCARDED',
+      decision: { source: 'user', noteIds: ['hidden-note'], at: new Date() },
+      moves: [{ noteId: 'hidden-note', reason: 'cached private content' }],
+    });
+  await root
+    .collection('assistantUsage')
+    .doc('2026-10-23')
+    .set({ tokens: 123, updatedAt: new Date(), credential: 'never-export' });
+  const response = await ctx.inject({
+    method: 'GET',
+    url: '/me/export',
+    headers: ctx.authHeader(token),
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.json().assistantHistory.conversations).toHaveLength(1);
+  expect(response.body).toContain('My personal question');
+  expect(response.json().assistantHistory.suggestions[0]).toMatchObject({
+    id: 'suggestion',
+    status: 'KEPT',
+  });
+  expect(response.json().assistantHistory.tidies[0]).toMatchObject({
+    id: 'tidy',
+    status: 'DISCARDED',
+  });
+  expect(response.json().usage.assistantDaily[0]).toMatchObject({ day: '2026-10-23', tokens: 123 });
+  expect(response.body).not.toContain('cached private content');
+  expect(response.body).not.toContain('revoked board text');
+  expect(response.body).not.toContain('never-export');
+});
