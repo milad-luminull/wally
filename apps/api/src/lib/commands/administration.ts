@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { MAX_OWN_BOARDS, type BoardCommand, type WhiteboardRole } from '@wally/shared';
 import {
@@ -152,6 +153,7 @@ export async function executeAdminCommand(
         await tx.get(usersCol(db).where('email', '==', command.input.email)),
       );
       const user = candidates.find(isEmailVerified);
+      if (user) await assertAccountActive(db, user.id, tx);
       if (user?.id === board.ownerId)
         return result(
           ownerMemberDto(board, await loadUsers(db, [board.ownerId])),

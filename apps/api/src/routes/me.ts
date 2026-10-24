@@ -1,3 +1,7 @@
+import { assertAccountActive } from '../lib/account/access.js';
+import { listBoards } from '../lib/commands/queries.js';
+import { z } from 'zod';
+import { requestAccountDeletion } from '../lib/account/deletion.js';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { FieldValue, type UpdateData } from 'firebase-admin/firestore';
@@ -5,6 +9,7 @@ import { MAX_REMEMBERED_BOARDS, meDtoSchema, meUpdateSchema } from '@wally/share
 import { now, userLanguage, userPreferences, usersCol } from '../lib/db/collections.js';
 import type { UserDoc } from '../lib/db/types.js';
 import { toMeDto } from '../lib/dto.js';
+import { exportAccount } from '../lib/account/export.js';
 
 /**
  * The caller's own profile. Authenticated but not board-scoped: the global auth preHandler
@@ -24,6 +29,34 @@ export default async function meRoutes(fastify: FastifyInstance) {
     return toMeDto(request.user);
   });
 
+  app.get('/me/export', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    reply.header('Content-Disposition', 'attachment; filename="wally-account.json"');
+    return exportAccount(app.db, request.user);
+  });
+
+  app.get('/me/deletion', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return {
+      ownedBoards: (await listBoards(app.db, request.user)).filter(
+        (board) => board.currentUserRole === 'OWNER',
+      ),
+      recentAuthentication:
+        typeof request.user.authenticatedAt === 'number' &&
+        Date.now() / 1000 - request.user.authenticatedAt <= 300,
+    };
+  });
+
+  app.delete(
+    '/me',
+    { schema: { body: z.object({ confirmation: z.literal('DELETE') }).strict() } },
+    async (request, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      const result = await requestAccountDeletion(app.db, request.user);
+      return reply.code(202).send(result);
+    },
+  );
+
   app.patch(
     '/me',
     { schema: { body: meUpdateSchema, response: { 200: meDtoSchema } } },
@@ -34,6 +67,7 @@ export default async function meRoutes(fastify: FastifyInstance) {
       // A transaction rather than a blind update(): pruning remembered boards needs their
       // stored touchedAt, which request.user deliberately doesn't carry.
       const stored = await request.server.db.runTransaction(async (tx) => {
+        await assertAccountActive(app.db, request.user.id, tx);
         const snapshot = await tx.get(userRef);
         const current = snapshot.data();
         // update(), not set(): email/displayName/emailVerified are Firebase's to own and

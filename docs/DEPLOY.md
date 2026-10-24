@@ -351,7 +351,7 @@ gcloud run deploy wally-api \
   --image=europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest \
   --region=europe-west1 \
   --service-account=wally-api@luminull-wally.iam.gserviceaccount.com \
-  --set-env-vars="FIREBASE_PROJECT_ID=luminull-wally,NODE_ENV=production,CORS_ORIGIN=https://luminull-wally.web.app,FIRESTORE_DATABASE_ID=wally"
+  --set-env-vars="FIREBASE_PROJECT_ID=luminull-wally,NODE_ENV=production,CORS_ORIGIN=https://wally.luminull.com,FIRESTORE_DATABASE_ID=wally"
 ```
 
 Three things worth understanding:
@@ -456,21 +456,26 @@ The deploy prints a **Service URL**. For this project it is:
 https://wally-api-d5xbuta4ya-ew.a.run.app
 ```
 
-The frontend needs it in the next step. To print it again later:
+This native URL remains useful for diagnostics and tagged candidate checks. To print it again:
 
 ```bash
 gcloud run services describe wally-api --region=europe-west1 --format='value(status.url)'
 ```
 
 (Cloud Run also answers on a second, project-number-based hostname —
-`https://wally-api-128432325938.europe-west1.run.app`. Both reach the same service; use the
-one above consistently.)
+`https://wally-api-128432325938.europe-west1.run.app`. Both reach the same service.)
+
+The production browser API URL is **`https://api.wally.luminull.com`**, with no trailing
+slash. Its Cloud Run domain mapping must target `wally-api` in `luminull-wally` /
+`europe-west1`, report `Ready=True`, and have reconciled its current generation. Cloud
+Run `status.url` remains a `run.app` URL and must not be compared to the custom domain.
+The canonical web origin is **`https://wally.luminull.com`**.
 
 Sanity check it is alive:
 
 ```bash
-curl https://wally-api-d5xbuta4ya-ew.a.run.app/health     # expect {"status":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
-curl -i https://wally-api-d5xbuta4ya-ew.a.run.app/whiteboards | head -1   # expect HTTP/2 401
+curl https://api.wally.luminull.com/health     # expect {"status":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
+curl -i https://api.wally.luminull.com/whiteboards | head -1   # expect HTTP/2 401
 ```
 
 A 401 on the second one is _success_: the API is running and correctly refusing
@@ -501,7 +506,7 @@ VITE_FIREBASE_API_KEY=...
 VITE_FIREBASE_AUTH_DOMAIN=luminull-wally.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=luminull-wally
 VITE_FIREBASE_APP_ID=...
-VITE_API_BASE_URL=https://wally-api-d5xbuta4ya-ew.a.run.app
+VITE_API_BASE_URL=https://api.wally.luminull.com
 ```
 
 The first four come from Firebase console → **Project settings → General → Your apps → SDK
@@ -509,7 +514,7 @@ setup and configuration**. They are the same values already in your root `.env`.
 public identifiers, not secrets — safe to ship to the browser, because access is enforced by
 Auth and by the API, not by hiding them.
 
-`VITE_API_BASE_URL` is the Cloud Run URL from the previous step, **with no trailing slash**.
+`VITE_API_BASE_URL` is the canonical API URL, `https://api.wally.luminull.com`, **with no trailing slash**.
 
 This file contains no secrets, but it is environment-specific — and it **is** gitignored:
 `.gitignore` covers `.env.*`, which matches `.env.production`. (`.dockerignore` excludes it
@@ -557,7 +562,7 @@ Verify the build picked up the right environment before you deploy — the value
 in, so a wrong one is baked into the bundle:
 
 ```bash
-grep -c "wally-api-d5xbuta4ya-ew.a.run.app" apps/web/dist/assets/*.js   # expect 1
+grep -c "api.wally.luminull.com" apps/web/dist/assets/*.js   # expect 1
 grep -c "localhost:4000" apps/web/dist/assets/*.js                      # expect 0
 ```
 
@@ -583,21 +588,20 @@ curl -s "https://identitytoolkit.googleapis.com/admin/v2/projects/luminull-wally
 
 ### Check CORS matches
 
-You set `CORS_ORIGIN=https://luminull-wally.web.app` when deploying Cloud Run. It must match
-the Hosting URL **exactly** — scheme, no trailing slash. If you attach a custom domain
-later, update it:
+Production requires `CORS_ORIGIN=https://wally.luminull.com`. It must match the browser
+origin **exactly**, including scheme and no trailing slash. To reconcile an older deployment:
 
 ```bash
 gcloud run services update wally-api \
   --region=europe-west1 \
-  --update-env-vars="CORS_ORIGIN=https://your-custom-domain.de"
+  --update-env-vars="CORS_ORIGIN=https://wally.luminull.com"
 ```
 
 ---
 
 ## 12. Step 10 — Verify it actually works
 
-Open `https://luminull-wally.web.app` and walk through this list. Open your browser's developer
+Open `https://wally.luminull.com` and walk through this list. Open your browser's developer
 console (F12) first — most failures announce themselves there.
 
 1. The sign-in page renders.
@@ -628,6 +632,24 @@ git tag v0.2.0 && git push origin v0.2.0
 The run pauses on the `production` GitHub Environment until someone approves it. It
 authenticates with Workload Identity Federation, so there is no key to manage — which is
 just as well, since the organization blocks service-account key creation entirely.
+
+Before releasing the domain migration, set repository variables `API_BASE_URL` to
+`https://api.wally.luminull.com` and `WEB_ORIGIN` to `https://wally.luminull.com`.
+Confirm DNS and the managed certificate are ready, the API mapping targets `wally-api`,
+and the currently serving revision already allows the canonical web origin. The preflight
+checks run before deployment and intentionally refuse an incomplete migration. The deploy
+identity needs `run.domainmappings.get` in the configured project. No configuration or
+DNS changes are made by the check.
+
+[The release guard](../scripts/check-api-domain.mjs) verifies mapping readiness, HTTPS
+health, unauthenticated 401, and a successful CORS preflight allowing authorization and
+content-type from the canonical web origin. It runs before deployment and again after
+promotion; a failure after traffic shifts follows the existing rollback path. Run its
+isolated regression suite locally with:
+
+```bash
+docker compose exec -T api node --test scripts/check-api-domain.test.mjs
+```
 
 What it does differently from the manual commands, and why:
 
@@ -870,11 +892,29 @@ that anyone can download, so hiding them would buy nothing:
 `WEB_ORIGIN`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
 `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`.
 
-**Repository secrets** — only two, and they belong to a throwaway Firebase Auth account that
-owns no data worth protecting:
+**Opt-in Auth0/MCP rollout variables:** `AUTH0_ENABLED`, `MCP_ENABLED` and
+`MCP_WRITES_ENABLED` default to `false`; `VITE_AUTH_PROVIDER` defaults to `firebase`.
+For Auth0 browser login, explicitly set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0`
+and `VITE_AUTH0_CLIENT_ID` to the public SPA client ID. For MCP, also set
+`MCP_ENABLED=true` and `MCP_CLIENT_ID` to the approved MCP client ID. Set
+`MCP_WRITES_ENABLED=true` only after the write rollout gates pass. Both client IDs are
+public identifiers, never client secrets. The release validates combinations before any
+deployment and reads the exact API flags and client ID back after deployment. Missing
+MCP client IDs are omitted from Cloud Run rather than deployed as empty strings.
 
-`E2E_USER_EMAIL`, `E2E_USER_PASSWORD`. Mirror both into Dependabot secrets as well, or
-Dependabot's pull requests will trip the vacuous-E2E guard.
+The issuer `https://login.luminull.com/` and REST audience
+`https://api.wally.luminull.com` are fixed in application configuration and the release.
+The web bundle receives the provider and SPA client ID at build time; changing repository
+variables does not change a deployed bundle. Existing Firebase build variables remain
+required for the rollback path. These switches do not provision Auth0 tenant settings,
+import accounts, or grant connector access. Complete the [Auth0 activation checks](AUTH0.md)
+before opting in. Keep all switches off and provider `firebase` for the default release.
+
+**Repository secrets:** retain `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for Firebase
+rollback tests. Auth0 validation uses `E2E_AUTH0_USER_PASSWORD` with the account email
+and subject stored as repository variables. Keep a separate password under that same
+secret name in Dependabot secrets, alongside its separate account variables. See the
+[E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
 
 > There is deliberately **no service-account key anywhere.** The organization enforces
 > `iam.disableServiceAccountKeyCreation`, and the API no longer needs one outside Google

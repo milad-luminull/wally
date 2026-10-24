@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../account/access.js';
 import { visibleLinks } from '../visibleLinks.js';
 import { createHash } from 'node:crypto';
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
@@ -89,7 +90,13 @@ export async function executeBoardCommand(
   actor: Actor,
   rawCommand: unknown,
   rawMetadata: unknown,
-  options: { baseUrl?: string; logger?: CommandLogger; provenance?: Provenance } = {},
+  options: {
+    baseUrl?: string;
+    logger?: CommandLogger;
+    provenance?: Provenance;
+    /** Additional trusted authorization reads participate in this write transaction. */
+    authorize?: (tx: Transaction, boardId: string) => Promise<void>;
+  } = {},
 ): Promise<CommandResult> {
   const parsed = boardCommandSchema.safeParse(rawCommand);
   if (!parsed.success) throw new AppError(400, 'BAD_REQUEST', 'Invalid command input');
@@ -119,6 +126,12 @@ export async function executeBoardCommand(
     .doc(operationId);
   try {
     const { result, replayed } = await runCommandTransaction(db, async (tx) => {
+      await assertAccountActive(db, actor.id, tx);
+      if (
+        (command.type === 'note.create' || command.type === 'note.assign') &&
+        command.input.assigneeId
+      )
+        await assertAccountActive(db, command.input.assigneeId, tx);
       // `roles` are the ones that authorized the command; replay re-checks the caller's
       // current role against them, so a viewer's retried private-note write still replays.
       // An assistant write also leaves its audit record, in the same transaction.
@@ -147,8 +160,9 @@ export async function executeBoardCommand(
                   ? (result.data as { id: string }).id
                   : null,
             commandType: command.type,
-            conversationId: provenance.conversationId,
-            approvalId: provenance.approvalId,
+            ...(provenance.via === 'assistant'
+              ? { conversationId: provenance.conversationId, approvalId: provenance.approvalId }
+              : { via: 'mcp' as const, connectionId: provenance.connectionId }),
             revision: result.revision,
             occurredAt,
             expiresAt: Timestamp.fromMillis(
@@ -162,6 +176,8 @@ export async function executeBoardCommand(
       // re-authorize BEFORE replaying, without depending on the deleted document.
       if (receipt) {
         const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
+        if (board) await assertAccountActive(db, board.ownerId, tx);
+        await options.authorize?.(tx, receipt.boardId);
         // Receipts written before roles were stored fall back to the note-free rule.
         requireAccess(board, actor.id, receipt.roles ?? rolesFor(command, null, actor.id));
         if (receipt.fingerprint !== fingerprint)
@@ -170,6 +186,24 @@ export async function executeBoardCommand(
             'IDEMPOTENCY_KEY_REUSED',
             'Operation ID was already used for different input',
           );
+        // A note may have become private since the original response. Recheck its
+        // current visibility before disclosing a cached result (deletions have no target).
+        const targetId =
+          'noteId' in command
+            ? command.noteId
+            : command.type === 'note.create'
+              ? (receipt.result?.data as { id?: string } | undefined)?.id
+              : undefined;
+        if (targetId && command.type !== 'note.delete') {
+          const target = withId(await tx.get(notesCol(db).doc(targetId)));
+          if (
+            !target ||
+            target.deletedAt ||
+            target.whiteboardId !== receipt.boardId ||
+            !canSeeNote(target, actor.id)
+          )
+            notFound();
+        }
         return { result: receipt.result as CommandResult, replayed: true };
       }
 
@@ -196,6 +230,10 @@ export async function executeBoardCommand(
         notFound();
       const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
       if (!board) notFound();
+      await assertAccountActive(db, board.ownerId, tx);
+      if (command.type === 'note.duplicate' && note?.assigneeId)
+        await assertAccountActive(db, note.assigneeId, tx);
+      await options.authorize?.(tx, boardId);
       const roles = rolesFor(command, note, actor.id);
       if (command.type === 'link.redeem') {
         if (!link || board.shareLinkToken !== command.token) notFound();

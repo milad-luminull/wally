@@ -1,3 +1,4 @@
+import { assertAccountActive } from './account/access.js';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type { WhiteboardRole } from '@wally/shared';
 import {
@@ -80,6 +81,7 @@ export async function activatePendingInvitesForEmail(
     const pendingRef = members.doc(row.id);
 
     const didActivate = await db.runTransaction(async (tx) => {
+      await assertAccountActive(db, userId, tx);
       // ---- reads ----
       // Re-read inside the transaction: the collection-group result is a snapshot from
       // before it started, and resurrecting a row the owner has since deleted — or

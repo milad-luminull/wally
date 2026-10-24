@@ -1,6 +1,5 @@
 /**
- * Only the two kinds of link a signed-out visitor can legitimately arrive with are worth
- * returning to after sign-in: a share link and a board. Anything else (an external URL, a
+ * Return only to a share link, a board, or the account page used for reauthentication. Anything else (an external URL, a
  * protocol-relative `//host`, the login page itself) is dropped.
  */
 const ALLOWED = /^\/(share|boards)\/[^/?#]/;
@@ -9,7 +8,7 @@ const ALLOWED = /^\/(share|boards)\/[^/?#]/;
 export function readReturnPath(state: unknown): string | null {
   const from = (state as { from?: unknown } | null | undefined)?.from;
   if (typeof from !== 'string' || from.startsWith('//')) return null;
-  return ALLOWED.test(from) ? from : null;
+  return from === '/settings/account' || ALLOWED.test(from) ? from : null;
 }
 
 /**

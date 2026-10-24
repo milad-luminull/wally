@@ -1,0 +1,19 @@
+# Only the disposable GitHub runner maps these production names to loopback.
+# The real Auth0 issuer remains external; every Wally request stays in this stack.
+services:
+  api:
+    environment:
+      CORS_ORIGIN: https://wally.luminull.com
+  web:
+    environment:
+      VITE_API_BASE_URL: https://api.wally.luminull.com
+  tls:
+    image: nginx:1.31-alpine
+    ports:
+      - '127.0.0.1:443:443'
+    volumes:
+      - ./infra/auth0-ci-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${AUTH0_CI_TLS_DIR:?Run the CI certificate setup first}:/etc/nginx/tls:ro
+    depends_on:
+      - api
+      - web

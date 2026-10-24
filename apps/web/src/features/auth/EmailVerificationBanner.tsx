@@ -31,8 +31,14 @@ function friendlyResendError(err: unknown): MessageKey {
  */
 export function EmailVerificationBanner() {
   const { t } = useTranslation();
-  const { user, emailVerified, resendVerificationEmail, refreshUser, verificationSendFailed } =
-    useAuth();
+  const {
+    user,
+    emailVerified,
+    resendVerificationEmail,
+    refreshUser,
+    hostedLogin,
+    verificationSendFailed,
+  } = useAuth();
   const queryClient = useQueryClient();
   const keys = useQueryKeys();
 
@@ -84,6 +90,7 @@ export function EmailVerificationBanner() {
       // token and activate nothing.
       const boards = await queryClient.fetchQuery({
         queryKey: keys.meBoards(),
+        staleTime: 0,
         queryFn: () => boardsApi.list(),
       });
       await queryClient.invalidateQueries();
@@ -99,6 +106,22 @@ export function EmailVerificationBanner() {
   }
 
   if (!user) return null;
+  if (hostedLogin && !emailVerified)
+    return (
+      <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-alt p-3 text-13">
+        <div className="min-w-0 flex-1">
+          <p role="status">{t('auth.hosted.verify')}</p>
+          {feedback && (
+            <p role={feedback.tone === 'error' ? 'alert' : 'status'} className="text-status-danger">
+              {t(feedback.key)}
+            </p>
+          )}
+        </div>
+        <Button variant="outline" disabled={busy !== null} onClick={() => void handleConfirm()}>
+          {t(busy === 'confirm' ? 'auth.verify.confirming' : 'auth.verify.confirm')}
+        </Button>
+      </div>
+    );
 
   if (emailVerified) {
     if (!unlocked) return null;

@@ -1,3 +1,5 @@
+import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { PublicHeader } from '@/components/PublicHeader';
 import { BrandMark } from '@/components/BrandMark';
@@ -15,6 +17,7 @@ export function AuthLayout({
   subtitle?: string;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="auth-page">
       <PublicHeader />
@@ -31,6 +34,12 @@ export function AuthLayout({
             </div>
           </div>
           {children}
+          <Link
+            to="/privacy"
+            className="text-center text-sm text-fg-3 underline underline-offset-4"
+          >
+            {t('privacy.title')}
+          </Link>
         </div>
       </main>
     </div>

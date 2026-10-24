@@ -1,3 +1,4 @@
+import { HostedLogin } from '@/features/auth/HostedLogin';
 import { Navigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -7,7 +8,7 @@ import { AuthLayout } from './AuthLayout';
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { status, expired } = useAuth();
+  const { status, expired, hostedLogin } = useAuth();
   const location = useLocation();
   // Navigate only after AuthProvider has a usable token. Form completion can precede
   // that notification; entering the protected route early would lose the return path.
@@ -24,7 +25,7 @@ export function LoginPage() {
             : t('auth.sessionEnded')}
         </p>
       )}
-      <SignInForm />
+      {hostedLogin ? <HostedLogin /> : <SignInForm />}
     </AuthLayout>
   );
 }

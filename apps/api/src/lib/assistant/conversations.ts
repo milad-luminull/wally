@@ -1,3 +1,4 @@
+import { assertAccountActive, assertAssistantBoardActive } from '../account/access.js';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
@@ -49,7 +50,11 @@ export async function createConversation(
     lastTurnAt: stamp,
     expiresAt: expiry(now),
   };
-  await ref.create(doc);
+  await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
+    await assertAssistantBoardActive(db, userId, boardId, tx);
+    tx.create(ref, doc);
+  });
   return { ...doc, id: ref.id };
 }
 
@@ -114,6 +119,7 @@ export async function appendTurn(
   id: string,
   turn: {
     expectedTurns: number;
+    expectedBoardRevision?: number;
     user: AssistantEntry;
     assistant: AssistantEntry;
     messages: StoredMessage[] | null;
@@ -124,8 +130,10 @@ export async function appendTurn(
 ): Promise<WithId<AssistantConversationDoc>> {
   const ref = assistantConversationsCol(db, userId).doc(id);
   return db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw new AppError(404, 'NOT_FOUND', 'Not found');
+    await assertAssistantBoardActive(db, userId, current.boardId, tx, turn.expectedBoardRevision);
     if (current.status !== 'OPEN')
       throw new AppError(409, 'ASSISTANT_CONVERSATION_CLOSED', 'This conversation is closed');
     if (current.turns !== turn.expectedTurns)

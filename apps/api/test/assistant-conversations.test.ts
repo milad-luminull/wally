@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   appendTurn,
   CONVERSATION_RETENTION_DAYS,
@@ -29,6 +29,13 @@ describe('assistant conversations', () => {
   let ctx: TestContext;
   beforeAll(async () => {
     ctx = await buildTestApp(PROJECT_ID);
+  });
+  beforeEach(async () => {
+    for (const id of ['b1', 'b2'])
+      await ctx.db
+        .collection('whiteboards')
+        .doc(id)
+        .set({ ownerId: 'u1', memberRoles: {}, revision: 1, deletedAt: null });
   });
   afterEach(async () => {
     await resetDatabase(PROJECT_ID);

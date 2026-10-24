@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -131,6 +132,12 @@ jobs:
     name: E2E (full stack)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Keep Firebase until the Auth0 hosted-login suite has passed with its own CI identity.
+      # A maintainer can opt one PR into validation without changing the repository default.
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      PLAYWRIGHT_BASE_URL: http://localhost:5174
+      E2E_AUTH_PROVIDER: ${{ contains(github.event.pull_request.labels.*.name, 'auth0-validation') && 'auth0' || vars.E2E_AUTH_PROVIDER || 'firebase' }}
     # Only run where the secrets actually exist. `github.event.pull_request` is null for
     # push, so the event check short-circuits and the job runs on main, whose result
     # release.yml requires before deploying. Comparing full_name (rather than `.fork`) also
@@ -160,6 +167,17 @@ jobs:
           # Exact match only — a partial hit restores the wrong browser build.
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
 
+      # The Azure mirror stalled package downloads twice before any browser test ran.
+      # Use Ubuntu's standard archive; distribution, packages and signature checks stay intact.
+      - name: Use the standard Ubuntu archive for browser dependencies
+        run: |
+          # Hosted images can select mirrors indirectly through mirror+file URIs.
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources /etc/apt/*mirrors*.txt; do
+            if [ -f "$source" ]; then
+              sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' "$source"
+            fi
+          done
+
       # chromium AND webkit: the mobile-list-only project uses devices['iPhone 13'], whose
       # defaultBrowserType is 'webkit'. Installing only chromium silently breaks it.
       - if: steps.pw-cache.outputs.cache-hit != 'true'
@@ -186,8 +204,26 @@ jobs:
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
         run: |
           set -euo pipefail
+          if [ "$E2E_AUTH_PROVIDER" = "auth0" ]; then
+            [ -n "$VITE_AUTH0_CLIENT_ID" ] || { echo "::error::VITE_AUTH0_CLIENT_ID is required"; exit 1; }
+            cat > .env <<EOF
+          PORT=4000
+          CORS_ORIGIN=http://localhost:5174
+          FIREBASE_PROJECT_ID=wally-e2e
+          VITE_API_BASE_URL=http://localhost:4000
+          AUTH0_ENABLED=true
+          AUTH0_SIGNUP_ENABLED=false
+          VITE_AUTH_PROVIDER=auth0
+          VITE_AUTH0_CLIENT_ID=${VITE_AUTH0_CLIENT_ID}
+          MCP_ENABLED=false
+          ASSISTANT_ENABLED=false
+          EOF
+            exit 0
+          fi
+          [ "$E2E_AUTH_PROVIDER" = "firebase" ] || { echo "::error::Invalid E2E_AUTH_PROVIDER"; exit 1; }
           missing=0
           for v in FIREBASE_PROJECT_ID VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN \
                    VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
@@ -205,12 +241,51 @@ jobs:
           VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID}
           EOF
 
+      # Same-site HTTPS is necessary for memory-only Auth0 session restoration.
+      # Trust an ephemeral CA only inside this disposable runner; never ignore TLS errors.
+      - name: Prepare isolated Auth0 HTTPS origins
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_ACTIONS" = "true" ] && [ "$CI" = "true" ]
+          tls_dir="$RUNNER_TEMP/wally-auth0-tls"
+          mkdir -m 700 "$tls_dir"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj '/CN=Wally ephemeral CI CA' \
+            -keyout "$tls_dir/ca.key" -out "$tls_dir/ca.crt" 2>/dev/null
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=wally.luminull.com' \
+            -keyout "$tls_dir/server.key" -out "$tls_dir/server.csr" 2>/dev/null
+          printf '%s\n' 'subjectAltName=DNS:wally.luminull.com,DNS:api.wally.luminull.com' \
+            'extendedKeyUsage=serverAuth' > "$tls_dir/server.ext"
+          openssl x509 -req -in "$tls_dir/server.csr" -CA "$tls_dir/ca.crt" \
+            -CAkey "$tls_dir/ca.key" -CAcreateserial -days 1 \
+            -extfile "$tls_dir/server.ext" -out "$tls_dir/server.crt" 2>/dev/null
+          chmod 600 "$tls_dir/ca.key" "$tls_dir/server.key"
+          sudo cp "$tls_dir/ca.crt" /usr/local/share/ca-certificates/wally-ci.crt
+          sudo update-ca-certificates
+          sudo apt-get install -y libnss3-tools
+          mkdir -p "$HOME/.pki/nssdb"
+          if [ ! -f "$HOME/.pki/nssdb/cert9.db" ]; then
+            certutil -N --empty-password -d "sql:$HOME/.pki/nssdb"
+          fi
+          certutil -A -d "sql:$HOME/.pki/nssdb" -n wally-ci -t 'C,,' -i "$tls_dir/ca.crt"
+          printf '%s\n' '127.0.0.1 wally.luminull.com api.wally.luminull.com' | sudo tee -a /etc/hosts
+          # Fail closed before any browser can send API requests to a public Wally service.
+          for host in wally.luminull.com api.wally.luminull.com; do
+            [ "$(getent ahostsv4 "$host" | awk '{print $1}' | sort -u)" = '127.0.0.1' ]
+          done
+          echo "AUTH0_CI_TLS_DIR=$tls_dir" >> "$GITHUB_ENV"
+          # Playwright route.fetch runs in Node, which has a separate CA store.
+          echo "NODE_EXTRA_CA_CERTS=$tls_dir/ca.crt" >> "$GITHUB_ENV"
+          echo 'COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml:docker-compose.auth0-ci.yml' >> "$GITHUB_ENV"
+          echo 'PLAYWRIGHT_BASE_URL=https://wally.luminull.com' >> "$GITHUB_ENV"
+
       # NOT `make up`: that is `docker compose up -d` with no wait, so a container that dies
       # at boot surfaces as an opaque Playwright timeout instead of a readable error.
       - name: Start the stack
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
-            up -d --build --wait --wait-timeout 300 firestore api web
+          docker compose \
+            up -d --build --wait --wait-timeout 300
 
       # --wait honours the compose healthchecks, but those run INSIDE the containers and say
       # nothing about the published ports; `web` has no healthcheck at all. Assert from the
@@ -228,21 +303,56 @@ jobs:
             sleep 1
           done
           echo "::error::stack did not become ready"
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=200
+          docker compose logs --no-color --tail=200
           exit 1
+
+      - name: Verify isolated HTTPS routing
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        run: |
+          set -euo pipefail
+          # Normal certificate validation, no --insecure. Assert the socket's peer as well.
+          for host in wally.luminull.com api.wally.luminull.com; do
+            path=/
+            [ "$host" != 'api.wally.luminull.com' ] || path=/health
+            peer=$(curl --fail --silent --show-error --output /dev/null --write-out '%{remote_ip}' "https://$host$path")
+            [ "$peer" = '127.0.0.1' ]
+          done
+
+      - name: Verify Node trusts the test certificate
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        run: node -e "fetch('https://api.wally.luminull.com/health').then(r => { if (!r.ok) process.exit(1); }).catch(e => { console.error(e.message); process.exit(1); })"
 
       - name: Seed
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+          docker compose \
             run --rm api pnpm --filter @wally/api seed
+
+      - name: Bind Auth0 CI identity in the emulator
+        if: env.E2E_AUTH_PROVIDER == 'auth0'
+        env:
+          E2E_AUTH0_SUBJECT: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_SUBJECT' || 'E2E_AUTH0_SUBJECT'] }}
+          E2E_AUTH0_EMAIL: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_EMAIL' || 'E2E_AUTH0_EMAIL'] }}
+        run: |
+          docker compose \
+            exec -T -e E2E_AUTH0_SUBJECT -e E2E_AUTH0_EMAIL api \
+            pnpm --filter @wally/api exec tsx src/seed-auth0-e2e.ts
 
       - name: Run Playwright
         env:
-          # compose publishes web on 5174; playwright.config.ts defaults to 5173.
-          PLAYWRIGHT_BASE_URL: http://localhost:5174
-          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
-          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        run: pnpm --filter @wally/web exec playwright test
+          FIREBASE_E2E_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          FIREBASE_E2E_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          AUTH0_E2E_EMAIL: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_EMAIL' || 'E2E_AUTH0_EMAIL'] }}
+          AUTH0_E2E_PASSWORD: ${{ secrets.E2E_AUTH0_USER_PASSWORD }}
+        run: |
+          if [ "$E2E_AUTH_PROVIDER" = "auth0" ]; then
+            export E2E_USER_EMAIL="$AUTH0_E2E_EMAIL" E2E_USER_PASSWORD="$AUTH0_E2E_PASSWORD"
+          else
+            export E2E_USER_EMAIL="$FIREBASE_E2E_EMAIL" E2E_USER_PASSWORD="$FIREBASE_E2E_PASSWORD"
+          fi
+          [ -n "$E2E_USER_EMAIL" ] && [ -n "$E2E_USER_PASSWORD" ] || {
+            echo "::error::The selected provider's E2E credentials are missing"; exit 1;
+          }
+          pnpm --filter @wally/web exec playwright test --max-failures=3
 
       # Every spec opens with test.skip(!hasE2eCredentials, ...), so a missing secret
       # produces a PASSING run that tested nothing. test.skip() inside a test body still
@@ -298,12 +408,12 @@ jobs:
       - name: Container logs on failure
         if: failure()
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=400
+          docker compose ps
+          docker compose logs --no-color --tail=400
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
+        run: docker compose down -v
 
   # THIS is the required status check, not `e2e`. A fork PR cannot reach the secrets, so
   # `e2e` is skipped there — and a skipped required check counts as passing, which would let

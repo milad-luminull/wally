@@ -1,7 +1,21 @@
 # Wally over MCP
 
-**Status:** not implemented. This is a future extension, not a completed app feature.
-**Last checked:** 2026-10-19. The API has no MCP/OAuth routes or MCP dependencies.
+> **2026-10-22 model update:** The owner approved account-wide MCP access based on
+> current Wally membership and roles. New OAuth connections require no board selection
+> or owner AI switch. This is the first release: the earlier experimental connection
+> model has been removed, with no migration or upgrade flow. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
+> records historical behavior and is not the setup procedure for new connections.
+
+**Status:** the first MCP surface is implemented locally; production remains disabled pending release validation.
+**Last checked:** 2026-10-20. The API includes MCP routes, OAuth resource discovery and authorization checks.
+
+Provider and delivery proposal: [Auth0 login and first MCP release](AUTH0_MCP_ROLLOUT.md)
+and [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md). These define the first release; the coverage
+findings below do not imply full app parity in the first release.
+
+The planned production endpoint is `https://api.wally.luminull.com/mcp`, hosted in the
+existing API. Its OAuth resource/audience is the same exact URL; see the rollout RFC
+for discovery and deployment configuration. This endpoint is implemented behind the MCP deployment switch.
 
 ## 1. Outcome
 
@@ -130,12 +144,13 @@ against CSRF, and disable development-only authentication behavior in production
 - Inventory authorization and connection records, retention and account deletion/export
   in [GDPR.md](../GDPR.md). Explain what a connected host receives in the privacy notice.
 
-## 6. Decisions still needed
+## 6. Decisions and remaining validation
 
-Choose the supported host/authorization implementation and approve its dependencies.
-Resolve whether sending other members' notes to a user's external host is permitted and
-what consent is required. These are real access/data-processing decisions; do not invent
-a policy during implementation.
+Auth0 is the selected provider; the integration and web-login migration follow
+[ADR-0016](../adr/0016-auth0-for-web-and-mcp.md). ChatGPT is the first target host.
+A board owner must enable external AI access before a member can grant a client access;
+each member then selects boards and explicitly allows any writes. Production host validation
+and privacy-notice review remain release gates.
 
 Do not add search/fetch, destructive tools or another transport until a concrete use case
 requires them. Protocol and host compatibility should be checked against the

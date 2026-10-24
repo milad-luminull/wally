@@ -4,7 +4,7 @@
  * stores it on the receipt, folds it into the idempotency fingerprint, marks note history
  * with `via`, and writes one contents-free audit record per committed command.
  */
-export interface Provenance {
+export interface AssistantProvenance {
   via: 'assistant';
   conversationId: string;
   approvalId: string;
@@ -12,3 +12,6 @@ export interface Provenance {
 
 /** Audit records expire through a Firestore TTL policy on `expiresAt`, like receipts. */
 export const ASSISTANT_AUDIT_RETENTION_DAYS = 30;
+
+/** External caller provenance is supplied only by the authenticated MCP transport. */
+export type Provenance = AssistantProvenance | { via: 'mcp'; connectionId: string };

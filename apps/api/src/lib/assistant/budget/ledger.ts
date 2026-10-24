@@ -1,3 +1,4 @@
+import { assertAccountActive } from '../../account/access.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import {
@@ -109,6 +110,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
   const isLive = (startedAt: number) => now.getTime() - startedAt < ATTEMPT_LEASE_MS;
 
   const transaction = db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
     const [usageSnap, spendSnap, previousDaySnap] = await Promise.all([
       tx.get(usageRef),
       tx.get(spendRef),
@@ -179,6 +181,7 @@ export async function settleAttempt(
     throw new Error('Unknown usage: the reservation is kept');
   const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
   await db.runTransaction(async (tx) => {
+    await assertAccountActive(db, userId, tx);
     const attempt = (await tx.get(attemptRef)).data();
     if (!attempt || attempt.state === 'SETTLED') return;
     const usageRef = assistantUsageCol(db, userId).doc(attempt.day);

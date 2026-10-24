@@ -1,5 +1,6 @@
 import { Grid3x3, Grip, Keyboard, LogOut, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Label } from '@/components/ui/label';
 import {
@@ -161,6 +162,18 @@ export function AccountMenu({
             {t('account.shortcuts')}
           </MenuItem>
         )}
+        <Link
+          to="/settings/connections"
+          className="flex min-h-9 items-center rounded px-2 text-13 text-fg-1 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t('connections.title')}
+        </Link>
+        <Link
+          to="/settings/account"
+          className="flex min-h-9 items-center rounded px-2 text-13 text-fg-1 hover:bg-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t('accountData.title')}
+        </Link>
         <MenuItem icon={<LogOut strokeWidth={1.75} />} onClick={() => void signOut()}>
           {t('account.signOut')}
         </MenuItem>

@@ -376,6 +376,8 @@ async function request<T>(
 }
 
 export const api = {
+  deleteWithBody: <T>(path: string, body: unknown, schema: ResponseSchema<T>) =>
+    request(path, { method: 'DELETE', body }, schema),
   get: <T>(path: string, schema: ResponseSchema<T>, query?: RequestOptions['query']) =>
     request(path, { method: 'GET', query }, schema),
   post: <T>(path: string, body: unknown, schema?: ResponseSchema<T>, ticket?: MutationTicket) =>

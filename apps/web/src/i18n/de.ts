@@ -6,6 +6,89 @@
  * content, so re-wording copy never means renaming a key.
  */
 export const de = {
+  accountData: {
+    account: 'Konto: {{email}}',
+    title: 'Konto und Daten',
+    exportTitle: 'Deine Daten',
+    exportHint:
+      'Lade dein Profil, zugängliche Boards und Karten, den Verlauf und Verbindungsdaten als JSON herunter. Private Karten anderer Personen und Zugangsdaten sind ausgeschlossen.',
+    download: 'Meine Daten herunterladen',
+    downloading: 'Download wird vorbereitet…',
+    exportError: 'Der Download ist fehlgeschlagen. Bitte versuche es erneut.',
+    deleteTitle: 'Konto löschen',
+    deleteHint: 'Prüfe vor der Bestätigung, welche Daten mit deinem Konto gelöscht werden.',
+    warning:
+      'Dadurch werden dein Konto und alle Boards, die dir gehören, mit ihren Karten dauerhaft für alle gelöscht. Deine privaten Karten auf anderen Boards werden entfernt. Deine geteilten Beiträge auf Boards anderer Personen bleiben ohne Bezug zu deiner Identität erhalten. Lade deine Daten vorher herunter.',
+    loading: 'Deine Boards werden geladen…',
+    loadError: 'Die von der Löschung betroffenen Boards konnten nicht geladen werden.',
+    ownedBoards: 'Diese Boards werden für alle gelöscht: {{count}}',
+    reauthHint:
+      'Melde dich zu deiner Sicherheit erneut an, bevor du dein Konto löschst. Kehre danach hierher zurück und bestätige die Löschung.',
+    reauth: 'Erneut anmelden',
+    reauthError: 'Die Anmeldung konnte nicht gestartet werden. Bitte versuche es erneut.',
+    confirmation: 'Zur Bestätigung DELETE eingeben',
+    delete: 'Mein Konto löschen',
+    deleting: 'Löschung wird angefordert…',
+    deleteError:
+      'Die Löschung konnte nicht bestätigt werden. Melde dich bei einer älteren Sitzung erneut an und versuche es noch einmal. Ist das Konto bereits gesperrt, kontaktiere den Support zum Status der Bereinigung.',
+    requested: 'Kontolöschung angefordert',
+    pending:
+      'Dein Kontozugriff ist gesperrt und verbundene Apps wurden getrennt. Die Bereinigung läuft noch, einschließlich der Entfernung deiner Anmeldeidentitäten. Für eine Abschlussbestätigung kontaktiere privacy@luminull.com.',
+  },
+  privacy: {
+    title: 'Datenschutzinformationen',
+    intro:
+      'Wally wird von Luminull betrieben. Für Datenschutzfragen, Auskünfte, Berichtigungen oder Hilfe bei der Löschung kontaktiere privacy@luminull.com.',
+    serviceTitle: 'Konto und geteilte Inhalte',
+    service:
+      'Wir verarbeiten E-Mail-Adresse, Anzeigename, Anmeldekennungen, Einstellungen, Boards, Karten, Mitgliedschaften und Aktivitätsdaten, um Wally bereitzustellen. Personen mit Board-Zugriff sehen geteilte Inhalte und Mitgliederdaten. Private Karten sind nur für ihre Ersteller sichtbar. Dienstdaten dienen der Bereitstellung deines Kontos; begrenzte Sicherheits- und Betriebsdaten schützen den Dienst.',
+    providersTitle: 'Anmeldung, Hosting und KI',
+    providers:
+      'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Google stellt Hosting, Datenbank und die bisherige Firebase-Anmeldung bereit. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter. Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
+    retentionTitle: 'Aufbewahrung und Kontofunktionen',
+    retention:
+      'Boards und Karten laufen nicht automatisch ab. Unter Konto und Daten kannst du deine Daten herunterladen oder dein Konto löschen lassen. Die Löschung sperrt den Zugriff sofort, entfernt eigene Boards für alle und private Karten und anonymisiert geteilte Beiträge auf Boards anderer Personen. Bei nicht erreichbaren Anbietern wird die Bereinigung wiederholt. Minimale Sperrvermerke bleiben erhalten, solange sie alte Tokens und widerrufene Verbindungen abweisen müssen. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere uns für Details.',
+    rightsTitle: 'Deine Möglichkeiten',
+    rights:
+      'Du kannst Auskunft, Berichtigung, Löschung oder Übertragbarkeit deiner personenbezogenen Daten verlangen und einer Verarbeitung aufgrund berechtigter Interessen widersprechen. Du kannst dich bei deiner zuständigen Datenschutzaufsichtsbehörde beschweren. Anbietervereinbarungen, Schutzmaßnahmen für internationale Übermittlungen und Rechtsgrundlagen müssen vor der Veröffentlichung vom Betreiber freigegeben werden.',
+  },
+  connections: {
+    title: 'Verbundene Apps',
+    back: 'Zurück zu den Boards',
+    description:
+      'Verbundene Apps nutzen deine Wally-Berechtigungen. Sie können deine zugänglichen Boards lesen und dort unterstützte Änderungen vornehmen, wo du bearbeiten darfst. Deine privaten Notizen bleiben vor anderen Nutzern geschützt.',
+    loading: 'Verbindungen werden geladen…',
+    loadError: 'Verbindungen konnten nicht geladen werden.',
+    retry: 'Erneut versuchen',
+    disabled: 'App-Verbindungen sind derzeit nicht verfügbar.',
+    saveError: 'Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.',
+    saving: 'Wird gespeichert…',
+    saved:
+      'Verbindung aktualisiert. Kehre nach dem Wiederverbinden zu ChatGPT, Claude oder deinem gewählten Anbieter zurück und melde dich erneut bei Wally an.',
+    none: 'Nicht verbunden',
+    revoked: 'Getrennt',
+    reconnectHint:
+      'Wähle Erneut verbinden. Kehre dann zu ChatGPT, Claude oder deinem gewählten Anbieter zurück und melde dich erneut bei Wally an.',
+    issue: 'Verbindungsproblem',
+    inherited: 'Verbunden',
+    revokeNamed: '{{name}} trennen',
+    revoke: 'Trennen',
+    reconnectNamed: '{{name}} erneut verbinden',
+    reconnect: 'Erneut verbinden',
+    setupTitle: 'Wally mit deinem KI-Anbieter verbinden',
+    setupSteps: 'Schritte zum Verbinden',
+    setupOpen:
+      'Öffne in ChatGPT, Claude oder deinem bevorzugten KI-Anbieter die Einstellungen und suche nach Apps oder Konnektoren. Füge eine eigene MCP-Verbindung namens Wally hinzu.',
+    setupUrl:
+      'Füge die Verbindungs-URL unten als Server-URL ein und wähle OAuth als Authentifizierung.',
+    setupLocalUrl:
+      'Wähle in ChatGPT den eingerichteten Wally-Testtunnel. Für einen lokalen MCP-Client nutze die URL unten. Wähle OAuth als Authentifizierung.',
+    setupSignIn:
+      'Melde dich mit deinem Wally-Konto an und bestätige den Zugriff. Wähle dann Wally in einem Chat und probiere „Zeig meine Boards“.',
+    localSetupHint:
+      'Dies ist ein lokaler Testserver. ChatGPT kann localhost nicht direkt erreichen und benötigt einen funktionierenden Tunnel.',
+    endpoint: 'Verbindungs-URL',
+  },
   welcome: {
     open: 'Wally öffnen',
     brand: 'Wally',
@@ -451,6 +534,20 @@ export const de = {
     },
   },
   auth: {
+    hosted: {
+      description: 'Melde dich sicher mit Google oder deiner E-Mail auf unserer Anmeldeseite an.',
+      passwordReset:
+        'Du nutzt bereits E-Mail und Passwort? Wähle auf der nächsten Seite „Passwort vergessen“, um dein Passwort für die neue Anmeldung zurückzusetzen.',
+      migration:
+        'Dein Konto ist noch nicht für die neue Anmeldung bereit. Deine Boards sind sicher. Wende dich an den Wally-Betreiber oder nutze ein anderes Konto.',
+      unavailable: 'Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
+      pending: 'Verbindung wird hergestellt…',
+      login: 'Weiter zur Anmeldung',
+      signup: 'Weiter zur Registrierung',
+      switchAccount: 'Anderes Konto verwenden',
+      verify:
+        'Bestätige deine E-Mail über die Nachricht unseres Anmeldedienstes und prüfe dann erneut.',
+    },
     sessionEnded: 'Deine Sitzung ist abgelaufen. Melde dich erneut an, um weiterzumachen.',
     sessionEndedUnsaved_one:
       'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderung ging verloren. Melde dich erneut an, um weiterzumachen.',

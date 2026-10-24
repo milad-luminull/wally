@@ -16,6 +16,29 @@ const envSchema = z.object({
   // because the project's "(default)" database was auto-created in the US.
   FIRESTORE_DATABASE_ID: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
+  AUTH0_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  AUTH0_SIGNUP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MCP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  MCP_WRITES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  // Local transport alias only. Auth0's registered MCP JWT audience stays canonical.
+  MCP_LOCAL_URL: z.string().url().optional(),
+  MCP_CLIENT_ID: z.string().min(1).optional(),
+  AUTH0_ISSUER: z.literal('https://login.luminull.com/').default('https://login.luminull.com/'),
+  AUTH0_AUDIENCE: z
+    .literal('https://api.wally.luminull.com')
+    .default('https://api.wally.luminull.com'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // The assistant's deployment switch. Off by default: with it off, the board response
   // reports `assistantEnabled: false` and every assistant operation answers 404.
@@ -65,6 +88,25 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       'FIRESTORE_EMULATOR_HOST must never be set when NODE_ENV=production — it would send ' +
         'all Firestore traffic to a non-existent emulator instead of the real database.',
     );
+  }
+
+  if (parsed.data.MCP_LOCAL_URL) {
+    const url = new URL(parsed.data.MCP_LOCAL_URL);
+    if (
+      parsed.data.NODE_ENV !== 'development' ||
+      !parsed.data.FIRESTORE_EMULATOR_HOST ||
+      url.protocol !== 'http:' ||
+      url.hostname !== 'localhost' ||
+      !url.port ||
+      url.pathname !== '/mcp' ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new Error(
+        'MCP_LOCAL_URL requires a development emulator and an explicit http://localhost:PORT/mcp URL',
+      );
   }
 
   cached = parsed.data;

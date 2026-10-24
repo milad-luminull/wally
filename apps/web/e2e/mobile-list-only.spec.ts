@@ -10,7 +10,7 @@ test('mobile viewport shows list-only with no drag/canvas affordance', async ({ 
 
   await signIn(page);
 
-  await expect(page.getByRole('button', { name: 'Wand' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Wand', exact: true })).toHaveCount(0);
   await expect(page.getByText(/Notizen frei verschieben geht am Rechner/)).toBeVisible();
 
   // No draggable note card should exist on the page at all (WallView/DndContext never mounts).
