@@ -5,15 +5,16 @@ import { pathToFileURL } from 'node:url';
 
 // Includes all files copied into the API build and its dependency manifests.
 // Release/docs-only changes can preserve a previously tested worker image.
-export function sourceFingerprint() {
+export function sourceFingerprint(run = execFileSync) {
   return createHash('sha256')
     .update(
-      execFileSync(
+      run(
         'git',
         [
           'ls-tree',
           'HEAD',
           'apps/api',
+          'apps/web/package.json',
           'packages/shared',
           'packages/config',
           'pnpm-lock.yaml',

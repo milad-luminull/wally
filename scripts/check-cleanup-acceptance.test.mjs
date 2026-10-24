@@ -53,3 +53,12 @@ for (const [label, change] of Object.entries({
     change(e);
     assert.throws(() => validateAcceptance(e, env, 'source', now));
   });
+test('worker fingerprint includes the web manifest copied by the API Dockerfile', async () => {
+  const { sourceFingerprint } = await import('./check-cleanup-acceptance.mjs');
+  let captured;
+  sourceFingerprint((_command, args) => {
+    captured = args;
+    return 'fixture tree';
+  });
+  assert.ok(captured?.includes('apps/web/package.json'));
+});
