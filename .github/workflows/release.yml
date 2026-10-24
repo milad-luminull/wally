@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags: ['v*']
 
@@ -10,11 +11,29 @@ permissions:
 concurrency:
   # NEVER cancel a release in progress: a half-cancelled run can leave the API deployed and
   # Hosting stale. Releases queue instead.
-  group: release-production
+  # Read-only preflight must not queue behind a release awaiting approval.
+  group: ${{ github.event_name == 'workflow_dispatch' && 'release-preflight-production' || 'release-production' }}
   cancel-in-progress: false
 
 env:
   FIREBASE_TOOLS_VERSION: '15.30.2'
+  API_BASE_URL: ${{ vars.API_BASE_URL }}
+  WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  ASSISTANT_ENABLED: ${{ vars.ASSISTANT_ENABLED || 'false' }}
+  ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL || 'vertex:gemini-3.8-flash' }}
+  ASSISTANT_VERTEX_LOCATION: ${{ vars.ASSISTANT_VERTEX_LOCATION || 'eu' }}
+  AUTH0_ENABLED: ${{ vars.AUTH0_ENABLED || 'false' }}
+  AUTH0_SIGNUP_ENABLED: ${{ vars.AUTH0_SIGNUP_ENABLED || 'false' }}
+  MCP_ENABLED: ${{ vars.MCP_ENABLED || 'false' }}
+  MCP_WRITES_ENABLED: ${{ vars.MCP_WRITES_ENABLED || 'false' }}
+  MCP_CLIENT_ID: ${{ vars.MCP_CLIENT_ID }}
+  VITE_AUTH_PROVIDER: ${{ vars.VITE_AUTH_PROVIDER || 'firebase' }}
+  VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
+  AUTH0_MANAGEMENT_DOMAIN: ${{ vars.AUTH0_MANAGEMENT_DOMAIN }}
+  AUTH0_CLEANUP_CLIENT_ID: ${{ vars.AUTH0_CLEANUP_CLIENT_ID }}
+  AUTH0_CLEANUP_SECRET_VERSION: ${{ vars.AUTH0_CLEANUP_SECRET_VERSION }}
 
 jobs:
   # A v* tag can be pushed onto any commit, including one that never saw a pull request.
@@ -69,26 +88,37 @@ jobs:
             sleep 20
           done
 
-  deploy:
+  preflight:
+    if: github.event_name == 'workflow_dispatch'
     needs: [verify]
-    env:
-      API_BASE_URL: ${{ vars.API_BASE_URL }}
-      WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
-      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ vars.GCP_REGION }}
-      ASSISTANT_ENABLED: ${{ vars.ASSISTANT_ENABLED || 'false' }}
-      ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL || 'vertex:gemini-3.8-flash' }}
-      ASSISTANT_VERTEX_LOCATION: ${{ vars.ASSISTANT_VERTEX_LOCATION || 'eu' }}
-      AUTH0_ENABLED: ${{ vars.AUTH0_ENABLED || 'false' }}
-      AUTH0_SIGNUP_ENABLED: ${{ vars.AUTH0_SIGNUP_ENABLED || 'false' }}
-      MCP_ENABLED: ${{ vars.MCP_ENABLED || 'false' }}
-      MCP_WRITES_ENABLED: ${{ vars.MCP_WRITES_ENABLED || 'false' }}
-      MCP_CLIENT_ID: ${{ vars.MCP_CLIENT_ID }}
-      VITE_AUTH_PROVIDER: ${{ vars.VITE_AUTH_PROVIDER || 'firebase' }}
-      VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
-      AUTH0_MANAGEMENT_DOMAIN: ${{ vars.AUTH0_MANAGEMENT_DOMAIN }}
-      AUTH0_CLEANUP_CLIENT_ID: ${{ vars.AUTH0_CLEANUP_CLIENT_ID }}
-      AUTH0_CLEANUP_SECRET_VERSION: ${{ vars.AUTH0_CLEANUP_SECRET_VERSION }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+        with:
+          install_components: beta
+      - name: Verify recorded worker acceptance
+        if: env.AUTH0_ENABLED == 'true'
+        run: node scripts/check-cleanup-acceptance.mjs
+      - run: node scripts/check-api-domain.mjs
+      - run: node scripts/check-release-prerequisites.mjs
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: [verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment:
@@ -182,25 +212,36 @@ jobs:
             esac
           done
 
+      - name: Resolve existing candidate image for retries
+        id: existing
+        run: node scripts/resolve-release-image.mjs
+
+      - name: Verify recorded worker acceptance
+        id: accepted_worker
+        if: env.AUTH0_ENABLED == 'true'
+        run: node scripts/check-cleanup-acceptance.mjs
+
+      - name: Verify prepared release prerequisites
+        run: node scripts/check-release-prerequisites.mjs release-state.json
+
+      - name: Preserve recovery state before mutations
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-state-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release-state.json
+          if-no-files-found: error
+          retention-days: 30
+
       # Record what to go back to. Captured BEFORE anything changes: at failure time the
       # release list has already shifted and index [1] would be the wrong one.
       - name: Capture the current production state
         id: prev
         run: |
           set -euo pipefail
-          # The revision serving 100%, not traffic[0]: tagged 0% revisions are listed too, and
-          # rolling back to one of those once sent production to an older release.
-          REV=$(gcloud run services describe wally-api --region="${GCP_REGION}" --format=json \
-                | jq -r '.status as $s
-                         | [$s.traffic[] | select((.percent // 0) == 100)][0]
-                         | if . == null then empty
-                           elif .revisionName then .revisionName
-                           else $s.latestReadyRevisionName end')
-          [ -n "$REV" ] || { echo "::error::no single revision serves 100% of traffic; refusing to release without a rollback target"; exit 1; }
+          REV=$(jq -er '.revision' release-state.json)
+          HV=$(jq -er '.hostingVersion' release-state.json)
+          [ -n "$HV" ] || { echo "::error::missing Hosting rollback version"; exit 1; }
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
-          HV=$(curl -fsS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-                 "https://firebasehosting.googleapis.com/v1beta1/sites/${GCP_PROJECT_ID}/releases?pageSize=1" \
-               | jq -r '.releases[0].version.name // empty')
           echo "hosting_version=${HV}" >> "$GITHUB_OUTPUT"
           echo "Cloud Run revision: ${REV}"
           echo "Hosting version:    ${HV:-<none>}"
@@ -221,15 +262,7 @@ jobs:
       # and querying one that is still building returns FAILED_PRECONDITION at runtime.
       - name: Wait for composite indexes to finish building
         run: |
-          set -euo pipefail
-          for _ in $(seq 1 60); do
-            PENDING=$(gcloud firestore indexes composite list --database=wally \
-                        --format='value(state)' 2>/dev/null | grep -cv '^READY$' || true)
-            [ "${PENDING:-0}" -eq 0 ] && { echo "all indexes READY"; exit 0; }
-            echo "waiting for ${PENDING} index(es)…"
-            sleep 20
-          done
-          echo "::error::composite indexes were still building after 20 minutes"; exit 1
+          node scripts/wait-firestore-indexes.mjs
 
       # ---------------------------------------------------------------------------------
       # 2. API image. Built on the runner: GitHub runners are amd64, so the Apple-Silicon
@@ -246,6 +279,7 @@ jobs:
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
       - name: Build and push the API image
+        if: steps.existing.outputs.digest == ''
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -265,6 +299,17 @@ jobs:
           cache-from: type=registry,ref=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api:buildcache
           cache-to: type=registry,ref=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
 
+      - name: Select immutable release image
+        id: image
+        env:
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          digest="${EXISTING_DIGEST:-$BUILT_DIGEST}"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
       # ---------------------------------------------------------------------------------
       # 3. Cloud Run, with NO traffic. The revision gets its own URL, production keeps
       #    serving the old one, and we smoke-test the new one before anything shifts — so a
@@ -274,7 +319,7 @@ jobs:
         id: run_deploy
         run: |
           set -euo pipefail
-          IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.build.outputs.digest }}"
+          IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.image.outputs.digest }}"
           # ^@^ picks @ as the delimiter so a value containing a comma cannot silently split
           # into two variables. --set-env-vars REPLACES the whole set, which is deliberate:
           # the workflow, not deploy history, is the source of truth. All settings are listed,
@@ -283,6 +328,7 @@ jobs:
           # (apps/api/src/env.ts) when a variable is absent.
           RUN_ENV="^@^FIREBASE_PROJECT_ID=${GCP_PROJECT_ID}@NODE_ENV=production@CORS_ORIGIN=${WEB_ORIGIN}@FIRESTORE_DATABASE_ID=wally@ASSISTANT_ENABLED=${ASSISTANT_ENABLED}@ASSISTANT_MODEL=${ASSISTANT_MODEL}@ASSISTANT_VERTEX_LOCATION=${ASSISTANT_VERTEX_LOCATION}@AUTH0_ENABLED=${AUTH0_ENABLED}@AUTH0_SIGNUP_ENABLED=${AUTH0_SIGNUP_ENABLED}@AUTH0_ISSUER=https://login.luminull.com/@AUTH0_AUDIENCE=https://api.wally.luminull.com@MCP_ENABLED=${MCP_ENABLED}@MCP_WRITES_ENABLED=${MCP_WRITES_ENABLED}"
           if [ -n "$MCP_CLIENT_ID" ]; then RUN_ENV="${RUN_ENV}@MCP_CLIENT_ID=${MCP_CLIENT_ID}"; fi
+          if [ -z '${{ steps.existing.outputs.digest }}' ]; then
           gcloud run deploy wally-api \
             --image="${IMAGE}" \
             --region="${GCP_REGION}" \
@@ -290,7 +336,9 @@ jobs:
             --set-env-vars="$RUN_ENV" \
             --tag="rel-${{ steps.ver.outputs.short }}" \
             --revision-suffix="rel-${{ steps.ver.outputs.short }}" \
+            --labels="wally-commit=${GITHUB_SHA}" \
             --no-traffic
+          fi
           # jq, not a gcloud value() projection: that prints a list repr like ['https://…'],
           # and the quotes left inside made curl reject the URL.
           URL=$(gcloud run services describe wally-api --region="${GCP_REGION}" --format=json \
@@ -300,19 +348,31 @@ jobs:
           echo "candidate_url=${URL}" >> "$GITHUB_OUTPUT"
           echo "candidate: ${URL}"
 
+      - name: Save candidate identity
+        run: |
+          jq --arg digest '${{ steps.image.outputs.digest }}' --arg revision 'wally-api-rel-${{ steps.ver.outputs.short }}' \
+            --arg configHash '${{ steps.existing.outputs.config_hash }}' '. + {candidate: {digest: $digest, revision: $revision, configHash: $configHash}}' release-state.json > candidate-state.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: candidate-state-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate-state.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Configure durable account cleanup before publishing
+        id: cleanup
         if: env.AUTH0_ENABLED == 'true'
         env:
-          ACCOUNT_CLEANUP_IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/wally/wally-api@${{ steps.build.outputs.digest }}
+          ACCOUNT_CLEANUP_IMAGE: ${{ steps.accepted_worker.outputs.image }}
         run: bash scripts/deploy-account-cleanup.sh
 
       - name: Assert the Cloud Run environment is correct
         run: |
           set -euo pipefail
-          gcloud run services describe wally-api --region="${GCP_REGION}" --format=json \
+          gcloud run revisions describe "wally-api-rel-${{ steps.ver.outputs.short }}" --region="${GCP_REGION}" --format=json \
           | jq -e --arg auth0 "$AUTH0_ENABLED" --arg signup "$AUTH0_SIGNUP_ENABLED" --arg mcp "$MCP_ENABLED" \
               --arg writes "$MCP_WRITES_ENABLED" --arg client "$MCP_CLIENT_ID" '
-              ([.spec.template.spec.containers[0].env[]? | {key:.name, value:.value}] | from_entries) as $e
+              ([.spec.containers[0].env[]? | {key:.name, value:.value}] | from_entries) as $e
               | ($e.FIRESTORE_DATABASE_ID == "wally")
                 and ($e.FIREBASE_PROJECT_ID != null)
                 and ($e.NODE_ENV == "production")
@@ -391,9 +451,17 @@ jobs:
 
       # Prepare and validate BOTH artifacts before enforcing the new API contract.
       # Existing tabs fail safely with 428 until refreshed during this short handover.
+      - name: Activate verified cleanup schedule
+        id: activate_cleanup
+        if: env.AUTH0_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          gcloud scheduler jobs resume wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION"
+          test "$(gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" --format='value(state)')" = ENABLED
+
       - name: Shift all traffic to the new revision
         id: shift
-        run: gcloud run services update-traffic wally-api --region="${GCP_REGION}" --to-latest
+        run: gcloud run services update-traffic wally-api --region="${GCP_REGION}" --to-revisions="wally-api-rel-${{ steps.ver.outputs.short }}=100"
 
       - name: Deploy Firebase Hosting
         id: hosting
@@ -433,22 +501,9 @@ jobs:
       # Rollback. Only reached if something above failed after traffic moved. A failure
       # before that point needs no rollback: production never served the candidate.
       # ---------------------------------------------------------------------------------
-      - name: Roll back Cloud Run
-        if: failure() && steps.shift.outcome == 'success' && steps.prev.outputs.revision != ''
-        run: |
-          echo "::warning::rolling Cloud Run back to ${{ steps.prev.outputs.revision }}"
-          gcloud run services update-traffic wally-api --region="${GCP_REGION}" \
-            --to-revisions="${{ steps.prev.outputs.revision }}=100"
-
-      # There is no `firebase hosting:rollback` command. A release is created by POSTing the
-      # previous version name, which is why steps.prev captured it before the deploy.
-      - name: Roll back Firebase Hosting
-        if: failure() && steps.hosting.outcome != 'skipped' && steps.prev.outputs.hosting_version != ''
-        run: |
-          echo "::warning::restoring Hosting version ${{ steps.prev.outputs.hosting_version }}"
-          curl -fsS -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-            -H "Content-Length: 0" \
-            "https://firebasehosting.googleapis.com/v1beta1/sites/${GCP_PROJECT_ID}/releases?versionName=${{ steps.prev.outputs.hosting_version }}"
+      - name: Restore captured release state after partial failure
+        if: (failure() || cancelled()) && ((steps.cleanup.outcome != 'skipped' && steps.cleanup.outcome != '') || (steps.shift.outcome != 'skipped' && steps.shift.outcome != ''))
+        run: node scripts/recover-release.mjs --apply release-state.json
 
       - name: Summary
         if: always()
