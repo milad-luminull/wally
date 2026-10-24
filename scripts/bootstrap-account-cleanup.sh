@@ -21,6 +21,12 @@ if [ "$(gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PRO
 fi
 state=$(gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" --format='value(state)')
 [ "$state" = PAUSED ] || { echo 'Scheduler did not pause' >&2; exit 1; }
+# The release may inspect job IAM and pause/resume an already prepared schedule.
+# Only this operator bootstrap owns creation and grants; remove the old write powers.
+gcloud iam roles update wallyCleanupJobIam --project="$GCP_PROJECT_ID" \
+  --title='Wally cleanup job policy read' --permissions=run.jobs.getIamPolicy --quiet
+gcloud iam roles update wallyScheduleDeployment --project="$GCP_PROJECT_ID" \
+  --permissions=cloudscheduler.jobs.get,cloudscheduler.jobs.pause,cloudscheduler.jobs.enable --quiet
 gcloud run jobs add-iam-policy-binding wally-account-cleanup --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
   --member="serviceAccount:${scheduler}" --role=roles/run.invoker
 gcloud scheduler jobs update http wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" \

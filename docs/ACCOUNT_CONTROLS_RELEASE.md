@@ -179,22 +179,22 @@ and ACTIVE completed-job TTL. It must not grant IAM, create schedules or modify 
 
 Permission inventory (a configured role is not proof of successful operation):
 
-| Actor / operation                              | Required access / resource                                                             | Evidence and recovery                                                                                              |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| GitHub deployer: canonical domain              | run.domainmappings.get, project                                                        | Actual retry read passed; read-only                                                                                |
-| GitHub deployer: API candidate / traffic       | run.services.create/update/get, revisions get/list, operations get; actAs on wally-api | Candidate deployment passed; traffic activation not executed; restore exact old revision                           |
-| GitHub deployer: container publication         | Artifact Registry upload/download on wally repository                                  | Actual image push passed; immutable digest used                                                                    |
-| GitHub deployer: database rules/indexes        | Firebase Rules release permissions; datastore.schemas.*, operations get/list           | Actual deployment passed; source rules/indexes unchanged from serving commit                                       |
-| GitHub deployer: cleanup image/config          | run.jobs.get/update and operations get; actAs on wally-account-cleanup                 | Job creation passed; no execution acceptance yet; restore saved job config while paused                            |
-| Operator bootstrap: invocation policy          | run.jobs.getIamPolicy/setIamPolicy on cleanup job                                      | Prior conditional deployer grant denied; exact evaluation unresolved; operator owns setup                          |
-| Operator bootstrap: scheduler                  | cloudscheduler.jobs.list/get/create/update/pause; actAs on scheduler SA                | Not yet executed; initial target is GET, then verified paused before POST run target                               |
-| GitHub deployer: scheduler activation/recovery | cloudscheduler.jobs.get/pause/enable (resume operation)                                | Must inspect actual permission names and evaluate before granting; existing custom role only has create/get/update |
-| Operator bootstrap: completed-job TTL          | datastore.schemas.update plus operations read                                          | Existing Index Admin covers TTL; accountDeletionJobs TTL not yet enabled                                           |
-| GitHub deployer: Hosting publish/recovery      | Firebase Hosting versions/releases create/get/list and upload                          | Existing hosting.admin grant; capture succeeded in workflow; no new publication yet                                |
-| Cleanup worker: database                       | datastore.user, restricted to wally database                                           | Binding inspected; real worker execution unverified                                                                |
-| Cleanup worker: Firebase identities            | firebaseauth.users.delete                                                              | Custom role present; only designated fixture can prove deletion                                                    |
-| Cleanup worker: Auth0                          | secretmanager.versions.access on exact secret; M2M delete:users                        | Token scope verified earlier; no live provider deletion yet                                                        |
-| Scheduler identity: cleanup invocation         | roles/run.invoker on exact cleanup job; Scheduler service agent token minting          | Direct invocation binding absent before bootstrap; no execution acceptance                                         |
+| Actor / operation                              | Required access / resource                                                             | Evidence and recovery                                                                                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub deployer: canonical domain              | run.domainmappings.get, project                                                        | Actual retry read passed; read-only                                                                                                         |
+| GitHub deployer: API candidate / traffic       | run.services.create/update/get, revisions get/list, operations get; actAs on wally-api | Candidate deployment passed; traffic activation not executed; restore exact old revision                                                    |
+| GitHub deployer: container publication         | Artifact Registry upload/download on wally repository                                  | Actual image push passed; immutable digest used                                                                                             |
+| GitHub deployer: database rules/indexes        | Firebase Rules release permissions; datastore.schemas.*, operations get/list           | Actual deployment passed; source rules/indexes unchanged from serving commit                                                                |
+| GitHub deployer: cleanup image/config          | run.jobs.get/update and operations get; actAs on wally-account-cleanup                 | Job creation passed; no execution acceptance yet; restore saved job config while paused                                                     |
+| Operator bootstrap: invocation policy          | run.jobs.getIamPolicy/setIamPolicy on cleanup job                                      | Prior conditional deployer grant denied; exact evaluation unresolved; operator owns setup                                                   |
+| Operator bootstrap: scheduler                  | cloudscheduler.jobs.list/get/create/update/pause; actAs on scheduler SA                | Not yet executed; initial target is GET, then verified paused before POST run target                                                        |
+| GitHub deployer: scheduler activation/recovery | cloudscheduler.jobs.get/pause/enable (resume operation)                                | Permission names verified against Cloud Scheduler Admin; bootstrap replaces create/update with pause/enable, retaining get. Not applied yet |
+| Operator bootstrap: completed-job TTL          | datastore.schemas.update plus operations read                                          | Existing Index Admin covers TTL; accountDeletionJobs TTL not yet enabled                                                                    |
+| GitHub deployer: Hosting publish/recovery      | Firebase Hosting versions/releases create/get/list and upload                          | Existing hosting.admin grant; capture succeeded in workflow; no new publication yet                                                         |
+| Cleanup worker: database                       | datastore.user, restricted to wally database                                           | Binding inspected; real worker execution unverified                                                                                         |
+| Cleanup worker: Firebase identities            | firebaseauth.users.delete                                                              | Custom role present; only designated fixture can prove deletion                                                                             |
+| Cleanup worker: Auth0                          | secretmanager.versions.access on exact secret; M2M delete:users                        | Token scope verified earlier; no live provider deletion yet                                                                                 |
+| Scheduler identity: cleanup invocation         | roles/run.invoker on exact cleanup job; Scheduler service agent token minting          | Direct invocation binding absent before bootstrap; no execution acceptance                                                                  |
 
 The local Hosting lookup required `X-Goog-User-Project: luminull-wally`. With that
 header, a fresh read confirms `sites/luminull-wally/versions/308db1a2383aeaa3`.
@@ -248,3 +248,9 @@ read-only WIF preflight; exact-main CI; production OAuth/ChatGPT acceptance and
 observation. The new tests do not replace these. Policy Troubleshooter is disabled
 in this project, so the original conditional `setIamPolicy` denial remains unexplained;
 no diagnostic API or IAM settings were changed as part of this implementation pass.
+
+Bootstrap narrows the existing deployer custom roles: `wallyCleanupJobIam` retains
+only `run.jobs.getIamPolicy`; `wallyScheduleDeployment` retains only scheduler
+get/pause/enable. Existing project bindings remain; no broad Run Admin role or new
+service-account credential is introduced. The original denied write path is removed,
+not represented as successfully diagnosed. These cloud role edits remain unapplied.
