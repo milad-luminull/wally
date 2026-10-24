@@ -32,7 +32,7 @@ gcloud run jobs add-iam-policy-binding wally-account-cleanup --project="$GCP_PRO
 gcloud scheduler jobs update http wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" \
   --schedule='*/5 * * * *' --time-zone=Etc/UTC --uri="https://run.googleapis.com/v2/${job}:run" \
   --http-method=POST --oauth-service-account-email="$scheduler" \
-  --headers=Content-Type=application/json --message-body='{}' --attempt-deadline=30s
+  --update-headers=Content-Type=application/json --message-body='{}' --attempt-deadline=30s
 [ "$(gcloud scheduler jobs describe wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" --format='value(state)')" = PAUSED ]
 gcloud firestore fields ttls update expiresAt --collection-group=accountDeletionJobs \
   --database=wally --project="$GCP_PROJECT_ID" --enable-ttl --quiet

@@ -219,8 +219,8 @@ worker-acceptance gate. Focused regressions reproduce the first, second and four
 configuration-path failures; all are addressed in the repair branch.
 
 Before release, `infra/account-cleanup-acceptance.json` must contain an honest,
-reviewed record of actual designated-fixture checks. **No record has been created**;
-the repaired workflow therefore currently refuses activation. The record must include
+reviewed record of actual designated-fixture checks. **The record is now populated from the live fixture evidence below**;
+the repaired workflow validates it before activation. The record must include
 `version: 1`, `checkedAt` (within 24 hours), `sourceFingerprint`, exact immutable
 `image`, `project`, `database`, `workerServiceAccount`, `secretVersion`,
 `auth0ClientId`, `auth0ManagementDomain`, an `evidenceUrl` in this repository and
@@ -253,4 +253,44 @@ Bootstrap narrows the existing deployer custom roles: `wallyCleanupJobIam` retai
 only `run.jobs.getIamPolicy`; `wallyScheduleDeployment` retains only scheduler
 get/pause/enable. Existing project bindings remain; no broad Run Admin role or new
 service-account credential is introduced. The original denied write path is removed,
-not represented as successfully diagnosed. These cloud role edits remain unapplied.
+not represented as successfully diagnosed. These cloud role edits were applied during the verified bootstrap below.
+
+### Live worker acceptance and bootstrap — 25 October 2026
+
+- Read-only worker execution `wally-account-cleanup-h77mp` succeeded under the dedicated
+  runtime identity, proving image startup, secret injection and real database reads.
+- The same configured secret authenticated to the exact Auth0 tenant; returned scope
+  was exactly `delete:users`. Neither secret nor token was printed or saved in evidence.
+- Created one new disposable Auth0 password identity through its Authentication API,
+  one disabled Firebase identity, and one synthetic Wally board/private note. No existing
+  account was used. The fixture's durable cleanup request was seeded by the operator;
+  **this tests the worker/providers, not the recent-authentication UI or DELETE endpoint**.
+- Targeted execution `wally-account-cleanup-6pdzc` completed after the drain interval.
+  Durable status/phase were `complete`, no error; Firebase independently returned
+  user-not-found, the fixture note was absent, and user/board/mapping identifier hashes
+  matched their pre-fixture baselines. Auth0 completion is supported by the worker's
+  successful provider response and completed durable state; no extra Auth0 read scope
+  was granted for an independent directory lookup.
+- Targeted replay `wally-account-cleanup-fw622` succeeded. Attempts remained 3, status
+  remained complete, and all identifier baselines still matched. This is real worker
+  idempotency evidence, separate from automated emulator tests.
+- `infra/account-cleanup-acceptance.json` records the exact tested image, matching source
+  fingerprint/configuration, scope checks and execution IDs. Worker source inputs match
+  the failed release's built image; repair changes are deployment-only.
+- Bootstrap created a non-executing GET scheduler target, paused it, narrowed deployer
+  roles and granted scheduler invocation on the exact job. Its first update stopped on
+  a create/update CLI flag mismatch (`--headers` versus `--update-headers`). The scheduler
+  stayed paused. A regression failed, the flag was corrected using CLI help, and the
+  resumed bootstrap configured the POST run target while remaining PAUSED.
+- Completed-job TTL was requested; activation was still CREATING at the last read.
+  No production traffic, Hosting publication or existing-user deletion occurred.
+
+Cloud execution evidence (requires project access):
+
+- https://console.cloud.google.com/run/jobs/executions/details/europe-west1/wally-account-cleanup-h77mp?project=luminull-wally
+- https://console.cloud.google.com/run/jobs/executions/details/europe-west1/wally-account-cleanup-6pdzc?project=luminull-wally
+- https://console.cloud.google.com/run/jobs/executions/details/europe-west1/wally-account-cleanup-fw622?project=luminull-wally
+
+Remaining: TTL activation, actual deployment-identity preflight, exact resulting-main CI,
+controlled publication, permanent-endpoint ChatGPT acceptance and observation. Earlier
+statements that bootstrap/worker acceptance were unperformed describe their prior state.

@@ -167,3 +167,17 @@ Sources:
 - Ruling: a protected workflow_dispatch preflight must run from an allowed v* tag because production environment policy permits tags only. WIF already trusts this repository/environment without an event restriction; no trust policy widening is necessary. Creating a tag still triggers the separate release job, whose existing production approval must remain withheld until preflight and evidence pass.
 - Ruling: production worker/schema/provider acceptance is not satisfied by mocked script tests. No success evidence file is created until real results exist.
 - Still pending: operator bootstrap and narrowed cloud roles, runtime/provider fixture acceptance, actual WIF preflight, CI/release integration, final production acceptance. No release retry or cloud configuration mutation has been performed during this implementation pass.
+
+### Live evidence update
+
+Real read-only worker execution, targeted newly-created disposable fixture deletion and
+completed-job replay succeeded. Execution IDs and evidence limits are recorded in
+ACCOUNT_CONTROLS_RELEASE.md. Existing user/board/identity identifiers match the original
+baseline. Bootstrap was applied with the scheduler remaining PAUSED; a CLI update-header
+flag mismatch was caught and fixed with a failing regression before resumption. TTL
+activation remains pending. No public API/Hosting switch or real-user deletion occurred.
+
+Ruling: the acceptance record is valid for 24 hours and invalidated by changed worker
+source/config. This keeps activation tied to recent evidence; cost is repeating fixture
+acceptance if approval extends beyond that window. Evidence assertions are reviewed
+records, not cryptographic proof of external effects.

@@ -91,3 +91,12 @@ test('bootstrap narrows release identity to read job policy and control the prep
     ),
   );
 });
+test('scheduler update uses the update CLI header flag, not the create flag', () => {
+  const r = run({ EXISTS: '1' });
+  const update = r.calls.find((a) => a[0] === 'scheduler' && a.includes('update'));
+  assert.ok(update.includes('--update-headers=Content-Type=application/json'));
+  assert.equal(
+    update.some((a) => a.startsWith('--headers=')),
+    false,
+  );
+});

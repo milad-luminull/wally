@@ -11,7 +11,8 @@ permissions:
 concurrency:
   # NEVER cancel a release in progress: a half-cancelled run can leave the API deployed and
   # Hosting stale. Releases queue instead.
-  group: release-production
+  # Read-only preflight must not queue behind a release awaiting approval.
+  group: ${{ github.event_name == 'workflow_dispatch' && 'release-preflight-production' || 'release-production' }}
   cancel-in-progress: false
 
 env:
