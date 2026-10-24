@@ -150,3 +150,22 @@ CI on a671757a passed units, lint and build but stalled before browser tests. Li
 showed an indirect `/etc/apt/apt-mirrors.txt` selection still using the Azure mirror.
 The CI mirror replacement now covers both direct sources and mirror-list files; the
 full browser gate remains required.
+
+## Release execution, 2026-10-24
+
+The owner accepted the recent-sign-in check and instructed release. This is owner
+acceptance, not evidence of completed provider deletion: the disposable local account
+has no cleanup job. Cloud worker execution and production fixture acceptance remain
+separate checks.
+
+PR #66 merged as `aefd229e66ef7da058a8ee566196536ced556979`. All main CI checks passed
+([run 40116287130](https://github.com/milad-luminull/wally/actions/runs/40116287130)).
+Fresh production readback confirmed six exact Google mappings, seven mappings total and
+seven original Wally users. Production workflow variables enable Auth0/signup and full
+MCP reads/writes together; assistant configuration was preserved.
+
+The owner approved release `v0.8.1`. Its deployment stopped before any production
+mutation because the runner lacked the Cloud SDK beta component required by the existing
+canonical-domain guard. The follow-up explicitly installs that component through
+`setup-gcloud`; the guard is retained. The failed tag is preserved, and the next candidate
+must again pass exact-main CI before a new patch tag is released.
