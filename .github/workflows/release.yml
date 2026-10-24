@@ -135,6 +135,9 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOY_SA }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          # The canonical-domain guard uses gcloud beta run domain-mappings.
+          install_components: beta
 
       # status.url is Cloud Run's native hostname even when a custom domain is mapped.
       # Validate the mapping and canonical public endpoint before making any changes.
