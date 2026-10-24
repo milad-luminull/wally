@@ -169,3 +169,82 @@ mutation because the runner lacked the Cloud SDK beta component required by the 
 canonical-domain guard. The follow-up explicitly installs that component through
 `setup-gcloud`; the guard is retained. The failed tag is preserved, and the next candidate
 must again pass exact-main CI before a new patch tag is released.
+
+## Release repair: 25 October 2026 (not deployed)
+
+The v0.8.2 retry passed the domain guard and created a no-traffic API candidate and
+cleanup job, then failed at the job invocation IAM binding. Ordinary deployment now
+requires bootstrap to have prepared a paused scheduler, job-level invocation binding,
+and ACTIVE completed-job TTL. It must not grant IAM, create schedules or modify TTL.
+
+Permission inventory (a configured role is not proof of successful operation):
+
+| Actor / operation                              | Required access / resource                                                             | Evidence and recovery                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| GitHub deployer: canonical domain              | run.domainmappings.get, project                                                        | Actual retry read passed; read-only                                                                                |
+| GitHub deployer: API candidate / traffic       | run.services.create/update/get, revisions get/list, operations get; actAs on wally-api | Candidate deployment passed; traffic activation not executed; restore exact old revision                           |
+| GitHub deployer: container publication         | Artifact Registry upload/download on wally repository                                  | Actual image push passed; immutable digest used                                                                    |
+| GitHub deployer: database rules/indexes        | Firebase Rules release permissions; datastore.schemas.*, operations get/list           | Actual deployment passed; source rules/indexes unchanged from serving commit                                       |
+| GitHub deployer: cleanup image/config          | run.jobs.get/update and operations get; actAs on wally-account-cleanup                 | Job creation passed; no execution acceptance yet; restore saved job config while paused                            |
+| Operator bootstrap: invocation policy          | run.jobs.getIamPolicy/setIamPolicy on cleanup job                                      | Prior conditional deployer grant denied; exact evaluation unresolved; operator owns setup                          |
+| Operator bootstrap: scheduler                  | cloudscheduler.jobs.list/get/create/update/pause; actAs on scheduler SA                | Not yet executed; initial target is GET, then verified paused before POST run target                               |
+| GitHub deployer: scheduler activation/recovery | cloudscheduler.jobs.get/pause/enable (resume operation)                                | Must inspect actual permission names and evaluate before granting; existing custom role only has create/get/update |
+| Operator bootstrap: completed-job TTL          | datastore.schemas.update plus operations read                                          | Existing Index Admin covers TTL; accountDeletionJobs TTL not yet enabled                                           |
+| GitHub deployer: Hosting publish/recovery      | Firebase Hosting versions/releases create/get/list and upload                          | Existing hosting.admin grant; capture succeeded in workflow; no new publication yet                                |
+| Cleanup worker: database                       | datastore.user, restricted to wally database                                           | Binding inspected; real worker execution unverified                                                                |
+| Cleanup worker: Firebase identities            | firebaseauth.users.delete                                                              | Custom role present; only designated fixture can prove deletion                                                    |
+| Cleanup worker: Auth0                          | secretmanager.versions.access on exact secret; M2M delete:users                        | Token scope verified earlier; no live provider deletion yet                                                        |
+| Scheduler identity: cleanup invocation         | roles/run.invoker on exact cleanup job; Scheduler service agent token minting          | Direct invocation binding absent before bootstrap; no execution acceptance                                         |
+
+The local Hosting lookup required `X-Goog-User-Project: luminull-wally`. With that
+header, a fresh read confirms `sites/luminull-wally/versions/308db1a2383aeaa3`.
+This fixes inspection only; it does not authorize or perform a publication.
+
+Operator commands are implementation interfaces, not yet verified production steps:
+
+- Prepare infrastructure: `GCP_PROJECT_ID=luminull-wally GCP_REGION=europe-west1 bash scripts/bootstrap-account-cleanup.sh --apply`.
+- Inspect prerequisites: `node scripts/check-release-prerequisites.mjs release-state.json` with the release environment.
+- Recover after interruption: download the matching `release-state-RUN-ATTEMPT` artifact, inspect its project/versions, then `node scripts/recover-release.mjs --apply release-state.json`.
+
+Recovery restores API and Hosting, pauses the scheduler and restores worker configuration
+only when no execution is active. It does not reverse a completed user-requested deletion.
+An empty worker queue is not Auth0/Firebase provider acceptance. Paused scheduler state and
+pending deletions require explicit operator inspection before resumption.
+
+### Reviewed repair acceptance gate
+
+Independent review found unsafe worker replacement after a failed scheduler pause,
+non-idempotent pause handling, missing candidate config identity, and no enforced
+worker-acceptance gate. Focused regressions reproduce the first, second and fourth
+configuration-path failures; all are addressed in the repair branch.
+
+Before release, `infra/account-cleanup-acceptance.json` must contain an honest,
+reviewed record of actual designated-fixture checks. **No record has been created**;
+the repaired workflow therefore currently refuses activation. The record must include
+`version: 1`, `checkedAt` (within 24 hours), `sourceFingerprint`, exact immutable
+`image`, `project`, `database`, `workerServiceAccount`, `secretVersion`,
+`auth0ClientId`, `auth0ManagementDomain`, an `evidenceUrl` in this repository and
+true verified results for `workerDatabaseAccess`, `workerSecretAccess`,
+`auth0DeleteUsersScope`, `firebaseFixtureDeletion`, `auth0FixtureDeletion`, and
+`idempotentRetry`. The record asserts independently inspected evidence; the schema
+alone cannot prove the assertions are true. It must never be populated from mocked
+tests or an empty queue.
+
+The worker is pinned to that tested image. Its source fingerprint covers API/shared/
+config trees, dependency manifests and Docker ignore rules, allowing workflow-only
+changes without rebuilding an untested worker. This deliberately replaces the older
+assumption that the worker must use a newly rebuilt API image: it uses the tested
+image with matching worker source instead. Changed worker source/config invalidates
+the evidence and requires new acceptance. Ordinary API release still uses its exact
+candidate image and revision.
+
+Candidate reuse now requires a matching full commit label and deployment-managed
+configuration before any mutation. Legacy candidates without this proof fail closed;
+new candidates receive `wally-commit` and their config hash is recorded. Recovery
+leaves cleanup paused and never replaces a worker unless that pause was verified.
+
+Remaining live prerequisites: actual fixture-backed worker acceptance; bootstrap;
+read-only WIF preflight; exact-main CI; production OAuth/ChatGPT acceptance and
+observation. The new tests do not replace these. Policy Troubleshooter is disabled
+in this project, so the original conditional `setIamPolicy` denial remains unexplained;
+no diagnostic API or IAM settings were changed as part of this implementation pass.
