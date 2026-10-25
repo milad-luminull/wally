@@ -235,6 +235,9 @@ jobs:
           [ -n "$HV" ] || { echo "::error::missing Hosting rollback version"; exit 1; }
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
           echo "hosting_version=${HV}" >> "$GITHUB_OUTPUT"
+          # The release puts the cleanup schedule back as it found it: a schedule someone
+          # paused stays paused until an operator resumes it.
+          echo "cleanup_schedule=$(jq -r '.cleanup.schedulerState // ""' release-state.json)" >> "$GITHUB_OUTPUT"
           echo "Cloud Run revision: ${REV}"
           echo "Hosting version:    ${HV:-<none>}"
 
@@ -358,6 +361,9 @@ jobs:
       - name: Configure and check durable account cleanup before publishing
         id: cleanup
         if: env.AUTH0_ENABLED == 'true'
+        # Bounds the drain wait and the check (with its job retries); a timeout fails the
+        # step, and recovery restores the previous worker.
+        timeout-minutes: 25
         env:
           ACCOUNT_CLEANUP_IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api@${{ steps.image.outputs.digest }}
         run: bash scripts/deploy-account-cleanup.sh
@@ -449,7 +455,7 @@ jobs:
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Activate verified cleanup schedule
         id: activate_cleanup
-        if: env.AUTH0_ENABLED == 'true'
+        if: env.AUTH0_ENABLED == 'true' && steps.prev.outputs.cleanup_schedule == 'ENABLED'
         run: |
           set -euo pipefail
           gcloud scheduler jobs resume wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION"
@@ -510,7 +516,8 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Commit | \`${GITHUB_SHA}\` |"
-            echo "| Image digest | \`${{ steps.build.outputs.digest }}\` |"
+            echo "| Image digest | \`${{ steps.image.outputs.digest }}\` |"
+            echo "| Cleanup schedule before | \`${{ steps.prev.outputs.cleanup_schedule || 'n/a' }}\` |"
             echo "| Previous revision | \`${{ steps.prev.outputs.revision }}\` |"
             echo "| Web | ${WEB_ORIGIN} |"
             echo "| API | ${API_BASE_URL} |"

@@ -125,3 +125,15 @@ for (const [name, change] of Object.entries({
     assert.throws(() => validateCleanup(input, 'fixture', 'eu'));
   });
 }
+test('a release resumes the cleanup schedule only when it was running before', () =>
+  assert.match(
+    workflow,
+    /id: activate_cleanup\n {8}if: env\.AUTH0_ENABLED == 'true' && steps\.prev\.outputs\.cleanup_schedule == 'ENABLED'/,
+  ));
+test('the worker runs the release image, never a separately recorded one', () => {
+  assert.doesNotMatch(workflow, /check-cleanup-acceptance|accepted_worker/);
+  assert.match(
+    workflow,
+    /ACCOUNT_CLEANUP_IMAGE: .*wally-api@\$\{\{ steps\.image\.outputs\.digest \}\}/,
+  );
+});

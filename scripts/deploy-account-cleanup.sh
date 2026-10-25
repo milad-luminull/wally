@@ -32,7 +32,7 @@ jq -e --arg member "serviceAccount:${scheduler}" \
   <<<"$policy" >/dev/null || { echo "Cleanup invocation binding missing; complete bootstrap" >&2; exit 1; }
 # An execution the schedule started just before the pause may still be running. Each one
 # is resumable, so wait for it rather than replacing the worker underneath it.
-deadline=$((SECONDS + ${CLEANUP_DRAIN_SECONDS:-900}))
+deadline=$((SECONDS + ${CLEANUP_DRAIN_SECONDS:-600}))
 until gcloud run jobs executions list --job=wally-account-cleanup "${region[@]}" --format=json \
   | jq -e 'type == "array" and all(.[]; .status.completionTime != null)' >/dev/null; do
   [ "$SECONDS" -lt "$deadline" ] \
@@ -51,7 +51,12 @@ gcloud run jobs describe wally-account-cleanup "${region[@]}" --format=json \
 # Prove the deployed worker works before anything is published: the new image starts
 # under the worker identity, reads the database, may delete Firebase users and holds an
 # Auth0 token with exactly delete:users. It deletes nothing (account-maintenance --check).
-# --wait exits non-zero when the execution fails, which stops the release and restores
-# the previous worker.
-gcloud run jobs execute wally-account-cleanup "${region[@]}" \
-  --args=dist/account-maintenance.js,--check --task-timeout=300s --wait
+# A failed check stops the release, and recovery restores the previous worker.
+# Read the outcome back rather than trusting the exit status of --wait alone.
+execution=$(gcloud run jobs execute wally-account-cleanup "${region[@]}" \
+  --args=dist/account-maintenance.js,--check --task-timeout=120s --wait --format='value(metadata.name)')
+[ -n "$execution" ] || { echo "Cleanup check execution was not created" >&2; exit 1; }
+gcloud run jobs executions describe "$execution" "${region[@]}" --format=json \
+  | jq -e '.status.succeededCount == 1' >/dev/null \
+  || { echo "Cleanup check $execution did not succeed; see its logs" >&2; exit 1; }
+echo "Cleanup worker check passed: $execution"

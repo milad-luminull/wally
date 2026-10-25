@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 function cleanup(overrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'wally-release-test-'));
   const fake = `#!${process.execPath}
-import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 const a=process.argv.slice(2); appendFileSync(process.env.LOG,JSON.stringify(a)+'\\n');
 if(a[0]==='scheduler'&&a[2]==='describe') {
  if(process.env.DENIED) {console.error('PERMISSION_DENIED');process.exit(1);}
@@ -17,11 +17,20 @@ if(a[0]==='scheduler'&&a[2]==='describe') {
  if(process.env.PAUSE_WORKS) writeFileSync(process.env.LOG+'.paused','yes');
 } else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='execute') {
  if(process.env.CHECK_FAILS) process.exit(1);
+ console.log('wally-account-cleanup-check1');
+} else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='executions'&&a[3]==='describe') {
+ console.log(JSON.stringify({status:{succeededCount:process.env.CHECK_UNSUCCESSFUL?0:1}}));
 } else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='describe') {
  console.log(JSON.stringify({status:{conditions:[{type:'Ready',status:'True'}]},spec:{template:{spec:{template:{spec:{containers:[{image:process.env.ACCOUNT_CLEANUP_IMAGE}]}}}}}}));
 } else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='get-iam-policy') {
  console.log(JSON.stringify({bindings:[{role:'roles/run.invoker',members:['serviceAccount:wally-account-scheduler@fixture.iam.gserviceaccount.com']}]}));
-} else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='executions') console.log(process.env.ACTIVE?'[{"status":{}}]':'[]');
+} else if(a[0]==='run'&&a[1]==='jobs'&&a[2]==='executions'&&a[3]==='list') {
+ // ACTIVE_FOR=n reports an active execution for the first n lists, then none.
+ const seen=(existsSync(process.env.LOG+'.lists')?Number(readFileSync(process.env.LOG+'.lists','utf8')):0)+1;
+ writeFileSync(process.env.LOG+'.lists',String(seen));
+ const active=process.env.ACTIVE||seen<=Number(process.env.ACTIVE_FOR||0);
+ console.log(active?'[{"status":{}}]':'[]');
+}
 `;
   writeFileSync(join(dir, 'gcloud'), fake);
   chmodSync(join(dir, 'gcloud'), 0o755);
@@ -81,6 +90,27 @@ test('the deployed worker is checked in --check mode after it is ready', () => {
 test('a failed worker check fails the script', () => {
   const r = cleanup({ CHECK_FAILS: '1' });
   assert.notEqual(r.status, 0);
+});
+test('a check execution that did not succeed fails even when gcloud exits zero', () => {
+  const r = cleanup({ CHECK_UNSUCCESSFUL: '1' });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /did not succeed/);
+});
+test('the worker waits, after pausing, for an execution to finish and is then replaced', () => {
+  const r = cleanup({
+    STATE: 'ENABLED',
+    PAUSE_WORKS: '1',
+    ACTIVE_FOR: '2',
+    CLEANUP_POLL_SECONDS: '0',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const pause = r.calls.findIndex((a) => a[0] === 'scheduler' && a.includes('pause'));
+  const lists = r.calls.flatMap((a, i) =>
+    a.includes('list') && a.includes('executions') ? [i] : [],
+  );
+  const deploy = r.calls.findIndex((a) => a.includes('deploy'));
+  assert.equal(lists.length, 3);
+  assert.ok(pause < lists[0] && lists[2] < deploy);
 });
 test('an active execution that never finishes stops before worker replacement', () => {
   const r = cleanup({ ACTIVE: '1', CLEANUP_DRAIN_SECONDS: '0', CLEANUP_POLL_SECONDS: '0' });

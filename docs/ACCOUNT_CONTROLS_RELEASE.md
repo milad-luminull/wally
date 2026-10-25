@@ -309,17 +309,19 @@ now checks the worker itself, with no human step:
   Firebase and Auth0 provider calls (exact subject, not-found as success, retryable errors).
 - **The deployed worker** runs the release's own immutable API image, the one CI tested and
   the API candidate runs. `scripts/deploy-account-cleanup.sh` pauses the schedule (verified by
-  read-back; a failed pause stops the release before replacement), waits up to 15 minutes for
+  read-back; a failed pause stops the release before replacement), waits up to 10 minutes for
   an active execution, replaces the worker, and then executes it once with
   `account-maintenance --check`. That run uses the worker identity, database and secret, reads
   `accountDeletionJobs`, makes a Firebase delete call for a random non-existent UID (answered
   not-found only once the call is authorised), and requires an Auth0 token whose scope is
-  exactly `delete:users`. It deletes nothing. A failed check fails the release before
+  exactly `delete:users`. It deletes nothing. The script reads the execution's outcome back
+  rather than relying on the exit status of `--wait`. A failed check fails the release before
   traffic or Hosting move, and recovery restores the previous worker.
-- **The schedule** may be ENABLED or PAUSED before a release. The release resumes it after
-  both artifacts are ready. Recovery restores the previous worker and, when the schedule was
-  ENABLED before the release and every restore step succeeded, resumes it; otherwise it stays
-  paused for inspection.
+- **The schedule** may be ENABLED or PAUSED before a release, and the release leaves it as it
+  found it: a running schedule is resumed once both artifacts are ready; a paused one stays
+  paused until an operator resumes it. Recovery waits up to 10 minutes for an execution to
+  finish, restores the previous worker and, when the schedule was ENABLED before the release
+  and every restore step succeeded, resumes it; otherwise it stays paused for inspection.
 
 What this does not prove per release: a real Auth0 deletion of a live identity. The provider
 call is unit-tested, the credential's permission is checked live, and the 25 October fixture

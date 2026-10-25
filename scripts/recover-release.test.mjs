@@ -90,8 +90,9 @@ const cleanupState = {
     },
   },
 };
-function cleanupRunner({ enabled = false, pauseFails = false } = {}) {
+function cleanupRunner({ enabled = false, pauseFails = false, activeLists = 0 } = {}) {
   let paused = !enabled;
+  let lists = 0;
   const calls = [];
   return {
     calls,
@@ -106,7 +107,8 @@ function cleanupRunner({ enabled = false, pauseFails = false } = {}) {
         return JSON.stringify({ state: paused ? 'PAUSED' : 'ENABLED' });
       }
       if (cmd === 'gcloud' && args[0] === 'run' && args[1] === 'jobs') {
-        if (args[2] === 'executions') return '[]';
+        if (args[2] === 'executions')
+          return ++lists <= activeLists ? JSON.stringify([{ status: {} }]) : '[]';
         if (args[2] === 'describe') return JSON.stringify(cleanupState.cleanup.job);
         return '';
       }
@@ -171,8 +173,8 @@ const enabledState = {
   ...cleanupState,
   cleanup: { ...cleanupState.cleanup, schedulerState: 'ENABLED' },
 };
-function resumingRunner() {
-  const r = cleanupRunner({ enabled: true });
+function resumingRunner(options = {}) {
+  const r = cleanupRunner({ enabled: true, ...options });
   let resumed = false;
   const run = (cmd, args) => {
     if (cmd === 'gcloud' && args[0] === 'scheduler' && args[2] === 'resume') {
@@ -203,7 +205,36 @@ test('recovery leaves the schedule paused when it was paused before the release'
     false,
   );
 });
-test('recovery never resumes when the worker could not be restored', () => {
+test('recovery waits for an execution the new worker started, then restores it', () => {
+  const r = resumingRunner({ activeLists: 2 });
+  let slept = 0;
+  const result = recoverRelease(enabledState, r.run, {
+    sleep: () => slept++,
+    drainMs: 1000,
+    clock: () => 0,
+  });
+  assert.match(result, /cleanup restored/);
+  assert.equal(slept, 2);
+  assert.ok(r.calls.some((a) => a.includes('replace')));
+});
+test('recovery leaves the schedule paused when an execution never finishes', () => {
+  const r = cleanupRunner({ enabled: true, activeLists: 99 });
+  let now = 0;
+  assert.throws(
+    () =>
+      recoverRelease(enabledState, r.run, {
+        sleep: () => (now += 500),
+        drainMs: 1000,
+        clock: () => now,
+      }),
+    /still active/,
+  );
+  assert.equal(
+    r.calls.some((a) => a.includes('replace') || a.includes('resume')),
+    false,
+  );
+});
+test('recovery never resumes when the schedule could not be paused', () => {
   const r = cleanupRunner({ enabled: true, pauseFails: true });
   assert.throws(() => recoverRelease(enabledState, r.run), /pause/);
   assert.equal(
