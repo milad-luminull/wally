@@ -24,7 +24,7 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
 | `--surface`           | `#FFFFFF` | `#121214` | Panels, popovers, the top bar      |
 | `--inset`             | `#F0F0F2` | `#1B1B1F` | Wells: segmented tracks, skeletons |
 | `--border`            | `#E4E4E8` | `#26262C` | Hairlines                          |
-| `--fg-1`              | `#0E0E10` | `#EDEDEF` | Text, ink, the mark's front note   |
+| `--fg-1`              | `#0E0E10` | `#EDEDEF` | Text, ink                          |
 | `--fg-3`              | `#6A6A74` | `#8B8B95` | Secondary text, labels             |
 | `--primary`           | `#18181B` | `#EDEDEF` | The everyday filled button         |
 | `--accent` (marigold) | `#FFB224` | `#FFB224` | See below                          |
@@ -33,10 +33,9 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
 
 1. The single primary action on a screen — `<Button variant="accent">`. At most one at rest:
    "New note" on the board, "Invite" in the share popover.
-2. The back note of the mark.
-3. Public-page calls to action and the mark. Never a drag or drop state: a zone under a
+2. Public-page calls to action. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
-4. A note whose Wallybot changes are still pending (Paper Wall v3): the moving gradient border
+3. A note whose Wallybot changes are still pending (Paper Wall v3): the moving gradient border
    in the accent family around the card, the shimmer on the words while they are being read,
    the pulsing dots after "Filling in", and the small dot before each line of the proposed
    fields. Never a fill, and gone the moment the changes are kept or undone
@@ -139,17 +138,18 @@ key union. Keys name a string's role, never its content, so re-wording never mea
 
 ## The mark
 
-Two notes on a wall: a marigold note behind and to the upper right, an ink note overlapping it
-from the lower left, separated by a gap the colour of whatever is behind the mark. The ink note
-is `--fg-1`, so it flips with the theme; marigold stays.
+A marigold face: a rounded square in a warm radial gradient (`#FFD36B` → `#F5A524` →
+`#EE7A2F`, lit from the upper left), a soft white highlight at the upper left, and two ink eyes.
+Its colours are fixed, so it reads the same on every palette and in both themes.
 
 The wordmark is Geist SemiBold, **lowercase**, tracked −0.04em. Never capitalise in the logo; in
 running text write Wally. Minimum 16px on screen — below that, the wordmark alone.
 
-`BrandMark.tsx` draws it in one 24-unit viewBox; `public/favicon.svg` repeats the same numbers
-in hex and must be kept in step.
+`BrandMark.tsx` draws it in one 100-unit viewBox; `public/favicon.svg` repeats the same numbers
+and must be kept in step. The PNG favicons (16, 32, 48) and the 180px `apple-touch-icon.png` in
+`public/` come from the design source in `wally-design/wally-logos`.
 
-**Don't**: tilt it · use colours outside the selected palette tokens · add a third note · put a letter in it.
+**Don't**: tilt it · recolour it to match a palette · add a mouth or other features · put a letter in it.
 
 ## AI
 

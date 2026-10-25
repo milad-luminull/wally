@@ -1,11 +1,15 @@
-<!-- The Wally mark: an ink note overlapping a marigold one. Keep in step with
-     src/components/BrandMark.tsx. Hex rather than var() — an icon has no stylesheet. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <style>.ink{fill:#18181B}@media (prefers-color-scheme:dark){.ink{fill:#EDEDEF}}</style>
-  <mask id="gap">
-    <rect width="24" height="24" fill="#fff"/>
-    <rect x="0.5" y="6.5" width="17" height="17" rx="5" fill="#000"/>
-  </mask>
-  <rect x="7" y="0" width="17" height="17" rx="4.5" fill="#FFB224" mask="url(#gap)"/>
-  <rect class="ink" x="2" y="8" width="14" height="14" rx="3.5"/>
+<!-- The Wally mark: a marigold face with two ink eyes. Keep in step with
+     src/components/BrandMark.tsx. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="g" cx="25%" cy="15%" r="120%">
+      <stop offset="0" stop-color="#FFD36B"/>
+      <stop offset="0.48" stop-color="#F5A524"/>
+      <stop offset="1" stop-color="#EE7A2F"/>
+    </radialGradient>
+  </defs>
+  <rect x="4" y="4" width="92" height="92" rx="29" fill="url(#g)"/>
+  <ellipse cx="29" cy="20" rx="15" ry="7" fill="#fff" fill-opacity="0.45" transform="rotate(-18 29 20)"/>
+  <rect x="31" y="35" width="11" height="19" rx="6" fill="#111"/>
+  <rect x="58" y="35" width="11" height="19" rx="6" fill="#111"/>
 </svg>
