@@ -33,6 +33,8 @@ export function recoverRelease(state, run) {
       `--location=${state.region}`,
     ]);
   let cleanupPaused = false;
+  let workerRestored = false;
+  let cleanupResumed = false;
   const readScheduler = () =>
     JSON.parse(
       run('gcloud', [
@@ -120,9 +122,21 @@ export function recoverRelease(state, run) {
         state.cleanup.job.spec.template.spec.template.spec.containers[0].image
       )
         throw new Error('worker image restore not verified');
+      workerRestored = true;
+    });
+  // The schedule was running before this release, and the worker is back on the exact
+  // configuration it ran then, so put the schedule back too. Any failure above leaves it
+  // paused for inspection.
+  if (state.cleanup?.schedulerState === 'ENABLED' && workerRestored && !errors.length)
+    attempt('resume cleanup', () => {
+      scheduler('resume');
+      if (readScheduler().state !== 'ENABLED') throw new Error('scheduler not ENABLED');
+      cleanupResumed = true;
     });
   if (errors.length) throw new Error(errors.join('\n'));
-  return 'API and Hosting restored; cleanup remains paused. Inspect pending deletions before resuming.';
+  return cleanupResumed || !state.cleanup
+    ? 'API, Hosting and cleanup restored.'
+    : 'API and Hosting restored; cleanup remains paused. Inspect pending deletions before resuming.';
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

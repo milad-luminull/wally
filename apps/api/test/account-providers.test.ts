@@ -38,3 +38,29 @@ it('keeps provider errors retryable rather than reporting deletion complete', as
     deletionProviders(config, request).deleteAuth0(config.issuer, 'auth0|exact'),
   ).rejects.toThrow('pending');
 });
+it('verifies Firebase delete access and the exact cleanup scope without deleting anyone', async () => {
+  const firebaseDelete = vi.fn(async () => {
+    throw Object.assign(new Error('missing'), { code: 'auth/user-not-found' });
+  });
+  const token = (scope: string) =>
+    vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: 'test-only-token', expires_in: 3600, scope })),
+      );
+  await expect(
+    deletionProviders(config, token('delete:users'), firebaseDelete).verifyAccess(),
+  ).resolves.toEqual({ auth0Scope: 'delete:users' });
+  expect(firebaseDelete).toHaveBeenCalledWith(expect.stringMatching(/^wally-cleanup-check-/));
+  await expect(
+    deletionProviders(config, token('delete:users read:users'), firebaseDelete).verifyAccess(),
+  ).rejects.toThrow('exactly delete:users');
+});
+it('fails the access check when the worker may not delete Firebase users', async () => {
+  const denied = vi.fn(async () => {
+    throw Object.assign(new Error('denied'), { code: 'auth/insufficient-permission' });
+  });
+  const request = vi.fn<typeof fetch>();
+  await expect(deletionProviders(config, request, denied).verifyAccess()).rejects.toThrow('denied');
+  expect(request).not.toHaveBeenCalled();
+});

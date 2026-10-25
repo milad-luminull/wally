@@ -218,7 +218,8 @@ non-idempotent pause handling, missing candidate config identity, and no enforce
 worker-acceptance gate. Focused regressions reproduce the first, second and fourth
 configuration-path failures; all are addressed in the repair branch.
 
-Before release, `infra/account-cleanup-acceptance.json` must contain an honest,
+_Superseded on 25 October 2026 by "Automated worker check" below; the record file and its
+guard are removed._ Before release, `infra/account-cleanup-acceptance.json` had to contain an honest,
 reviewed record of actual designated-fixture checks. **The record is now populated from the live fixture evidence below**;
 the repaired workflow validates it before activation. The record must include
 `version: 1`, `checkedAt` (within 24 hours), `sourceFingerprint`, exact immutable
@@ -294,3 +295,39 @@ Cloud execution evidence (requires project access):
 Remaining: TTL activation, actual deployment-identity preflight, exact resulting-main CI,
 controlled publication, permanent-endpoint ChatGPT acceptance and observation. Earlier
 statements that bootstrap/worker acceptance were unperformed describe their prior state.
+
+## Automated worker check, 25 October 2026
+
+The recorded acceptance gate is removed. It required an operator to re-run live fixture
+deletions within 24 hours of every release whose worker inputs changed, and a dependency
+bump alone invalidated it: v0.9.0 stopped there without changing production. The release
+now checks the worker itself, with no human step:
+
+- **Logic** is covered in CI on every pull request: emulator integration tests of
+  `processAccountDeletion` (resumption after provider failures, idempotent re-runs, drain
+  window, anonymised shared contributions, cached private-note copies) and unit tests of the
+  Firebase and Auth0 provider calls (exact subject, not-found as success, retryable errors).
+- **The deployed worker** runs the release's own immutable API image, the one CI tested and
+  the API candidate runs. `scripts/deploy-account-cleanup.sh` pauses the schedule (verified by
+  read-back; a failed pause stops the release before replacement), waits up to 15 minutes for
+  an active execution, replaces the worker, and then executes it once with
+  `account-maintenance --check`. That run uses the worker identity, database and secret, reads
+  `accountDeletionJobs`, makes a Firebase delete call for a random non-existent UID (answered
+  not-found only once the call is authorised), and requires an Auth0 token whose scope is
+  exactly `delete:users`. It deletes nothing. A failed check fails the release before
+  traffic or Hosting move, and recovery restores the previous worker.
+- **The schedule** may be ENABLED or PAUSED before a release. The release resumes it after
+  both artifacts are ready. Recovery restores the previous worker and, when the schedule was
+  ENABLED before the release and every restore step succeeded, resumes it; otherwise it stays
+  paused for inspection.
+
+What this does not prove per release: a real Auth0 deletion of a live identity. The provider
+call is unit-tested, the credential's permission is checked live, and the 25 October fixture
+run remains the end-to-end evidence for that path.
+
+One-time setup: the deployer needs to run the cleanup job with argument overrides. Re-run
+bootstrap once with the deployer's service account:
+`GCP_PROJECT_ID=luminull-wally GCP_REGION=europe-west1 GCP_DEPLOY_SA=<deployer email> bash scripts/bootstrap-account-cleanup.sh --apply`.
+It creates the `wallyCleanupJobRun` role (`run.jobs.run`, `run.jobs.runWithOverrides`,
+`run.executions.get`) and grants it on the cleanup job only. Until then the check step fails
+with a permission error and the release stops before publishing.

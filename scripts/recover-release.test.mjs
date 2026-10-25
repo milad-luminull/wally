@@ -167,3 +167,47 @@ test('retry rejects changed configuration before deployment', () => {
     /configuration/,
   );
 });
+const enabledState = {
+  ...cleanupState,
+  cleanup: { ...cleanupState.cleanup, schedulerState: 'ENABLED' },
+};
+function resumingRunner() {
+  const r = cleanupRunner({ enabled: true });
+  let resumed = false;
+  const run = (cmd, args) => {
+    if (cmd === 'gcloud' && args[0] === 'scheduler' && args[2] === 'resume') {
+      r.calls.push([cmd, ...args]);
+      resumed = true;
+      return '';
+    }
+    if (cmd === 'gcloud' && args[0] === 'scheduler' && args[2] === 'describe' && resumed) {
+      r.calls.push([cmd, ...args]);
+      return JSON.stringify({ state: 'ENABLED' });
+    }
+    return r.run(cmd, args);
+  };
+  return { calls: r.calls, run };
+}
+test('recovery resumes a schedule that was running before the release, after restoring the worker', () => {
+  const r = resumingRunner();
+  assert.match(recoverRelease(enabledState, r.run), /cleanup restored/);
+  const replace = r.calls.findIndex((a) => a.includes('replace'));
+  const resume = r.calls.findIndex((a) => a.includes('resume'));
+  assert.ok(replace >= 0 && resume > replace);
+});
+test('recovery leaves the schedule paused when it was paused before the release', () => {
+  const r = cleanupRunner();
+  assert.match(recoverRelease(cleanupState, r.run), /remains paused/);
+  assert.equal(
+    r.calls.some((a) => a.includes('resume')),
+    false,
+  );
+});
+test('recovery never resumes when the worker could not be restored', () => {
+  const r = cleanupRunner({ enabled: true, pauseFails: true });
+  assert.throws(() => recoverRelease(enabledState, r.run), /pause/);
+  assert.equal(
+    r.calls.some((a) => a.includes('resume')),
+    false,
+  );
+});

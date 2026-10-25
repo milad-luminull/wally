@@ -110,9 +110,6 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           install_components: beta
-      - name: Verify recorded worker acceptance
-        if: env.AUTH0_ENABLED == 'true'
-        run: node scripts/check-cleanup-acceptance.mjs
       - run: node scripts/check-api-domain.mjs
       - run: node scripts/check-release-prerequisites.mjs
 
@@ -215,11 +212,6 @@ jobs:
       - name: Resolve existing candidate image for retries
         id: existing
         run: node scripts/resolve-release-image.mjs
-
-      - name: Verify recorded worker acceptance
-        id: accepted_worker
-        if: env.AUTH0_ENABLED == 'true'
-        run: node scripts/check-cleanup-acceptance.mjs
 
       - name: Verify prepared release prerequisites
         run: node scripts/check-release-prerequisites.mjs release-state.json
@@ -359,11 +351,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Configure durable account cleanup before publishing
+      # The worker runs the same immutable image as the API candidate, so it ships the code
+      # CI just tested. The script pauses the schedule, replaces the worker and then runs it
+      # once in --check mode; a failed check stops the release and recovery restores the
+      # previous worker and schedule state.
+      - name: Configure and check durable account cleanup before publishing
         id: cleanup
         if: env.AUTH0_ENABLED == 'true'
         env:
-          ACCOUNT_CLEANUP_IMAGE: ${{ steps.accepted_worker.outputs.image }}
+          ACCOUNT_CLEANUP_IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api@${{ steps.image.outputs.digest }}
         run: bash scripts/deploy-account-cleanup.sh
 
       - name: Assert the Cloud Run environment is correct
