@@ -1,0 +1,20 @@
+# Operator-only: builds the API image the cleanup worker is accepted on, from exactly the
+# checked-out commit, with the same Dockerfile target as the release. See
+# docs/ACCOUNT_CONTROLS_RELEASE.md, "Re-running worker acceptance".
+#   gcloud builds submit --config=infra/cloudbuild.cleanup-acceptance.yaml \
+#     --substitutions=_COMMIT="$(git rev-parse HEAD)" --project=luminull-wally .
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '-f'
+      - 'apps/api/Dockerfile'
+      - '--target'
+      - 'prod'
+      - '--platform'
+      - 'linux/amd64'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:acceptance-${_COMMIT}'
+      - '.'
+images:
+  - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:acceptance-${_COMMIT}'

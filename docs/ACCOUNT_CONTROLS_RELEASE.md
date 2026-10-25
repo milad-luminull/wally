@@ -294,3 +294,59 @@ Cloud execution evidence (requires project access):
 Remaining: TTL activation, actual deployment-identity preflight, exact resulting-main CI,
 controlled publication, permanent-endpoint ChatGPT acceptance and observation. Earlier
 statements that bootstrap/worker acceptance were unperformed describe their prior state.
+
+## Re-running worker acceptance
+
+A release refuses to start when `infra/account-cleanup-acceptance.json` is older than 24
+hours or its `sourceFingerprint` no longer matches the worker source (API, shared and config
+trees, dependency manifests, lockfile, Docker ignore rules). A dependency bump is enough to
+invalidate it, as v0.9.0 showed on 25 October 2026. The release also requires the cleanup
+scheduler to be PAUSED; the previous release left it ENABLED, so every re-run starts by
+pausing it. Pending real deletion requests wait while it is paused and are processed once
+the release resumes the schedule.
+
+The operator runs these steps from a checkout of the commit to be released, with operator
+credentials (`gcloud auth login` and `gcloud auth application-default login`). The steps
+must finish, and the release must start, within 24 hours. A merge to `main` that touches the
+fingerprinted paths in between invalidates the record again.
+
+```bash
+export GCP_PROJECT_ID=luminull-wally GCP_REGION=europe-west1 \
+  AUTH0_MANAGEMENT_DOMAIN=dev-4tuhqfy0z1yepp5h.eu.auth0.com \
+  AUTH0_CLEANUP_CLIENT_ID=WGRHW4m65HZ8WNTgRH3tBDWanxkR49oH \
+  AUTH0_CLEANUP_SECRET_VERSION=wally-auth0-account-cleanup:1 \
+  VITE_AUTH0_CLIENT_ID=Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp \
+  STATE="$HOME/wally-cleanup-acceptance.json"
+```
+
+1. Pause the schedule:
+   `gcloud scheduler jobs pause wally-account-cleanup --location=$GCP_REGION --project=$GCP_PROJECT_ID`.
+2. Build the worker image from this commit with
+   `infra/cloudbuild.cleanup-acceptance.yaml` (the command is in its header), then take its
+   digest:
+   `gcloud artifacts docker images describe $GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/wally/wally-api:acceptance-$(git rev-parse HEAD) --format='value(image_summary.digest)'`
+   and `export IMAGE=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/wally/wally-api@<digest>`.
+3. Point the worker at it: `ACCOUNT_CLEANUP_IMAGE=$IMAGE bash scripts/deploy-account-cleanup.sh`.
+4. Read-only run (database access under the worker identity):
+   `gcloud run jobs execute wally-account-cleanup --region=$GCP_REGION --project=$GCP_PROJECT_ID --args=dist/account-maintenance.js,--status --wait`.
+   Record the execution name as `STATUS_EXECUTION`.
+5. Create the fixture, using an address you control (Auth0 may send it a verification mail):
+   `FIXTURE_EMAIL=… node scripts/cleanup-acceptance-fixture.mjs create "$STATE"`. It prints
+   the fixture's `userId` and `runAfter`, which is past the 120-second drain window.
+6. After `runAfter`, run the targeted deletion:
+   `gcloud run jobs execute wally-account-cleanup --region=$GCP_REGION --project=$GCP_PROJECT_ID --args=dist/account-maintenance.js,--apply,--user=<userId> --wait`
+   (`DELETION_EXECUTION`), then `node scripts/cleanup-acceptance-fixture.mjs verify "$STATE"`.
+7. Run the same execution again (`REPLAY_EXECUTION`), then
+   `node scripts/cleanup-acceptance-fixture.mjs replay "$STATE"`, which also checks that the
+   attempt count did not change.
+8. Check the cleanup client's scope without printing the secret:
+   `gcloud secrets versions access 1 --secret=wally-auth0-account-cleanup --project=$GCP_PROJECT_ID | node scripts/cleanup-acceptance-fixture.mjs scope "$STATE"`.
+9. Write the record:
+   `IMAGE=… STATUS_EXECUTION=… DELETION_EXECUTION=… REPLAY_EXECUTION=… EVIDENCE_URL=<PR url> node scripts/cleanup-acceptance-fixture.mjs record "$STATE"`.
+   It refuses unless steps 6 to 8 passed. Commit it with a dated evidence entry below, merge,
+   and tag the resulting `main` commit. Leave the schedule PAUSED: the release resumes it.
+
+Like the 25 October run, this tests the worker and providers, not the recent-sign-in UI or
+the DELETE endpoint. The fixture writes the same job and denial documents that endpoint
+writes. Auth0 deletion is evidenced by the worker's successful provider response and the
+completed job; the cleanup client has no read scope for an independent lookup.
