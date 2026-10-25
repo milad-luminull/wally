@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 interface BrandMarkProps {
   /** Rendered size in px. Below 16 use the wordmark alone. */
   size?: number;
@@ -6,41 +8,46 @@ interface BrandMarkProps {
 }
 
 /**
- * The Wally mark: two notes on a wall. A marigold note sits behind and to the upper right;
- * an ink note overlaps it from the lower left, cut out from it by a gap the colour of
- * whatever is behind the mark. Ink is `--fg-1`, so the front note flips with the theme while
- * marigold stays put.
+ * The Wally mark: a marigold face with two ink eyes and a soft highlight at the upper left.
+ * Its colours are fixed hex, not theme tokens, so the mark looks the same on every palette
+ * and in dark mode.
  *
- * Every measurement is in one 24-unit viewBox, so it scales cleanly from a 16px favicon up.
+ * Every measurement is in one 100-unit viewBox, so it scales cleanly from a 16px favicon up.
  * Keep public/favicon.svg in step with these numbers.
  */
 export function BrandMark({ size = 24, className, title }: BrandMarkProps) {
+  // Several marks can share a page, so each needs its own gradient id; useId's colons are
+  // stripped because they don't survive inside url(#…).
+  const gradientId = `wally-mark-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       className={className}
       role={title ? 'img' : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
     >
       <defs>
-        <mask id="wally-mark-gap">
-          <rect width="24" height="24" fill="white" />
-          <rect x="0.5" y="6.5" width="17" height="17" rx="5" fill="black" />
-        </mask>
+        <radialGradient id={gradientId} cx="25%" cy="15%" r="120%">
+          <stop offset="0" stopColor="#FFD36B" />
+          <stop offset="0.48" stopColor="#F5A524" />
+          <stop offset="1" stopColor="#EE7A2F" />
+        </radialGradient>
       </defs>
-      <rect
-        x="7"
-        y="0"
-        width="17"
-        height="17"
-        rx="4.5"
-        fill="var(--accent)"
-        mask="url(#wally-mark-gap)"
+      <rect x="4" y="4" width="92" height="92" rx="29" fill={`url(#${gradientId})`} />
+      <ellipse
+        cx="29"
+        cy="20"
+        rx="15"
+        ry="7"
+        fill="#fff"
+        fillOpacity="0.45"
+        transform="rotate(-18 29 20)"
       />
-      <rect x="2" y="8" width="14" height="14" rx="3.5" fill="var(--fg-1)" />
+      <rect x="31" y="35" width="11" height="19" rx="6" fill="#111" />
+      <rect x="58" y="35" width="11" height="19" rx="6" fill="#111" />
     </svg>
   );
 }
