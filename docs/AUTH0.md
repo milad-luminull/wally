@@ -1,172 +1,172 @@
-# Auth0 API activation and migration
+# Auth0 login and MCP
 
-Auth0 web login and MCP are opt-in. The default configuration keeps Firebase web login
-and disables Auth0 API tokens, MCP, and MCP writes. Configuration support does not imply
-production activation. See [the rollout](rfcs/AUTH0_MCP_ROLLOUT.md) for delivery gates.
+Production signs users in through Auth0, with signup open and MCP reads and writes
+enabled (release variables `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
+`MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`). Firebase login remains only as a
+rollback path. The decision is [ADR-0016](adr/0016-auth0-for-web-and-mcp.md); delivery
+history is in [the rollout](rfcs/AUTH0_MCP_ROLLOUT.md).
 
 ## Configuration
 
-The root `.env` feeds Docker Compose. Keep these safe defaults until migration and tenant
-checks are complete:
+The root `.env` feeds Docker Compose. Every switch defaults off, and the web provider
+defaults to Firebase:
 
 ```dotenv
 AUTH0_ENABLED=false
+AUTH0_SIGNUP_ENABLED=false
 MCP_ENABLED=false
 MCP_WRITES_ENABLED=false
 VITE_AUTH_PROVIDER=firebase
 ```
 
-For a coordinated Auth0 test, set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0`, and
-`VITE_AUTH0_CLIENT_ID` to the public Auth0 SPA client ID. Docker keeps the local API at
-`http://localhost:4000` and browser origin at `http://localhost:5174`; issuer and token
-audience remain the production identifiers below. Register `http://localhost:5174/login`
-and `https://wally.luminull.com/login` as allowed callbacks in the intended SPA client;
-register the corresponding origins for web origins and logout URLs. The SPA requests
-`openid profile email offline_access`, uses memory token storage and refresh tokens;
-configure refresh-token rotation and test login, callback, renewal and logout in that tenant.
-Never put a client secret in a `VITE_*` variable.
+**Local Auth0 run:**
 
-MCP activation additionally requires `MCP_ENABLED=true` and `MCP_CLIENT_ID` for the
-approved MCP client. Keep `MCP_WRITES_ENABLED=false` until the write rollout gates pass.
-Leave `MCP_CLIENT_ID` absent when unused, rather than setting an empty value. Docker
-inherits this optional value from `.env` without injecting a blank default. Recreate the
-containers after changing `.env`.
+- Set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0` and `VITE_AUTH0_CLIENT_ID` (the
+  public SPA client ID). Recreate the containers after changing `.env`.
+- The SPA client allows the callbacks `http://localhost:5174/login` and
+  `https://wally.luminull.com/login`, with matching web origins and logout URLs.
+- The SPA requests `openid profile email offline_access` and keeps tokens in memory, with
+  rotating refresh tokens.
+- Never put a client secret in a `VITE_*` variable.
 
-Releases use repository variables with the same names. The workflow rejects unknown
-providers, invalid booleans, Auth0 web login without API Auth0 or a SPA client ID, MCP
-without API Auth0, the assistant switch or its client ID, and writes without MCP. Unset switches default off;
-the web provider defaults to Firebase. Issuer and audience are pinned rather than supplied
-by repository variables. See [deployment configuration](DEPLOY.md#configuration).
+**MCP:** additionally needs `MCP_ENABLED=true` and `MCP_CLIENT_ID`. Leave `MCP_CLIENT_ID`
+unset when unused rather than empty.
 
-## API contract
+**Release variables** have the same names. The workflow rejects:
 
-Set `AUTH0_ENABLED=true` only for a deployment where imported identities and access-token
-claims are ready. The issuer is exactly `https://login.luminull.com/`; the REST audience
-is exactly `https://api.wally.luminull.com`, with RS256 signing. No client secret is
-needed by the API. Firebase remains available for rollback until the cutover is verified.
+- unknown providers or invalid booleans;
+- Auth0 web login without API Auth0 or a SPA client ID;
+- MCP without API Auth0, the assistant switch or a client ID;
+- writes without MCP.
 
-In Auth0, register the REST API with that audience. Add the versioned
-[Post Login Action](../infra/auth0-post-login.cjs) to its login flow. It supplies the
-signed email, email-verification and name claims only for the REST and MCP audiences.
+The issuer and audiences are pinned in code, not supplied by variables. See
+[deployment configuration](DEPLOY.md#configuration).
 
-The Action was deployed and attached to the tenant's Post Login flow on 2026-10-19.
-Production Wally login cutover remains pending. Request access tokens for
-the REST audience; SPA ID tokens and MCP-audience tokens are rejected. Missing profile
-claims fail closed. Auth0 signs the claims; the frontend cannot supply a trusted email
-or verification flag. Current board authorization still runs in Wally.
+## Token contract
+
+**Issuer and audiences:**
+
+- The issuer is exactly `https://login.luminull.com/`.
+- The REST audience is `https://api.wally.luminull.com`.
+- The MCP audience is `https://api.wally.luminull.com/mcp`.
+- Tokens are signed with RS256. The API needs no client secret.
+- SPA ID tokens are rejected, and each audience accepts only its own tokens.
+
+**Claims:**
+
+- The versioned [Post Login Action](../infra/auth0-post-login.cjs) adds signed email,
+  email-verification and name claims for the REST and MCP audiences only.
+- Missing claims fail closed. The browser cannot supply a trusted email or verification
+  flag.
+- Board authorization always runs in Wally.
 
 ## Stable account IDs
 
-`authIdentities/{sha256(JSON.stringify([issuer, subject]))}` maps the verified external
-identity to an existing Wally user ID. Its fields are `issuer`, `subject`, `userId`, and
-`createdAt`. No credential or email is stored. It is private server data under the existing
-deny-all client database rules.
+**Mapping record:**
 
-`bindImportedIdentity` in [identities.ts](../apps/api/src/lib/auth/identities.ts) is the
-trusted migration boundary: it checks the target exists, creates the mapping atomically,
-allows exact retries and refuses reassignment. It has no HTTP route. Import tooling must
-supply the subject returned by Auth0 for the exact imported source record, using the
-source Firebase UID as Wally user ID. Never discover an owner by email matching.
+- `authIdentities/{sha256(JSON.stringify([issuer, subject]))}` maps an external identity
+  to a Wally user ID.
+- Fields: `issuer`, `subject`, `userId` and `createdAt`. No credential or email is stored.
 
-With the signup gate off, unmapped Auth0 tokens return `403 IDENTITY_NOT_LINKED`; no account or board is created.
-Mappings whose Wally user was deleted also fail closed. The hosted web login and controlled migration runner are implemented; production import,
-recovery and rollback checks remain required before cutover. See [the migration runbook](AUTH0_MIGRATION.md).
+**Binding:** `bindImportedIdentity` in
+[identities.ts](../apps/api/src/lib/auth/identities.ts) is the only way to bind an
+existing user.
 
-The owner chose mandatory Auth0 password reset for existing email/password users.
-The import must preserve their Wally IDs, require verified recovery through Auth0 and
-provide a tested recovery path before Firebase is retired. Google identities need
-verified provider-subject continuity or proof of the old and new identities. One imported dummy password identity and the owner's verified Google identity have
-been mapped to their original production Wally IDs. Four other eligible Google
-identities remain unmapped. Dummy CI accounts use administrator-set passwords;
-mailbox-based recovery has not been tested. Production login remains Firebase.
+- It checks that the target exists, creates the mapping atomically, allows exact
+  retries, and refuses reassignment.
+- It has no HTTP route.
+- Owners are never discovered by email.
 
-## Verification and rollback
+**Firebase-to-Auth0 import:** this one-off was completed on 2026-10-23. Every existing
+Wally user was mapped under their original Firebase UID. Password users reset their
+password through Auth0. The import tooling has since been removed; it is in git history.
 
-Run API tests in Docker with `ASSISTANT_ENABLED=false`, matching CI; local development may
-have the assistant enabled. Signed-token tests exercise real JWT verification, and emulator
-tests exercise stable IDs, same-email rejection, conflicting/concurrent imports and deleted
-accounts. Real-tenant sign-in and the served frontend are separate cutover checks.
+## Signup gate
 
-Set `AUTH0_ENABLED=false` to disable Auth0 tokens without removing identity mappings or
-changing existing Firebase login. Do not remove the Firebase verifier until rollback and
-account recovery are verified. Production web builds must use `https://api.wally.luminull.com`;
-the release checks the custom-domain mapping and canonical CORS origin before and after
-deployment. To roll the browser back too, rebuild with `VITE_AUTH_PROVIDER=firebase` and
-deploy the matching bundle. Set `MCP_ENABLED=false` and `MCP_WRITES_ENABLED=false` when
-disabling Auth0. Existing identity mappings remain intact.
+**When `AUTH0_SIGNUP_ENABLED` is false:** an unmapped token returns
+`403 IDENTITY_NOT_LINKED`. No account or board is created.
 
-## New-account signup gate
+**When it is true:** an unmapped token creates, in one transaction:
 
-`AUTH0_SIGNUP_ENABLED` defaults to `false`, separately from token verification. Keep it
-false while importing existing users. When deliberately enabled after migration review,
-an unmapped verified Auth0 token may create a random stable Wally user ID, its initial
-board and identity mapping in one transaction. A normalized email collision with any
-existing Wally user denies signup with `IDENTITY_NOT_LINKED`; it never links accounts or
-selects an existing owner by email. Concurrent signups are checked transactionally.
-Mapped identities remain immutable, and deleted mapped users are never recreated.
-Unverified email stays unverified and cannot activate board invites.
+- a random Wally user ID;
+- its first board;
+- its identity mapping.
 
-Existing user emails follow the application's lowercase/trimmed storage contract. Audit
-any manually written legacy records against that contract before enabling signup. Keep
-Firebase rollback available, and finish import/recovery first: a Firebase user who changes
-their email before import can otherwise look like a new Auth0 account. Email collision
-checks prevent accidental duplicates for matching stored addresses; they cannot prove
-that a completely different address belongs to an unmigrated user. Existing-email
-collisions need controlled recovery, including unverified-email squatters; this gate
-never repairs or merges them automatically.
+**Collisions:** a normalized email that matches any existing user denies the signup with
+`IDENTITY_NOT_LINKED`. It never links accounts. Concurrent signups are checked inside the
+same transaction.
 
-The flag is carried through Docker Compose and release configuration, but remains off
-unless explicitly set. No deployment or production onboarding occurred in this change.
+**Unverified email:**
 
-## MCP setup and verification
+- An unverified email stays unverified and cannot activate board invites.
+- Mappings whose Wally user no longer exists fail closed, and are never recreated.
 
-The MCP API identifier is `https://api.wally.luminull.com/mcp`, separate from REST.
-It uses RS256 and `wally:read`/`wally:write`. Keep per-app authorization, disable
-machine-to-machine access, require user consent, and enable Resource Parameter
-Compatibility Profile so OAuth `resource` selects this audience. API access tokens
-are configured for 900 seconds; rotating refresh tokens have a seven-day inactivity
-limit and a 30-day maximum.
+## MCP client
 
-Use a predefined public ChatGPT OAuth client with Authorization Code + S256 PKCE for
-the Free-tier rollout. Do not rely on the trial's imported ChatGPT CIMD client:
-Auth0 currently maps its `private_key_jwt` preference, and
-[Auth0 documents that method as Enterprise-only](https://auth0.com/docs/get-started/auth0-overview/create-applications/register-applications-with-cimd).
-The unused imported client's MCP grant was revoked. Dynamic registration and CIMD
-discovery remain disabled. Copy the actual callback from the host setup; the issuer
-currently advertises RFC 9207, for which ChatGPT documents
-`https://chatgpt.com/connector_platform_oauth_redirect`.
+**MCP API:**
 
-The replacement third-party client `Wally ChatGPT (PKCE)` has client ID
-`tpc_oR2NUn5BAcms9r5Z5MhHVf`. Its MCP user-delegated read/write grant was approved
-and saved on 2026-10-19, with Authorization Code and rotating Refresh Token grants.
-Real-host login and token verification remain pending.
+- `https://api.wally.luminull.com/mcp` uses RS256 with the scopes
+  `wally:read`/`wally:write`.
+- Machine-to-machine access is disabled, and user consent is required.
+- Resource Parameter Compatibility Profile is enabled, so OAuth `resource` selects this
+  audience.
+- Access tokens last 900 seconds. Rotating refresh tokens have a seven-day idle limit and
+  a 30-day maximum.
 
-With owner approval, `google-oauth2` and `Username-Password-Authentication` were
-promoted to domain-level connections and verified enabled for this client. These
-providers are consequently available to all tenant third-party applications;
-API grants and Wally board authorization remain separate requirements.
+**ChatGPT client:**
 
-Set `MCP_CLIENT_ID` to the approved client's verified token client identifier. Connect
-from ChatGPT and complete OAuth; the first verified request establishes access using the
-user's current Wally permissions. No board-selection setup is required for new connections.
-Writes require
-current edit permission, the deployment switch and token scope. See
-[the connection model](MCP_CONNECTION_MODEL.md) for disconnect and reconnect behavior. A read-only token must be reauthorized with
-`wally:write` before write tools become available. Verify this escalation in the real host.
-No API key or client secret is shipped to the browser.
+- ChatGPT uses the public PKCE client `Wally ChatGPT (PKCE)`, `tpc_oR2NUn5BAcms9r5Z5MhHVf`,
+  with Authorization Code and rotating refresh tokens.
+- Dynamic registration and CIMD are disabled, because Auth0 maps ChatGPT's CIMD client to
+  `private_key_jwt`.
+  [Auth0 documents that method as Enterprise-only](https://auth0.com/docs/get-started/auth0-overview/create-applications/register-applications-with-cimd).
+- The `google-oauth2` and `Username-Password-Authentication` connections are domain-level,
+  so every third-party app in the tenant can use them. API grants and Wally permissions
+  still apply.
 
-Wally revokes its durable grant, not the provider's OAuth refresh token. Existing and
-refreshed tokens cannot use a revoked grant. Reapproving the same OAuth client creates
-new access for that client; remove its provider authorization as well when the client
-itself is no longer trusted. Revocation cannot recall data already delivered.
+**First request and writes:**
 
-Before cutover, verify Google and password-reset login, stable existing board IDs,
-callback/logout/renewal, MCP discovery, read-only and write escalation, private notes,
-membership removal and revocation in ChatGPT. Local emulator/Inspector results do not
-prove real-tenant or production compatibility.
+- The first verified MCP request creates the account-wide connection.
+- Writes need current edit permission, the deployment switch and the `wally:write` scope.
+- See [the connection model](MCP_CONNECTION_MODEL.md) for Disconnect and Reconnect.
 
-## Isolated local MCP validation
+**Revocation:**
 
-See [the current local validation record](MCP_LOCAL_VALIDATION.md) for the dedicated
-Docker profile, verified startup commands and explicit acceptance gaps. It preserves
-the original checkout/API and uses synthetic emulator data with real Auth0 validation.
+- Wally revokes its own connection record, not Auth0's refresh token.
+- Remove the Auth0 authorization too when a client is no longer trusted.
+- Revocation cannot recall data a host has already received.
+
+## Local MCP run
+
+[`docker-compose.mcp-local.yml`](../docker-compose.mcp-local.yml) starts an isolated stack:
+
+- its own emulator project `wally-mcp-local` (no published ports);
+- the API on `http://localhost:4502` (MCP at `/mcp`, metadata at
+  `/.well-known/oauth-protected-resource/mcp`);
+- MCP Inspector on `http://localhost:6274`. The session URL is printed in the
+  `inspector` logs.
+
+```sh
+docker compose -f docker-compose.mcp-local.yml up -d --build
+docker compose -f docker-compose.mcp-local.yml exec -T api \
+  pnpm --filter @wally/api exec tsx src/seed-mcp-local.ts /tmp/identity.json
+```
+
+**Local MCP address:**
+
+- `MCP_LOCAL_URL=http://localhost:4502/mcp` changes the advertised resource.
+- It is accepted only in development with an emulator.
+- Only that address plus the Inspector origin `http://localhost:6274` are allowed.
+
+**Seeder:**
+
+- The identity file holds the exact Auth0 `subject` and `email` of the tester. It stays
+  outside the repository.
+- The seeder refuses any project except the isolated one. It creates synthetic boards
+  for a synthetic Wally user, bound to that subject.
+
+**Limits:**
+
+- Do not run a bare `docker compose down` or `make down`. They act on the owner's main
+  stack.
+- Local Inspector results do not prove production or real-host behavior.

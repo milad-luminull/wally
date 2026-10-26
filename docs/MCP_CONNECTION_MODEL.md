@@ -1,7 +1,7 @@
 # MCP connection model
 
 Approved 2026-10-22. Supersedes the per-board owner-policy and selected-board consent
-model for new connections. Production activation remains a separate decision.
+model for new connections. Live in production since the v0.8.x releases.
 
 ## User experience
 
@@ -29,12 +29,9 @@ revocation tombstones until a separately designed safe retention policy permits 
 
 ## First release
 
-This feature has not shipped. The experimental selected-board grants, owner policy API,
-access-version fields and upgrade UI have been deleted rather than migrated. There is
-only one model: current Wally permissions. On the owner's explicit request, the six
-local test connection records for the configured client were deleted and replaced with
-one fresh connection in the guarded `wally-mcp-local` emulator. No board/note or production
-record was changed. The new connection requires a newly issued OAuth token.
+There is one connection model: current Wally permissions. The earlier selected-board
+grants, owner policy API, access-version fields and upgrade UI were deleted rather than
+migrated.
 
 ## Authorization and testing constraints
 
@@ -49,26 +46,20 @@ instances; writes additionally retain their 60/user and 30/connection per-minute
 Exhausted request budgets return HTTP 429 with Retry-After: 60 before tool execution.
 
 Tests use dedicated emulator project IDs only, never the manual `wally-mcp-local` project.
-No production data, Auth0 configuration or manual session should be changed as cleanup.
-Do not reset manual connections except at the owner's explicit request.
 
 ## Verification
 
-Tests cover concurrent automatic connection, new board discovery, viewer denial,
-membership removal, private-note visibility, write retries and revocation race windows.
-API tests also reject obsolete board-selection inputs and confirm the old board policy
-endpoint no longer exists. UI tests cover Connect/Disconnect, failures and reconnect.
+API tests cover:
 
-After resetting the local connection, a read-only call through the installed ChatGPT
-validation connector returned an HTTP 429 tunnel/probe error from the host. It did not
-reach a successful Wally tool result. This does not establish new end-to-end OAuth
-acceptance; isolated protocol tests and real-host acceptance remain separate evidence.
+- concurrent automatic connection;
+- new board discovery;
+- viewer denial;
+- membership removal;
+- private-note visibility;
+- write retries;
+- revocation race windows.
 
-Final verification on 2026-10-22: 698 API tests (66 files) passed with one worker;
-849 web tests (101 files) passed. The first two-worker API run had one failure in the
-previously observed concurrent Auth0 signup test (200/500); its eight-test isolated suite
-passed, followed by the complete one-worker pass. This records the local emulator
-flakiness rather than claiming it was fixed. API/web typechecks, API build, lint and
-format checks passed. Independent review found no important issues; obsolete API-client
-exceptions for the deleted policy endpoint were removed. Browser verification confirms
-one ChatGPT row with Connected and Disconnect, no upgrade controls.
+They also reject obsolete board-selection inputs.
+
+UI unit tests cover Connect, Disconnect and failure states. Reconnect, and the state
+right after it, are not yet covered end to end.

@@ -7,33 +7,14 @@
  */
 export const de = {
   accountData: {
-    account: 'Konto: {{email}}',
     title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
     exportHint:
-      'Lade dein Profil, zugängliche Boards und Karten, den Verlauf und Verbindungsdaten als JSON herunter. Private Karten anderer Personen und Zugangsdaten sind ausgeschlossen.',
+      'Das Herunterladen deiner Daten aus Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir schicken dir eine Kopie.',
     download: 'Meine Daten herunterladen',
-    downloading: 'Download wird vorbereitet…',
-    exportError: 'Der Download ist fehlgeschlagen. Bitte versuche es erneut.',
     deleteTitle: 'Konto löschen',
-    deleteHint: 'Prüfe vor der Bestätigung, welche Daten mit deinem Konto gelöscht werden.',
-    warning:
-      'Dadurch werden dein Konto und alle Boards, die dir gehören, mit ihren Karten dauerhaft für alle gelöscht. Deine privaten Karten auf anderen Boards werden entfernt. Deine geteilten Beiträge auf Boards anderer Personen bleiben ohne Bezug zu deiner Identität erhalten. Lade deine Daten vorher herunter.',
-    loading: 'Deine Boards werden geladen…',
-    loadError: 'Die von der Löschung betroffenen Boards konnten nicht geladen werden.',
-    ownedBoards: 'Diese Boards werden für alle gelöscht: {{count}}',
-    reauthHint:
-      'Melde dich zu deiner Sicherheit erneut an, bevor du dein Konto löschst. Kehre danach hierher zurück und bestätige die Löschung.',
-    reauth: 'Erneut anmelden',
-    reauthError: 'Die Anmeldung konnte nicht gestartet werden. Bitte versuche es erneut.',
-    confirmation: 'Zur Bestätigung DELETE eingeben',
-    delete: 'Mein Konto löschen',
-    deleting: 'Löschung wird angefordert…',
-    deleteError:
-      'Die Löschung konnte nicht bestätigt werden. Melde dich bei einer älteren Sitzung erneut an und versuche es noch einmal. Ist das Konto bereits gesperrt, kontaktiere den Support zum Status der Bereinigung.',
-    requested: 'Kontolöschung angefordert',
-    pending:
-      'Dein Kontozugriff ist gesperrt und verbundene Apps wurden getrennt. Die Bereinigung läuft noch, einschließlich der Entfernung deiner Anmeldeidentitäten. Für eine Abschlussbestätigung kontaktiere privacy@luminull.com.',
+    deleteHint:
+      'Das Löschen deines Kontos in Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir löschen es für dich.',
   },
   privacy: {
     title: 'Datenschutzinformationen',
@@ -47,7 +28,7 @@ export const de = {
       'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Google stellt Hosting, Datenbank und die bisherige Firebase-Anmeldung bereit. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter. Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
     retentionTitle: 'Aufbewahrung und Kontofunktionen',
     retention:
-      'Boards und Karten laufen nicht automatisch ab. Unter Konto und Daten kannst du deine Daten herunterladen oder dein Konto löschen lassen. Die Löschung sperrt den Zugriff sofort, entfernt eigene Boards für alle und private Karten und anonymisiert geteilte Beiträge auf Boards anderer Personen. Bei nicht erreichbaren Anbietern wird die Bereinigung wiederholt. Minimale Sperrvermerke bleiben erhalten, solange sie alte Tokens und widerrufene Verbindungen abweisen müssen. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere uns für Details.',
+      'Boards und Karten laufen nicht automatisch ab. Für eine Kopie deiner Daten oder die Löschung deines Kontos schreib an privacy@luminull.com. Herunterladen und Löschen unter Konto und Daten kommen bald. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere uns für Details.',
     rightsTitle: 'Deine Möglichkeiten',
     rights:
       'Du kannst Auskunft, Berichtigung, Löschung oder Übertragbarkeit deiner personenbezogenen Daten verlangen und einer Verarbeitung aufgrund berechtigter Interessen widersprechen. Du kannst dich bei deiner zuständigen Datenschutzaufsichtsbehörde beschweren. Anbietervereinbarungen, Schutzmaßnahmen für internationale Übermittlungen und Rechtsgrundlagen müssen vor der Veröffentlichung vom Betreiber freigegeben werden.',

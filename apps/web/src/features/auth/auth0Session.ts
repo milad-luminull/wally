@@ -14,7 +14,6 @@ export interface Auth0ClientPort {
       screen_hint?: 'signup';
       connection?: string;
       prompt?: 'login';
-      max_age?: number;
     };
   }): Promise<void>;
   logout(options: { logoutParams: { returnTo: string } }): Promise<void>;

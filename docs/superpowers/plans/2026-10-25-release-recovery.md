@@ -1,5 +1,7 @@
 # Auth0/MCP release recovery implementation plan
 
+> **Status:** executed in PR #69 (v0.8.3). Its cleanup-worker release model was replaced by #74 and #75, and the worker itself was removed on 2026-10-26.
+
 > For agentic workers: use superpowers:executing-plans to implement this plan task-by-task after owner review. This document does not authorize another release attempt by itself.
 
 **Goal:** Complete the already-approved full Auth0/MCP release through a verified deployment path, without discovering prerequisites by repeatedly deploying production.

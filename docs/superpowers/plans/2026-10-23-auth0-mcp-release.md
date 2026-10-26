@@ -1,5 +1,7 @@
 # Auth0 and full MCP release execution
 
+> **Status:** executed. Released in v0.8.1 and later. Self-service export and deletion were removed again on 2026-10-26.
+
 Approved user plan: one release with Auth0 login/signup, MCP reads+writes, card/list UI,
 self-service account export/deletion. Preserve every existing user's identity/data.
 

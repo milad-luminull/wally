@@ -1,5 +1,7 @@
 # Auth0 and MCP implementation continuation
 
+> **Status:** executed. Merged in PR #66 and first released in v0.8.1. This was a working ledger, so later entries supersede earlier ones.
+
 **Spec:** [rollout](../../rfcs/AUTH0_MCP_ROLLOUT.md), [MCP contract](../../rfcs/WALLY_MCP.md).
 
 The owner authorized implementation and asked to continue through the rollout rather than
@@ -68,7 +70,7 @@ emulator logs showed transaction lock timeouts. All 65 files / 689 tests then pa
 with two file workers and unchanged assertions. API lint, typecheck and build passed
 after correcting fixture generic inference. Formatting and diff checks passed.
 The web suite was not rerun in this continuation. Final evidence belongs in
-[the local validation record](../../MCP_LOCAL_VALIDATION.md).
+the local validation record (removed 2026-10-26; in git history).
 
 Outstanding: complete actual Auth0 MCP exchange; verify board consent, reads, denials,
 revocation, explicit write scope/consent, retries and revoked replay; verify the running

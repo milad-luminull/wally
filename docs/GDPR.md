@@ -236,8 +236,12 @@ signed-in users. _(Art. 5(1)(c))_
 No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
 can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
 employee's `users/{uid}` document, any board they did not delete, their `createdById` and `assigneeId`
-references and their `history.actorId` entries persist forever. Firebase Auth holds a second
-copy of the identity that is independent of Firestore.
+references and their `history.actorId` entries persist forever. Firebase Auth and Auth0 each
+hold a further copy of the identity, independent of Firestore.
+
+**Status (2026-10-26):** a self-service deletion flow was built, then removed because it
+was too complex to maintain. Until it is rebuilt, deletion requests to
+privacy@luminull.com are handled by hand. The Account and data page says so.
 
 **Plan.** `DELETE /me`, plus an admin-invocable equivalent for someone who has already lost
 their login.
@@ -256,7 +260,9 @@ their login.
 ### GAP-02 — No data export · **High** · Art. 15, 20
 
 No export endpoint. A subject access request can only be answered today by someone reading
-the Firestore console by hand, which does not scale and is error-prone.
+the Firestore console by hand, which does not scale and is error-prone. A first export
+endpoint was removed on 2026-10-26, to be rebuilt with deletion. Until then, requests to
+privacy@luminull.com are answered by hand.
 
 **Plan.** `GET /me/export` returning JSON: the profile, every board the user owns or belongs
 to, their notes and subtasks, their history events, and their membership rows. Reuse the DTO
@@ -578,21 +584,21 @@ address before `make e2e` proves anything. And git history still contains every 
 reference — rewriting it was judged disproportionate (GAP-10), so the history is not clean
 even though the working tree is.
 
-## Auth0 and MCP rollout data (opt-in)
+## Auth0 and MCP data
 
-The Auth0 implementation adds `authIdentities` with issuer, provider subject, stable
-Wally user ID and creation timestamp. These are personal identifiers; no password, token
-or email is stored in this collection. The server reads them to resolve imported accounts.
-Account erasure must remove these mappings as well as provider and application records;
-there is currently no automatic deletion/retention job for this new collection. The existing
-account-erasure and retention gaps therefore remain release gates.
+Production signs users in through Auth0 ([AUTH0.md](AUTH0.md)).
 
-Auth0 already processes the two CI test accounts and the owner's Google identity.
-Its DPA, tenant
-region, subprocessors, retention and privacy notice must be reviewed before production
-cutover. All production switches default off. The approved password and owner Google
-identity mappings have been written, but production Auth0 login has not been activated.
-See [Auth0 activation and migration](AUTH0.md).
+**`authIdentities`:**
+
+- Holds the issuer, the provider subject, the stable Wally user ID and a creation
+  timestamp.
+- These are personal identifiers. No password, token or email is stored.
+- The server reads them to resolve every signed-in request.
+- Erasure must remove them, along with the Auth0 user and the application records
+  (GAP-01).
+
+**Auth0 as a processor:** Auth0 holds a copy of every user's login identity. Its DPA,
+tenant region, subprocessors and retention still need review, as for Google in ORG-02.
 
 MCP adds private `users/{uid}/mcpConnections` records containing client identifier, access
 scope ceiling, creation time and revocation time. Connections use current Wally permissions

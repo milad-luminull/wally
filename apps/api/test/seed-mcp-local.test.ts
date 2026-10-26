@@ -21,6 +21,8 @@ it('creates synthetic boards idempotently with no implicit MCP consent', async (
 });
 it('refuses another project before writing', async () => {
   const other = getTestDb('wally-mcp-seed-wrong');
+  // A local emulator started with --import gives every untouched project that data.
+  await resetDatabase('wally-mcp-seed-wrong');
   await expect(seedMcpLocal(other, identity)).rejects.toThrow('project');
   expect((await other.collection('users').get()).empty).toBe(true);
   await other.terminate();
