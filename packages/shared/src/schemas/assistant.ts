@@ -54,7 +54,7 @@ export type AssistantTurnResponse = z.infer<typeof assistantTurnResponseSchema>;
 
 /**
  * The fields Wallybot may fill in on a note written in place: slice 2's three, and slice 3's
- * title line, reference property and subtasks (WALLYBOT_INLINE.md §3.3, §3.4).
+ * title line, reference property and subtasks (0005-wallybot-inline.md §3.3, §3.4).
  */
 export const suggestionFieldKeys = [
   'dueDate',
@@ -230,7 +230,7 @@ export type CaptureSuggestResponse = z.infer<typeof captureSuggestResponseSchema
 export const suggestionListSchema = z.object({ suggestions: z.array(suggestionDtoSchema) });
 export type SuggestionList = z.infer<typeof suggestionListSchema>;
 
-/** How the decision reached the server, stored with it (WALLYBOT_INLINE.md §4). */
+/** How the decision reached the server, stored with it (0005-wallybot-inline.md §4). */
 export const suggestionDecisionSourceSchema = z.enum([
   'enter',
   'countdown',

@@ -2,7 +2,7 @@ import { useEffect, useRef, type FocusEvent } from 'react';
 import type { PendingProps } from './pendingProps';
 
 /**
- * The hover and focus handlers that pause a pending countdown (WALLYBOT_INLINE.md §3.3:
+ * The hover and focus handlers that pause a pending countdown (0005-wallybot-inline.md §3.3:
  * "pauses on hover or focus"). Hover and focus are tracked apart and the card or row reports
  * `hovered || focused`, so the pointer leaving a focused card, or focus leaving a hovered one,
  * does not resume the countdown while the other still holds. Focus moving between the root

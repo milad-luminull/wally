@@ -61,7 +61,7 @@ interface ListViewProps {
   access: BoardAccess;
   isBelowDesktop: boolean;
   /**
-   * Set while a new note is written in a row at the top of the list (WALLYBOT_INLINE.md §3.1):
+   * Set while a new note is written in a row at the top of the list (0005-wallybot-inline.md §3.1):
    * the board it goes on, its visibility (a viewer's is private), and who hears it is done.
    */
   capture?: {
@@ -79,7 +79,7 @@ interface ListViewProps {
   } | null;
   /** The answer to a question typed into the row, drawn as the top row (§3.6). */
   ask?: AskSlot | null;
-  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  /** The pending Wallybot change each note shows, if any (0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
   editFor?: (note: NoteDto) => InlineEditProps | undefined;

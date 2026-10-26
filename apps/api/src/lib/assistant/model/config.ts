@@ -108,7 +108,7 @@ export interface SuggestionCallSettings {
 }
 
 /**
- * A suggestion's answer is a few short JSON fields (WALLYBOT_INLINE.md §4), so it gets its
+ * A suggestion's answer is a few short JSON fields (0005-wallybot-inline.md §4), so it gets its
  * own thinking settings rather than a question step's (`defaultProviderOptions`, sized for
  * 1024): off where the model allows it, the documented minimum otherwise, with that minimum
  * added to the call's allowance so thinking can never use up the answer's room. Claude on

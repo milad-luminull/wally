@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify + firebase-admin Firestore (API), React 19 + react-router 8 + TanStack Query + Radix (web), Zod contract in `packages/shared`, Vitest, Playwright, Docker Compose with the Firestore emulator.
 
-**Spec:** `docs/rfcs/BOARD_HOME.md` (approved 2026-10-14). Section numbers below (§5, §12.2 …) refer to it.
+**Spec:** `docs/rfcs/0002-board-home.md` (approved 2026-10-14). Section numbers below (§5, §12.2 …) refer to it.
 
 ## Context
 
@@ -59,7 +59,7 @@ User A signs out while on their board; the protected route stores that board pat
 | web    | `features/board/TopBar.tsx`, `BoardSwitcher.tsx`, `AccountMenu.tsx`                                                                                  | in-board navigation                                                                  |
 | web    | `i18n/de.ts`, `i18n/en.ts`                                                                                                                           | copy                                                                                 |
 | web    | `e2e/support.ts`, `e2e/boards.spec.ts` (new), `e2e/README.md`, `.github/workflows/ci.yml`                                                            | E2E                                                                                  |
-| docs   | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/BOARD_HOME.md`, `adr/0011-…` (new)          | documentation                                                                        |
+| docs   | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/0002-board-home.md`, `adr/0011-…` (new)     | documentation                                                                        |
 
 Note on plan location: this file lives in the plan directory the host chose. Task 0 copies it into the repo at `docs/superpowers/plans/2026-10-14-board-home.md` so it travels with the branch.
 
@@ -1391,7 +1391,7 @@ git commit -m "test(e2e): create, land on and delete a second board"
 - Modify: `docs/architecture/overview.md` (person description; `whiteboards/{id}` row)
 - Modify: `docs/architecture/board-operations.md` (table rows; `board.delete` cleanup kind)
 - Modify: `docs/GDPR.md` (inventory row for `whiteboards/{id}`; GAP-01 text; checklist)
-- Modify: `docs/README.md` (proposals row), `docs/rfcs/BOARD_HOME.md` (status line)
+- Modify: `docs/README.md` (proposals row), `docs/rfcs/0002-board-home.md` (status line)
 - Create: `docs/adr/0011-boards-as-independent-aggregates.md` (template `0000-template.md`)
 
 - [ ] **Step 1: SPEC.md**

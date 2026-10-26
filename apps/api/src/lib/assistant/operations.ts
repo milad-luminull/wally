@@ -12,7 +12,7 @@ import {
 } from '@wally/shared';
 
 /**
- * The whole v1 operation surface of the assistant (WALLY_AGENT.md §3.3). Each operation is
+ * The whole v1 operation surface of the assistant (0003-wally-agent.md §3.3). Each operation is
  * a thin adapter over one query or one command of the board operations contract; adding
  * one is a product decision. The annotations are MCP's behaviour hints, carried here so
  * the MCP proposal needs no second definition.
@@ -109,7 +109,7 @@ export const operationAnnotations: Record<OperationName, OperationAnnotations> =
   delete_note: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
 };
 
-/** The risky cases that need a second, named confirm (WALLY_AGENT.md §3.2). */
+/** The risky cases that need a second, named confirm (0003-wally-agent.md §3.2). */
 export type OperationRisk = 'DELETE' | 'ASSIGN_OTHER' | 'MAKE_SHARED';
 
 type RawOperationInput<N extends OperationName> = z.input<(typeof operationInputs)[N]>;

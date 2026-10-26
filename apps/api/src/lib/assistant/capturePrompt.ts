@@ -1,7 +1,7 @@
 import type { Language, NoteHorizon, NotePriority } from '@wally/shared';
 
 /**
- * Byte-stable so the provider can cache it (WALLY_AGENT.md §3.5). Board content never appears
+ * Byte-stable so the provider can cache it (0003-wally-agent.md §3.5). Board content never appears
  * here; the note and the members arrive in the prompt as data. No name, no first person
  * (BRAND.md, AI rules 2 and 6): the model fills in, it does not write. The examples are
  * English; the German trigger words stay, because people write German too, and a new property

@@ -285,7 +285,7 @@ export type SuggestionOperationIds = {
 
 /**
  * users/{uid}/assistantSuggestions/{id}: the approval record for one capture
- * (WALLY_AGENT.md §3.2, WALLYBOT_INLINE.md §4). The id doubles as the provenance's
+ * (0003-wally-agent.md §3.2, 0005-wallybot-inline.md §4). The id doubles as the provenance's
  * conversation and approval id, since a capture turn has no conversation (plan R2).
  */
 export type AssistantSuggestionDoc = {
@@ -367,7 +367,7 @@ export type AssistantSuggestionDoc = {
 
 /**
  * users/{uid}/assistantTidies/{id}: the approval record for one Tidy of the horizon wall
- * (WALLYBOT_INLINE.md §3.5, plan R5). One apply and one undo operation id per move, minted
+ * (0005-wallybot-inline.md §3.5, plan R5). One apply and one undo operation id per move, minted
  * when the record is created; the id doubles as the provenance's conversation and approval
  * id, as a suggestion's does.
  */

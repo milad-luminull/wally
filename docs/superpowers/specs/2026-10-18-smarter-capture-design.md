@@ -63,7 +63,7 @@ The causes are in the capture call, not in the model and not in the UI:
 
 ## Constraints
 
-- RFC `docs/rfcs/WALLYBOT_INLINE.md` §3.3–3.4 and §7 stand: no modal, no toast, never overwrite
+- RFC `docs/rfcs/0005-wallybot-inline.md` §3.3–3.4 and §7 stand: no modal, no toast, never overwrite
   what was typed, the title stays the person's unless they take the offered one.
 - Plan R2 stands: the title line is opt-in and never kept by the countdown. The new description
   rides with it (see below).
@@ -240,7 +240,7 @@ replacing the title (rule 7), colour and estimate fields (RFC decision 2; no est
 exists), and the 1.5 s typing-pause trigger (capture still asks on Enter).
 
 **Documents amended with the UI work:** BRAND.md "## AI" rule 3 (the pending card may show a
-labelled list and a review footer until kept or undone) and RFC `WALLYBOT_INLINE.md` §3.3
+labelled list and a review footer until kept or undone) and RFC `0005-wallybot-inline.md` §3.3
 (fields as a list rather than in their usual places; 15 s; footer). The review panel lists the
 new fields as extra rows in its existing groups. New strings go in `de.ts` (authority) and
 `en.ts`.

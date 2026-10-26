@@ -71,7 +71,7 @@
 
 ### Task 6: Copy, brand rule 5, model switch defaults
 
-**Files:** `apps/web/src/i18n/en.ts`, `de.ts`, `docs/BRAND.md`, `docs/rfcs/WALLYBOT_INLINE.md`, `apps/api/src/env.ts`, `.github/workflows/release.yml`, `apps/api/src/lib/assistant/budget/prices.ts` (comment), `.env.example` if present.
+**Files:** `apps/web/src/i18n/en.ts`, `de.ts`, `docs/BRAND.md`, `docs/rfcs/0005-wallybot-inline.md`, `apps/api/src/env.ts`, `.github/workflows/release.yml`, `apps/api/src/lib/assistant/budget/prices.ts` (comment), `.env.example` if present.
 
 - Copy: fold duplicate failure strings into the one voice; brandGuards test still green.
 - Defaults: `ASSISTANT_MODEL` `vertex:gemini-3.8-flash`, `ASSISTANT_VERTEX_LOCATION` `eu`, in `env.ts` and in `release.yml`'s fallbacks; test that the env defaults parse and the price table has the default model.

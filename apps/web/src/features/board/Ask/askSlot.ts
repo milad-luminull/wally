@@ -10,7 +10,7 @@ import { ASK_CARD_MAX_HEIGHT, ASK_CARD_WIDTH } from './AskCard';
 
 /**
  * The answer card, built by the shell, and the place a view draws it: where the question was
- * written (WALLYBOT_INLINE.md §3.6, plan R3). The views place it as they place the capture
+ * written (0005-wallybot-inline.md §3.6, plan R3). The views place it as they place the capture
  * card and know nothing else about it.
  */
 export interface AskSlot {

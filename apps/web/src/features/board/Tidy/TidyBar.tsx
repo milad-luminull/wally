@@ -6,7 +6,7 @@ import { PendingDot } from '../Suggestions/PendingDot';
 import type { TidyController } from './useTidy';
 
 /**
- * The one quiet affordance at the edge of the zone bands (WALLYBOT_INLINE.md §3.5, plan R4):
+ * The one quiet affordance at the edge of the zone bands (0005-wallybot-inline.md §3.5, plan R4):
  * a slim strip under the columns, always there on the horizon wall so nothing reflows, that
  * offers "Tidy N notes", then carries the batch's controls. The summary of what moves lives
  * on the cards; this is where the batch is kept or let go. The strip is a toolbar only while

@@ -1,6 +1,6 @@
 # ADR-0015: Cloudflare DNS for Wally custom domains
 
-- **Status:** proposed
+- **Status:** superseded by [ADR-0022](0022-cloudflare-pages-and-api-proxy.md)
 - **Date:** 2026-10-19
 - **Deciders:** Milad Rezazadeh
 

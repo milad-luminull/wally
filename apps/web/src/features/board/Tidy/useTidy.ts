@@ -102,7 +102,7 @@ const activeMoves = (b: Batch) =>
   );
 
 /**
- * The board's Tidy (WALLYBOT_INLINE.md §3.5, plan R1–R9): one batch at a time. The count is
+ * The board's Tidy (0005-wallybot-inline.md §3.5, plan R1–R9): one batch at a time. The count is
  * the client's own (the same rule as the server's) over the notes the caller passes, which
  * are the notes the wall shows; the request names them, so the server proposes nothing a
  * filter hides, and the proposal is still trimmed to the shown notes, so the yes approves

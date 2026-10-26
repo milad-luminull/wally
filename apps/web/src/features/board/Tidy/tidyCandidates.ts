@@ -1,7 +1,7 @@
 import { horizonForDueDate, type NoteDto } from '@wally/shared';
 
 /**
- * The notes "Tidy N notes" counts (WALLYBOT_INLINE.md §3.5, plan R2, R4), the same rule the
+ * The notes "Tidy N notes" counts (0005-wallybot-inline.md §3.5, plan R2, R4), the same rule the
  * server applies: an open note the person may move, dated and in a zone its date disagrees
  * with, or undated and still in Today. A note with a pending Wallybot change is left out.
  * In board order, so the count is stable from one render to the next.

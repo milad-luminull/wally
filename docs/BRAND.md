@@ -39,7 +39,7 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
    in the accent family around the card, the shimmer on the words while they are being read,
    the pulsing dots after "Filling in", and the small dot before each line of the proposed
    fields. Never a fill, and gone the moment the changes are kept or undone
-   (`rfcs/WALLYBOT_INLINE.md`). The review footer's countdown ring is ink.
+   (`rfcs/0005-wallybot-inline.md`). The review footer's countdown ring is ink.
 
 Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold

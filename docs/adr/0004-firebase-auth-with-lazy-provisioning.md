@@ -1,6 +1,6 @@
 # ADR-0004: Firebase ID tokens verified by the API; user and board provisioned on the first request
 
-- **Status:** accepted; the board-provisioning rule is superseded by [ADR-0011](0011-boards-as-independent-aggregates.md)
+- **Status:** accepted; the board-provisioning rule is superseded by [ADR-0011](0011-boards-as-independent-aggregates.md); the Firebase identity source is superseded by [ADR-0021](0021-supabase-auth-for-web-and-mcp.md)
 - **Date:** 2026-09-18
 - **Deciders:** Milad Rezazadeh
 

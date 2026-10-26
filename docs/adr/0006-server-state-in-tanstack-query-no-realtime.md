@@ -1,6 +1,6 @@
 # ADR-0006: Server state lives in TanStack Query; no global store and no real-time channel
 
-- **Status:** accepted
+- **Status:** accepted; the "no real-time channel" rule is superseded by [ADR-0023](0023-supabase-realtime-for-notification-events.md)
 - **Date:** 2026-09-18
 - **Deciders:** Milad Rezazadeh
 

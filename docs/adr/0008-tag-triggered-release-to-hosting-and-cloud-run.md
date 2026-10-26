@@ -1,6 +1,6 @@
 # ADR-0008: Tag-triggered release to Firebase Hosting and Cloud Run, keyless, with smoke test and rollback
 
-- **Status:** accepted
+- **Status:** accepted; the Firebase Hosting target is superseded by [ADR-0022](0022-cloudflare-pages-and-api-proxy.md)
 - **Date:** 2026-09-20
 - **Deciders:** Milad Rezazadeh
 

@@ -117,8 +117,8 @@ Numbered so an implementation checklist and tests can cite them.
   rejoins with any role, the notes are visible to them again.
 - **R9 Owner transparency.** The share sheet tells the owner, in one sentence, that members
   can keep private notes the owner cannot see (copy in §6.6).
-- **R10 Assistant and MCP.** The proposals in [`WALLY_AGENT.md`](WALLY_AGENT.md) and
-  [`WALLY_MCP.md`](WALLY_MCP.md) call `listNotes`, `getNote` and the same commands with the
+- **R10 Assistant and MCP.** The proposals in [`0003-wally-agent.md`](0003-wally-agent.md) and
+  [`0004-wally-mcp.md`](0004-wally-mcp.md) call `listNotes`, `getNote` and the same commands with the
   user's own identity, so they inherit R1 to R5 without a change. When they are built,
   `create_note` and `update_note` carry `visibility` like any other field, and the named
   confirm for "assigned to someone else" cannot arise on a private note.
