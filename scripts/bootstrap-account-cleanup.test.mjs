@@ -70,27 +70,6 @@ test('bootstrap reuses an existing paused schedule', () => {
     false,
   );
 });
-test('bootstrap narrows release identity to read job policy and control the prepared schedule', () => {
-  const r = run({ EXISTS: '1' });
-  assert.ok(
-    r.calls.some(
-      (a) =>
-        a[0] === 'iam' &&
-        a.includes('wallyCleanupJobIam') &&
-        a.includes('--permissions=run.jobs.getIamPolicy'),
-    ),
-  );
-  assert.ok(
-    r.calls.some(
-      (a) =>
-        a[0] === 'iam' &&
-        a.includes('wallyScheduleDeployment') &&
-        a.includes(
-          '--permissions=cloudscheduler.jobs.get,cloudscheduler.jobs.pause,cloudscheduler.jobs.enable',
-        ),
-    ),
-  );
-});
 test('scheduler update uses the update CLI header flag, not the create flag', () => {
   const r = run({ EXISTS: '1' });
   const update = r.calls.find((a) => a[0] === 'scheduler' && a.includes('update'));

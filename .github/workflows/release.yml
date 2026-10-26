@@ -337,17 +337,6 @@ jobs:
           echo "candidate_url=${URL}" >> "$GITHUB_OUTPUT"
           echo "candidate: ${URL}"
 
-      - name: Save candidate identity
-        run: |
-          jq --arg digest '${{ steps.image.outputs.digest }}' --arg revision 'wally-api-rel-${{ steps.ver.outputs.short }}' \
-            --arg configHash '${{ steps.existing.outputs.config_hash }}' '. + {candidate: {digest: $digest, revision: $revision, configHash: $configHash}}' release-state.json > candidate-state.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: candidate-state-${{ github.run_id }}-${{ github.run_attempt }}
-          path: candidate-state.json
-          if-no-files-found: error
-          retention-days: 30
-
       - name: Assert the Cloud Run environment is correct
         run: |
           set -euo pipefail
@@ -431,6 +420,18 @@ jobs:
             echo "::error::the bundle contains localhost:4000"; exit 1
           fi
 
+      # The account-cleanup worker (a Cloud Run job its schedule starts every 5 minutes) runs
+      # the API image, so it moves to this release's tested image. Only the image changes; the
+      # job's identity, secret and settings are owned by scripts/deploy-account-cleanup.sh.
+      # Before traffic moves, so no deletion can be completed by older code once the new API
+      # writes data that only newer cleanup knows about; a failure here stops the release
+      # with nothing to roll back. New cleanup code reading data the old API wrote is safe.
+      - name: Move the account-cleanup worker to this release
+        if: env.AUTH0_ENABLED == 'true'
+        run: |
+          gcloud run jobs update wally-account-cleanup --region="${GCP_REGION}" \
+            --image="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.image.outputs.digest }}"
+
       # Prepare and validate BOTH artifacts before enforcing the new API contract.
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Shift all traffic to the new revision
@@ -471,25 +472,12 @@ jobs:
             || { echo "::error::the served bundle does not reference $API"; exit 1; }
           echo "production smoke OK"
 
-      # The account-cleanup worker (a Cloud Run job its schedule starts every 5 minutes) runs
-      # the API image, so it moves to this release's tested image. Only the image changes; the
-      # job's identity, secret and settings are owned by scripts/deploy-account-cleanup.sh.
-      # Last, and outside the rollback below: the site is already live, and if this fails
-      # the worker keeps its previous image. Deletions are leased and resumable, so an
-      # execution already running on the old image is safe.
-      - name: Move the account-cleanup worker to this release
-        id: worker
-        if: env.AUTH0_ENABLED == 'true'
-        run: |
-          gcloud run jobs update wally-account-cleanup --region="${GCP_REGION}" \
-            --image="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.image.outputs.digest }}"
-
       # ---------------------------------------------------------------------------------
       # Rollback. Only reached if something above failed after traffic moved. A failure
       # before that point needs no rollback: production never served the candidate.
       # ---------------------------------------------------------------------------------
       - name: Restore captured release state after partial failure
-        if: (failure() || cancelled()) && steps.worker.outcome != 'failure' && steps.worker.outcome != 'cancelled' && steps.shift.outcome != 'skipped' && steps.shift.outcome != ''
+        if: (failure() || cancelled()) && steps.shift.outcome != 'skipped'
         run: node scripts/recover-release.mjs --apply release-state.json
 
       - name: Summary

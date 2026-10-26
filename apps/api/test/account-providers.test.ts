@@ -53,3 +53,15 @@ it('deletes identities from any Auth0 connection, but only well-formed subjects'
     await expect(providers.deleteAuth0(config.issuer, subject)).rejects.toThrow('Unverified');
   expect(request).toHaveBeenCalledTimes(5);
 });
+it('keeps a hostile subject inside the one user path segment', async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ access_token: 'test-only-token', expires_in: 3600 })),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  await deletionProviders(config, request).deleteAuth0(config.issuer, 'auth0|a/../b?x#y');
+  expect(request.mock.calls[1]?.[0]).toBe(
+    'https://tenant.eu.auth0.com/api/v2/users/auth0%7Ca%2F..%2Fb%3Fx%23y',
+  );
+});

@@ -8,7 +8,6 @@ const state = {
   region: 'europe-west1',
   revision: 'wally-api-old',
   hostingVersion: 'sites/fixture/versions/old',
-  cleanup: null,
 };
 function runner(fail) {
   const calls = [];

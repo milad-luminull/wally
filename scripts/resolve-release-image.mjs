@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 export function apiConfig(env) {
   const values = {
@@ -27,9 +26,6 @@ export function apiConfig(env) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, value]) => ({ name, value })),
   };
-}
-export function configHash(config) {
-  return createHash('sha256').update(JSON.stringify(config)).digest('hex');
 }
 export function existingDigest(revisions, name, repository, expected) {
   if (!Array.isArray(revisions)) throw new Error('Invalid revision inventory');
@@ -88,7 +84,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       `${r}-docker.pkg.dev/${p}/wally/wally-api`,
       { commit: sha, config: apiConfig(process.env) },
     );
-    appendFileSync(out, `digest=${digest}\nconfig_hash=${configHash(apiConfig(process.env))}\n`);
+    appendFileSync(out, `digest=${digest}\n`);
     console.log(
       digest
         ? 'Reusing existing immutable candidate image'
