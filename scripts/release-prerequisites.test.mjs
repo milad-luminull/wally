@@ -16,8 +16,7 @@ test('manual dispatch cannot reach deploy job', () => {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /deploy:\n    if: github.event_name == 'push'/);
 });
-const { validateCleanup, validateTargets, inspectPrerequisites } =
-  await import('./check-release-prerequisites.mjs');
+const { validateTargets, inspectPrerequisites } = await import('./check-release-prerequisites.mjs');
 const service = {
   status: {
     traffic: [
@@ -61,79 +60,13 @@ test('denied preflight read stops immediately without mutations', () => {
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(0, 3), ['run', 'services', 'describe']);
 });
-const fixture = {
-  scheduler: {
-    state: 'PAUSED',
-    schedule: '*/5 * * * *',
-    timeZone: 'Etc/UTC',
-    httpTarget: {
-      uri: 'https://run.googleapis.com/v2/projects/fixture/locations/eu/jobs/wally-account-cleanup:run',
-      httpMethod: 'POST',
-      oauthToken: {
-        serviceAccountEmail: 'wally-account-scheduler@fixture.iam.gserviceaccount.com',
-      },
-    },
-  },
-  policy: {
-    bindings: [
-      {
-        role: 'roles/run.invoker',
-        members: ['serviceAccount:wally-account-scheduler@fixture.iam.gserviceaccount.com'],
-      },
-    ],
-  },
-  job: {
-    spec: {
-      template: {
-        spec: {
-          template: {
-            spec: { serviceAccountName: 'wally-account-cleanup@fixture.iam.gserviceaccount.com' },
-          },
-        },
-      },
-    },
-    status: { conditions: [{ type: 'Ready', status: 'True' }] },
-  },
-  executions: [],
-  ttl: [
-    {
-      name: 'projects/fixture/databases/wally/collectionGroups/accountDeletionJobs/fields/expiresAt',
-      ttlConfig: { state: 'ACTIVE' },
-    },
-  ],
-};
-test('prepared cleanup passes', () =>
-  assert.doesNotThrow(() => validateCleanup(fixture, 'fixture', 'eu')));
-// The release pauses a running schedule and waits for its execution itself.
-test('a running schedule and its active execution pass preflight', () => {
-  const input = structuredClone(fixture);
-  input.scheduler.state = 'ENABLED';
-  input.executions.push({ status: {} });
-  assert.doesNotThrow(() => validateCleanup(input, 'fixture', 'eu'));
-});
-for (const [name, change] of Object.entries({
-  unknownState: (x) => (x.scheduler.state = 'UPDATE_FAILED'),
-  wrongTarget: (x) => (x.scheduler.httpTarget.uri = 'https://example.com'),
-  conditionalInvocation: (x) => (x.policy.bindings[0].condition = { expression: 'false' }),
-  wrongWorker: (x) => (x.job.spec.template.spec.template.spec.serviceAccountName = 'wrong'),
-  invalidExecutions: (x) => (x.executions = {}),
-  missingTTL: (x) => (x.ttl = []),
-})) {
-  test(`cleanup preflight rejects ${name}`, () => {
-    const input = structuredClone(fixture);
-    change(input);
-    assert.throws(() => validateCleanup(input, 'fixture', 'eu'));
-  });
-}
-test('a release resumes the cleanup schedule only when it was running before', () =>
+test('the cleanup worker moves to the release image before traffic, and only its image', () => {
+  assert.doesNotMatch(workflow, /run: bash scripts\/deploy-account-cleanup|scheduler jobs|--check/);
+  const worker = workflow.indexOf('- name: Move the account-cleanup worker to this release');
+  assert.ok(worker > workflow.indexOf('- name: Verify what was baked into the bundle'));
+  assert.ok(worker < workflow.indexOf('- name: Shift all traffic to the new revision'));
   assert.match(
     workflow,
-    /id: activate_cleanup\n {8}if: env\.AUTH0_ENABLED == 'true' && steps\.prev\.outputs\.cleanup_schedule == 'ENABLED'/,
-  ));
-test('the worker runs the release image, never a separately recorded one', () => {
-  assert.doesNotMatch(workflow, /check-cleanup-acceptance|accepted_worker/);
-  assert.match(
-    workflow,
-    /ACCOUNT_CLEANUP_IMAGE: .*wally-api@\$\{\{ steps\.image\.outputs\.digest \}\}/,
+    /gcloud run jobs update wally-account-cleanup --region="\$\{GCP_REGION\}" \\\n\s+--image="\$\{GCP_REGION\}-docker\.pkg\.dev\/\$\{GCP_PROJECT_ID\}\/wally\/wally-api@\$\{\{ steps\.image\.outputs\.digest \}\}"\n/,
   );
 });

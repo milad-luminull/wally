@@ -38,29 +38,30 @@ it('keeps provider errors retryable rather than reporting deletion complete', as
     deletionProviders(config, request).deleteAuth0(config.issuer, 'auth0|exact'),
   ).rejects.toThrow('pending');
 });
-it('verifies Firebase delete access and the exact cleanup scope without deleting anyone', async () => {
-  const firebaseDelete = vi.fn(async () => {
-    throw Object.assign(new Error('missing'), { code: 'auth/user-not-found' });
-  });
-  const token = (scope: string) =>
-    vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ access_token: 'test-only-token', expires_in: 3600, scope })),
-      );
-  await expect(
-    deletionProviders(config, token('delete:users'), firebaseDelete).verifyAccess(),
-  ).resolves.toEqual({ auth0Scope: 'delete:users' });
-  expect(firebaseDelete).toHaveBeenCalledWith(expect.stringMatching(/^wally-cleanup-check-/));
-  await expect(
-    deletionProviders(config, token('delete:users read:users'), firebaseDelete).verifyAccess(),
-  ).rejects.toThrow('exactly delete:users');
+it('deletes identities from any Auth0 connection, but only well-formed subjects', async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ access_token: 'test-only-token', expires_in: 3600 })),
+    )
+    .mockResolvedValue(new Response(null, { status: 204 }));
+  const providers = deletionProviders(config, request);
+  for (const subject of ['apple|001', 'windowslive|abc', 'samlp|corp|42', 'email|7'])
+    await providers.deleteAuth0(config.issuer, subject);
+  expect(request).toHaveBeenCalledTimes(5);
+  for (const subject of ['no-provider', '|missing', 'auth0|'])
+    await expect(providers.deleteAuth0(config.issuer, subject)).rejects.toThrow('Unverified');
+  expect(request).toHaveBeenCalledTimes(5);
 });
-it('fails the access check when the worker may not delete Firebase users', async () => {
-  const denied = vi.fn(async () => {
-    throw Object.assign(new Error('denied'), { code: 'auth/insufficient-permission' });
-  });
-  const request = vi.fn<typeof fetch>();
-  await expect(deletionProviders(config, request, denied).verifyAccess()).rejects.toThrow('denied');
-  expect(request).not.toHaveBeenCalled();
+it('keeps a hostile subject inside the one user path segment', async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ access_token: 'test-only-token', expires_in: 3600 })),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  await deletionProviders(config, request).deleteAuth0(config.issuer, 'auth0|a/../b?x#y');
+  expect(request.mock.calls[1]?.[0]).toBe(
+    'https://tenant.eu.auth0.com/api/v2/users/auth0%7Ca%2F..%2Fb%3Fx%23y',
+  );
 });

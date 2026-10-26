@@ -87,8 +87,8 @@ in one release. There is no read-only MCP stage.
    the verified Web client, MCP_ENABLED=true, MCP_WRITES_ENABLED=true and the verified
    ChatGPT PKCE client. Preserve the built-in assistant settings independently.
 4. Capture the current serving API revision and Hosting version. Tag the next unused
-   patch version and use the existing production approval/deployment workflow, including
-   the durable cleanup worker before publishing the API/Hosting pair.
+   patch version and use the existing production approval/deployment workflow, which
+   moves the cleanup worker to the release image before traffic.
 5. Validate login, signup, account continuity, real OAuth at
    `https://api.wally.luminull.com/mcp`, reads/writes/conflicts/retries/denial/revocation,
    both widgets under enforced CSP and account controls using disposable acceptance data.

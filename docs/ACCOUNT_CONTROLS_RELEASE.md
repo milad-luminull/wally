@@ -34,7 +34,7 @@ that job collection. Pending jobs and denial markers receive no expiry.
 
 The public API never receives Auth0 Management API credentials. A dedicated Cloud Run job
 runs `node dist/account-maintenance.js --apply`, scheduled every five minutes. Deployment
-wiring is in `scripts/deploy-account-cleanup.sh`; **cloud execution is not yet verified**.
+wiring is in `scripts/deploy-account-cleanup.sh`; see "Simplified release model" below.
 Operator entry point: `pnpm --filter @wally/api account:maintenance --status` or
 `--apply --user=EXACT_WALLY_ID`. Use only the intended environment/database. Status commands
 are read-only; apply is destructive and must target an authorized deletion request.
@@ -173,9 +173,10 @@ must again pass exact-main CI before a new patch tag is released.
 ## Release repair: 25 October 2026 (not deployed)
 
 The v0.8.2 retry passed the domain guard and created a no-traffic API candidate and
-cleanup job, then failed at the job invocation IAM binding. Ordinary deployment now
-requires bootstrap to have prepared a paused scheduler, job-level invocation binding,
-and ACTIVE completed-job TTL. It must not grant IAM, create schedules or modify TTL.
+cleanup job, then failed at the job invocation IAM binding. _(Superseded 26 October 2026:)_
+ordinary deployment required bootstrap to have prepared a paused scheduler, job-level
+invocation binding, and ACTIVE completed-job TTL. It must not grant IAM, create schedules or
+modify TTL.
 
 Permission inventory (a configured role is not proof of successful operation):
 
@@ -206,8 +207,9 @@ Operator commands are implementation interfaces, not yet verified production ste
 - Inspect prerequisites: `node scripts/check-release-prerequisites.mjs release-state.json` with the release environment.
 - Recover after interruption: download the matching `release-state-RUN-ATTEMPT` artifact, inspect its project/versions, then `node scripts/recover-release.mjs --apply release-state.json`.
 
-Recovery restores API and Hosting, pauses the scheduler and restores worker configuration
-only when no execution is active. It does not reverse a completed user-requested deletion.
+_(Superseded 26 October 2026: recovery now restores API and Hosting only.)_ Recovery
+restored API and Hosting, paused the scheduler and restored worker configuration only when no
+execution was active. It does not reverse a completed user-requested deletion.
 An empty worker queue is not Auth0/Firebase provider acceptance. Paused scheduler state and
 pending deletions require explicit operator inspection before resumption.
 
@@ -218,7 +220,7 @@ non-idempotent pause handling, missing candidate config identity, and no enforce
 worker-acceptance gate. Focused regressions reproduce the first, second and fourth
 configuration-path failures; all are addressed in the repair branch.
 
-_Superseded on 25 October 2026 by "Automated worker check" below; the record file and its
+_Superseded on 26 October 2026 by "Simplified release model" below; the record file and its
 guard are removed._ Before release, `infra/account-cleanup-acceptance.json` had to contain an honest,
 reviewed record of actual designated-fixture checks. **The record is now populated from the live fixture evidence below**;
 the repaired workflow validates it before activation. The record must include
@@ -296,40 +298,33 @@ Remaining: TTL activation, actual deployment-identity preflight, exact resulting
 controlled publication, permanent-endpoint ChatGPT acceptance and observation. Earlier
 statements that bootstrap/worker acceptance were unperformed describe their prior state.
 
-## Automated worker check, 25 October 2026
+## Simplified release model, 26 October 2026
 
-The recorded acceptance gate is removed. It required an operator to re-run live fixture
-deletions within 24 hours of every release whose worker inputs changed, and a dependency
-bump alone invalidated it: v0.9.0 stopped there without changing production. The release
-now checks the worker itself, with no human step:
+Releases no longer gate on, pause, check or roll back the account-cleanup worker. The
+manual acceptance record and the automated check that briefly replaced it are both removed.
 
-- **Logic** is covered in CI on every pull request: emulator integration tests of
-  `processAccountDeletion` (resumption after provider failures, idempotent re-runs, drain
-  window, anonymised shared contributions, cached private-note copies) and unit tests of the
-  Firebase and Auth0 provider calls (exact subject, not-found as success, retryable errors).
-- **The deployed worker** runs the release's own immutable API image, the one CI tested and
-  the API candidate runs. `scripts/deploy-account-cleanup.sh` pauses the schedule (verified by
-  read-back; a failed pause stops the release before replacement), waits up to 10 minutes for
-  an active execution, replaces the worker, and then executes it once with
-  `account-maintenance --check`. That run uses the worker identity, database and secret, reads
-  `accountDeletionJobs`, makes a Firebase delete call for a random non-existent UID (answered
-  not-found only once the call is authorised), and requires an Auth0 token whose scope is
-  exactly `delete:users`. It deletes nothing. The script reads the execution's outcome back
-  rather than relying on the exit status of `--wait`. A failed check fails the release before
-  traffic or Hosting move, and recovery restores the previous worker.
-- **The schedule** may be ENABLED or PAUSED before a release, and the release leaves it as it
-  found it: a running schedule is resumed once both artifacts are ready; a paused one stays
-  paused until an operator resumes it. Recovery waits up to 10 minutes for an execution to
-  finish, restores the previous worker and, when the schedule was ENABLED before the release
-  and every restore step succeeded, resumes it; otherwise it stays paused for inspection.
+- **What a release does:** just before traffic moves, it points the worker (Cloud Run job
+  `wally-account-cleanup`) at the release's own tested API image with
+  `gcloud run jobs update --image`. Nothing else about the worker changes. If that step
+  fails, the release stops before production changes, with nothing to roll back.
+- **Why no pause or drain is needed:** each deletion takes a five-minute lease and every step
+  is safe to repeat (`apps/api/src/lib/account/cleanup.ts`), so two executions cannot corrupt
+  each other. Moving the worker before traffic means the new API's data is always cleaned by
+  new code. An execution that started on the old image can still finish a deletion with the
+  old code. So a release that widens what deletion erases (a new collection holding user
+  references) must re-check the deletions completed in the hour after it ships.
+- **How the deletion is verified:** the CI suite runs the full deletion against the emulator
+  (resumption, idempotency, drain window, anonymised shared contributions, cached private
+  notes) and unit-tests the Firebase and Auth0 provider calls, like the rest of the API.
+  There is no per-release live test.
+- **The worker's own configuration** (identity, settings, Auth0 secret) is set by
+  `scripts/deploy-account-cleanup.sh`, an operator script run only when one of those
+  changes. Its schedule is created and started once by `scripts/bootstrap-account-cleanup.sh`
+  and is never paused by a release.
+- **Any Auth0 connection** can now be deleted: the subject check accepts every
+  `<provider>|<id>` user ID, matching the subjects the API accepts at sign-in.
 
-What this does not prove per release: a real Auth0 deletion of a live identity. The provider
-call is unit-tested, the credential's permission is checked live, and the 25 October fixture
-run remains the end-to-end evidence for that path.
-
-One-time setup: the deployer needs to run the cleanup job with argument overrides. Re-run
-bootstrap once with the deployer's service account:
-`GCP_PROJECT_ID=luminull-wally GCP_REGION=europe-west1 GCP_DEPLOY_SA=<deployer email> bash scripts/bootstrap-account-cleanup.sh --apply`.
-It creates the `wallyCleanupJobRun` role (`run.jobs.run`, `run.jobs.runWithOverrides`,
-`run.executions.get`) and grants it on the cleanup job only. Until then the check step fails
-with a permission error and the release stops before publishing.
+Releases need only `run.jobs.update` and `actAs` on the worker identity, which the deployer
+already has. The custom roles `wallyCleanupJobIam`, `wallyScheduleDeployment` and
+`wallyCleanupJobRun` are no longer used; bootstrap stops maintaining them, and they can be
+deleted.
