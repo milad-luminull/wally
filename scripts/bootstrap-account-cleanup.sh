@@ -2,7 +2,7 @@
 # Operator setup only. Never called by ordinary release or read-only preflight.
 set -euo pipefail
 [ "${1:-}" = --apply ] || { echo 'Usage: bootstrap-account-cleanup.sh --apply (operator credentials required)' >&2; exit 1; }
-: "${GCP_PROJECT_ID:?}" "${GCP_REGION:?}"
+: "${GCP_PROJECT_ID:?}" "${GCP_REGION:?}" "${GCP_DEPLOY_SA:?release deployer service account email}"
 scheduler="wally-account-scheduler@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 job="projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/jobs/wally-account-cleanup"
 # Reuse the prepared job; do not create a worker without a verified image/config.
@@ -29,6 +29,18 @@ gcloud iam roles update wallyScheduleDeployment --project="$GCP_PROJECT_ID" \
   --permissions=cloudscheduler.jobs.get,cloudscheduler.jobs.pause,cloudscheduler.jobs.enable --quiet
 gcloud run jobs add-iam-policy-binding wally-account-cleanup --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
   --member="serviceAccount:${scheduler}" --role=roles/run.invoker
+# The release runs the freshly deployed worker once in --check mode before publishing.
+# That needs run (with argument overrides) on this one job, granted on the job itself.
+run_role=(--project="$GCP_PROJECT_ID" --title='Wally cleanup release check' \
+  --permissions=run.jobs.run,run.jobs.runWithOverrides,run.executions.get --quiet)
+if gcloud iam roles list --project="$GCP_PROJECT_ID" --format='value(name)' \
+  | grep -qx "projects/${GCP_PROJECT_ID}/roles/wallyCleanupJobRun"; then
+  gcloud iam roles update wallyCleanupJobRun "${run_role[@]}"
+else
+  gcloud iam roles create wallyCleanupJobRun "${run_role[@]}"
+fi
+gcloud run jobs add-iam-policy-binding wally-account-cleanup --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
+  --member="serviceAccount:${GCP_DEPLOY_SA}" --role="projects/${GCP_PROJECT_ID}/roles/wallyCleanupJobRun"
 gcloud scheduler jobs update http wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION" \
   --schedule='*/5 * * * *' --time-zone=Etc/UTC --uri="https://run.googleapis.com/v2/${job}:run" \
   --http-method=POST --oauth-service-account-email="$scheduler" \

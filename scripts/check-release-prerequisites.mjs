@@ -6,14 +6,14 @@ export function validateCleanup({ scheduler, policy, job, executions, ttl }, pro
   const account = `wally-account-scheduler@${project}.iam.gserviceaccount.com`;
   const uri = `https://run.googleapis.com/v2/projects/${project}/locations/${region}/jobs/wally-account-cleanup:run`;
   if (
-    scheduler.state !== 'PAUSED' ||
+    !['PAUSED', 'ENABLED'].includes(scheduler.state) ||
     scheduler.schedule !== '*/5 * * * *' ||
     scheduler.timeZone !== 'Etc/UTC' ||
     scheduler.httpTarget?.uri !== uri ||
     scheduler.httpTarget?.httpMethod !== 'POST' ||
     scheduler.httpTarget?.oauthToken?.serviceAccountEmail !== account
   )
-    throw new Error('Cleanup scheduler must be correctly configured and PAUSED');
+    throw new Error('Cleanup scheduler must be correctly configured');
   if (
     !policy.bindings?.some(
       (b) =>
@@ -23,8 +23,8 @@ export function validateCleanup({ scheduler, policy, job, executions, ttl }, pro
     )
   )
     throw new Error('Missing unconditional scheduler invocation binding on cleanup job');
-  if (!Array.isArray(executions) || executions.some((e) => !e.status?.completionTime))
-    throw new Error('Cleanup execution active or invalid inventory');
+  // An active execution is fine here: the release pauses the schedule and waits for it.
+  if (!Array.isArray(executions)) throw new Error('Invalid cleanup execution inventory');
   const template = job.spec?.template?.spec?.template?.spec;
   if (
     template?.serviceAccountName !== `wally-account-cleanup@${project}.iam.gserviceaccount.com` ||
@@ -175,7 +175,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       }),
     );
     console.log(
-      'Read prerequisites passed; write permissions and provider deletion are separate acceptance checks.',
+      'Read prerequisites passed; the release checks the deployed worker before publishing.',
     );
   } catch (error) {
     console.error(error.message);

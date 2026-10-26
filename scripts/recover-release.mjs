@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export function recoverRelease(state, run) {
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+export function recoverRelease(
+  state,
+  run,
+  { drainMs = 600_000, pollMs = 15_000, sleep = sleepSync, clock = Date.now } = {},
+) {
   if (
     state.version !== 1 ||
     !/^[a-z][a-z0-9-]+$/.test(state.project || '') ||
@@ -33,6 +39,8 @@ export function recoverRelease(state, run) {
       `--location=${state.region}`,
     ]);
   let cleanupPaused = false;
+  let workerRestored = false;
+  let cleanupResumed = false;
   const readScheduler = () =>
     JSON.parse(
       run('gcloud', [
@@ -99,11 +107,26 @@ export function recoverRelease(state, run) {
   });
   if (state.cleanup && cleanupPaused)
     attempt('restore worker', () => {
-      const executions = JSON.parse(
-        cloud('run', 'jobs', 'executions', 'list', '--job=wally-account-cleanup', '--format=json'),
-      );
-      if (!Array.isArray(executions) || executions.some((e) => !e.status?.completionTime))
-        throw new Error('cleanup execution still active; manual inspection required');
+      // Once the schedule ran the new worker, an execution it started can still be
+      // finishing; it is resumable, so wait for it as the deploy script does.
+      const deadline = clock() + drainMs;
+      for (;;) {
+        const executions = JSON.parse(
+          cloud(
+            'run',
+            'jobs',
+            'executions',
+            'list',
+            '--job=wally-account-cleanup',
+            '--format=json',
+          ),
+        );
+        if (!Array.isArray(executions)) throw new Error('invalid cleanup execution inventory');
+        if (executions.every((e) => e.status?.completionTime)) break;
+        if (clock() >= deadline)
+          throw new Error('cleanup execution still active; manual inspection required');
+        sleep(pollMs);
+      }
       const dir = mkdtempSync(join(tmpdir(), 'wally-recover-'));
       try {
         const file = join(dir, 'job.json');
@@ -120,9 +143,21 @@ export function recoverRelease(state, run) {
         state.cleanup.job.spec.template.spec.template.spec.containers[0].image
       )
         throw new Error('worker image restore not verified');
+      workerRestored = true;
+    });
+  // The schedule was running before this release, and the worker is back on the exact
+  // configuration it ran then, so put the schedule back too. Any failure above leaves it
+  // paused for inspection.
+  if (state.cleanup?.schedulerState === 'ENABLED' && workerRestored && !errors.length)
+    attempt('resume cleanup', () => {
+      scheduler('resume');
+      if (readScheduler().state !== 'ENABLED') throw new Error('scheduler not ENABLED');
+      cleanupResumed = true;
     });
   if (errors.length) throw new Error(errors.join('\n'));
-  return 'API and Hosting restored; cleanup remains paused. Inspect pending deletions before resuming.';
+  return cleanupResumed || !state.cleanup
+    ? 'API, Hosting and cleanup restored.'
+    : 'API and Hosting restored; cleanup remains paused. Inspect pending deletions before resuming.';
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

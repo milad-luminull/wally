@@ -104,12 +104,19 @@ const fixture = {
 };
 test('prepared cleanup passes', () =>
   assert.doesNotThrow(() => validateCleanup(fixture, 'fixture', 'eu')));
+// The release pauses a running schedule and waits for its execution itself.
+test('a running schedule and its active execution pass preflight', () => {
+  const input = structuredClone(fixture);
+  input.scheduler.state = 'ENABLED';
+  input.executions.push({ status: {} });
+  assert.doesNotThrow(() => validateCleanup(input, 'fixture', 'eu'));
+});
 for (const [name, change] of Object.entries({
-  enabled: (x) => (x.scheduler.state = 'ENABLED'),
+  unknownState: (x) => (x.scheduler.state = 'UPDATE_FAILED'),
   wrongTarget: (x) => (x.scheduler.httpTarget.uri = 'https://example.com'),
   conditionalInvocation: (x) => (x.policy.bindings[0].condition = { expression: 'false' }),
   wrongWorker: (x) => (x.job.spec.template.spec.template.spec.serviceAccountName = 'wrong'),
-  activeExecution: (x) => x.executions.push({ status: {} }),
+  invalidExecutions: (x) => (x.executions = {}),
   missingTTL: (x) => (x.ttl = []),
 })) {
   test(`cleanup preflight rejects ${name}`, () => {
@@ -118,3 +125,15 @@ for (const [name, change] of Object.entries({
     assert.throws(() => validateCleanup(input, 'fixture', 'eu'));
   });
 }
+test('a release resumes the cleanup schedule only when it was running before', () =>
+  assert.match(
+    workflow,
+    /id: activate_cleanup\n {8}if: env\.AUTH0_ENABLED == 'true' && steps\.prev\.outputs\.cleanup_schedule == 'ENABLED'/,
+  ));
+test('the worker runs the release image, never a separately recorded one', () => {
+  assert.doesNotMatch(workflow, /check-cleanup-acceptance|accepted_worker/);
+  assert.match(
+    workflow,
+    /ACCOUNT_CLEANUP_IMAGE: .*wally-api@\$\{\{ steps\.image\.outputs\.digest \}\}/,
+  );
+});

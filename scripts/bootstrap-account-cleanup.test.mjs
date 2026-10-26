@@ -26,6 +26,7 @@ else if(a[0]==='scheduler'&&a[2]==='describe') console.log(process.env.EXISTS||e
       PAUSED: join(dir, 'paused'),
       GCP_PROJECT_ID: 'fixture',
       GCP_REGION: 'europe-west1',
+      GCP_DEPLOY_SA: 'deployer@fixture.iam.gserviceaccount.com',
       ...overrides,
     },
   });
@@ -66,7 +67,7 @@ test('bootstrap reuses an existing paused schedule', () => {
   const r = run({ EXISTS: '1' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(
-    r.calls.some((a) => a.includes('create') || a.includes('pause')),
+    r.calls.some((a) => a[0] === 'scheduler' && (a.includes('create') || a.includes('pause'))),
     false,
   );
 });
@@ -98,5 +99,22 @@ test('scheduler update uses the update CLI header flag, not the create flag', ()
   assert.equal(
     update.some((a) => a.startsWith('--headers=')),
     false,
+  );
+});
+test('bootstrap lets the release run only the cleanup job, granted on that job', () => {
+  const r = run({ EXISTS: '1' });
+  assert.equal(r.status, 0, r.stderr);
+  const role = r.calls.find((a) => a[0] === 'iam' && a.includes('wallyCleanupJobRun'));
+  assert.ok(
+    role.includes('--permissions=run.jobs.run,run.jobs.runWithOverrides,run.executions.get'),
+  );
+  assert.ok(
+    r.calls.some(
+      (a) =>
+        a.includes('add-iam-policy-binding') &&
+        a.includes('wally-account-cleanup') &&
+        a.includes('--member=serviceAccount:deployer@fixture.iam.gserviceaccount.com') &&
+        a.includes('--role=projects/fixture/roles/wallyCleanupJobRun'),
+    ),
   );
 });

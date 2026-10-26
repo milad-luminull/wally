@@ -110,9 +110,6 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
         with:
           install_components: beta
-      - name: Verify recorded worker acceptance
-        if: env.AUTH0_ENABLED == 'true'
-        run: node scripts/check-cleanup-acceptance.mjs
       - run: node scripts/check-api-domain.mjs
       - run: node scripts/check-release-prerequisites.mjs
 
@@ -216,11 +213,6 @@ jobs:
         id: existing
         run: node scripts/resolve-release-image.mjs
 
-      - name: Verify recorded worker acceptance
-        id: accepted_worker
-        if: env.AUTH0_ENABLED == 'true'
-        run: node scripts/check-cleanup-acceptance.mjs
-
       - name: Verify prepared release prerequisites
         run: node scripts/check-release-prerequisites.mjs release-state.json
 
@@ -243,6 +235,9 @@ jobs:
           [ -n "$HV" ] || { echo "::error::missing Hosting rollback version"; exit 1; }
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
           echo "hosting_version=${HV}" >> "$GITHUB_OUTPUT"
+          # The release puts the cleanup schedule back as it found it: a schedule someone
+          # paused stays paused until an operator resumes it.
+          echo "cleanup_schedule=$(jq -r '.cleanup.schedulerState // ""' release-state.json)" >> "$GITHUB_OUTPUT"
           echo "Cloud Run revision: ${REV}"
           echo "Hosting version:    ${HV:-<none>}"
 
@@ -359,11 +354,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Configure durable account cleanup before publishing
+      # The worker runs the same immutable image as the API candidate, so it ships the code
+      # CI just tested. The script pauses the schedule, replaces the worker and then runs it
+      # once in --check mode; a failed check stops the release and recovery restores the
+      # previous worker and schedule state.
+      - name: Configure and check durable account cleanup before publishing
         id: cleanup
         if: env.AUTH0_ENABLED == 'true'
+        # Bounds the drain wait and the check (with its job retries); a timeout fails the
+        # step, and recovery restores the previous worker.
+        timeout-minutes: 25
         env:
-          ACCOUNT_CLEANUP_IMAGE: ${{ steps.accepted_worker.outputs.image }}
+          ACCOUNT_CLEANUP_IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api@${{ steps.image.outputs.digest }}
         run: bash scripts/deploy-account-cleanup.sh
 
       - name: Assert the Cloud Run environment is correct
@@ -453,7 +455,7 @@ jobs:
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Activate verified cleanup schedule
         id: activate_cleanup
-        if: env.AUTH0_ENABLED == 'true'
+        if: env.AUTH0_ENABLED == 'true' && steps.prev.outputs.cleanup_schedule == 'ENABLED'
         run: |
           set -euo pipefail
           gcloud scheduler jobs resume wally-account-cleanup --project="$GCP_PROJECT_ID" --location="$GCP_REGION"
@@ -514,7 +516,8 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Commit | \`${GITHUB_SHA}\` |"
-            echo "| Image digest | \`${{ steps.build.outputs.digest }}\` |"
+            echo "| Image digest | \`${{ steps.image.outputs.digest }}\` |"
+            echo "| Cleanup schedule before | \`${{ steps.prev.outputs.cleanup_schedule || 'n/a' }}\` |"
             echo "| Previous revision | \`${{ steps.prev.outputs.revision }}\` |"
             echo "| Web | ${WEB_ORIGIN} |"
             echo "| API | ${API_BASE_URL} |"
