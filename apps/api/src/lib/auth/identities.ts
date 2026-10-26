@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { runQueryTransaction } from '../db/transaction.js';
 import { INITIAL_BOARD_NAME, type Language } from '@wally/shared';
 import type { VerifiedIdentity } from './auth0.js';
 import type { Firestore, Timestamp } from 'firebase-admin/firestore';
@@ -68,7 +69,7 @@ export async function resolveOrCreateIdentity(
   const userRef = usersCol(db).doc(userId);
   const boardRef = whiteboardsCol(db).doc(userId);
   const email = normalizeEmail(identity.email);
-  return db.runTransaction(async (tx) => {
+  return runQueryTransaction(db, async (tx) => {
     const mapping = (await tx.get(mappingRef)).data() as AuthIdentityDoc | undefined;
     if (mapping) {
       if (

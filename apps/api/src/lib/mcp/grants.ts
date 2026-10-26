@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { runQueryTransaction } from '../db/transaction.js';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { liveWhiteboard, whiteboardsCol } from '../db/collections.js';
 import { requireAccess, type Actor } from '../commands/context.js';
@@ -35,7 +36,7 @@ export async function requireConnection(
   establish = false,
 ): Promise<ConnectionGrant> {
   if (!token.scopes.includes('wally:read')) throw consentRequired();
-  const grant = await db.runTransaction(async (tx) => {
+  const grant = await runQueryTransaction(db, async (tx) => {
     const rows = (
       await tx.get(connections(db, userId).where('clientId', '==', token.clientId))
     ).docs.map((doc) => doc.data() as ConnectionGrant);
@@ -77,7 +78,7 @@ export async function connectAccount(
   userId: string,
   clientId: string,
 ): Promise<ConnectionGrant> {
-  return db.runTransaction(async (tx) => {
+  return runQueryTransaction(db, async (tx) => {
     const rows = (await tx.get(connections(db, userId).where('clientId', '==', clientId))).docs.map(
       (doc) => doc.data() as ConnectionGrant,
     );

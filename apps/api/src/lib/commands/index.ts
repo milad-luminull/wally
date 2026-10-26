@@ -1,4 +1,5 @@
 import { visibleLinks } from '../visibleLinks.js';
+import { runQueryTransaction } from '../db/transaction.js';
 import { createHash } from 'node:crypto';
 import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import {
@@ -62,27 +63,6 @@ function rolesFor(
   return note?.visibility === 'PRIVATE' && note.createdById === actorId ? ANY_ROLE : EDITORS;
 }
 
-/** The emulator can report an aborted query as INVALID_ARGUMENT with a closed
- * transaction, which SDK 7.x otherwise retries only for "transaction has expired".
- * Normalize just this transient condition; the SDK retries the complete transaction
- * with its existing bounded backoff. Invalid command arguments are never retried. */
-function runCommandTransaction<T>(
-  db: Firestore,
-  command: (tx: Transaction) => Promise<T>,
-): Promise<T> {
-  return db.runTransaction(async (tx) => {
-    try {
-      return await command(tx);
-    } catch (error) {
-      const failure = error as { code?: number; details?: string };
-      if (failure.code === 3 && failure.details === 'Transaction is invalid or closed.') {
-        throw Object.assign(new Error('Transaction was aborted'), { code: 10 });
-      }
-      throw error;
-    }
-  });
-}
-
 /** The only entry point for user-triggered board writes. No Fastify dependency. */
 export async function executeBoardCommand(
   db: Firestore,
@@ -124,7 +104,7 @@ export async function executeBoardCommand(
     .collection('boardOperations')
     .doc(operationId);
   try {
-    const { result, replayed } = await runCommandTransaction(db, async (tx) => {
+    const { result, replayed } = await runQueryTransaction(db, async (tx) => {
       // `roles` are the ones that authorized the command; replay re-checks the caller's
       // current role against them, so a viewer's retried private-note write still replays.
       // An assistant write also leaves its audit record, in the same transaction.
