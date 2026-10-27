@@ -45,7 +45,7 @@ import type { TidyProps } from '../Tidy/tidyProps';
 import type { TidyController } from '../Tidy/useTidy';
 import { TidyBar } from '../Tidy/TidyBar';
 import { cancelFlight, useFlip } from '../Tidy/useFlip';
-import { ZoneBands, zoneDroppableId } from './ZoneBands';
+import { ZoneBands } from './ZoneBands';
 import { WallCanvas, FREE_CANVAS_DROPPABLE_ID } from './WallCanvas';
 import { NoteCard } from './NoteCard';
 import type { NoteCardActions } from './NoteCardActions';
@@ -535,7 +535,3 @@ export function WallView({
     </CopyDragContext.Provider>
   );
 }
-
-// Re-exported for tests / other callers that need the id convention without importing
-// the internal band component directly.
-export { zoneDroppableId };
