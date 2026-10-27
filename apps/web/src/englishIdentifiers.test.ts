@@ -36,6 +36,8 @@ const GERMAN_BY_DESIGN = new Set([
   `i18n${sep}de.ts`,
   // The German input lexicon (`heute`, `morgen`, `dringend`): it reads what a German user types.
   `lib${sep}capture${sep}parseCapture.ts`,
+  // The landing demo's word lists (`heute`, `montag`, `dringend`): it parses typed German too.
+  `features${sep}landing${sep}demo.ts`,
   // This file names the banned words.
   'englishIdentifiers.test.ts',
 ]);

@@ -1,7 +1,18 @@
 import { forwardRef, useState } from 'react';
+import { DEMO_WORDS } from './demo';
 
-const tokens =
-  /(\b(?:today|tomorrow|next week|mon\w*|tue\w*|wed\w*|thu\w*|fri\w*|heute|morgen|mo|di|mi|do|fr|donnerstag|freitag)\b)|(\b(?:maya|leo|sam)\b)|(\b\d{1,2}(?::\d{2})?\s?(?:am|pm|uhr)\b|\b\d+\s?(?:m|min|h)\b)|(\b(?:urgent|asap|important|dringend|wichtig)\b)|(^idea:|^idee:)/gi;
+/** One group per colour, from the lists demoNote parses: day, person, time, urgency, idea. */
+const tokens = new RegExp(
+  [
+    `(\\b(?:${DEMO_WORDS.day})\\b)`,
+    `(\\b(?:${DEMO_WORDS.person})\\b)`,
+    `(\\b(?:${DEMO_WORDS.clock})\\b|\\b(?:${DEMO_WORDS.duration})\\b)`,
+    `(\\b(?:${DEMO_WORDS.urgency})\\b)`,
+    // An idea is the first word, as demoNote reads it, with the colon when there is one.
+    `(^(?:${DEMO_WORDS.idea})\\b:?)`,
+  ].join('|'),
+  'gi',
+);
 
 export const DemoInput = forwardRef<
   HTMLInputElement,
