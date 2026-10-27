@@ -7,7 +7,7 @@ This index is the one place that says where each RFC stands. A document's own he
 records its decision; the **In production** column below is kept true by the pull request
 that changes it (see [Keeping the status true](../README.md#keeping-the-status-true)).
 
-Last checked against the code on 2026-10-27, at `main` e72dd429. Production runs **v0.11.0**.
+Last checked against the code on 2026-10-27, at `main` 3f2354e8. Production runs **v0.11.0**.
 
 ## Index
 
@@ -23,7 +23,7 @@ Last checked against the code on 2026-10-27, at `main` e72dd429. Production runs
 | [RFC-0008](RFC-0008-firestore-to-supabase.md)      | Firestore to Supabase                         | accepted                              | not built                                                                                                                                                                           |
 | [RFC-0009](RFC-0009-uploads-and-retrieval.md)      | Private uploads and document retrieval        | proposed                              | not built                                                                                                                                                                           |
 | [RFC-0010](RFC-0010-durable-ai-workers.md)         | Durable AI workers                            | accepted, as workstream 5 of RFC-0011 | not built                                                                                                                                                                           |
-| [RFC-0011](RFC-0011-platform-migration.md)         | Platform migration to Supabase and Cloudflare | accepted                              | not built; no workstream has started                                                                                                                                                |
+| [RFC-0011](RFC-0011-platform-migration.md)         | Platform migration to Supabase and Cloudflare | accepted                              | not used by production. Workstream 1 (PostgreSQL foundation) is built; the API still runs on Firestore                                                                              |
 | [RFC-0012](RFC-0012-supabase-auth-and-mcp.md)      | Identity and MCP on Supabase Auth             | accepted                              | not built                                                                                                                                                                           |
 
 ## Statuses
