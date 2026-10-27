@@ -18,8 +18,11 @@ Wally is three separate things, and they go to three different places:
 | Your data  | Notes, boards, members                                     | **Cloud Firestore** (already the database, nothing to install) |
 
 Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
-see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (kept only as a rollback path) and
-your **Firestore security rules and indexes**. The planned move to Supabase and Cloudflare
+see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and your
+**Firestore security rules and indexes**. Firebase Auth is not a production fallback: since
+the [ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
+account is an Auth0 signup with a random Wally id and no Firebase mapping, so switching
+production back to Firebase would give every user a new, empty account. The planned move to Supabase and Cloudflare
 is in [RFC-0011](rfcs/RFC-0011-platform-migration.md); this guide describes production until
 then.
 
@@ -135,37 +138,28 @@ first — writes are going to the US one.
 
 ## 5. Step 3 — Already done: Application Default Credentials on Cloud Run
 
-The API used to refuse to start unless you gave it a service-account key file
-(`FIREBASE_CLIENT_EMAIL` + `FIREBASE_PRIVATE_KEY`). On Cloud Run you do not want that:
-Google hands the container credentials automatically through something called **Application
-Default Credentials (ADC)**, so there is no key to create, store, or rotate.
-
-This mattered extra here: [`README.md`](../README.md) records that the organization blocks
-service-account key creation (`iam.disableServiceAccountKeyCreation`), so a key is not always
-available to create.
+The API never uses a service-account key. On Cloud Run, Google hands the container
+credentials automatically through **Application Default Credentials (ADC)**, so there is no
+key to create, store, or rotate — and the organization blocks service-account key creation
+(`iam.disableServiceAccountKeyCreation`) anyway.
 
 This is already handled in the code — no edits needed before you deploy:
 
-- **`apps/api/src/lib/firebase-app.ts`** — `getFirebaseApp()` uses the service-account key
-  when one is configured (local dev), and falls back to `applicationDefault()` when running
-  on Cloud Run, detected via `runsOnGoogleCloud()` (checks the `K_SERVICE` env var Cloud Run
-  sets).
-- **`apps/api/src/plugins/firebase.ts`** — the startup guard passes when either a key is
-  configured or the process is running on Google Cloud. Cloud Run starts fine with no key,
-  while local dev still fails fast if the key is missing.
-
-There is now a third arm, added so CI can run the full stack without a key at all:
-
-- **`apps/api/src/plugins/firebase.ts`** also accepts a credential-less start when
-  `FIRESTORE_EMULATOR_HOST` is set. Verifying an ID token needs no credential — firebase-admin
-  checks the signature against Google's public certificates and compares `aud`/`iss` to the
-  project id. A credential is required for _Firestore_, so the emulator case is genuinely safe.
+- **`apps/api/src/lib/firebase-app.ts`** — `getFirebaseApp()` uses `applicationDefault()`
+  when running on Cloud Run, detected via `runsOnGoogleCloud()` (checks the `K_SERVICE` env
+  var Cloud Run sets). Anywhere else it is initialized with the project id alone.
+- **`apps/api/src/plugins/firebase.ts`** — refuses to start outside Google Cloud unless
+  `FIRESTORE_EMULATOR_HOST` is set. Verifying an ID token needs no credential —
+  firebase-admin checks the signature against Google's public certificates and compares
+  `aud`/`iss` to the project id. A credential is required only for _Firestore_, and the
+  emulator needs none, which is what lets docker-compose and CI run the full stack without a
+  key.
 - **`apps/api/src/env.ts`** makes `NODE_ENV=production` together with `FIRESTORE_EMULATOR_HOST`
-  a fatal startup error, so that relaxation can never apply to production. This also turns the
-  "emulator host leaked into production" failure in section 15 from a per-request 500 into a
-  refusal to boot.
+  a fatal startup error, so the emulator case can never apply to production. This also turns
+  the "emulator host leaked into production" failure in section 15 from a per-request 500
+  into a refusal to boot.
 
-If you ever touch these files, keep all three arms intact. To double-check it still compiles:
+If you ever touch these files, keep all three checks intact. To double-check it still compiles:
 
 ```bash
 docker compose run --rm api pnpm turbo run typecheck test
@@ -326,13 +320,38 @@ is the successor to a product called Datastore, which is why the role has that n
 
 ### 9b. Deploy
 
+`--set-env-vars` **replaces** the service's whole set of variables, and production needs
+every one that `apiConfig` in [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs)
+defines: `FIREBASE_PROJECT_ID`, `NODE_ENV`, `CORS_ORIGIN`, `FIRESTORE_DATABASE_ID`,
+`ASSISTANT_ENABLED`, `ASSISTANT_MODEL`, `ASSISTANT_VERTEX_LOCATION`, `AUTH0_ENABLED`,
+`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`.
+A hand-typed list drops one easily, and a dropped `AUTH0_ENABLED` turns production sign-in
+off. So build the flag with `apiConfig` and `runEnvFlag`, the functions the release uses.
+Take each value from the repository variables (`gh variable list`, and `gh variable list
+--env production`, which overrides it); where one is absent, use the release's default shown
+in `<…>`:
+
 ```bash
+export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
+  ASSISTANT_ENABLED='<false>' ASSISTANT_MODEL='<vertex:gemini-3.8-flash>' \
+  ASSISTANT_VERTEX_LOCATION='<eu>' AUTH0_ENABLED='<false>' AUTH0_SIGNUP_ENABLED='<false>' \
+  MCP_ENABLED='<false>' MCP_WRITES_ENABLED='<false>' MCP_CLIENT_ID='<unset>'
+RUN_ENV=$(node --input-type=module -e "
+  const { apiConfig, runEnvFlag } = await import('./scripts/resolve-release-image.mjs');
+  console.log(runEnvFlag(apiConfig(process.env)));")
+echo "$RUN_ENV"   # check it before deploying
+
 gcloud run deploy wally-api \
   --image=europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest \
   --region=europe-west1 \
   --service-account=wally-api@luminull-wally.iam.gserviceaccount.com \
-  --set-env-vars="FIREBASE_PROJECT_ID=luminull-wally,NODE_ENV=production,CORS_ORIGIN=https://wally.luminull.com,FIRESTORE_DATABASE_ID=wally"
+  --set-env-vars="$RUN_ENV"
 ```
+
+Leave `MCP_CLIENT_ID` out of the export entirely when it is unset. Production today runs with
+`AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED` and `MCP_WRITES_ENABLED` all `true`
+(section 17). `apiConfig` refuses a missing value, so a forgotten variable stops here rather
+than in production.
 
 Three things worth understanding:
 
@@ -344,8 +363,9 @@ Three things worth understanding:
   quietly try to reach a non-existent emulator instead of your real database. Note it is
   absent from the command above on purpose.
 
-`--set-env-vars` **replaces** the whole set, so every redeploy must list all four. Use
-`--update-env-vars` to change one without touching the others.
+A redeploy that passes only `--image` keeps the current variables. To change one variable,
+use `--update-env-vars`, never `--set-env-vars` with a partial list. The next release
+replaces the whole set from `apiConfig` anyway.
 
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
 (`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
@@ -374,11 +394,10 @@ is 15 USD) is the monthly ceiling on the deployment key. The monthly cap is comp
 the price table in `apps/api/src/lib/assistant/budget/prices.ts`; check that table against
 the vendor's pricing page before changing `ASSISTANT_MODEL`.
 
-To call Vertex from a local machine, the API uses the Firebase service account
-(`FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`) when both are set. That account then
-needs `roles/aiplatform.user`, and the Vertex AI API (`aiplatform.googleapis.com`) must be
-enabled on the project. On Cloud Run the variables are absent and the runtime service
-account applies. One real turn can be run by hand, against whatever Firestore the
+To call Vertex from a local machine, the API uses Application Default Credentials: run
+`gcloud auth application-default login` with an account that has `roles/aiplatform.user`,
+and the Vertex AI API (`aiplatform.googleapis.com`) must be enabled on the project. On Cloud
+Run the runtime service account applies. One real turn can be run by hand, against whatever Firestore the
 environment points at:
 
 ```bash
@@ -396,7 +415,7 @@ Cloud Run puts **two independent gates** in front of the container:
    `--allow-unauthenticated` is just shorthand for granting that role to the special
    `allUsers` principal.
 2. **Wally's own authentication** — every route goes through the auth preHandler, which
-   verifies an Auth0 access token (or, on the rollback path, a Firebase ID token) and 401s
+   verifies an Auth0 access token (or, locally and in CI, a Firebase ID token) and 401s
    without one.
 
 Wally deliberately relies on gate 2. Gate 1 exists for service-to-service auth and is
@@ -488,9 +507,15 @@ VITE_FIREBASE_AUTH_DOMAIN=luminull-wally.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=luminull-wally
 VITE_FIREBASE_APP_ID=...
 VITE_API_BASE_URL=https://api.wally.luminull.com
+VITE_AUTH_PROVIDER=auth0
+VITE_AUTH0_CLIENT_ID=...
 ```
 
-The first four come from Firebase console → **Project settings → General → Your apps → SDK
+Production signs in with Auth0: without the last two lines the bundle falls back to the
+Firebase sign-in, which production does not use. `VITE_AUTH0_CLIENT_ID` is the public SPA
+client id (the `VITE_AUTH0_CLIENT_ID` repository variable), never a client secret.
+
+The four `VITE_FIREBASE_*` values come from Firebase console → **Project settings → General → Your apps → SDK
 setup and configuration**. They are the same values already in your root `.env`. These are
 public identifiers, not secrets — safe to ship to the browser, because access is enforced by
 Auth and by the API, not by hiding them.
@@ -501,7 +526,7 @@ This file contains no secrets, but it is environment-specific — and it **is** 
 `.gitignore` covers `.env.*`, which matches `.env.production`. (`.dockerignore` excludes it
 too, so the `apps/web` Docker `prod` stage cannot see it either.)
 
-Do not commit it. CI does not use it at all: the release workflow supplies the same five
+Do not commit it. CI does not use it at all: the release workflow supplies the same seven
 values from GitHub repository _variables_ — they are public identifiers baked into a public
 bundle, so they are variables rather than secrets — and asserts afterwards that the built
 bundle really does contain the production API URL and not `localhost:4000`.
@@ -590,7 +615,8 @@ console (F12) first — most failures announce themselves there.
 3. The board loads (it will be empty — there is no seed data in production, by design).
 4. Create a note. Reload the page; it is still there.
 5. Firebase console → **Firestore Database → Data**: you can see a `whiteboards` document
-   whose ID is your Firebase user ID, plus your note under `notes`.
+   whose ID is your Wally user ID (a random id created at your first sign-in, the same as
+   your `users` document's), plus your note under `notes`.
 6. Drag a note between horizon zones, then open it and confirm the history shows the move.
 7. Add a subtask, tick it, confirm the counter on the card updates.
 8. Open **Teilen**, invite an email address, confirm the member appears as `PENDING`.
@@ -698,63 +724,22 @@ send 100% to it. That is faster than rebuilding.
 
 ### Release with a data reset (ADR-0024)
 
-The release that renames the stored values to English
-([ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md)) ships with no
-migration: every Firestore document is deleted instead. The owner runs every command below.
+Done on 2026-10-27 with v0.11.0. That release renamed the stored values to English
+([ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md)) with no migration:
+every Firestore document in production was deleted instead. Before tagging, the owner
+confirmed that `AUTH0_SIGNUP_ENABLED` was `true`, since after the delete every sign-in has to
+create a new account. Right after the release workflow finished, the runbook deleted every
+document in the `wally` database with this command, then checked in the Firebase console
+that no collection remained:
 
-**Production**
+```bash
+npx --yes firebase-tools@15.30.2 firestore:delete --all-collections --database wally --project luminull-wally
+```
 
-1. Before tagging, confirm that `AUTH0_SIGNUP_ENABLED` is `true`: `gh variable list --env
-production` and `gh variable list` (an environment variable overrides the repository one).
-   After the delete no account has an identity mapping, so every sign-in goes through
-   `resolveOrCreateIdentity` (`apps/api/src/plugins/auth.ts`); with the flag `false` every
-   sign-in gets 403 `IDENTITY_NOT_LINKED`, and the import tooling that once linked accounts
-   was removed in #76. The release reads the variable when it runs, so a change after the
-   deploy needs another release.
-2. Merge, push the `v*` tag, approve the `production` environment, and wait for the release
-   workflow to finish. Delete after the deploy, not before: the old API on an emptied database
-   would write German values again on the next new note, move or saved view (sign-in itself
-   writes none of these fields).
-3. Right away, delete every document in the production database:
-
-   ```bash
-   npx --yes firebase-tools@15.30.2 firestore:delete --all-collections --database wally --project luminull-wally
-   ```
-
-   Leave out `--force`: the command then asks for confirmation. `--database wally` matters;
-   without it the command targets `(default)`, the empty US database (section 4).
-   `15.30.2` is the version `FIREBASE_TOOLS_VERSION` pins in
-   [`release.yml`](../.github/workflows/release.yml); the flags were checked on 2026-10-27
-   against `firestore:delete --help` of that version. Composite indexes, TTL policies and
-   rules are configuration, not documents, and stay.
-
-4. In the Firebase console (**Firestore Database**, database `wally`), check that no
-   collection remains.
-5. Sign in at `wally.luminull.com`: a new user and a first board are provisioned. Reconnect
-   any MCP app.
-6. Rolling back to a release before this one is not possible once English data exists; fix
-   forward.
-
-Between the deploy and the delete, which should be a few minutes, an existing board answers
-500, because its German values fail the response schema. The release smoke tests read no
-board data (`/health`, a 401 on `/whiteboards`, the CORS preflight and static pages), so this
-window does not trigger the automatic rollback. An open tab still sending an old value gets
-400 until it reloads. Such a tab cannot read the new data either: the old bundle validates
-every response against its own German schemas (`apps/web/src/lib/apiClient.ts`), so each
-read fails until the tab reloads.
-
-Not verified: which of the owner's accounts holds the permission to run the delete, and
-whether `--all-collections` also removes documents under parent documents that do not exist
-(step 4 catches that).
-
-**Local emulator**
-
-1. Pull `main` into the live checkout.
-2. `docker compose restart firestore api web`. The emulator comes back empty:
-   `docker-compose.yml` starts it without `--import` or `--export-on-exit` and mounts only
-   `firebase.json`, the rules and the indexes. The `api` and `web` restarts pick up the new
-   code, which their watchers miss after a git change.
-3. Optional: `make seed` for the demo board.
+Composite indexes, TTL
+policies and rules are configuration, not documents, and stayed. A release before v0.11.0
+cannot be rolled back to; fix forward. Locally, `docker compose restart firestore api web`
+gives an empty emulator (it keeps no data across restarts) and `make seed` the demo board.
 
 ---
 
@@ -887,13 +872,14 @@ pushes to `main`, in six jobs:
 **It runs against the emulator, not production.** Every spec writes real data, and
 `share.spec.ts` creates an invite on each run. Against production those records would
 accumulate in the live `wally` database forever. Compose routes Firestore to the emulator
-while sign-in still goes through real Firebase Auth, so the coverage is genuine and the data
-is disposable. Production only ever gets read-only smoke checks.
+while sign-in still goes through real Firebase Auth (or real Auth0, on the opt-in path), so
+the coverage is genuine and the data is disposable. Production only ever gets read-only smoke checks.
 
 **A green E2E job is not automatically a meaningful one.** Every spec opens with
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
 nothing. The workflow parses Playwright's JSON report and fails if any test reported
-`skipped`, if fewer than six executed, or if fewer than two projects produced results.
+`skipped`, if fewer than `MIN_EXECUTED` (22, every listed test) executed, or if fewer than
+two projects produced results.
 
 ### Documentation-only pull requests
 
@@ -935,19 +921,20 @@ MCP client IDs are omitted from Cloud Run rather than deployed as empty strings.
 The issuer `https://login.luminull.com/` and REST audience
 `https://api.wally.luminull.com` are fixed in application configuration and the release.
 The web bundle receives the provider and SPA client ID at build time; changing repository
-variables does not change a deployed bundle. Existing Firebase build variables remain
-required for the Firebase Auth rollback path. These switches do not provision Auth0 tenant
+variables does not change a deployed bundle. The Firebase build variables are still
+required: the release checks them, and the bundle keeps the Firebase sign-in that local
+development and CI use. These switches do not provision Auth0 tenant
 settings or grant connector access; see [AUTH0.md](AUTH0.md).
 
-**Repository secrets:** retain `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for Firebase
-rollback tests. Auth0 validation uses `E2E_AUTH0_USER_PASSWORD` with the account email
+**Repository secrets:** `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` are the Firebase test
+account CI signs in with by default. The opt-in Auth0 path uses `E2E_AUTH0_USER_PASSWORD` with the account email
 and subject stored as repository variables. Keep a separate password under that same
 secret name in Dependabot secrets, alongside its separate account variables. See the
 [E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
 
 > There is deliberately **no service-account key anywhere.** The organization enforces
-> `iam.disableServiceAccountKeyCreation`, and the API no longer needs one outside Google
-> Cloud when it is pointed at an emulator (section 5).
+> `iam.disableServiceAccountKeyCreation`, and the API never uses one: ADC on Cloud Run, the
+> emulator everywhere else (section 5).
 
 ### Why traces are disabled in CI
 
@@ -961,36 +948,21 @@ rotate the E2E password afterwards.
 
 ## Board safety rollout
 
-Ship the enforced API and matching web bundle from the **same release**. The release workflow
-builds and validates both artifacts before shifting API traffic and publishing Hosting. There
-is a short handover between services; old tabs receive `428 PRECONDITION_REQUIRED` and must
-refresh. Do not temporarily disable preconditions. Keep drafts for review before refreshing.
-The release remains subject to the existing CI and production environment approval gates.
+Board commands, revisions and receipts ([ADR-0010](adr/ADR-0010-board-commands-revisions-and-receipts.md))
+are live since v0.3.3; the one-time rollout steps are done. What stays:
 
-Before promotion:
+**TTL policies.** `firestore.indexes.json` declares six, all deployed to the `wally`
+database by the release: `boardOperations.expiresAt`, `assistantAudit.expiresAt`,
+`assistantConversations.expiresAt`, `assistantAttempts.expiresAt`,
+`assistantSuggestions.expiresAt` and `assistantTidies.expiresAt`. TTL removal is
+asynchronous, usually within 24 hours after expiry; seven days (receipts, assistant attempts,
+and assistant suggestions and tidies, whose receipts expire with them) and 30 days (assistant
+audit records, and assistant conversations after their last turn) are retention targets, not
+exact erasure times. Do not enable TTL on `boardCleanup`.
 
-1. Deploy `firestore.indexes.json`, including all six TTL policies, `boardOperations.expiresAt`,
-   `assistantAudit.expiresAt`, `assistantConversations.expiresAt`,
-   `assistantAttempts.expiresAt`, `assistantSuggestions.expiresAt` and
-   `assistantTidies.expiresAt`, to the configured named database. Confirm all six TTL
-   policies are active in Firestore. TTL removal is
-   asynchronous, usually within 24 hours after expiry; seven days (receipts, assistant
-   attempts, and assistant suggestions and tidies, whose receipts expire with them) and 30 days (assistant
-   audit records, and assistant conversations after their last turn) are retention targets,
-   not exact erasure times. Do not enable TTL on `boardCleanup`.
-2. Run the reconciliation command below against the intended database in dry-run mode.
-   Review its counts, then apply repairs if needed. Repairs re-read each board transactionally.
-3. Run emulator/browser tests, lint, typecheck and build. The full authenticated Playwright
-   suite additionally needs the existing `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` secrets.
-4. Release both artifacts; check response revision headers, 428 for missing mutation
-   metadata, 409 on stale writes, successful same-key replay, and browser draft review on
-   the disposable test environment. Production smoke checks remain read-only.
-
-No revision backfill is necessary: legacy records read as zero and their first substantive
-change becomes one. Reconciliation rebuilds role caches from active membership records and
-removes share-link documents that are not a board's current token.
-
-Local Docker commands (emulator only):
+**Maintenance.** Reconciliation rebuilds role caches from active membership records and
+removes share-link documents that are not a board's current token. Run it in dry-run mode
+first and review its counts. Local Docker commands (emulator only):
 
 ```bash
 docker compose exec api pnpm --filter @wally/api maintenance
@@ -1005,14 +977,7 @@ The command exits nonzero when requested cleanup remains pending. Run it after a
 `cleanup_pending` outcome and monitor the remaining count; jobs do not expire until completed.
 A repeated deletion request also retries its cleanup while its receipt is retained.
 
-Rollback API and Hosting together through the release procedure. Keep receipts, revisions,
-and pending cleanup records intact across rollback; never restore deleted notes from old
-client drafts. Reverting to an older API also reverts enforcement, so prefer a forward fix
-once writes have resumed.
-
 ## Account-cleanup worker (retired)
 
-Self-service account export and deletion, and the `wally-account-cleanup` worker, were
-removed in PR #76; the worker's cloud resources were deleted on 2026-10-27. The
-`accountDeletionJobs` and `accountDenials` collections are no longer read and go when
-Firestore is retired.
+Removed in PR #76 with self-service account export and deletion; its cloud resources and its
+`accountDeletionJobs` and `accountDenials` collections were deleted on 2026-10-27.
