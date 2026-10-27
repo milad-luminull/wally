@@ -31,7 +31,7 @@ export interface BoardViewState {
   noteId: string | null;
 }
 
-export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
+const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
   view: 'wall',
   axis: 'horizon',
   done: true,
