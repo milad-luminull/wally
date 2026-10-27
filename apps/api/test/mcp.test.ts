@@ -46,7 +46,6 @@ async function makeApp(overrides: McpRouteOptions = {}) {
     },
     mcp: {
       enabled: true,
-      assistantEnabled: true,
       writesEnabled: true,
       clientId: 'chatgpt',
       verifier: {
@@ -124,7 +123,7 @@ describe('stateless MCP HTTP boundary', () => {
   it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
     await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
     await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });
-    const app = await makeApp({ assistantEnabled: false });
+    const app = await makeApp();
     const listed = (await call(app, 'list_boards', {})).json().result;
     expect(listed.structuredContent.data.map((board: { id: string }) => board.id)).toEqual([
       'board',
@@ -525,9 +524,6 @@ describe('stateless MCP HTTP boundary', () => {
   });
   it('honors deployment switches and withholds write tools for readonly connections', async () => {
     expect((await rpc(await makeApp({ enabled: false }), 'tools/list')).statusCode).toBe(503);
-    expect((await rpc(await makeApp({ assistantEnabled: false }), 'tools/list')).statusCode).toBe(
-      200,
-    );
     const writesOff = await makeApp({ writesEnabled: false });
     expect((await rpc(writesOff, 'tools/list')).json().result.tools).toHaveLength(7);
     for (const app of [writesOff, await makeApp()]) {

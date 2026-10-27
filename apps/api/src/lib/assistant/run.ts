@@ -16,11 +16,6 @@ export interface OperationContext {
   actor: Actor;
   /** The board the conversation is bound to; every call must name it. */
   boardId: string;
-  /**
-   * The effective switch: the deployment switch and the board owner's switch combined
-   * (assistantEnabledFor).
-   */
-  assistantEnabled: boolean;
   provenance: Provenance;
   logger?: CommandLogger;
   authorize?: (tx: Transaction, boardId: string) => Promise<void>;
@@ -65,7 +60,6 @@ export async function runOperation(
   ctx: OperationContext,
   call: OperationCall,
 ): Promise<OperationResult> {
-  if (!ctx.assistantEnabled) throw notFound();
   if (!Object.hasOwn(operationInputs, call.name))
     throw new AppError(400, 'BAD_REQUEST', 'Unknown operation');
   const name = call.name as OperationName;

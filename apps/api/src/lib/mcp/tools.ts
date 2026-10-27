@@ -187,7 +187,6 @@ export async function runMcpTool(
       db,
       actor,
       boardId: args.boardId,
-      assistantEnabled: true,
       provenance: { via: 'mcp', connectionId: context.connectionId },
       authorize: context.authorizeWrite,
     },

@@ -43,7 +43,6 @@ describe('runOperation', () => {
     db: ctx.db,
     actor,
     boardId,
-    assistantEnabled: true,
     provenance,
     ...overrides,
   });
@@ -268,20 +267,6 @@ describe('runOperation', () => {
     await expect(
       runOperation(as(owner), call('list_notes', { boardId: otherBoard })),
     ).rejects.toMatchObject({ statusCode: 404 });
-  });
-
-  it('answers 404 for everything when the switch is off', async () => {
-    await fixture();
-    await expect(
-      runOperation(as(owner, { assistantEnabled: false }), call('list_notes', { boardId })),
-    ).rejects.toMatchObject({ statusCode: 404 });
-    await expect(
-      runOperation(
-        as(owner, { assistantEnabled: false }),
-        call('create_note', { boardId, input: { title: 'x' } }),
-      ),
-    ).rejects.toMatchObject({ statusCode: 404 });
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(0);
   });
 
   it('lets the command layer decide roles: a viewer keeps private notes, nothing else', async () => {

@@ -564,7 +564,6 @@ describe('capture suggestions', () => {
     db: ctx.db,
     actor: { id: userId, email: `${userId}@fixture.de`, emailVerified: true },
     boardId,
-    assistantEnabled: true,
     provenance: { via: 'assistant', conversationId: id, approvalId: id },
   });
   /**

@@ -158,10 +158,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     errorResponseBuilder: () => new AppError(429, 'RATE_LIMITED', 'Too many requests'),
   });
 
-  await app.register(mcpRoutes, {
-    ...options.mcp,
-    assistantEnabled: options.mcp?.assistantEnabled ?? options.assistantEnabled,
-  });
+  await app.register(mcpRoutes, options.mcp ?? {});
   await app.register(
     connectionRoutes,
     options.connections ?? {

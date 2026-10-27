@@ -324,7 +324,6 @@ function operationContext(
     db: deps.db,
     actor: ctx.actor,
     boardId: ctx.board.id,
-    assistantEnabled: true,
     // The tidy is the approval record; a tidy has no conversation (as a suggestion, plan R2 of slice 2).
     provenance: { via: 'assistant', conversationId: id, approvalId: id },
     logger: deps.logger,

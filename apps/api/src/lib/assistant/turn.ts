@@ -150,7 +150,6 @@ export async function runAssistantTurn(
           db,
           actor,
           boardId: board.id,
-          assistantEnabled: true,
           provenance: {
             via: 'assistant',
             conversationId: (await ensureConversation()).id,

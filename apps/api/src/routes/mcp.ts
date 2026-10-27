@@ -32,7 +32,6 @@ function oauthChallenge(resource: string, scopes: string[], needsConsent = false
 export interface McpRouteOptions {
   enabled?: boolean;
   writesEnabled?: boolean;
-  assistantEnabled?: boolean;
   clientId?: string;
   verifier?: AccessTokenVerifier;
   writeLimits?: McpWriteLimits;

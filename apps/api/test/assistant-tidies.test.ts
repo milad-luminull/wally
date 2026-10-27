@@ -540,7 +540,6 @@ describe('tidies', () => {
         db: ctx.db,
         actor: { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true },
         boardId: fx.boardId,
-        assistantEnabled: true,
         provenance: { via: 'assistant', conversationId: dto.id, approvalId: dto.id },
       },
       {

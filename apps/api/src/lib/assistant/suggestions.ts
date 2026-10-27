@@ -477,7 +477,6 @@ function operationContext(
     db: deps.db,
     actor: ctx.actor,
     boardId: ctx.board.id,
-    assistantEnabled: true,
     // The suggestion is the approval record; a capture turn has no conversation (plan R2).
     provenance: { via: 'assistant', conversationId: id, approvalId: id },
     logger: deps.logger,
