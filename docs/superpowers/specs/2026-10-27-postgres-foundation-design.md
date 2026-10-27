@@ -8,7 +8,7 @@ data rules in the [data RFC](../../rfcs/RFC-0008-firestore-to-supabase.md) and
 
 ## Intent
 
-Wally moves from Firestore to Supabase PostgreSQL. This slice builds everything the switch
+Wally's database changes from Firestore to Supabase PostgreSQL; no data moves. This slice builds everything the switch
 (workstream 2) needs, without switching: the schema, migrations, a local database, a test
 harness, the connection setup and the transaction rule. The API keeps running on Firestore.
 
@@ -72,7 +72,7 @@ imported or carried over, so there is no importer, no reconciler and no rehearsa
 
 **Schema:**
 
-- Every collection in RFC-0008 "What has to move" gets a table, following its schema
+- Every collection in RFC-0008 "What the schema covers" gets a table, following its schema
   rules: IDs stay opaque `text`, timestamps are `timestamptz`, nested maps and arrays are
   `jsonb` unless a child table is needed for a query or constraint.
 - No legacy defaults: the clean start means no record predates v0.11.0.

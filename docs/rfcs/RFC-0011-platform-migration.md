@@ -279,7 +279,7 @@ Still open:
 
 ## 9. Operations the brief expects from day one
 
-- **Before production data moves:**
+- **Before production switches to PostgreSQL:**
   - Billing alerts on Google Cloud, Supabase and Cloudflare. Alerts are not caps.
   - Supabase project-owner emails switched on, so pause warnings reach the owner.
 - **Dashboards:**
