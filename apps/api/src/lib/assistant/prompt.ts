@@ -19,7 +19,8 @@ export const INSTRUCTIONS_PREFIX = [
   '',
 ].join('\n');
 
-const LANGUAGE_NAMES: Record<Language, string> = { de: 'German', en: 'English' };
+/** The answer language as every prompt names it (questions, captures and tidies alike). */
+export const LANGUAGE_NAMES: Record<Language, string> = { de: 'German', en: 'English' };
 
 export function buildInstructions(ctx: {
   today: string;
