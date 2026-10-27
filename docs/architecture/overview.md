@@ -14,7 +14,7 @@ flowchart LR
   wally["Wally<br/>[System]<br/>Whiteboard of movable to-do notes"]
   host["MCP client, e.g. ChatGPT<br/>[External]<br/>Reads and edits boards for a user"]
   auth0["Auth0<br/>[External]<br/>Email/password and Google sign-in for web and MCP"]
-  fbauth["Firebase Authentication<br/>[External]<br/>Rollback sign-in path"]
+  fbauth["Firebase Authentication<br/>[External]<br/>Local and CI sign-in only"]
   store["Cloud Firestore<br/>[External]<br/>All application data"]
   model["Vertex AI<br/>[External]<br/>Model for the built-in assistant"]
   user -->|uses, in German or English| wally
@@ -23,7 +23,7 @@ flowchart LR
   host -->|OAuth| auth0
   host -->|MCP| wally
   wally -->|verifies access tokens| auth0
-  wally -->|verifies ID tokens, rollback only| fbauth
+  wally -->|verifies ID tokens, local and CI only| fbauth
   wally -->|reads and writes| store
   wally -->|assistant requests| model
 ```
@@ -57,7 +57,7 @@ The browser never talks to Firestore. [`firestore.rules`](../../firestore.rules)
 
 ## The life of a request
 
-1. The browser attaches a fresh access token to every call made through `apiClient.ts`: an Auth0 access token in production, a Firebase ID token on the rollback path. MCP clients send their own Auth0 access token to `/mcp`.
+1. The browser attaches a fresh access token to every call made through `apiClient.ts`: an Auth0 access token in production, a Firebase ID token locally and in CI. MCP clients send their own Auth0 access token to `/mcp`.
 2. The `preHandler` in [`apps/api/src/plugins/auth.ts`](../../apps/api/src/plugins/auth.ts) verifies the token, resolves the Wally user through `authIdentities` ([AUTH0.md](../AUTH0.md#stable-account-ids)) and, on the caller's first request, creates their user record and their own whiteboard in one transaction ([ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md)).
 3. Board routes adapt transport to shared `lib/commands` functions; the command schema is validated again at the application boundary. Identity comes from the verified token.
 4. A write transaction reads its receipt, board permissions and affected records, checks role, scope and expected integer revision, and commits data, denormalized fields and a receipt together. Authorized retries replay that result. Missing preconditions fail with 428; stale writes and changed-payload retries fail with 409.
@@ -104,10 +104,10 @@ Notes are top-level rather than nested under their board because routes address 
 ## Boundaries and rules
 
 - Only the API talks to Firestore. The web app has no Firestore client. [ADR-0003](../adr/ADR-0003-firestore-reached-only-through-the-api.md)
-- Identity comes from Auth0 (Firebase Authentication as rollback); permissions are Wally's own, enforced in the API. [ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md), [ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)
+- Identity comes from Auth0 in production (Firebase Authentication locally and in CI, not as a production fallback); permissions are Wally's own, enforced in the API. [ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md), [ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)
 - The contract between the apps is the Zod schemas in `@wally/shared`; neither app imports the other's source. [ADR-0002](../adr/ADR-0002-pnpm-turborepo-monorepo-with-shared-contract.md), [ADR-0005](../adr/ADR-0005-rest-api-validated-with-shared-zod-schemas.md)
 - There is no real-time channel. Members of a shared board see each other's changes on the next refetch. [ADR-0006](../adr/ADR-0006-server-state-in-tanstack-query-no-realtime.md)
-- UI text lives in the web catalogues; identifiers, enum values and API messages are English, the German ones being migrated in place. [ADR-0007](../adr/ADR-0007-ui-text-in-bundled-i18next-catalogues.md), [ADR-0014](../adr/ADR-0014-english-identifiers-and-persisted-values.md)
+- UI text lives in the web catalogues; identifiers, enum values and API messages are English; the German stored values were replaced in one release with a data reset ([ADR-0024](../adr/ADR-0024-rename-persisted-values-without-migration.md)). [ADR-0007](../adr/ADR-0007-ui-text-in-bundled-i18next-catalogues.md), [ADR-0014](../adr/ADR-0014-english-identifiers-and-persisted-values.md)
 - A release is a `v*` tag on `main`, deployed keyless with a smoke test and automatic rollback. [ADR-0008](../adr/ADR-0008-tag-triggered-release-to-hosting-and-cloud-run.md)
 
 ## Related documents
