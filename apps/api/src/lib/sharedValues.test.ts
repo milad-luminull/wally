@@ -13,9 +13,9 @@ import {
   notePriorityValues,
   suggestionFieldsSchema,
 } from '@wally/shared';
-import { zodSchema } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { toolDefinitionsJson } from './assistant/model/runTurn.js';
 
 /**
  * The spellings these values had before ADR-0014 and ADR-0024. They are spelled here, and
@@ -108,13 +108,23 @@ describe('the shared value sets', () => {
   });
 
   it('publishes the English values in JSON schema', async () => {
-    const schema = z.object({
+    // Derived the way the model library derives a tool's input schema (ADR-0013 keeps the
+    // library itself inside assistant/model/).
+    const inputSchema = z.object({
       p: notePrioritySchema,
       h: noteHorizonSchema,
       c: noteColourSchema,
       v: boardViewSchema,
     });
-    const json = JSON.stringify(await zodSchema(schema).jsonSchema);
+    const json = await toolDefinitionsJson([
+      {
+        name: 'values',
+        description: '',
+        inputSchema,
+        needsApproval: false,
+        execute: async () => null,
+      },
+    ]);
     expect(json).toContain('"enum":["HIGH","MEDIUM","LOW"]');
     expect(json).toContain('"SEA_GREEN"');
   });
