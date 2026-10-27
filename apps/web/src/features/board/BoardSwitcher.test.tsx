@@ -33,7 +33,7 @@ describe('BoardSwitcher', () => {
     expect(screen.queryByRole('link', { name: /Team North/ })).not.toBeInTheDocument();
   });
 
-  // RFC 0002 §11: even with one board, the switcher is the way to the board home and
+  // RFC-0002 §11: even with one board, the switcher is the way to the board home and
   // the only hint on a board that more boards are possible.
   it('offers all boards and a new board even when the caller has only one', async () => {
     const user = userEvent.setup();

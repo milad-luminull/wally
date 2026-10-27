@@ -174,7 +174,7 @@ async function request<T>(
     (resource !== undefined || path.startsWith('/share-links/') || path === '/whiteboards');
   const createsNote = method === 'POST' && /^\/whiteboards\/[^/]+\/notes$/.test(path);
   const redeemsLink = path.startsWith('/share-links/');
-  // Account-level board operations (RFC 0002 §12.1). Create and leave never carry a
+  // Account-level board operations (RFC-0002 §12.1). Create and leave never carry a
   // revision; delete carries the board's.
   const createsBoard = method === 'POST' && path === '/whiteboards';
   const deletesBoard = method === 'DELETE' && /^\/whiteboards\/[^/]+$/.test(path);

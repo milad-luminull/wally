@@ -4,7 +4,7 @@
  */
 const ALLOWED = /^\/(share|boards)\/[^/?#]/;
 
-/** The in-app path a visitor was sent to /login from, or null (RFC 0002 §5). */
+/** The in-app path a visitor was sent to /login from, or null (RFC-0002 §5). */
 export function readReturnPath(state: unknown): string | null {
   const from = (state as { from?: unknown } | null | undefined)?.from;
   if (typeof from !== 'string' || from.startsWith('//')) return null;

@@ -17,7 +17,7 @@ import { useCreateBoard } from '@/features/board/hooks/mutations/useCreateBoard'
 
 /**
  * One field, prefilled with the localized initial name so Enter alone creates a board
- * (RFC 0002 §8). On success the app goes straight into the new, empty board.
+ * (RFC-0002 §8). On success the app goes straight into the new, empty board.
  */
 export function NewBoardDialog({
   open,

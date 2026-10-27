@@ -8,7 +8,7 @@ import { boardsApi } from '@/lib/resources';
 import { useQueryKeys } from '../queryKeys';
 
 /**
- * Creates a board the caller owns (RFC 0002 §8). The dialog shows its own errors, so the
+ * Creates a board the caller owns (RFC-0002 §8). The dialog shows its own errors, so the
  * global failure toast is silenced.
  *
  * The operation id is kept while the typed name stays the same: pressing Create again after a
