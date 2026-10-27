@@ -5,7 +5,7 @@ test('card actions work with a collapsed sidebar and persist note changes', asyn
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
   await signIn(page);
   await page.goto(
-    `${new URL(page.url()).pathname}?view=wand&axis=priority&done=1&mine=0&priority=&visibility=all`,
+    `${new URL(page.url()).pathname}?view=wall&axis=priority&done=1&mine=0&priority=&visibility=all`,
   );
   await page.getByRole('button', { name: 'Seitenleiste einklappen' }).click();
   const expandRail = page.getByRole('button', { name: 'Seitenleiste ausklappen' });
@@ -51,7 +51,7 @@ test('card actions work with a collapsed sidebar and persist note changes', asyn
   await expect(page.locator('[data-board-surface]')).toBeFocused();
   await hideCompleted.click();
   await page.goto(
-    `${new URL(page.url()).pathname}?view=wand&axis=priority&done=1&visibility=shared`,
+    `${new URL(page.url()).pathname}?view=wall&axis=priority&done=1&visibility=shared`,
   );
   await card.hover();
   await more.click();
@@ -66,7 +66,7 @@ test('card actions work with a collapsed sidebar and persist note changes', asyn
   await privateSaved;
   await expect(card).toBeHidden();
   await expect(page.locator('[data-board-surface]')).toBeFocused();
-  await page.goto(`${new URL(page.url()).pathname}?view=wand&axis=priority&done=1&visibility=all`);
+  await page.goto(`${new URL(page.url()).pathname}?view=wall&axis=priority&done=1&visibility=all`);
   await card.hover();
   await more.click();
   await expect(page.getByRole('button', { name: 'Privat machen' })).toHaveCount(0);

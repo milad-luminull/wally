@@ -40,7 +40,7 @@ function proposal(noteId: string, boardId: string) {
       reference: null,
       subtasks: null,
       links: null,
-      horizon: { value: 'DIESE_WOCHE', reason: 'diese Woche' },
+      horizon: { value: 'THIS_WEEK', reason: 'diese Woche' },
       visibility: { value: 'PRIVATE', reason: 'persönlich' },
       tags: { items: ['ops', 'sales'], reason: 'Tags der Wand' },
       properties: null,
