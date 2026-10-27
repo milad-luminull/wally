@@ -13,3 +13,6 @@ pnpm-lock.yaml
 coverage/
 playwright-report/
 test-results/
+# drizzle-kit writes the migrations and their snapshots; regenerating them must not leave
+# a formatting diff behind.
+apps/api/drizzle/
