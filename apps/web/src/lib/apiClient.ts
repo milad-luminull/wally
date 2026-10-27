@@ -113,12 +113,7 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.toString();
 }
 
-/**
- * Thin fetch wrapper: attaches a fresh (or refreshed-on-401) Firebase ID token, and
- * throws a typed ApiError so callers/hooks can branch on `.status`/`.kind` rather than
- * parsing strings.
- */
-export function resourceForPath(path: string): string | undefined {
+function resourceForPath(path: string): string | undefined {
   const parts = path.split('/');
   if (parts[1] === 'notes' && parts[2]) return `note:${parts[2]}`;
   if (parts[1] === 'whiteboards' && parts[2]) return `board:${parts[2]}`;
@@ -156,6 +151,11 @@ function observeResponse(path: string, data: unknown, revision: number | undefin
  *  have to be T: a schema with a `.default()` (board preferences) has a wider input. */
 type ResponseSchema<T> = z.ZodType<T, z.ZodTypeDef, unknown>;
 
+/**
+ * Thin fetch wrapper: attaches the signed-in session's token (refreshed once on a 401) and
+ * throws a typed ApiError so callers/hooks can branch on `.status`/`.kind` rather than
+ * parsing strings.
+ */
 async function request<T>(
   path: string,
   options: RequestOptions = {},
