@@ -18,8 +18,10 @@ import { z } from 'zod';
 import { toolDefinitionsJson } from './assistant/model/runTurn.js';
 
 /**
- * The spellings these values had before ADR-0014 and ADR-0024. They are spelled here, and
- * only here, to show they are refused like any unknown value.
+ * The spellings these values had before ADR-0014 and ADR-0024, spelled only to show they are
+ * refused like any unknown value. Tests are the only place they appear: here, in the API's
+ * notes, MCP, model/suggest and model/tidy tests, and in the web's englishValues and
+ * useBoardViewState tests.
  */
 const OLD = {
   priority: ['HOCH', 'MITTEL', 'NIEDRIG'],

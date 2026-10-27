@@ -12,6 +12,7 @@ import {
   notesCol,
 } from '../src/lib/db/collections.js';
 import { dayKey, reserveAttempt } from '../src/lib/assistant/budget/ledger.js';
+import { priceFor } from '../src/lib/assistant/budget/prices.js';
 import { estimateTokens } from '../src/lib/assistant/budget/estimate.js';
 import { suggestionSchemaJson } from '../src/lib/assistant/model/index.js';
 import { modelSuggestionSchema } from '../src/lib/assistant/model/suggest.js';
@@ -436,7 +437,7 @@ describe('a capture whose model is busy or slow', () => {
       userId: fx.ownerId,
       now: new Date(),
       estimate: { inputTokens: 10, outputTokens: 10 },
-      price: null,
+      price: priceFor('vertex:gemini-3.8-flash'),
       caps: { dailyTokens: 1_000_000, monthlyMicroUsd: 1_000_000 },
     });
     const n = (
@@ -563,7 +564,6 @@ describe('capture suggestions', () => {
     db: ctx.db,
     actor: { id: userId, email: `${userId}@fixture.de`, emailVerified: true },
     boardId,
-    assistantEnabled: true,
     provenance: { via: 'assistant', conversationId: id, approvalId: id },
   });
   /**

@@ -17,7 +17,7 @@ import { useBoards } from './hooks/useBoards';
  *
  * Renders for every user, even with a single board: below the list it leads to the board
  * home and opens the New board dialog, which is the only hint on a board that more boards are
- * possible (RFC 0002 §11).
+ * possible (RFC-0002 §11).
  */
 interface BoardSwitcherProps {
   boardId: string;

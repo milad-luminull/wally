@@ -10,8 +10,8 @@ import { en } from './en';
 
 // No LanguageProvider here (it would fetch /me); useLanguage answers what the provider would,
 // the active i18n language, which the rows and property editor sort by.
-vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+vi.mock('@/i18n/languageContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/languageContext')>();
   const { i18n } = await import('@/i18n');
   const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
   return {

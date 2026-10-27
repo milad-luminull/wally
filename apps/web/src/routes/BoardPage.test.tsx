@@ -1,4 +1,4 @@
-vi.mock('@/i18n/LanguageProvider', () => ({
+vi.mock('@/i18n/languageContext', () => ({
   useLanguage: () => ({ language: 'en', setLanguage: vi.fn() }),
 }));
 import { describe, expect, it, vi } from 'vitest';

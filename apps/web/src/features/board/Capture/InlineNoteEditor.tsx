@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { NoteDto, SuggestionFieldKey } from '@wally/shared';
 import { NOTE_TITLE_MAX_LENGTH } from '@wally/shared';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
 import { parseCapture, type CaptureParse } from '@/lib/capture/parseCapture';
@@ -23,7 +23,7 @@ import { noteColourFillClass } from '../util/noteDerived';
 import { textChanged } from '../Suggestions/editAsk';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
 import { MirroredField } from './captureField';
-import { fitToContent, withoutDropped } from './captureText';
+import { asTyped, fitToContent, withoutDropped } from './captureText';
 
 /** How an edit ended: null for Esc (nothing written), otherwise whether the words changed. */
 export interface EditResult {
@@ -41,9 +41,6 @@ const ALL_KEPT: ChipState = {
 
 /** The card's own controls; a press anywhere else on the card must not take focus from them. */
 const OWN_CONTROLS = 'textarea, input, button';
-
-/** The schema keeps a description as typed; only whitespace alone counts as no text. */
-const asTyped = (text: string) => (text.trim() ? text : '');
 
 /**
  * Only words the person adds are read as fields: a date or a name the title already held was

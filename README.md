@@ -13,7 +13,7 @@ packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.com`, the web app on Firebase Hosting at `wally.luminull.com`, and all data in **Cloud Firestore** (database `wally`). **Auth0** signs users in, for the web app and for MCP clients such as ChatGPT ([`docs/AUTH0.md`](docs/AUTH0.md)); Firebase Authentication remains only as a rollback path and is the local default. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator. The decided move to Supabase and Cloudflare is planned in [`docs/rfcs/RFC-0011-platform-migration.md`](docs/rfcs/RFC-0011-platform-migration.md); nothing is migrated yet. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions and working rules this repo follows, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
+In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.com`, the web app on Firebase Hosting at `wally.luminull.com`, and all data in **Cloud Firestore** (database `wally`). **Auth0** signs users in, for the web app and for MCP clients such as ChatGPT ([`docs/AUTH0.md`](docs/AUTH0.md)); Firebase Authentication is the local and CI default, not a production fallback: since the ADR-0024 data reset every account is an Auth0 signup with a random Wally id, so switching production back to Firebase would give every user a new, empty account. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator. The decided move to Supabase and Cloudflare is planned in [`docs/rfcs/RFC-0011-platform-migration.md`](docs/rfcs/RFC-0011-platform-migration.md); nothing is migrated yet. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions and working rules this repo follows, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.c
 - `make`
 - A Firebase project (see [Firebase setup](#firebase-setup) below) — the app won't start without one
 
-Nothing else needs to be installed on the host; all commands run inside Docker.
+Nothing else needs to be installed on the host to run the stack and the Vitest suites; those commands run inside Docker. `make format` and `make e2e` run on the host and need Node and pnpm.
 
 ## Getting started
 
@@ -47,27 +47,25 @@ board back — it's idempotent, and it keeps the same share-link token across ru
 
 ## Firebase setup
 
-The backend verifies Firebase ID tokens; the frontend signs users in with the Firebase Web SDK. You need one Firebase project supplying both:
+Locally and in CI, the backend verifies Firebase ID tokens and the frontend signs users in with the Firebase Web SDK (production uses Auth0). You need one Firebase project supplying both:
 
 1. **Enable sign-in methods**: Firebase console → Authentication → Sign-in method → enable Email/Password and Google.
 1. **Create the Firestore database**: Firebase console → Firestore Database → Create database. Only needed for a real deployment — local development uses the emulator and never touches it.
 1. **Web app config** (`VITE_FIREBASE_*` in `.env`): Project Settings → General → Your apps → Web app → copy `apiKey`, `authDomain`, `projectId`, `appId`.
-1. **Service account** (`FIREBASE_*` in `.env`): Project Settings → Service accounts → Generate new private key → copy `project_id`, `client_email`, `private_key` (keep the `\n` escapes as-is).
-
-If your Google Cloud org blocks service-account key creation (`iam.disableServiceAccountKeyCreation`), you'll need an org admin to grant a project-level exception on **both** the legacy and managed versions of that constraint (Organization Policies in the Cloud Console) — they're enforced independently.
+1. **Project id** (`FIREBASE_PROJECT_ID` in `.env`): the only server-side Firebase value. There is no service-account key: verifying an ID token needs only the project id, the local API talks to the Firestore emulator, and on Cloud Run the API uses its runtime service account (Application Default Credentials).
 
 ## Commands
 
-| Command          | Purpose                                                 |
-| ---------------- | ------------------------------------------------------- |
-| `make up`        | Build and start the Firestore emulator, api, web        |
-| `make down`      | Stop and remove containers                              |
-| `make logs`      | Follow logs of all services                             |
-| `make test`      | Run all tests (backend + frontend, via Turbo)           |
-| `make lint`      | Run lint across the workspace                           |
-| `make typecheck` | Type-check across the workspace                         |
-| `make seed`      | Load development seed data (idempotent)                 |
-| `make e2e`       | Run Playwright end-to-end tests (needs `make up` first) |
+| Command          | Purpose                                                  |
+| ---------------- | -------------------------------------------------------- |
+| `make up`        | Build and start the Firestore emulator, api, web         |
+| `make down`      | Stop and remove containers                               |
+| `make logs`      | Follow logs of all services                              |
+| `make test`      | Run all tests (backend + frontend, via Turbo)            |
+| `make lint`      | Run lint across the workspace                            |
+| `make typecheck` | Type-check across the workspace                          |
+| `make seed`      | Load development seed data (idempotent)                  |
+| `make e2e`       | Run Playwright on the host against the stack (see below) |
 
 ## Ports
 
@@ -83,17 +81,13 @@ Adjust `docker-compose.yml` if your environment doesn't have that conflict.
 - Backend: Vitest — unit tests for business logic, integration tests against the Firestore emulator in compose. Each test file uses its own emulator project id, which keeps them isolated and lets them run in parallel.
 - Frontend: Vitest + React Testing Library for stateful components; Playwright for end-to-end flows (`apps/web/e2e/`, see its `README.md` for what each spec needs).
 
-`make test` runs everything non-interactively and starts the emulator on its own; e2e needs the full stack up.
+`make test` runs everything non-interactively and starts the emulator on its own. `make e2e` runs Playwright from the host, as CI does: it needs `make up && make seed`, the Playwright browsers and a test account's credentials (see [`apps/web/e2e/README.md`](apps/web/e2e/README.md)). CI is the proof that E2E passes.
 
 ## Deploying
 
-Each app's `Dockerfile` has a `prod` target (multi-stage, minimal runtime) intended for Google Cloud Run. The database is the Firebase project's own Cloud Firestore — there is nothing to provision and nothing billed while the app is idle, which is why it was chosen over a managed Postgres instance.
+The API's `Dockerfile` `prod` target (multi-stage, minimal runtime) is the image Cloud Run runs. The web app is a static bundle on Firebase Hosting; its Dockerfile's `prod` target (nginx) is not deployed. The database is the Firebase project's own Cloud Firestore — there is nothing to provision and nothing billed while the app is idle, which is why it was chosen over a managed Postgres instance.
 
-Two things must be deployed alongside the code, with the Firebase CLI:
-
-```bash
-firebase deploy --only firestore:indexes,firestore:rules
-```
+The release workflow deploys two Firestore files before the code:
 
 - **`firestore.indexes.json`** — the emulator never enforces indexes and creates them on the fly, so a missing one only shows up in production as a `FAILED_PRECONDITION` error.
 - **`firestore.rules`** — denies all direct client access by design. Every legitimate read goes through the API's Admin SDK, which bypasses rules.

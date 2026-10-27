@@ -18,7 +18,7 @@ export interface Auth0ClientPort {
   }): Promise<void>;
   logout(options: { logoutParams: { returnTo: string } }): Promise<void>;
 }
-export class SessionError extends Error {
+class SessionError extends Error {
   constructor(readonly code: 'IDENTITY_NOT_LINKED' | 'SESSION_UNAVAILABLE') {
     super(code);
   }

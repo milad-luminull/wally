@@ -47,6 +47,7 @@ it('shows ordinary permissions and only Disconnect for an active account-wide co
   config.connections = [connection];
   const user = userEvent.setup();
   renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findByText('Connected')).toBeInTheDocument();
   await user.click(await screen.findByRole('button', { name: 'Disconnect ChatGPT' }));
   await waitFor(() => expect(api.delete).toHaveBeenCalledWith(`/me/connections/${connection.id}`));
   expect(await screen.findByRole('button', { name: 'Reconnect ChatGPT' })).toBeInTheDocument();

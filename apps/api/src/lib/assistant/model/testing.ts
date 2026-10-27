@@ -3,8 +3,8 @@ import type { AttemptInfo, TurnUsage } from './types.js';
 /**
  * The fake model's pieces the structured-call suites share (suggest.test.ts, tidy.test.ts):
  * a usage report, a text reply in the provider's shape, and an attempt hook that records what
- * it was told, what it settled and which attempts it released without usage. No test runner
- * or library import, so the build that compiles this file next to the runners pulls nothing in.
+ * it was told, what it settled and which attempts it released without usage. Test-only:
+ * tsconfig.build.json leaves it out of dist.
  */
 export const fakeUsage = {
   inputTokens: { total: 40, noCache: 40, cacheRead: 0, cacheWrite: 0 },

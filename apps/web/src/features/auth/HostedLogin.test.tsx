@@ -36,7 +36,7 @@ describe('hosted sign-in', () => {
       expect(screen.getByLabelText('Return path')).toHaveTextContent('/boards/known');
     },
   );
-  it('offers hosted login and explains required password reset without collecting a password', async () => {
+  it('offers hosted login and points to password reset without collecting a password', async () => {
     let target: unknown;
     render(
       <MemoryRouter initialEntries={[{ pathname: '/login', state: { from: '/boards/known' } }]}>
@@ -54,11 +54,11 @@ describe('hosted sign-in', () => {
       </MemoryRouter>,
     );
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    expect(screen.getByText(/reset your password/i)).toBeInTheDocument();
+    expect(screen.getByText(/forgot your password/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }));
     expect(target).toEqual({ signup: false, returnPath: '/boards/known' });
   });
-  it('explains migration failure and lets the user switch accounts', async () => {
+  it('explains a sign-in not linked to a Wally account and lets the user switch accounts', async () => {
     let loggedOut = false;
     render(
       <MemoryRouter>
@@ -77,7 +77,7 @@ describe('hosted sign-in', () => {
         </AuthContext.Provider>
       </MemoryRouter>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent(/account is not ready/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/not linked to a Wally account/i);
     await userEvent.click(screen.getByRole('button', { name: 'Use another account' }));
     expect(loggedOut).toBe(true);
   });

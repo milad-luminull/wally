@@ -11,9 +11,7 @@ const input = JSON.parse(await readFile(path, 'utf8')) as { subject: string; ema
 const db = getDb();
 try {
   await seedMcpLocal(db, input);
-  console.log(
-    'Synthetic local MCP boards ready; owner policies and connection consent are unchanged.',
-  );
+  console.log('Synthetic local MCP boards ready; no MCP client is connected.');
 } finally {
   await db.terminate();
 }

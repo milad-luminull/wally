@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
 import { NOTE_TITLE_MAX_LENGTH, suggestionFieldKeys } from '@wally/shared';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
 import { parseCapture } from '@/lib/capture/parseCapture';
@@ -20,7 +20,7 @@ import { useActiveMembers } from '../hooks/useMembers';
 import { noteColourFillClass } from '../util/noteDerived';
 import { CaptureChips, type ChipKind, type ChipState } from './CaptureChips';
 import { MirroredField } from './captureField';
-import { fitToContent, withoutDropped } from './captureText';
+import { asTyped, fitToContent, withoutDropped } from './captureText';
 import {
   useCapture,
   type CaptureAsk,
@@ -43,9 +43,6 @@ function initialChips(placement: CapturePlacement): ChipState {
 
 /** The card's own controls; a press anywhere else on the card must not take focus from them. */
 const OWN_CONTROLS = 'textarea, input, button';
-
-/** The schema keeps a description as typed; only whitespace alone counts as no text. */
-const asTyped = (text: string) => (text.trim() ? text : '');
 
 /**
  * The card the person writes in, on the wall (or as a list row) where the note will live

@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
  * decision): the whiteboard canvas + drag-and-drop is desktop-only (>=1080px). Both
  * tablet (720–1079px) and mobile (<720px) get the list-only view.
  */
-export const BREAKPOINTS = { mobile: 720, tablet: 1080 } as const;
+const BREAKPOINTS = { mobile: 720, tablet: 1080 } as const;
 
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 

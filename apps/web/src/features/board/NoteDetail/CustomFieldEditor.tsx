@@ -9,7 +9,7 @@ import {
   type CustomFields,
 } from '@wally/shared';
 import { ghostFieldClassName } from '@/components/ui/field-styles';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { RemoveButton } from '@/components/ui/remove-button';
 import { cn } from '@/lib/cn';
 import { FieldLabel } from './Field';

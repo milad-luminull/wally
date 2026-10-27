@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { bindImportedIdentity } from '../src/lib/auth/identities.js';
+import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 import { createFakeAuthVerifier, createTestUser, getTestDb, resetDatabase } from './helpers.js';
 import { usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
@@ -9,7 +9,7 @@ const project = 'wally-test-auth0-boundary';
 const db = getTestDb(project);
 const identity: VerifiedIdentity = {
   issuer: 'https://login.luminull.com/',
-  subject: 'auth0|imported-user',
+  subject: 'auth0|linked-user',
   email: 'existing@example.com',
   emailVerified: true,
   name: 'Existing',
@@ -73,9 +73,9 @@ describe('Auth0 REST identity resolution', () => {
     expect((await getMe(invalid)).statusCode).toBe(401);
     expect((await usersCol(db).get()).empty).toBe(true);
   });
-  it('does not recreate an imported user deleted during a profile update', async () => {
+  it('does not recreate a linked user whose record is removed during a profile update', async () => {
     await createTestUser(db, 'deleted-during-request', identity.email);
-    await bindImportedIdentity(db, identity, 'deleted-during-request');
+    await bindKnownIdentity(db, identity, 'deleted-during-request');
     const runTransaction = db.runTransaction.bind(db);
     vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, options) => {
       await usersCol(db).doc('deleted-during-request').delete();
@@ -97,10 +97,10 @@ describe('Auth0 REST identity resolution', () => {
     expect((await usersCol(db).get()).size).toBe(1);
     expect((await whiteboardsCol(db).get()).empty).toBe(true);
   });
-  it('uses the imported stable ID and preserves preferences', async () => {
+  it('uses the linked user ID and preserves preferences', async () => {
     await createTestUser(db, 'original-id', identity.email, 'Existing');
     await usersCol(db).doc('original-id').update({ language: 'en', 'preferences.theme': 'dark' });
-    await bindImportedIdentity(db, identity, 'original-id');
+    await bindKnownIdentity(db, identity, 'original-id');
     const result = await getMe();
     expect(result.statusCode).toBe(200);
     expect(result.json()).toMatchObject({
@@ -111,31 +111,31 @@ describe('Auth0 REST identity resolution', () => {
     expect((await usersCol(db).get()).size).toBe(1);
     expect((await whiteboardsCol(db).get()).empty).toBe(true);
   });
-  it('refuses conflicting imports and permits retries for the same account', async () => {
+  it('refuses conflicting bindings and permits retries for the same account', async () => {
     await createTestUser(db, 'first', identity.email);
     await createTestUser(db, 'second', 'second@example.com');
-    await bindImportedIdentity(db, identity, 'first');
-    await bindImportedIdentity(db, identity, 'first');
-    await expect(bindImportedIdentity(db, identity, 'second')).rejects.toMatchObject({
+    await bindKnownIdentity(db, identity, 'first');
+    await bindKnownIdentity(db, identity, 'first');
+    await expect(bindKnownIdentity(db, identity, 'second')).rejects.toMatchObject({
       code: 'IDENTITY_CONFLICT',
     });
     expect((await getMe()).json().id).toBe('first');
   });
-  it('allows only one winner when imports race', async () => {
+  it('allows only one winner when bindings race', async () => {
     await createTestUser(db, 'first', identity.email);
     await createTestUser(db, 'second', 'second@example.com');
     const results = await Promise.allSettled(
-      ['first', 'second'].map((id) => bindImportedIdentity(db, identity, id)),
+      ['first', 'second'].map((id) => bindKnownIdentity(db, identity, id)),
     );
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect((await getMe()).statusCode).toBe(200);
   });
-  it('rejects mappings to nonexistent users and does not recreate a deleted account', async () => {
-    await expect(bindImportedIdentity(db, identity, 'missing')).rejects.toMatchObject({
+  it('rejects bindings to nonexistent users and does not recreate a removed user record', async () => {
+    await expect(bindKnownIdentity(db, identity, 'missing')).rejects.toMatchObject({
       code: 'USER_NOT_FOUND',
     });
     await createTestUser(db, 'existing', identity.email);
-    await bindImportedIdentity(db, identity, 'existing');
+    await bindKnownIdentity(db, identity, 'existing');
     await usersCol(db).doc('existing').delete();
     expect((await getMe()).statusCode).toBe(403);
     expect((await usersCol(db).get()).empty).toBe(true);

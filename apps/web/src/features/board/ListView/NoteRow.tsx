@@ -2,7 +2,7 @@ import type { MouseEvent } from 'react';
 import type { NoteDto } from '@wally/shared';
 import { useTranslation } from 'react-i18next';
 import { useEnumLabels } from '@/i18n/enumLabels';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/cn';
 import { dueInfo, dueToneClass, noteColourFillClass, subtaskCountLabel } from '../util/noteDerived';

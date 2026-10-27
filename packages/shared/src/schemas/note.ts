@@ -163,7 +163,6 @@ export type NoteDuplicateInput = z.infer<typeof noteDuplicateSchema>;
 export const noteAssignSchema = z.object({
   assigneeId: z.string().nullable(),
 });
-export type NoteAssignInput = z.infer<typeof noteAssignSchema>;
 
 /** GET /whiteboards/:id/notes query params */
 export const noteListQuerySchema = z.object({

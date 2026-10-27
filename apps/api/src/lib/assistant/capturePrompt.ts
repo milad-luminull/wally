@@ -1,4 +1,5 @@
 import type { Language, NoteHorizon, NotePriority } from '@wally/shared';
+import { LANGUAGE_NAMES } from './prompt.js';
 
 /**
  * Byte-stable so the provider can cache it (RFC-0003-wally-agent.md §3.5). Board content never appears
@@ -42,8 +43,6 @@ export interface RecentNoteRow {
   tags: string[];
   properties: [string, string][];
 }
-
-const LANGUAGE_NAMES: Record<Language, string> = { de: 'German', en: 'English' };
 
 export function buildCaptureInstructions(ctx: {
   today: string;

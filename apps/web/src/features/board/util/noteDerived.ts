@@ -88,7 +88,7 @@ export const noteColourFillClass: Record<NoteColour, string> = {
 
 /** No manual per-zone ordering (see the plan's data-model decision) — zones auto-flow by
  * due date, undated notes last, then creation date as the tiebreaker. */
-export function sortNotes(notes: NoteDto[]): NoteDto[] {
+function sortNotes(notes: NoteDto[]): NoteDto[] {
   return [...notes].sort((a, b) => {
     if (a.dueDate && b.dueDate) {
       if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;

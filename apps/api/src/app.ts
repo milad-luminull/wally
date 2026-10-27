@@ -20,6 +20,7 @@ import meRoutes from './routes/me.js';
 import type { SuggestionRunner, TidyRunner, TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
 import { createAuth0Verifier, type AccessTokenVerifier } from './lib/auth/auth0.js';
+import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 import { errorReplyFor } from './lib/errorBody.js';
 
 export interface BuildAppOptions {
@@ -121,9 +122,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     auth0Verifier:
       options.auth0Verifier ??
       (env.AUTH0_ENABLED
-        ? createAuth0Verifier({ issuer: env.AUTH0_ISSUER, audience: env.AUTH0_AUDIENCE })
+        ? createAuth0Verifier({ issuer: AUTH0_ISSUER, audience: AUTH0_AUDIENCE })
         : undefined),
-    auth0Issuer: env.AUTH0_ISSUER,
+    auth0Issuer: AUTH0_ISSUER,
     auth0SignupEnabled: options.auth0SignupEnabled ?? env.AUTH0_SIGNUP_ENABLED,
   });
 
@@ -158,10 +159,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     errorResponseBuilder: () => new AppError(429, 'RATE_LIMITED', 'Too many requests'),
   });
 
-  await app.register(mcpRoutes, {
-    ...options.mcp,
-    assistantEnabled: options.mcp?.assistantEnabled ?? options.assistantEnabled,
-  });
+  await app.register(mcpRoutes, options.mcp ?? {});
   await app.register(
     connectionRoutes,
     options.connections ?? {

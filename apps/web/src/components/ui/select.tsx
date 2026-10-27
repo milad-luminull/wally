@@ -5,7 +5,6 @@ import { cn } from '@/lib/cn';
 import { fieldClassName } from './field-styles';
 
 export const Select = SelectPrimitive.Root;
-export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
 
 export const SelectTrigger = React.forwardRef<

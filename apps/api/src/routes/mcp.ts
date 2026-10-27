@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { createAuth0Verifier, type AccessTokenVerifier } from '../lib/auth/auth0.js';
+import { AUTH0_ISSUER, MCP_RESOURCE } from '../lib/auth/constants.js';
 import { resolveIdentity } from '../lib/auth/identities.js';
 import { usersCol } from '../lib/db/collections.js';
 import { loadEnv } from '../env.js';
@@ -19,7 +20,6 @@ import {
   type McpWriteLimits,
 } from '../lib/mcp/rate.js';
 
-export const MCP_RESOURCE = 'https://api.wally.luminull.com/mcp';
 export const MCP_METADATA_PATH = '/.well-known/oauth-protected-resource/mcp';
 function oauthChallenge(resource: string, scopes: string[], needsConsent = false): string {
   return (
@@ -32,7 +32,6 @@ function oauthChallenge(resource: string, scopes: string[], needsConsent = false
 export interface McpRouteOptions {
   enabled?: boolean;
   writesEnabled?: boolean;
-  assistantEnabled?: boolean;
   clientId?: string;
   verifier?: AccessTokenVerifier;
   writeLimits?: McpWriteLimits;
@@ -48,12 +47,10 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
   const clientId = options.clientId ?? env.MCP_CLIENT_ID;
   const verifier =
     options.verifier ??
-    (enabled
-      ? createAuth0Verifier({ issuer: env.AUTH0_ISSUER, audience: MCP_RESOURCE })
-      : undefined);
+    (enabled ? createAuth0Verifier({ issuer: AUTH0_ISSUER, audience: MCP_RESOURCE }) : undefined);
   app.get(MCP_METADATA_PATH, { config: { authBoundary: 'public-metadata' } }, async () => ({
     resource,
-    authorization_servers: [env.AUTH0_ISSUER],
+    authorization_servers: [AUTH0_ISSUER],
     scopes_supported: ['wally:read', 'wally:write'],
     bearer_methods_supported: ['header'],
     resource_name: 'Wally boards',
@@ -96,7 +93,11 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         return unauthorized();
       const userId = await resolveIdentity(app.db, identity);
       if (!(await usersCol(app.db).doc(userId).get()).exists)
-        throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+        throw new AppError(
+          403,
+          'IDENTITY_NOT_LINKED',
+          'This sign-in is not linked to a Wally account',
+        );
       const token = { clientId, issuedAt: identity.issuedAt, scopes: identity.scopes };
       const grant = await requireConnection(app.db, userId, token, identity.emailVerified);
       try {

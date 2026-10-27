@@ -29,7 +29,7 @@ vi.mock('@/features/auth/AuthProvider', async (importOriginal) => {
     },
   };
 });
-vi.mock('@/i18n/LanguageProvider', () => ({
+vi.mock('@/i18n/languageContext', () => ({
   useLanguage: () => ({ language: 'en', setLanguage: vi.fn() }),
 }));
 vi.mock('@/lib/resources', () => ({

@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Segmented, type SegmentedOption } from '@/components/ui/segmented';
 import { IconTooltip } from '@/components/ui/tooltip';
 import { MOD_KEY, openCommandPalette } from '@/lib/shortcuts';
+import { localDate } from '@/lib/localDate';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
 import { useBoardRename } from './hooks/mutations/useBoardRename';
 import { BoardContributors } from './Share/BoardContributors';
@@ -149,9 +150,10 @@ export function TopBar({
   );
   const renameBoard = useBoardRename(boardId);
 
+  const today = localDate();
   const openCount = notes.filter((n) => n.status === 'OPEN').length;
   const overdueCount = notes.filter(
-    (n) => n.status === 'OPEN' && n.dueDate && n.dueDate < new Date().toISOString().slice(0, 10),
+    (n) => n.status === 'OPEN' && n.dueDate && n.dueDate < today,
   ).length;
 
   const [editingName, setEditingName] = useState(false);

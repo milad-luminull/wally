@@ -44,7 +44,10 @@ export const base = tseslint.config(
   },
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       'no-restricted-imports': ['error', { patterns: MODEL_LIBRARY_PATTERNS }],
       'no-restricted-syntax': ['error', ...MODEL_LIBRARY_SYNTAX],
     },

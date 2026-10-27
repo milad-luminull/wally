@@ -30,7 +30,7 @@ describe('account-wide OAuth connections', () => {
     issuedAt: Math.floor(Date.now() / 1000) + 2,
     scopes: ['wally:read', 'wally:write'],
   };
-  it('creates one connection concurrently and inherits live board roles without owner AI switches', async () => {
+  it('creates one connection concurrently and inherits live board roles', async () => {
     const grants = await Promise.all([
       requireConnection(db, actor.id, token, true),
       requireConnection(db, actor.id, token, true),

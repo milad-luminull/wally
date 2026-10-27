@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeNote, makeSuggestionMark } from '@/test/fixtures';
 import type { KeyboardEvent } from 'react';
 import type { PendingProps } from './pendingProps';
-import { pendingKeys, proposedTitle, proposedValues } from './pendingProps';
+import { pendingKeys, proposedValues } from './pendingProps';
 import type { SuggestionMark } from './useSuggestions';
 
 const TITLE = { value: 'Quote for Müller', reason: 'shorter' };
@@ -40,15 +40,6 @@ const pending = (m: SuggestionMark): PendingProps => ({
   onSetTag: vi.fn(),
   onSetProperty: vi.fn(),
   onPause: vi.fn(),
-});
-
-describe('proposedTitle', () => {
-  it('offers the title ticked or not, never while asking, and not once turned down', () => {
-    expect(proposedTitle(mark())).toEqual(TITLE);
-    expect(proposedTitle(mark({ fields: ['dueDate', 'title'] }))).toEqual(TITLE);
-    expect(proposedTitle(mark({ phase: 'asking' }))).toBeNull();
-    expect(proposedTitle(mark({ titleDismissed: true }))).toBeNull();
-  });
 });
 
 describe('proposedValues', () => {

@@ -2,7 +2,7 @@ import type { z } from 'zod';
 
 /** `provider:model`, the only way a model is named outside the boundary (spec §3.5). */
 export interface ModelRef {
-  provider: 'vertex' | 'vertex-anthropic';
+  provider: 'vertex';
   model: string;
 }
 

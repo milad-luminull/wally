@@ -11,7 +11,7 @@ import * as grants from '../src/lib/mcp/grants.js';
 import { AppError } from '../src/lib/errors.js';
 import { buildApp } from '../src/app.js';
 import { createTestUser, getTestDb, resetDatabase } from './helpers.js';
-import { bindImportedIdentity } from '../src/lib/auth/identities.js';
+import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import { connectAccount, revokeConnection } from '../src/lib/mcp/grants.js';
 import { runMcpTool, type McpToolContext } from '../src/lib/mcp/tools.js';
 import {
@@ -20,7 +20,8 @@ import {
 } from '../src/lib/mcp/grants.js';
 import { consumeMcpWriteBudget } from '../src/lib/mcp/rate.js';
 import { notesCol, now, whiteboardsCol } from '../src/lib/db/collections.js';
-import { MCP_METADATA_PATH, MCP_RESOURCE, type McpRouteOptions } from '../src/routes/mcp.js';
+import { MCP_RESOURCE } from '../src/lib/auth/constants.js';
+import { MCP_METADATA_PATH, type McpRouteOptions } from '../src/routes/mcp.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 /** The horizon's spelling from before ADR-0024, refused like any unknown value. */
 const OLD = { horizon: 'SPAETER' } as const;
@@ -46,7 +47,6 @@ async function makeApp(overrides: McpRouteOptions = {}) {
     },
     mcp: {
       enabled: true,
-      assistantEnabled: true,
       writesEnabled: true,
       clientId: 'chatgpt',
       verifier: {
@@ -95,7 +95,7 @@ beforeEach(async () => {
     scopes: ['wally:read', 'wally:write'],
     issuedAt: Math.floor(Date.now() / 1000) + 2,
   };
-  await bindImportedIdentity(db, identity, actor.id);
+  await bindKnownIdentity(db, identity, actor.id);
   grantId = (await connectAccount(db, actor.id, 'chatgpt')).id;
 });
 afterEach(async () => {
@@ -124,7 +124,7 @@ describe('stateless MCP HTTP boundary', () => {
   it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
     await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
     await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });
-    const app = await makeApp({ assistantEnabled: false });
+    const app = await makeApp();
     const listed = (await call(app, 'list_boards', {})).json().result;
     expect(listed.structuredContent.data.map((board: { id: string }) => board.id)).toEqual([
       'board',
@@ -185,7 +185,7 @@ describe('stateless MCP HTTP boundary', () => {
     const list = (await call(app, 'show_cards', { boardId: 'board' })).json().result;
     expect(list.structuredContent).toMatchObject({ view: 'list', total: 1, nextCursor: null });
     expect(list.structuredContent.cards).toHaveLength(1);
-    const denied = (await call(app, 'show_cards', { boardId: 'unselected' })).json().result;
+    const denied = (await call(app, 'show_cards', { boardId: 'not-a-member' })).json().result;
     expect(denied).toMatchObject({ isError: true });
     expect(denied.structuredContent).toBeUndefined();
     const listed = (await rpc(app, 'tools/list')).json().result.tools;
@@ -311,7 +311,7 @@ describe('stateless MCP HTTP boundary', () => {
     );
     await check(
       'create_note',
-      { ...args, boardId: 'unselected', operationId: randomUUID() },
+      { ...args, boardId: 'not-a-member', operationId: randomUUID() },
       'NOT_FOUND',
     );
     expect((await notesCol(db).get()).size).toBe(1);
@@ -525,9 +525,6 @@ describe('stateless MCP HTTP boundary', () => {
   });
   it('honors deployment switches and withholds write tools for readonly connections', async () => {
     expect((await rpc(await makeApp({ enabled: false }), 'tools/list')).statusCode).toBe(503);
-    expect((await rpc(await makeApp({ assistantEnabled: false }), 'tools/list')).statusCode).toBe(
-      200,
-    );
     const writesOff = await makeApp({ writesEnabled: false });
     expect((await rpc(writesOff, 'tools/list')).json().result.tools).toHaveLength(7);
     for (const app of [writesOff, await makeApp()]) {

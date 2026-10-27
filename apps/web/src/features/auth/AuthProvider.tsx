@@ -57,7 +57,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
   if (!auth) throw new Error('Firebase authentication is not configured');
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
-  const [idToken, setIdToken] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [emailVerified, setEmailVerified] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
@@ -107,7 +106,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         setSignedOut(typeof previousUid === 'string');
         tokenRef.current = null;
         setUser(null);
-        setIdToken(null);
         setEmailVerified(false);
         setStatus('unauthenticated');
         return;
@@ -118,7 +116,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         // running against the new one.
         tokenRef.current = null;
         setUser(null);
-        setIdToken(null);
         setStatus('loading');
       }
       try {
@@ -126,7 +123,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         if (uidRef.current !== firebaseUser.uid) return;
         tokenRef.current = token;
         setUser(firebaseUser);
-        setIdToken(token);
         setEmailVerified(firebaseUser.emailVerified);
         setSignedOut(false);
         setExpired(null);
@@ -135,7 +131,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
         if (uidRef.current !== firebaseUser.uid) return;
         onIdentityChange(null);
         setUser(null);
-        setIdToken(null);
         setEmailVerified(false);
         setStatus('unauthenticated');
       }
@@ -186,7 +181,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
     await current.reload();
     const token = await current.getIdToken(true);
     tokenRef.current = token;
-    setIdToken(token);
     setEmailVerified(current.emailVerified);
     return current.emailVerified;
   }, [auth]);
@@ -209,7 +203,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      idToken,
       status,
       emailVerified,
       signedOut,
@@ -224,7 +217,6 @@ function FirebaseAuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       user,
-      idToken,
       status,
       emailVerified,
       signedOut,

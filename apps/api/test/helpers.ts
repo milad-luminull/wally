@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
-import type { Firestore } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { DEFAULT_LANGUAGE, INITIAL_BOARD_NAME } from '@wally/shared';
 import type { Language, MembershipStatus, WhiteboardRole } from '@wally/shared';
 import type { UserDoc } from '../src/lib/db/types.js';
 import { buildApp, type BuildAppOptions } from '../src/app.js';
-import { createNamedDb } from '../src/lib/db/client.js';
 import {
   notesCol,
   membersCol,
@@ -38,6 +38,17 @@ export function createFakeAuthVerifier(): {
 }
 
 const instances = new Map<string, Firestore>();
+
+/**
+ * A Firestore instance on its own named app and project id, with the settings getDb() uses
+ * (src/lib/db/client.ts).
+ */
+function createNamedDb(projectId: string): Firestore {
+  const app = initializeApp({ projectId }, `wally-${projectId}`);
+  const db = getFirestore(app);
+  db.settings({ ignoreUndefinedProperties: true });
+  return db;
+}
 
 /**
  * One Firestore per test file, on its own emulator project id.

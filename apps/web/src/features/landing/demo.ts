@@ -107,14 +107,30 @@ export function demoReducer(s: DemoState, a: Action): DemoState {
   }
 }
 
+/**
+ * The demo's word lists, English and German, as regular-expression sources. demoNote reads
+ * them and DemoInput highlights them, so what lights up while typing is what the demo parses.
+ */
+export const DEMO_WORDS = {
+  day: 'today|tomorrow|next week|mon\\w*|tue\\w*|wed\\w*|thu\\w*|fri\\w*|heute|morgen|mo|di|mi|do|fr|montag|dienstag|mittwoch|donnerstag|freitag',
+  person: 'maya|leo|sam',
+  clock: '\\d{1,2}(?::\\d{2})?\\s?(?:am|pm|uhr)',
+  duration: '\\d+\\s?(?:m|min|h)',
+  urgency: 'urgent|asap|important|dringend|wichtig',
+  idea: 'idea|idee',
+} as const;
+
+/** A whole-word pattern for one of the demo's word lists. */
+const word = (source: string, flags = '') => new RegExp(`\\b(?:${source})\\b`, flags);
+
 /** A small, deterministic illustration of the reference, not the app's AI parser. */
 export function demoNote(raw: string, t: TFunction) {
   const text = raw
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-  const isIdea = /^(idea|idee)\b/.test(text);
-  const clock = text.match(/\b(\d{1,2})(?::(\d{2}))?\s?(am|pm|uhr)\b/);
+  const isIdea = new RegExp(`^(?:${DEMO_WORDS.idea})\\b`).test(text);
+  const clock = text.match(word(DEMO_WORDS.clock));
   const isMeeting = !!clock || /\b(meeting|call|besprechung|anruf)\b/.test(text);
   const kind = isIdea ? 'note' : isMeeting ? 'meeting' : 'todo';
   const days = [
@@ -128,7 +144,7 @@ export function demoNote(raw: string, t: TFunction) {
     [/\b(fri\w*|fr|freitag)\b/, 'fri'],
   ] as const;
   const due = days.find(([pattern]) => pattern.test(text))?.[1];
-  const person = /\b(maya|leo|sam)\b/.exec(text)?.[1];
+  const person = word(DEMO_WORDS.person).exec(text)?.[0];
   const names: Record<string, string> = { maya: 'Maya Chen', leo: 'Leo Martin', sam: 'Sam Ortiz' };
   const who = person ? names[person]!.split(' ')[0]! : t('landing.demo.someone');
   const verb = isIdea
@@ -153,26 +169,26 @@ export function demoNote(raw: string, t: TFunction) {
         ? 'today'
         : 'week';
   let title = raw
-    .replace(/^(idea|idee):\s*/i, '')
+    .replace(new RegExp(`^(?:${DEMO_WORDS.idea}):\\s*`, 'i'), '')
     .replace(/^remind me to\s+/i, '')
     .replace(/^set up a call/i, 'Call')
-    .replace(/\b\d{1,2}(:\d{2})?\s?(am|pm|uhr)\b/gi, '')
-    .replace(
-      /\b(today|tomorrow|next week|mon\w*|tue\w*|wed\w*|thu\w*|fri\w*|heute|morgen|mo|di|mi|do|fr|montag|dienstag|mittwoch|donnerstag|freitag)\b/gi,
-      '',
-    )
-    .replace(/\b(urgent|asap|important|dringend|wichtig)\b/gi, '')
-    .replace(/\b\d+\s?(m|min|h)\b/gi, '')
+    .replace(word(DEMO_WORDS.clock, 'gi'), '')
+    .replace(word(DEMO_WORDS.day, 'gi'), '')
+    .replace(word(DEMO_WORDS.urgency, 'gi'), '')
+    .replace(word(DEMO_WORDS.duration, 'gi'), '')
     .replace(/,?\s*it takes\s*$/i, '')
     .replace(/\s(on|at|am|um)(?=\s+(?:on|at|about|zum)\b|\s*$)/gi, '')
-    .replace(/\b(maya|leo|sam)\b/gi, (name) => name[0]!.toUpperCase() + name.slice(1).toLowerCase())
+    .replace(
+      word(DEMO_WORDS.person, 'gi'),
+      (name) => name[0]!.toUpperCase() + name.slice(1).toLowerCase(),
+    )
     .replace(/\bq([1-4])\b/gi, 'Q$1')
     .replace(/\s+/g, ' ')
     .trim();
   title = title ? title[0]!.toUpperCase() + title.slice(1) : raw;
-  const duration = /\b(\d+)\s?(m|min|h)\b/.exec(text);
+  const duration = word(DEMO_WORDS.duration).exec(text)?.[0];
   const minutes = duration
-    ? Number(duration[1]) * (duration[2] === 'h' ? 60 : 1)
+    ? parseInt(duration, 10) * (duration.endsWith('h') ? 60 : 1)
     : isMeeting
       ? 60
       : verb === 'send'
@@ -194,9 +210,7 @@ export function demoNote(raw: string, t: TFunction) {
       {
         label: t('landing.demo.fields.priority'),
         value: t(
-          /urgent|asap|important|dringend|wichtig/.test(text)
-            ? 'landing.demo.high'
-            : 'landing.demo.medium',
+          new RegExp(DEMO_WORDS.urgency).test(text) ? 'landing.demo.high' : 'landing.demo.medium',
         ),
       },
       {

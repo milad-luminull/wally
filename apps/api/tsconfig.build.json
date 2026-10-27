@@ -4,5 +4,6 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["**/*.test.ts"]
+  // Tests, and the fakes only tests import, stay out of dist.
+  "exclude": ["**/*.test.ts", "src/lib/assistant/model/testing.ts"]
 }

@@ -1,17 +1,9 @@
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FALLBACK_LOCALE, normalizeLocale, type AppLocale } from './locales';
+import { FALLBACK_LOCALE, normalizeLocale } from './locales';
+import { LanguageContext, type LanguageContextValue } from './languageContext';
 import { writeStoredLocale } from './storage';
 import { useMe, useUpdateLanguage } from './useProfileLanguage';
-
-interface LanguageContextValue {
-  language: AppLocale;
-  setLanguage: (next: AppLocale) => void;
-  isSaving: boolean;
-  saveFailed: boolean;
-}
-
-const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 /**
  * Keeps the active language, the signed-in profile and the document in step.
@@ -61,10 +53,4 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
-}
-
-export function useLanguage(): LanguageContextValue {
-  const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error('useLanguage must be used within a LanguageProvider');
-  return ctx;
 }

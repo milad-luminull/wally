@@ -20,8 +20,9 @@ import { useQueryKeys } from '../hooks/queryKeys';
 import { nextKeptStamp } from '../Suggestions/keptOrder';
 import { UNDO_WINDOW_MS } from '../Suggestions/useSuggestions';
 import { candidateSignature, tidyCandidateIds } from './tidyCandidates';
-import { localToday, useToday } from './useToday';
+import { useToday } from './useToday';
 import { failureOf } from '@/lib/errors';
+import { localDate } from '@/lib/localDate';
 
 /** The most notes a tidy request may name (`tidyRequestSchema.only`). */
 const TIDY_MAX_ONLY = TIDY_MAX_MOVES * 4;
@@ -268,7 +269,7 @@ export function useTidy(
     void assistantApi
       .tidy(boardId, {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        today: localToday(),
+        today: localDate(),
         ...(shownIds.length <= TIDY_MAX_ONLY ? { only: shownIds } : {}),
       })
       .then(({ tidy: proposed }) => {

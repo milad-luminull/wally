@@ -6,11 +6,9 @@ export interface WallyUser {
   uid: string;
   email: string | null;
   displayName: string | null;
-  photoURL?: string | null;
 }
 export interface AuthContextValue {
   user: WallyUser | null;
-  idToken: string | null;
   status: AuthStatus;
   emailVerified: boolean;
   signedOut: boolean;

@@ -1,10 +1,8 @@
-# Firestore emulator for local development and tests — the replacement for the Postgres
-# container this project used to run.
+# Firestore emulator for local development and the CI E2E stack (docker-compose.yml).
 #
 # Built here rather than pulled from a community image because the Firestore emulator is a
 # Java program: it needs a JRE alongside firebase-tools, and the third-party images that
 # bundle both vary in which of the two they actually include.
-# syntax=docker/dockerfile:1
 
 FROM node:22-slim
 

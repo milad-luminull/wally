@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -15,9 +15,9 @@ vi.mock('@/features/auth/AuthProvider', async () => {
   };
 });
 
-vi.mock('@/i18n/LanguageProvider', async () => {
+vi.mock('@/i18n/languageContext', async () => {
   const actual =
-    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+    await vi.importActual<typeof import('@/i18n/languageContext')>('@/i18n/languageContext');
   return {
     ...actual,
     useLanguage: () => ({
@@ -38,7 +38,7 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { membersApi } from '@/lib/resources';
 import { makeMember } from '@/test/fixtures';
-import { makeBoard } from '@/test/fixtures';
+import { makeBoard, makeNote } from '@/test/fixtures';
 import { TopBar } from './TopBar';
 
 function renderTopBar(overrides: Partial<Parameters<typeof TopBar>[0]> = {}) {
@@ -214,4 +214,38 @@ it('opens every accepted contributor and their role from the header overflow', a
   expect(screen.getAllByText('Can view')).toHaveLength(5);
   expect(screen.queryByText('Pending person')).not.toBeInTheDocument();
   expect(screen.queryByText(/online|here now/i)).not.toBeInTheDocument();
+});
+
+/*
+ * The overdue count compares due dates with today in the browser's calendar. Just after
+ * midnight in Germany, UTC is still on the previous day, so a UTC "today" would not yet count
+ * yesterday's note as overdue.
+ */
+describe('TopBar overdue count', () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.TZ = 'Europe/Berlin';
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 00:30 on 28 October in Berlin (CET, UTC+1) is still 27 October in UTC.
+    vi.setSystemTime(new Date('2026-10-27T23:30:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  it('counts a note due yesterday in local time while UTC is still on that day', () => {
+    renderTopBar({
+      notes: [
+        makeNote({ id: 'note-yesterday', status: 'OPEN', dueDate: '2026-10-27' }),
+        makeNote({ id: 'note-today', status: 'OPEN', dueDate: '2026-10-28' }),
+      ],
+    });
+
+    expect(screen.getByText('1 overdue')).toBeInTheDocument();
+  });
 });

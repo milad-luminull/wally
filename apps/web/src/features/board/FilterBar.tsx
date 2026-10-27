@@ -114,6 +114,8 @@ function SearchInput({ q, setQuery }: { q: string; setQuery: (q: string) => void
   useEffect(() => setLocal(q), [q]);
   useEffect(() => {
     if (debounced !== q) setQuery(debounced);
+    // Only a settled keystroke writes the query. Re-running when `q` changes from outside
+    // (Reset view, Back) would write the stale debounced text back over it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced]);
 

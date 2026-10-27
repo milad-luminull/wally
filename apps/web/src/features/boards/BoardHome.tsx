@@ -25,7 +25,7 @@ type Dialog =
     };
 
 /**
- * Every board the caller can open, in one place (RFC 0002 §7): a continue card for the
+ * Every board the caller can open, in one place (RFC-0002 §7): a continue card for the
  * board last opened, own boards, then boards shared with them. Each group is sorted by name so
  * a renamed board moves where the user expects it.
  */

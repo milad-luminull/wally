@@ -93,10 +93,6 @@ export const noteHistoryEventTypeValues = ['CREATED', 'MOVED'] as const;
 export const noteHistoryEventTypeSchema = z.enum(noteHistoryEventTypeValues);
 export type NoteHistoryEventType = z.infer<typeof noteHistoryEventTypeSchema>;
 
-export const noteMoveModeValues = ['HORIZON', 'PRIORITY', 'FREE'] as const;
-export const noteMoveModeSchema = z.enum(noteMoveModeValues);
-export type NoteMoveMode = z.infer<typeof noteMoveModeSchema>;
-
 /** How the board renders: the spatial wall, or the dense list (ADR-0014, ADR-0024). */
 export const boardViewValues = ['wall', 'list'] as const;
 export const boardViewSchema = z.enum(boardViewValues);

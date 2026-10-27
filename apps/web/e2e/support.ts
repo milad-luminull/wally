@@ -33,7 +33,7 @@ export async function completeSignIn(page: Page) {
     await page.getByLabel('Passwort').fill(PASSWORD);
     await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
   }
-  // One board lands in it; several land on the board home (RFC 0002 §6).
+  // One board lands in it; several land on the board home (RFC-0002 §6).
   await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
 }
 
@@ -49,7 +49,7 @@ export async function signIn(page: Page) {
 }
 
 /**
- * Creates a note the way the top bar does now (RFC RFC-0005-wallybot-inline.md §3.1): "Neue Notiz" puts
+ * Creates a note the way the top bar does now (RFC-0005-wallybot-inline.md §3.1): "Neue Notiz" puts
  * a capture card on the board, with no panel. Enter (or a blur) writes the note in place;
  * ⌘↵ / Ctrl+↵ writes it and opens its detail panel, which `open` asks for. Returns once the
  * card has given way to the note (and, with `open`, the panel is showing), so the card's

@@ -17,10 +17,9 @@ services:
     # The source bind mounts exist so a laptop gets hot reload; in CI they only slow the
     # container start, and the anonymous node_modules volumes exist purely to shadow them.
     volumes: !reset []
+    # Compose merges `environment` key by key, so FIRESTORE_EMULATOR_HOST, PORT and
+    # CORS_ORIGIN come from the base file; only NODE_ENV is added here.
     environment:
-      FIRESTORE_EMULATOR_HOST: firestore:8080
-      PORT: 4000
-      CORS_ORIGIN: http://localhost:5174
       # Deliberately NOT production: env.ts now treats NODE_ENV=production together with
       # FIRESTORE_EMULATOR_HOST as a fatal misconfiguration, which is exactly the protection
       # we want to keep working.

@@ -42,7 +42,6 @@ export const tidyMoveSchema = z.object({
   reason: z.string().max(120).nullable(),
   source: tidyMoveSourceSchema,
 });
-export type TidyMove = z.infer<typeof tidyMoveSchema>;
 
 export const tidyStatusSchema = z.enum(['PENDING', 'KEPT', 'UNDONE', 'DISCARDED']);
 export type TidyStatus = z.infer<typeof tidyStatusSchema>;

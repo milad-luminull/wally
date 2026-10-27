@@ -336,8 +336,8 @@ Wally is a standalone application. It does not integrate with, and is not part o
 product.
 
 Users sign in through Auth0 (email/password and Google), which also authorizes MCP clients
-such as ChatGPT ([`AUTH0.md`](AUTH0.md)); Firebase Authentication remains only as a rollback
-path. The move to Supabase Auth is decided
+such as ChatGPT ([`AUTH0.md`](AUTH0.md)); Firebase Authentication is the local and CI
+default, not a production fallback (every production account is an Auth0 signup). The move to Supabase Auth is decided
 ([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md)). Permissions are Wally's own: a whiteboard role per member, enforced by the API. There is no
 external directory to synchronise against and no single sign-on requirement.
 

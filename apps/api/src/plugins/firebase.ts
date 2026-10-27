@@ -1,11 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { getAuth } from 'firebase-admin/auth';
-import {
-  getFirebaseApp,
-  hasServiceAccountCredentials,
-  runsOnGoogleCloud,
-} from '../lib/firebase-app.js';
+import { getFirebaseApp, runsOnGoogleCloud } from '../lib/firebase-app.js';
 import { loadEnv } from '../env.js';
 
 /** The minimal shape our app needs out of a verified Firebase ID token. */
@@ -44,8 +40,9 @@ export interface FirebasePluginOptions {
  * instead of touching the Firebase SDK directly.
  *
  * Verifying a real ID token needs no credential — only the project id. A credential is
- * required for *Firestore*, so this refuses to start only when the process would talk to a
- * real database without one, rather than failing per-request later. Pointing
+ * required for *Firestore*, and the only one the API uses is Application Default
+ * Credentials on Google Cloud, so this refuses to start when the process would talk to a
+ * real database anywhere else, rather than failing per-request later. Pointing
  * FIRESTORE_EMULATOR_HOST at an emulator satisfies it. Tests supply their own verifier and
  * never reach the check at all.
  */
@@ -63,20 +60,21 @@ export default fp(
     // app.options.projectId and never consults the credential).
     //
     // What a credential is genuinely required for is *Firestore*. So that is what this
-    // guard should ask about: FIRESTORE_EMULATOR_HOST means the Admin SDK is not talking to
+    // guard should ask about: on Google Cloud, Application Default Credentials come from the
+    // runtime service account; FIRESTORE_EMULATOR_HOST means the Admin SDK is not talking to
     // a real database, and the emulator needs no credentials. That is what lets
     // docker-compose and CI run the full stack against real Firebase Auth without a
     // service-account key — which the organization's iam.disableServiceAccountKeyCreation
-    // policy blocks from being created anyway (see README.md).
+    // policy blocks from being created anyway.
     //
     // Production is unaffected: it has no FIRESTORE_EMULATOR_HOST, and env.ts now makes
     // NODE_ENV=production together with FIRESTORE_EMULATOR_HOST a fatal startup error.
     const usingFirestoreEmulator = Boolean(loadEnv().FIRESTORE_EMULATOR_HOST);
-    if (!hasServiceAccountCredentials() && !runsOnGoogleCloud() && !usingFirestoreEmulator) {
+    if (!runsOnGoogleCloud() && !usingFirestoreEmulator) {
       throw new Error(
-        'FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY are required to verify Firebase ID ' +
-          'tokens against a real Firestore database outside Google Cloud. Set them, or point ' +
-          'FIRESTORE_EMULATOR_HOST at an emulator. See the Firebase setup section of README.md.',
+        'Outside Google Cloud the API has no credentials for a real Firestore database: it ' +
+          'uses Application Default Credentials only on Cloud Run. Point ' +
+          'FIRESTORE_EMULATOR_HOST at an emulator to run it anywhere else.',
       );
     }
 

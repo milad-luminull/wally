@@ -6,7 +6,7 @@ import { useQueryKeys } from '../queryKeys';
 import { captureBoardMutation, forgetBoard, hideBoardInList, restoreBoardInList } from './shared';
 
 /**
- * Deletes a board the caller owns (RFC 0002 §9). The confirmation dialog is the safety
+ * Deletes a board the caller owns (RFC-0002 §9). The confirmation dialog is the safety
  * step, so the board leaves the lists at once. A 404 means it is already gone, which the API
  * client turns into success.
  *

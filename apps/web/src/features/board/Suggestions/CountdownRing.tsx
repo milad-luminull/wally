@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/cn';
 import type { SuggestionMark } from './useSuggestions';
 
@@ -34,7 +35,9 @@ export function RingCircle({
       strokeWidth={stroke}
       strokeDasharray={length}
       transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      style={{ '--ring-length': `${length}px`, '--ring-ms': `${mark.countdownMs}ms` } as never}
+      style={
+        { '--ring-length': `${length}px`, '--ring-ms': `${mark.countdownMs}ms` } as CSSProperties
+      }
       className={cn(
         tone === 'ink' ? 'stroke-[color:var(--fg-1)]' : 'stroke-accent',
         'animate-countdown motion-reduce:[animation-timing-function:steps(6,end)]',

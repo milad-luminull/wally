@@ -4,7 +4,6 @@ import {
   appendTurn,
   CONVERSATION_RETENTION_DAYS,
   createConversation,
-  latestOpenConversation,
   loadConversation,
   MAX_MESSAGES_BYTES,
   MAX_TURNS,
@@ -115,32 +114,6 @@ describe('assistant conversations', () => {
     expect(await loadConversation(ctx.db, 'u1', 'b2', c.id)).toBeNull();
   });
 
-  it('returns the latest open conversation for a user and board', async () => {
-    const older = await createConversation(ctx.db, 'u1', 'b1', 'm', now);
-    const newer = await createConversation(ctx.db, 'u1', 'b1', 'm', new Date(now.getTime() + 1000));
-    await createConversation(ctx.db, 'u1', 'b2', 'm', new Date(now.getTime() + 2000));
-    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'm'))?.id).toBe(newer.id);
-    for (let i = 0; i < MAX_TURNS; i++)
-      await appendTurn(ctx.db, 'u1', newer.id, {
-        expectedTurns: i,
-        user: entry('user', 'q'),
-        assistant: entry('assistant', 'a'),
-        messages: [],
-        usage,
-        toolCalls: 0,
-        now,
-      });
-    expect((await loadConversation(ctx.db, 'u1', 'b1', newer.id))?.status).toBe('CLOSED');
-    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'm'))?.id).toBe(older.id);
-  });
-
-  it('does not offer a conversation pinned to another model', async () => {
-    const older = await createConversation(ctx.db, 'u1', 'b1', 'vertex:new', now);
-    await createConversation(ctx.db, 'u1', 'b1', 'vertex:old', new Date(now.getTime() + 1000));
-    expect((await latestOpenConversation(ctx.db, 'u1', 'b1', 'vertex:new'))?.id).toBe(older.id);
-    expect(await latestOpenConversation(ctx.db, 'u1', 'b1', 'vertex:other')).toBeNull();
-  });
-
   it('closes when the stored messages approach the document limit', async () => {
     const c = await createConversation(ctx.db, 'u1', 'b1', 'm', now);
     const big = 'x'.repeat(300 * 1024);
@@ -209,7 +182,6 @@ describe('assistant conversations', () => {
     const stored = await loadConversation(ctx.db, 'u1', 'b1', c.id);
     expect(stored).toMatchObject({ status: 'CLOSED', turns: 1, messages: [] });
     expect(stored?.entries.map((e) => e.text)).toEqual(['q', 'a']);
-    expect(await latestOpenConversation(ctx.db, 'u1', 'b1', 'm')).toBeNull();
   });
 
   it('refuses a turn recorded against a stale turn count and leaves the document untouched', async () => {

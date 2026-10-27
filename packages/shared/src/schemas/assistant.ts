@@ -192,7 +192,6 @@ export const suggestionFieldsSchema = z.object({
 export type SuggestionFields = z.infer<typeof suggestionFieldsSchema>;
 
 export const suggestionStatusSchema = z.enum(['PENDING', 'KEPT', 'UNDONE', 'DISCARDED']);
-export type SuggestionStatus = z.infer<typeof suggestionStatusSchema>;
 
 export const suggestionDtoSchema = z.object({
   id: z.string(),

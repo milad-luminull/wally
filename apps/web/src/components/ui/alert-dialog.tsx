@@ -4,7 +4,6 @@ import { cn } from '@/lib/cn';
 import { buttonVariants } from './button-variants';
 
 export const AlertDialog = AlertDialogPrimitive.Root;
-export const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 export const AlertDialogPortal = AlertDialogPrimitive.Portal;
 
 export const AlertDialogOverlay = React.forwardRef<

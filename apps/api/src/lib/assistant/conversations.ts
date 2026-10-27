@@ -4,13 +4,7 @@ import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
 import { AppError } from '../errors.js';
-import {
-  assistantConversationsCol,
-  docsWithId,
-  stripId,
-  toIso,
-  withId,
-} from '../db/collections.js';
+import { assistantConversationsCol, stripId, toIso, withId } from '../db/collections.js';
 import type { AssistantConversationDoc, AssistantEntryDoc, WithId } from '../db/types.js';
 import type { StoredMessage, TurnUsage } from './model/index.js';
 
@@ -66,28 +60,6 @@ export async function loadConversation(
 ): Promise<WithId<AssistantConversationDoc> | null> {
   const doc = withId(await assistantConversationsCol(db, userId).doc(id).get());
   return doc && doc.boardId === boardId ? doc : null;
-}
-
-/**
- * The caller's most recent open conversation on the board with the deployment's current
- * model. One pinned to another model can no longer take a turn (it answers 409), so it is
- * not offered to continue.
- */
-export async function latestOpenConversation(
-  db: Firestore,
-  userId: string,
-  boardId: string,
-  model: string,
-): Promise<WithId<AssistantConversationDoc> | null> {
-  // Two equality filters need no composite index; the model filter and the sort are done here.
-  const open = docsWithId(
-    await assistantConversationsCol(db, userId)
-      .where('boardId', '==', boardId)
-      .where('status', '==', 'OPEN')
-      .get(),
-  ).filter((conversation) => conversation.model === model);
-  open.sort((a, b) => b.lastTurnAt.toMillis() - a.lastTurnAt.toMillis());
-  return open[0] ?? null;
 }
 
 function toEntryDoc(entry: AssistantEntry): AssistantEntryDoc {

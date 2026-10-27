@@ -9,17 +9,17 @@ engineering judgements about code, and the controller's own privacy function has
 word. And it is not complete on its own: roughly a third of GDPR compliance for an app like
 Wally lives outside the repository (§8), and no amount of code review closes those items.
 
-**Status: 1 of 13 closed, 1 not applicable.** Update the checklist in §7 as they land.
+**Status: 2 of 13 closed (GAP-03 pending the controller's review of the notice text, ORG-04), 1 not applicable.** Update the checklist in §7 as they land.
 
 ---
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                            | Basis                                       |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                       | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Firestore, Cloud Run, Firebase Hosting, Cloud Logging, Vertex AI; Firebase Auth as rollback only) and Auth0 (production sign-in for web and MCP) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                            |                                             |
+| Role          | Who                                                                                                                                                                                    | Basis                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                               | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Firestore, Cloud Run, Firebase Hosting, Cloud Logging, Vertex AI; Firebase Auth for local and CI sign-in, not production) and Auth0 (production sign-in for web and MCP) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                    |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -49,15 +49,23 @@ file must be kept in step — a new personal-data field is a change to both.
 
 ### Identity — `users/{uid}`
 
-| Field                     | Personal data                                                                                                                                                                  | Source                                               | Deleted when       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ------------------ |
-| `email`                   | Yes — direct identifier                                                                                                                                                        | Firebase ID token, lowercased                        | **Never** (GAP-01) |
-| `displayName`             | Yes                                                                                                                                                                            | Firebase ID token                                    | **Never** (GAP-01) |
-| `emailVerified`           | Yes, indirectly                                                                                                                                                                | Firebase ID token                                    | **Never** (GAP-01) |
-| `language`                | Yes — a preference tied to a person                                                                                                                                            | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
-| `preferences`             | Yes — UI choices tied to a person: theme, free-canvas background, last opened board, and per-board view settings (view, grouping, done/mine/priority filters). No search text. | `PATCH /me`                                          | **Never** (GAP-01) |
-| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                                                    | Server                                               | **Never** (GAP-01) |
-| document id (`uid`)       | Yes — pseudonymous identifier, referenced everywhere                                                                                                                           | Firebase Auth                                        | **Never** (GAP-01) |
+| Field                     | Personal data                                                                                                                                                                                                                                                                 | Source                                               | Deleted when       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------ |
+| `email`                   | Yes — direct identifier                                                                                                                                                                                                                                                       | Sign-in token (see below), lowercased                | **Never** (GAP-01) |
+| `displayName`             | Yes                                                                                                                                                                                                                                                                           | Sign-in token                                        | **Never** (GAP-01) |
+| `emailVerified`           | Yes, indirectly                                                                                                                                                                                                                                                               | Sign-in token                                        | **Never** (GAP-01) |
+| `language`                | Yes — a preference tied to a person                                                                                                                                                                                                                                           | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
+| `preferences`             | Yes — UI choices tied to a person: theme, colour palette, free-canvas background, last opened board, per-board view settings (view, grouping, done/mine/priority filters), and whether WallyBot applies its suggestions automatically (`wallybot.autoApply`). No search text. | `PATCH /me`                                          | **Never** (GAP-01) |
+| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                                                                                                                                                   | Server                                               | **Never** (GAP-01) |
+| document id (`uid`)       | Yes — pseudonymous identifier, referenced everywhere                                                                                                                                                                                                                          | Random id, created at first sign-in                  | **Never** (GAP-01) |
+
+Production signs in with Auth0: the sign-in token is an Auth0 access token whose claims come
+from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs), and the uid is a random
+Wally id that `resolveOrCreateIdentity`
+([`apps/api/src/lib/auth/identities.ts`](../apps/api/src/lib/auth/identities.ts)) creates at
+the first sign-in and links to the Auth0 subject in `authIdentities`. Firebase Authentication
+signs in local development and CI only; there the token is a Firebase ID token and the uid
+is the Firebase uid.
 
 ### Membership — `whiteboards/{id}/members/{id}`
 
@@ -88,7 +96,8 @@ erasure work has to clear both, in one transaction — the invariant is already 
 
 | Field                                          | Personal data                         | Notes                                                                     |
 | ---------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
-| `title`, `tags`, `customFields`                | Free text — **may contain anything**  | Not translated, stored as typed                                           |
+| `title`, `description`, `tags`, `customFields` | Free text — **may contain anything**  | Not translated, stored as typed                                           |
+| `links`                                        | No                                    | Ids of related notes                                                      |
 | `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board                              |
 | `visibility`                                   | No                                    | Decides who sees the note; a private note is readable only by its creator |
 | `subtasks/{id}.text`                           | Free text                             |                                                                           |
@@ -107,20 +116,46 @@ cleanup jobs have **no TTL**: they are removed only after successful cleanup, so
 cannot strand content. Browser drafts and retry state are held in memory and cleared on account
 change. Command outcome logs omit note contents and share tokens; redemption URLs are redacted.
 
+### Assistant records
+
+Seven collections ([`apps/api/src/lib/db/collections.ts`](../apps/api/src/lib/db/collections.ts);
+shapes in `types.ts`). Five sit under `users/{uid}`, so an account-erasure routine reaches them
+only if it deletes recursively (GAP-01). The TTL policies are in
+[`firestore.indexes.json`](../firestore.indexes.json); removal is asynchronous, usually within
+24 hours after `expiresAt`.
+
+| Collection                                | Personal data                                                                                                                                                                                                                                       | Deleted when                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `users/{uid}/assistantConversations/{id}` | **Yes — free text.** The user's questions and the assistant's answers (`entries`), the model's own message log (`messages`, which can hold board content the assistant read), linked note ids and titles, board id, model, token usage, timestamps  | TTL, 30 days after the last turn (`CONVERSATION_RETENTION_DAYS`)  |
+| `users/{uid}/assistantSuggestions/{id}`   | **Yes — free text.** Proposed values for one note with the model's reasons (title, description, subtasks, tags, properties, links, a proposed assignee's user id), the note's previous values after a keep, the decision and its time, model, usage | TTL, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
+| `users/{uid}/assistantTidies/{id}`        | Yes, pseudonymous — note ids and their horizon moves with the model's reasons, the decision and its time, model, usage                                                                                                                              | TTL, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
+| `users/{uid}/assistantAttempts/{id}`      | Yes, indirectly — when the user's model calls ran, their reserved and settled tokens and cost                                                                                                                                                       | TTL, 7 days after creation (`ATTEMPT_RETENTION_DAYS`)             |
+| `users/{uid}/assistantUsage/{YYYY-MM-DD}` | Yes, indirectly — the user's tokens per UTC day, and the ids and start times of calls in flight                                                                                                                                                     | **Never** — no TTL (GAP-04)                                       |
+| `assistantAudit/{operationId}`            | Yes, pseudonymous — actor, board and target note ids, command type, conversation, approval or MCP connection id, revision and time. No contents                                                                                                     | TTL, 30 days after the command (`ASSISTANT_AUDIT_RETENTION_DAYS`) |
+| `assistantSpend/{YYYY-MM}`                | No — the deployment's spend per UTC month                                                                                                                                                                                                           | Never; holds no personal data                                     |
+
 ### Elsewhere
 
 - **Auth0** holds the production login identity (see [Auth0 and MCP data](#auth0-and-mcp-data)).
-- **Firebase Authentication**, kept as a rollback path, holds the credential record of
-  accounts created before Auth0, and Google's own sign-in metadata (last login, provider)
-  that Wally never reads. Deleting a Firestore user document touches neither identity
-  store — erasure has to address all three (GAP-01).
+- **Firebase Authentication** signs in local development and CI; it is not a production
+  fallback. It holds the CI test accounts, and may still hold the credential records of
+  accounts created before Auth0 and Google's own sign-in metadata (last login, provider) that
+  Wally never reads. Since the v0.11.0 data reset none of them maps to a Wally account. Not
+  checked: whether those records have been deleted. Deleting a Firestore user document
+  touches neither identity store — erasure has to address all three (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
-  ([`apps/web/src/i18n/storage.ts`](../apps/web/src/i18n/storage.ts)), `wally.theme`
-  ([`apps/web/src/lib/theme.tsx`](../apps/web/src/lib/theme.tsx)) and a list-view hint flag
-  ([`apps/web/src/features/board/ListView/ListView.tsx`](../apps/web/src/features/board/ListView/ListView.tsx)).
-  All three are strictly functional.
+  ([`apps/web/src/i18n/storage.ts`](../apps/web/src/i18n/storage.ts)), `wally.theme` and
+  `wally.palette` ([`apps/web/src/lib/theme.tsx`](../apps/web/src/lib/theme.tsx)), a list-view
+  hint flag
+  ([`apps/web/src/features/board/ListView/ListView.tsx`](../apps/web/src/features/board/ListView/ListView.tsx))
+  and `wally.auth0.logout`, the time of the last sign-out, which signs out the app's other tabs
+  ([`apps/web/src/features/auth/Auth0SessionProvider.tsx`](../apps/web/src/features/auth/Auth0SessionProvider.tsx)).
+  The Auth0 SPA SDK (`@auth0/auth0-spa-js` 2.29.0, read in its source) keeps the sign-in
+  transaction (`a0.spajs.txs.<client id>`) across the login redirect and sets an
+  `auth0.<client id>.is.authenticated` cookie; its tokens stay in memory. All of these are
+  strictly functional.
 
 ### Who can see what
 
@@ -160,8 +195,8 @@ Fastify's default serializer, which writes the client's address. Pinned by
 against 2,000 lines from the running development API: no IP address, no authorization or
 cookie header. Board-command lines add the command, operation ID, board ID and outcome.
 
-Paths and command lines do carry resource IDs, and a user's first board has their Firebase uid
-as its ID — a pseudonymous identifier, accepted because it identifies no one without the
+Paths and command lines do carry resource IDs, and a user's first board has their Wally user
+id as its ID — a pseudonymous identifier, accepted because it identifies no one without the
 `users` collection. _(Art. 5(1)(c))_
 
 ### No processors beyond Google and Auth0
@@ -172,7 +207,8 @@ to two relationships. _(Art. 28)_
 
 ### No consent banner is required
 
-The only client-side storage is the language and theme preferences and a UI hint flag, all strictly
+The only client-side storage is the language, theme and palette preferences, a UI hint flag, a
+sign-out signal between tabs and the Auth0 SDK's login state (§2, "Elsewhere"), all strictly
 necessary for a service the user explicitly asked for — outside the consent requirement of
 §25(1) TTDSG. A cookie banner here would be noise, not compliance. _(TTDSG §25(2))_
 
@@ -185,7 +221,8 @@ in its own comment that this is the intended posture, not a placeholder. _(Art. 
 
 ### Privilege decisions keyed on email require a verified address
 
-An invite can only be claimed once Firebase confirms the caller controls the address —
+An invite can only be claimed once the sign-in provider (Auth0 in production, Firebase
+locally and in CI) confirms the caller controls the address —
 the `emailVerified` check before `activatePendingInvitesForEmail` in
 [`apps/api/src/plugins/auth.ts`](../apps/api/src/plugins/auth.ts), with the reasoning
 recorded on `UserDoc.emailVerified`. Without it, anyone could claim a colleague's pending
@@ -263,16 +300,22 @@ to, their notes and subtasks, their history events, and their membership rows. R
 mappers so the export cannot drift from the API's own view. Machine-readable and structured
 satisfies Art. 20; a ZIP is unnecessary at this data volume.
 
-### GAP-03 — No privacy notice · **High** · Art. 13
+### GAP-03 — Privacy notice · ~~**High**~~ · Art. 13 · **resolved, pending the controller's review**
 
-Zero privacy, Datenschutz or GDPR text anywhere in the product or `docs/` (verified by grep
-across the repo, excluding tooling). Users are told nothing about what is stored, for how
-long, or on what basis.
+**Resolved in code since v0.8.1.** `/privacy`
+([`apps/web/src/routes/PrivacyPage.tsx`](../apps/web/src/routes/PrivacyPage.tsx)) shows a
+notice in **both DE and EN** (the `privacy` messages in `apps/web/src/i18n/de.ts` and
+`en.ts`). It is linked from the sign-in and sign-up layout
+([`AuthLayout.tsx`](../apps/web/src/routes/AuthLayout.tsx)), the one surface an
+unauthenticated person sees, and from the Account and data page
+([`AccountPage.tsx`](../apps/web/src/routes/AccountPage.tsx)), which the account menu opens.
+It names the operator and contact, the data processed, the member-visibility disclosure from
+§2, the sign-in, hosting and AI providers, that boards and cards do not expire, and the
+rights.
 
-**Plan.** The text is the controller's to write (§8). The code side is: a route and a link in
-the account menu, in **both DE and EN** per [`docs/SPEC.md`](SPEC.md) §12, and a link on
-the sign-in screen — which is the one surface an unauthenticated person sees. Must state the
-member-visibility disclosure from §2.
+**Still open:** the text has not been reviewed by the controller (ORG-04). It says itself
+that provider arrangements, transfer safeguards and legal bases await the operator's
+approval, and it cannot state retention periods until GAP-04 sets them.
 
 ---
 
@@ -284,7 +327,7 @@ No user content expires. The six Firestore TTL policies in
 [`firestore.indexes.json`](../firestore.indexes.json) cover only command receipts (§2) and
 assistant records, kept seven or 30 days
 ([`DEPLOY.md`](DEPLOY.md#board-safety-rollout)). Completed notes, history events,
-membership rows and user profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
+membership rows, daily assistant usage counters and user profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
 is the clearest possible failure of it.
 
 **Plan.** Agree a retention period per category with the controller (§8), then enforce it in
@@ -467,20 +510,21 @@ job needs a scheduler that does not exist yet.
 | 4     | Account deletion                                      | GAP-01         | 1, RFC-0008       |
 | 5     | Share-link expiry                                     | GAP-06         | —                 |
 | 6     | Retention job + invite expiry                         | GAP-04, GAP-07 | 1, scheduler      |
-| 7     | Privacy notice route, DE + EN                         | GAP-03         | controller's text |
+| ~~7~~ | ~~Privacy notice route, DE + EN~~ — **done**          | GAP-03         | controller's text |
 | 8     | History purpose in spec + notice                      | GAP-08         | —                 |
 | ~~9~~ | ~~Seed data cleanup~~ — **done**                      | GAP-10         | —                 |
 | 10    | TOM register                                          | GAP-09         | —                 |
 
 Items 2 and 5 have no external dependency. Item 5 can start immediately; items 3 and 4 are
 rebuilt on PostgreSQL after the migration (RFC-0008); item 2 is deferred (GAP-05) and,
-when picked up, is three `gcloud` commands with no code change and no extra cost. Item 9 is done.
+when picked up, is three `gcloud` commands with no code change and no extra cost. Items 7 and
+9 are done; item 7's text still awaits the controller's review (ORG-04).
 
 ### Checklist
 
 - [ ] GAP-01 Account deletion (Art. 17)
 - [ ] GAP-02 Data export (Art. 15, 20)
-- [ ] GAP-03 Privacy notice (Art. 13)
+- [x] GAP-03 Privacy notice (Art. 13) — `/privacy` live since v0.8.1; text pending the controller's review (ORG-04)
 - [ ] GAP-04 Retention policy (Art. 5(1)(e))
 - [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done
 - [ ] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
@@ -525,8 +569,9 @@ fact.
 
 ### ORG-04 — Privacy notice text · Art. 13
 
-The controller writes it; engineering ships it (GAP-03). Must cover the member-visibility
-disclosure in §2 and the retention periods from GAP-04.
+Engineering shipped a notice at `/privacy` (GAP-03); the controller has yet to review its
+text. It must cover the member-visibility disclosure in §2 and the retention periods from
+GAP-04.
 
 ### ORG-05 — Do we need a DPIA? · Art. 35
 

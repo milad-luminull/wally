@@ -20,8 +20,8 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
 // the active i18n language (LanguageProvider keeps the two equal). The card parses in that
 // language, so the suite's English cases read English and the German cases, marked below,
 // switch the whole card to German with `inGerman()`: German words, German copy.
-vi.mock('@/i18n/LanguageProvider', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/i18n/LanguageProvider')>();
+vi.mock('@/i18n/languageContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/i18n/languageContext')>();
   const { i18n } = await import('@/i18n');
   const { FALLBACK_LOCALE, normalizeLocale } = await import('@/i18n/locales');
   return {

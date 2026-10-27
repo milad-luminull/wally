@@ -35,12 +35,6 @@ export const MenuItem = React.forwardRef<
 ));
 MenuItem.displayName = 'MenuItem';
 
-export function MenuLabel({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p className={cn('px-2 pb-1 pt-1.5 text-12 font-medium text-fg-3', className)} {...props} />
-  );
-}
-
 export function MenuSeparator({ className }: { className?: string }) {
   return <div role="separator" className={cn('-mx-1 my-1 h-px bg-border-subtle', className)} />;
 }

@@ -14,11 +14,7 @@ interface Session {
 }
 
 /** Whether the board, as it is shown now, has a place to draw this capture. */
-export function captureRendersIn(
-  placement: CapturePlacement,
-  view: BoardView,
-  axis: BoardAxis,
-): boolean {
+function captureRendersIn(placement: CapturePlacement, view: BoardView, axis: BoardAxis): boolean {
   switch (placement.kind) {
     case 'free':
       return view === 'wall' && axis === 'free';

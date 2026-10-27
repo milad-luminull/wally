@@ -1,13 +1,9 @@
 import { z } from 'zod';
+import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   FIREBASE_PROJECT_ID: z.string().min(1),
-  // Optional so the API can boot against the Firestore emulator (and so the test suites
-  // can run) without a service-account key. They are still required for real Firebase
-  // ID-token verification — plugins/firebase.ts fails fast if they're missing there.
-  FIREBASE_CLIENT_EMAIL: z.string().min(1).optional(),
-  FIREBASE_PRIVATE_KEY: z.string().min(1).optional(),
   // Set by docker-compose to point the Admin SDK at the local Firestore emulator. The SDK
   // reads this variable itself; it's declared here so the config is visible and validated.
   FIRESTORE_EMULATOR_HOST: z.string().min(1).optional(),
@@ -35,10 +31,11 @@ const envSchema = z.object({
   // Local transport alias only. Auth0's registered MCP JWT audience stays canonical.
   MCP_LOCAL_URL: z.string().url().optional(),
   MCP_CLIENT_ID: z.string().min(1).optional(),
-  AUTH0_ISSUER: z.literal('https://login.luminull.com/').default('https://login.luminull.com/'),
-  AUTH0_AUDIENCE: z
-    .literal('https://api.wally.luminull.com')
-    .default('https://api.wally.luminull.com'),
+  // Fixed values (lib/auth/constants.ts), which the API uses directly. Still accepted here so
+  // existing compose and release configuration keeps working, but only with exactly those
+  // values: anything else fails at boot.
+  AUTH0_ISSUER: z.literal(AUTH0_ISSUER).optional(),
+  AUTH0_AUDIENCE: z.literal(AUTH0_AUDIENCE).optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // The assistant's deployment switch. Off by default: with it off, the board response
   // reports `assistantEnabled: false` and every assistant operation answers 404.
@@ -47,7 +44,7 @@ const envSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
-  // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
+  // The only provider is `vertex` (Gemini on Vertex); any other fails at boot.
   // The default is Gemini 3.8 Flash on the EU multi-region endpoint (location `eu`, below),
   // which keeps processing in the EU (D4). Gemini 2.5 Flash, the earlier default, is retired
   // by Google on 2026-10-20. Verified 2026-10-19 with free countTokens probes: 3.8/3.7/3.6
@@ -59,7 +56,7 @@ const envSchema = z.object({
   // roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('eu'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
-  // Per-user daily cap, in tokens, on every key; and the deployment key's monthly cap in
+  // Per-user daily cap, in tokens; and the deployment's monthly cap in
   // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.
   ASSISTANT_DAILY_CAP_TOKENS: z.coerce.number().int().positive().default(300_000),
   ASSISTANT_MONTHLY_CAP_MICRO_USD: z.coerce.number().int().positive().default(15_000_000),

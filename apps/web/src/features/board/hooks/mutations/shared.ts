@@ -123,7 +123,7 @@ export function captureBoardMutation(
 
 /**
  * Takes a board out of the board list at once and returns the list as it was, for a rollback.
- * Used when the caller deletes or leaves a board (RFC 0002 §9, §10).
+ * Used when the caller deletes or leaves a board (RFC-0002 §9, §10).
  */
 export function hideBoardInList(queryClient: QueryClient, keys: QueryKeys, boardId: string) {
   void queryClient.cancelQueries({ queryKey: keys.meBoards() });

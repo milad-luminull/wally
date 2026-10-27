@@ -1,4 +1,5 @@
 import type { Language } from '@wally/shared';
+import { localDate } from '../localDate';
 
 /**
  * The instant, local layer of capture (RFC-0005-wallybot-inline.md §3.2): dates, people and urgency
@@ -84,8 +85,6 @@ const MENTION = /(^|\s)@([^\s@]+)/g;
 const TRAILING_PUNCTUATION = /[.,;:!?)]+$/;
 const escapeRegExp = (literal: string) => literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = (d: Date, n: number) => {
   const next = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   next.setDate(next.getDate() + n);
@@ -123,7 +122,7 @@ function earliest<T extends CaptureMatch>(candidates: (T | null)[]): T | null {
 function parseDate(text: string, ctx: Context): CaptureParse['dueDate'] {
   const { language, today } = ctx;
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const inDays = (n: number) => ({ iso: iso(addDays(todayMidnight, n)) });
+  const inDays = (n: number) => ({ iso: localDate(addDays(todayMidnight, n)) });
   const { full, short } = WEEKDAYS[language];
 
   return earliest([
@@ -140,14 +139,14 @@ function parseDate(text: string, ctx: Context): CaptureParse['dueDate'] {
     }),
     firstAccepted(text, ISO_DATE, (m) => {
       const date = calendarDate(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-      return date && { iso: iso(date) };
+      return date && { iso: localDate(date) };
     }),
     firstAccepted(text, DOTTED_DATE, (m) => {
       const day = Number(m[1]);
       const month = Number(m[2]) - 1;
       if (m[3]) {
         const date = calendarDate(Number(m[3]), month, day);
-        return date && { iso: iso(date) };
+        return date && { iso: localDate(date) };
       }
       // This year's, unless it is past or does not exist (29.02. in a common year): then next
       // year's, which may not exist either (31.11.).
@@ -155,7 +154,7 @@ function parseDate(text: string, ctx: Context): CaptureParse['dueDate'] {
       const thisYear = calendarDate(year, month, day);
       const date =
         thisYear && thisYear >= todayMidnight ? thisYear : calendarDate(year + 1, month, day);
-      return date && { iso: iso(date) };
+      return date && { iso: localDate(date) };
     }),
   ]);
 }

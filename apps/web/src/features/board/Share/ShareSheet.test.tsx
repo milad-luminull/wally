@@ -113,36 +113,30 @@ describe('ShareSheet', () => {
     await waitFor(() => expect(membersApi.invite).toHaveBeenCalledTimes(1));
   });
 
-  it(
-    'flips "Copy" to "Copied" and back after the revert delay',
-    async () => {
-      // Real timers throughout — mixing vi.useFakeTimers() with Radix's Popover (open)
-      // and userEvent's own internals proved unreliable (intermittent hangs with no
-      // clear single cause). A real 2.1s wait is slower but dependable; this test's
-      // extended per-test timeout below accounts for that plus this environment's
-      // already-observed slow first render (~8s for openShareSheet() alone).
-      const user = await openShareSheet();
+  it('flips "Copy" to "Copied" and back after the revert delay', async () => {
+    // Real timers throughout — mixing vi.useFakeTimers() with Radix's Popover (open)
+    // and userEvent's own internals proved unreliable (intermittent hangs with no
+    // clear single cause). A real 2.1s wait is slower but dependable; the suite-wide
+    // testTimeout (vitest.config.ts) accounts for that plus this environment's
+    // already-observed slow first render (~8s for openShareSheet() alone).
+    const user = await openShareSheet();
 
-      const copyButton = screen.getByRole('button', { name: 'Copy board link' });
-      await user.click(copyButton);
+    const copyButton = screen.getByRole('button', { name: 'Copy board link' });
+    await user.click(copyButton);
 
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument(),
-      );
-      expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.example.com/w/tok');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument());
+    expect(clipboardWriteText).toHaveBeenCalledWith('https://hub.example.com/w/tok');
 
-      // The component's own revert setTimeout fires and calls setState while this raw
-      // wait is in flight, outside any RTL-wrapped interaction — act() here keeps React
-      // from warning about that state update happening "outside of a test".
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 2100));
-      });
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Copy board link' })).toBeInTheDocument(),
-      );
-    },
-    { timeout: 20000 },
-  );
+    // The component's own revert setTimeout fires and calls setState while this raw
+    // wait is in flight, outside any RTL-wrapped interaction — act() here keeps React
+    // from warning about that state update happening "outside of a test".
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2100));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Copy board link' })).toBeInTheDocument(),
+    );
+  });
 
   describe('when something fails', () => {
     const open = async () => {

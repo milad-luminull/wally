@@ -13,11 +13,7 @@ import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
 import type { InlineEditProps } from '../Capture/inlineEdit';
 import type { NoteCardActions } from './NoteCardActions';
-
-/** Droppable-region id convention consumed by WallView's onDragEnd. */
-export function zoneDroppableId(axis: BoardAxis, key: string) {
-  return `zone:${axis}:${key}`;
-}
+import { zoneDroppableId } from './zoneDroppableId';
 
 /** The note being written into one zone, and what the card needs to write it. */
 interface ZoneCapture {

@@ -36,9 +36,9 @@ import {
 } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
-import { useTheme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 import { useCanvasPattern } from '@/lib/preferences';
 import {
   ALT_KEY,

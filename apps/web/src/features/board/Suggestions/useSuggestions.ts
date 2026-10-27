@@ -8,6 +8,7 @@ import { settleNoteCaches } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
 import { nextKeptStamp } from './keptOrder';
 import { failureOf } from '@/lib/errors';
+import { localDate } from '@/lib/localDate';
 import { afterNoteSaves } from './editAsk';
 
 /** What an outcome line's Try again repeats. */
@@ -119,11 +120,6 @@ export interface SuggestionsController {
   syncNotes: (notes: readonly { id: string; revision: number }[]) => void;
 }
 
-/** Today in the browser's calendar, as the API expects it; not UTC, which is a day off at night. */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 /** The title, its description and Private: only the person takes them, never the countdown. */
 const optIn = (key: SuggestionFieldKey) =>
   (suggestionOptInFieldKeys as readonly SuggestionFieldKey[]).includes(key);
@@ -490,7 +486,7 @@ export function useSuggestions(
           noteId,
           locked,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          today: localToday(),
+          today: localDate(),
         });
       const { after } = options ?? {};
       void (

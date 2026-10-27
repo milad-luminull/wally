@@ -54,7 +54,7 @@ export interface ReserveInput {
   userId: string;
   now: Date;
   estimate: { inputTokens: number; outputTokens: number };
-  price: ModelPrice | null;
+  price: ModelPrice;
   caps: { dailyTokens: number; monthlyMicroUsd: number };
 }
 export interface Reservation {
@@ -94,7 +94,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
   const day = dayKey(now);
   const month = monthKey(now);
   const reservedTokens = estimate.inputTokens + estimate.outputTokens;
-  const reservedMicroUsd = price ? microUsdFor(price, estimate) : 0;
+  const reservedMicroUsd = microUsdFor(price, estimate);
   const attemptId = randomUUID();
   const usageRef = assistantUsageCol(db, userId).doc(day);
   const spendRef = assistantSpendCol(db).doc(month);
@@ -128,7 +128,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
       throw new BudgetError('ASSISTANT_BUSY', null);
     if (usage.tokens + reservedTokens > caps.dailyTokens)
       throw new BudgetError('ASSISTANT_DAILY_CAP', nextDayStart(day));
-    if (price && spend.microUsd + reservedMicroUsd > caps.monthlyMicroUsd)
+    if (spend.microUsd + reservedMicroUsd > caps.monthlyMicroUsd)
       throw new BudgetError('ASSISTANT_MONTHLY_CAP', nextMonthStart(month));
 
     const stamp = Timestamp.fromDate(now);
@@ -137,14 +137,14 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
       inFlight: { ...inFlight, [attemptId]: now.getTime() },
       updatedAt: stamp,
     });
-    if (price) tx.set(spendRef, { microUsd: spend.microUsd + reservedMicroUsd, updatedAt: stamp });
+    tx.set(spendRef, { microUsd: spend.microUsd + reservedMicroUsd, updatedAt: stamp });
     const attempt: AssistantAttemptDoc = {
       day,
       month,
       reservedTokens,
       reservedMicroUsd,
-      inputMicroUsdPerToken: price?.inputMicroUsdPerToken ?? 0,
-      outputMicroUsdPerToken: price?.outputMicroUsdPerToken ?? 0,
+      inputMicroUsdPerToken: price.inputMicroUsdPerToken,
+      outputMicroUsdPerToken: price.outputMicroUsdPerToken,
       state: 'RESERVED',
       createdAt: stamp,
       expiresAt: Timestamp.fromMillis(now.getTime() + ATTEMPT_RETENTION_DAYS * 86_400_000),
@@ -185,7 +185,7 @@ export async function settleAttempt(
     const spendRef = assistantSpendCol(db).doc(attempt.month);
     const [usageSnap, spendSnap] = await Promise.all([tx.get(usageRef), tx.get(spendRef)]);
     const settledTokens = actual.inputTokens + actual.outputTokens;
-    // Priced with the price the attempt was reserved at; 0 on the user's own key.
+    // Priced with the price the attempt was reserved at.
     const settledMicroUsd = microUsdFor(
       {
         inputMicroUsdPerToken: attempt.inputMicroUsdPerToken,
