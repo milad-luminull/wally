@@ -19,3 +19,8 @@ export function fitToContent(field: HTMLTextAreaElement | null) {
   field.style.height = 'auto';
   field.style.height = `${field.scrollHeight}px`;
 }
+
+/** The schema keeps a description as typed; only whitespace alone counts as no text. */
+export function asTyped(text: string): string {
+  return text.trim() ? text : '';
+}
