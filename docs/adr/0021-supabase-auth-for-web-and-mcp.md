@@ -82,7 +82,7 @@ Chosen option: **option 1**.
 ### Consequences
 
 - Good: one identity provider, in the same project as the data.
-- Good: the account cleanup worker drops its Auth0 Management credentials.
+- Good: rebuilt account deletion can remove the login and the data in one project.
 - Good: the mapping, revocation and audit records built for Auth0 are reused.
 - Bad: a second identity migration a few weeks after the first.
   - Every MCP connection must re-authorize.
@@ -108,4 +108,4 @@ Chosen option: **option 1**.
 
 - [Identity RFC](../rfcs/0012-supabase-auth-and-mcp.md), [platform migration](../rfcs/0011-platform-migration.md).
 - Behavior to preserve: [connection model](../MCP_CONNECTION_MODEL.md),
-  [Wally over MCP](../rfcs/0004-wally-mcp.md), [account controls](../ACCOUNT_CONTROLS_RELEASE.md).
+  [Wally over MCP](../rfcs/0004-wally-mcp.md).

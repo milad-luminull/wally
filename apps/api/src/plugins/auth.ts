@@ -75,7 +75,7 @@ interface ProvisionResult {
  * transaction, so a new user can't end up with one and not the other, and two concurrent first
  * requests can't both create a board. The first board shares the user's uid as its id; later
  * boards (board.create) get generated ids, and nothing reads meaning into the uid-keyed one
- * any more. A board the user deleted is never recreated here (RFC BOARD_HOME §12.3).
+ * any more. A board the user deleted is never recreated here (RFC 0002 §12.3).
  */
 async function provisionUser(
   db: Firestore,

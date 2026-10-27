@@ -21,8 +21,6 @@ and Auth0 are decommissioned.** Every existing capability keeps working, in part
 - MCP for ChatGPT, including reads, writes, conflicts, replay safety, private-note
   isolation, Disconnect and Reconnect, and the request and write budgets
   ([connection model](../MCP_CONNECTION_MODEL.md)).
-- Account export and deletion, including the cleanup worker
-  ([account controls](../ACCOUNT_CONTROLS_RELEASE.md)).
 - Existing accounts keep their Wally user ID and data. Accounts are never merged by
   email alone.
 
@@ -69,9 +67,10 @@ The brief's table is authoritative for the choice of provider. In short:
   `api.wally.luminull.com` through a Cloud Run domain mapping, which is a Preview feature
   (ADR-0015).
 - **Jobs:**
-  - Account cleanup runs as the Cloud Run job `wally-account-cleanup` every 5 minutes.
-    It writes to Firestore and calls the Auth0 Management API. Its release step runs only
-    when `AUTH0_ENABLED` is true.
+  - None for accounts. Self-service export and deletion were removed on 2026-10-26, and
+    the `wally-account-cleanup` worker is being retired
+    ([DEPLOY.md](../DEPLOY.md#retiring-the-account-cleanup-worker)). Both are rebuilt
+    on Supabase after the migration.
   - Board cleanup jobs drain inline after a command.
   - Firestore TTL policies expire receipts and assistant records.
 
@@ -143,8 +142,6 @@ Each has to be proven on a free project before the slice that depends on it.
   - Retire Firebase Authentication and Auth0 only after every active account has been
     shown to sign in through Supabase Auth.
   - Retire Auth0's custom domain `login.luminull.com` and its tenant.
-  - Replace the cleanup worker's Auth0 Management API calls with Supabase admin deletion,
-    then remove its Auth0 credentials and the release step's `AUTH0_ENABLED` condition.
   - Disconnect the ChatGPT client registered in Auth0.
 - **Firebase Hosting:** retire it after the Cloudflare release has served for its window.
 - **Code and docs:**

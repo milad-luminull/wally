@@ -5,7 +5,7 @@ import { AccountMenu } from '@/features/board/AccountMenu';
 
 /**
  * The chrome of the board home: the same header height, border and account menu as a board,
- * without any board tools (RFC BOARD_HOME §7.1).
+ * without any board tools (RFC 0002 §7.1).
  */
 export function HomeShell({ children }: { children: ReactNode }) {
   return (

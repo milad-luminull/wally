@@ -1017,7 +1017,7 @@ export const de = {
     remove: 'Nicht verschieben',
     dotAria: 'Soll verschoben werden, wartet auf Enter',
   },
-  /** The board home at /boards (RFC BOARD_HOME §7–§10). */
+  /** The board home at /boards (RFC 0002 §7–§10). */
   home: {
     title: 'Deine Boards',
     shared: 'Mit dir geteilt',

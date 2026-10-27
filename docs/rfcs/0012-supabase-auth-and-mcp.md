@@ -116,8 +116,6 @@ stays revoked.
      denial and revocation.
 4. **Retire:**
    - Auth0: its tenant, its client registrations and `login.luminull.com`.
-   - The cleanup worker's Auth0 Management credentials. Supabase admin deletion replaces
-     them.
    - The Firebase verifier and the `firebase` web SDK.
 
 ## 6. Proof required before step 2

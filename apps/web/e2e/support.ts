@@ -33,7 +33,7 @@ export async function completeSignIn(page: Page) {
     await page.getByLabel('Passwort').fill(PASSWORD);
     await page.getByRole('button', { name: 'Anmelden', exact: true }).click();
   }
-  // One board lands in it; several land on the board home (RFC BOARD_HOME §6).
+  // One board lands in it; several land on the board home (RFC 0002 §6).
   await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
 }
 

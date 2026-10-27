@@ -42,9 +42,8 @@ auth and MCP modules.
   - `users`, with embedded preferences;
   - `authIdentities`;
   - per-user `mcpConnections` and `mcpLimits` (the MCP request and write budgets);
-  - `accountDeletionJobs`, the leased and resumable deletion jobs;
-  - `accountDenials`, which block deleted accounts and their `(issuer, subject)`
-    identities.
+  - `accountDeletionJobs` and `accountDenials`, which nothing reads since self-service
+    export and deletion were removed on 2026-10-26. They are not migrated.
 - **Boards:**
   - `whiteboards` and its `members`, with the cached `memberRoles`;
   - `shareLinks`.
@@ -104,9 +103,8 @@ The invariants:
   - Settling happens exactly once, and releasing keeps the charge.
 - **Assistant records:** conversation turn-count guards, and compare-and-set claims on
   suggestions and tidies.
-- **Account deletion:**
-  - One leased job per user, with a 300 s lease, resumable after a crash.
-  - Denials keep a deleted account and its identities from coming back.
+- **Account export and deletion:** none to preserve. They are rebuilt on PostgreSQL
+  later, against the new schema.
 - **Invites:** activation only for a verified email. Duplicate rows collapse. An invite
   for the board owner is removed.
 - **Error codes:** today Firestore's gRPC codes map to Wally errors (5 → 404, contention
@@ -117,7 +115,7 @@ The invariants:
 
 - The six TTL policies become `expires_at` columns, purged by a scheduled job, either
   pg_cron or the background service.
-- The purge must never touch `boardCleanup`, `accountDeletionJobs` or `accountDenials`.
+- The purge must never touch `boardCleanup`.
   It must not touch MCP revocation tombstones either, until a retention policy exists.
 - Board and note deletion cascade with `ON DELETE CASCADE`, behind the existing
   tombstone.
@@ -146,14 +144,11 @@ The invariants:
 3. **Verify:**
    - Permission checks, concurrent writes and stale revisions.
    - Retry and replay safety, deletion and cleanup.
-   - MCP reads and writes, and account export and deletion, including the
-     `wally-account-cleanup` job.
+   - MCP reads and writes.
    - The full E2E suite against Postgres.
 4. **Cut over during a bounded write freeze:**
-   - Pause the `wally-account-cleanup` schedule before the snapshot.
    - Snapshot Firestore, import and reconcile.
-   - Switch the API and the cleanup job to PostgreSQL together, and verify before
-     reopening writes and the schedule.
+   - Switch the API to PostgreSQL, and verify before reopening writes.
    - The job's release step must no longer depend on `AUTH0_ENABLED`. Whether the job
      moves into `wally-background` is decided in workstream 2.
    - Define the rollback window and how writes made after cutover are recovered, before

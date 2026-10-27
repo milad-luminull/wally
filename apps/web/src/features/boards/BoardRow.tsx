@@ -9,7 +9,7 @@ import { useEnumLabels } from '@/i18n/enumLabels';
 
 /**
  * One board on the home: the whole row opens it, and a trailing menu holds the single way out
- * of it — delete for an own board, leave for a shared one (RFC BOARD_HOME §7.3). Rename stays
+ * of it — delete for an own board, leave for a shared one (RFC 0002 §7.3). Rename stays
  * in the board's own top bar, so there is one place to rename.
  */
 export function BoardRow({

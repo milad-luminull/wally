@@ -5,7 +5,7 @@ import { drainCleanup } from '../src/lib/commands/maintenance.js';
 import { membersCol, notesCol, shareLinksCol, whiteboardsCol } from '../src/lib/db/collections.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
-/** RFC BOARD_HOME §8–§10, §12: creating, deleting and leaving boards. */
+/** RFC 0002 §8–§10, §12: creating, deleting and leaving boards. */
 const projectId = 'wally-boards-lifecycle';
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
