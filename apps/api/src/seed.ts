@@ -17,16 +17,20 @@ import { getDb } from './lib/db/client.js';
 import { generateShareToken } from './lib/tokens.js';
 
 /**
- * Fixed fake Firebase UIDs used only as dev fixtures. Real sign-in creates real UIDs via
- * the auth preHandler (see src/plugins/auth.ts) — these seed users only show up when
- * Firebase auth is bypassed/mocked in local dev, or as the target of the email-based
- * auto-activation demo (robin.vogt@example.com's pending invite below).
+ * Fixed user ids used only as dev fixtures. Real sign-in resolves its own user id in the auth
+ * preHandler (see src/plugins/auth.ts); these seed users are reached only through a test
+ * verifier, through the Auth0 E2E seed (seed-auth0-e2e.ts binds an Auth0 identity to
+ * seed-owner), or as the target of the email-based auto-activation demo
+ * (robin.vogt@example.com's pending invite below).
  */
 const OWNER_UID = 'seed-owner';
 const EDIT_COLLEAGUE_UID = 'seed-colleague-edit';
 const VIEW_COLLEAGUE_UID = 'seed-colleague-view';
 
-/** The board's document id IS its owner's uid — see WhiteboardDoc. */
+/**
+ * The owner's first board, whose id is the owner's user id, as provisionUser in
+ * src/plugins/auth.ts creates it; later boards get generated ids.
+ */
 const BOARD_ID = OWNER_UID;
 
 function dateFromNow(days: number): string {
