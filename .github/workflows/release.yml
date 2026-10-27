@@ -249,6 +249,9 @@ jobs:
           cache-from: type=registry,ref=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api:buildcache
           cache-to: type=registry,ref=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/wally/wally-api:buildcache,mode=max,image-manifest=true,oci-mediatypes=true
 
+      # A reused candidate already records its linux/amd64 digest. A fresh build reports the
+      # digest of its image index, which Cloud Run never records (scripts/resolve-release-image.mjs
+      # platformDigest), so resolve the image inside it.
       - name: Select immutable release image
         id: image
         env:
@@ -256,7 +259,13 @@ jobs:
           BUILT_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          digest="${EXISTING_DIGEST:-$BUILT_DIGEST}"
+          if [ -n "$EXISTING_DIGEST" ]; then
+            digest="$EXISTING_DIGEST"
+          else
+            digest=$(docker buildx imagetools inspect --raw \
+                       "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${BUILT_DIGEST}" \
+                     | node scripts/resolve-release-image.mjs platform)
+          fi
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 

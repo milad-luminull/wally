@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   apiConfig,
   existingDigest,
+  platformDigest,
   runEnvFlag,
   verifyCandidate,
 } from './resolve-release-image.mjs';
@@ -117,3 +118,17 @@ test('missing deployed candidate fails', () =>
     () => verifyCandidate([], 'candidate', 'repo', { commit: 'same', config: {} }, digest),
     /not found/,
   ));
+
+const index = (manifests) => ({ mediaType: 'application/vnd.oci.image.index.v1+json', manifests });
+const amd64 = { digest, platform: { os: 'linux', architecture: 'amd64' } };
+const attestation = {
+  digest: 'sha256:' + 'c'.repeat(64),
+  platform: { os: 'unknown', architecture: 'unknown' },
+  annotations: { 'vnd.docker.reference.type': 'attestation-manifest' },
+};
+test('the release image is the linux/amd64 image inside the built index', () =>
+  assert.equal(platformDigest(index([amd64, attestation])), digest));
+test('an index without a linux/amd64 image stops the release', () =>
+  assert.throws(() => platformDigest(index([attestation])), /found 0/));
+test('a single-image manifest is not taken for an index', () =>
+  assert.throws(() => platformDigest({ config: {}, layers: [] }), /not an image index/));
