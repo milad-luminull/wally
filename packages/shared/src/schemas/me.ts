@@ -114,4 +114,3 @@ export const meUpdateSchema = z
   .refine((body) => body.language !== undefined || body.preferences !== undefined, {
     message: 'Nothing to update',
   });
-export type MeUpdateInput = z.infer<typeof meUpdateSchema>;

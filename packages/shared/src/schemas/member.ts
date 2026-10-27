@@ -30,7 +30,6 @@ export type MemberDto = z.infer<typeof memberDtoSchema>;
 export const shareLinkRoleSchema = z.object({
   role: whiteboardRoleSchema,
 });
-export type ShareLinkRoleInput = z.infer<typeof shareLinkRoleSchema>;
 
 export const shareLinkDtoSchema = z.object({
   token: z.string(),
