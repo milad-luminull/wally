@@ -7,8 +7,8 @@ This index is the one place that says where each RFC stands. A document's own he
 records its decision; the **In production** column below is kept true by the pull request
 that changes it (see [Keeping the status true](../README.md#keeping-the-status-true)).
 
-Last checked against the code on 2026-10-27, at `main` 4b0c9b6d. Production runs
-**v0.9.2**.
+Last checked against the code on 2026-10-27, at `main` 157bca44. Production runs
+**v0.10.1**.
 
 ## Index
 
@@ -19,7 +19,7 @@ Last checked against the code on 2026-10-27, at `main` 4b0c9b6d. Production runs
 | [RFC-0003](RFC-0003-wally-agent.md)                | Wally assistant                               | accepted                              | **partly live** since v0.5.0. Not built: own provider keys and model choice, multi-item capture, general approved write turns (§6) |
 | [RFC-0004](RFC-0004-wally-mcp.md)                  | Wally over MCP                                | accepted                              | **live** since v0.8.3, reads and writes. Not built: the coverage gaps in §3 (board create and rename, delete, history and others)  |
 | [RFC-0005](RFC-0005-wallybot-inline.md)            | Wallybot inline                               | accepted                              | **live**; the full set since v0.6.0                                                                                                |
-| [RFC-0006](RFC-0006-auth0-mcp-rollout.md)          | Auth0 login and first MCP release             | superseded by RFC-0012                | **live** since v0.8.3. Still serves production until RFC-0012 is built. The one-off Auth0 import was removed on `main` (#76)       |
+| [RFC-0006](RFC-0006-auth0-mcp-rollout.md)          | Auth0 login and first MCP release             | superseded by RFC-0012                | **live** since v0.8.3. Still serves production until RFC-0012 is built. The one-off Auth0 import was removed in v0.10.1            |
 | [RFC-0007](RFC-0007-eu-platform-and-ai-workers.md) | EU platform and durable AI workers            | superseded by RFC-0011                | never built                                                                                                                        |
 | [RFC-0008](RFC-0008-firestore-to-supabase.md)      | Firestore to Supabase                         | accepted                              | not built                                                                                                                          |
 | [RFC-0009](RFC-0009-uploads-and-retrieval.md)      | Private uploads and document retrieval        | proposed                              | not built                                                                                                                          |
