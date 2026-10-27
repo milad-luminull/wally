@@ -696,6 +696,56 @@ Cloud Run keeps every revision. If a deploy breaks production, roll back in the 
 console: select the service → **Revisions** → pick the previous one → **Manage traffic** →
 send 100% to it. That is faster than rebuilding.
 
+### Release with a data reset (ADR-0024)
+
+The release that renames the stored values to English
+([ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md)) ships with no
+migration: every Firestore document is deleted instead. The owner runs every command below.
+
+**Production**
+
+1. Merge, push the `v*` tag, approve the `production` environment, and wait for the release
+   workflow to finish. Delete after the deploy, not before: an old API on an empty database
+   would write German values again on the next sign-in or new note.
+2. Right away, delete every document in the production database:
+
+   ```bash
+   npx --yes firebase-tools@15.30.2 firestore:delete --all-collections --database wally --project luminull-wally
+   ```
+
+   Leave out `--force`: the command then asks for confirmation. `--database wally` matters;
+   without it the command targets `(default)`, the empty US database (section 4).
+   `15.30.2` is the version `FIREBASE_TOOLS_VERSION` pins in
+   [`release.yml`](../.github/workflows/release.yml); the flags were checked on 2026-10-27
+   against `firestore:delete --help` of that version. Composite indexes, TTL policies and
+   rules are configuration, not documents, and stay.
+
+3. In the Firebase console (**Firestore Database**, database `wally`), check that no
+   collection remains.
+4. Sign in at `wally.luminull.com`: a new user and a first board are provisioned. Reconnect
+   any MCP app.
+5. Rolling back to a release before this one is not possible once English data exists; fix
+   forward.
+
+Between the deploy and the delete, which should be a few minutes, an existing board answers
+500, because its German values fail the response schema. The release smoke tests read no
+board data (`/health`, a 401 on `/whiteboards`, the CORS preflight and static pages), so this
+window does not trigger the automatic rollback. An open tab still sending an old value gets
+400 until it reloads.
+
+Not verified: which of the owner's accounts holds the permission to run the delete, and
+whether `--all-collections` also removes documents under parent documents that do not exist
+(step 3 catches that).
+
+**Local emulator**
+
+1. Pull `main` into the live checkout.
+2. `docker compose restart firestore api web`. The emulator comes back empty:
+   `docker-compose.yml` starts it without `--import` or `--export-on-exit` and mounts only
+   `firebase.json`, the rules and the indexes. The `api` and `web` restarts pick up the new
+   code, which their watchers miss after a git change.
+3. Optional: `make seed` for the demo board.
+
 ---
 
 ## 14. What this will cost

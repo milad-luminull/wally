@@ -1,6 +1,6 @@
 # ADR-0014: English identifiers and persisted values, migrated in place
 
-- **Status:** accepted (recorded on 2026-10-27: the identifier rename is live since v0.5.0; persisted values are not migrated yet)
+- **Status:** accepted; its migration steps (expand, migrate, contract) are superseded by [ADR-0024](ADR-0024-rename-persisted-values-without-migration.md)
 - **Date:** 2026-10-17
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** the context sentence of [ADR-0007](ADR-0007-ui-text-in-bundled-i18next-catalogues.md) ("Wally's domain language is German …") and the sentence in [`BRAND.md`](../BRAND.md) that the persisted colour keys never change
