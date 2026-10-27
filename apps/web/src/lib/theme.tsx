@@ -1,42 +1,16 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { themePreferenceValues, type ThemePreference, type Palette } from '@wally/shared';
 import { parsePalette } from './palettes';
 import { useMe } from '@/i18n/useProfileLanguage';
 import { useSavePreferences } from './preferences';
+import { ThemeContext, type ResolvedTheme } from './themeContext';
 
 /** Read by the inline script in index.html too — keep the two in step. */
-export const THEME_STORAGE_KEY = 'wally.theme';
-export const PALETTE_STORAGE_KEY = 'wally.palette';
+const THEME_STORAGE_KEY = 'wally.theme';
+const PALETTE_STORAGE_KEY = 'wally.palette';
 
 /** The wall colour per theme, for the browser chrome. Mirrors --canvas in globals.css. */
 const THEME_COLOR = { light: '#f6f6f7', dark: '#0a0a0b' } as const;
-
-type ResolvedTheme = 'light' | 'dark';
-
-interface ThemeContextValue {
-  theme: ThemePreference;
-  palette: Palette;
-  setPalette: (palette: Palette) => void;
-  resolved: ResolvedTheme;
-  setTheme: (theme: ThemePreference) => void;
-}
-
-/* Outside a provider (isolated component tests) the theme is simply "system" and inert. */
-const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'system',
-  palette: 'paper',
-  setPalette: () => {},
-  resolved: 'light',
-  setTheme: () => {},
-});
 
 /* Both accessors swallow errors: localStorage throws in Safari's private mode and when site
  * data is blocked, and a theme is never worth taking the app down for. */
@@ -158,8 +132,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, resolved, setTheme, palette, setPalette],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme(): ThemeContextValue {
-  return useContext(ThemeContext);
 }

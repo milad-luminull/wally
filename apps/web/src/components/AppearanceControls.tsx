@@ -5,7 +5,7 @@ import { paletteValues, type Palette } from '@wally/shared';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Segmented } from './ui/segmented';
-import { useTheme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 import { PALETTES } from '@/lib/palettes';
 
 export function AppearanceControls() {

@@ -6,7 +6,8 @@ import { DEFAULT_PREFERENCES } from '@wally/shared';
 const state = vi.hoisted(() => ({ profile: undefined as MeDto | undefined, save: vi.fn() }));
 vi.mock('@/i18n/useProfileLanguage', () => ({ useMe: () => ({ data: state.profile }) }));
 vi.mock('./preferences', () => ({ useSavePreferences: () => state.save }));
-import { ThemeProvider, useTheme } from './theme';
+import { ThemeProvider } from './theme';
+import { useTheme } from './themeContext';
 const wrapper = ({ children }: { children: ReactNode }) => (
   <ThemeProvider>{children}</ThemeProvider>
 );
