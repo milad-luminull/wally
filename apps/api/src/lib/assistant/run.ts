@@ -2,6 +2,7 @@ import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import type { BoardCommand, NoteDetailDto, NoteDto } from '@wally/shared';
 import { executeBoardCommand, type Actor, type CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
+import { notFound } from '../commands/context.js';
 import { AppError } from '../errors.js';
 import {
   operationAnnotations,
@@ -48,8 +49,6 @@ export interface NoteRow {
   revision: number;
 }
 
-const notFound = () => new AppError(404, 'NOT_FOUND', 'Not found');
-
 /**
  * Runs one assistant operation for one caller on one board. Reads go to the query
  * functions; writes go through executeBoardCommand with the caller as actor, the call's
@@ -66,7 +65,7 @@ export async function runOperation(
   const parsed = operationInputs[name].safeParse(call.input);
   if (!parsed.success) throw new AppError(400, 'BAD_REQUEST', 'Invalid operation input');
   // Board context is explicit: the call names the board, and it must be the bound one.
-  if (parsed.data.boardId !== ctx.boardId) throw notFound();
+  if (parsed.data.boardId !== ctx.boardId) notFound();
 
   if (operationAnnotations[name].readOnlyHint) return read(ctx, name, parsed.data);
 

@@ -4,6 +4,7 @@ import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { TIDY_MAX_MOVES, type TidyDecision, type TidyDto, type TidyRequest } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
+import { notFound } from '../commands/context.js';
 import {
   assistantSuggestionsCol,
   assistantTidiesCol,
@@ -14,14 +15,11 @@ import {
 } from '../db/collections.js';
 import type { AssistantTidyDoc, WithId } from '../db/types.js';
 import { AppError } from '../errors.js';
-import { estimateTokens } from './budget/estimate.js';
-import { trackAttempts } from './budget/ledger.js';
-import { priceFor } from './budget/prices.js';
 import { tidySchemaJson, type TidyRunner } from './model/index.js';
-import { retryDelayMs, withOneRetry } from './model/retry.js';
+import { runMeteredCall } from './meteredCall.js';
 import { runOperation, type OperationContext } from './run.js';
 import {
-  MIN_ATTEMPT_MS,
+  operationContext,
   SUGGESTION_RETENTION_DAYS,
   type SuggestionContext,
   type SuggestionDeps,
@@ -43,7 +41,6 @@ export interface TidyDeps extends SuggestionDeps {
   runner: TidyRunner;
 }
 
-const notFound = () => new AppError(404, 'NOT_FOUND', 'Not found');
 const settled = () => new AppError(409, 'ASSISTANT_TIDY_SETTLED', 'This tidy was already decided');
 
 export function toTidyDto(doc: WithId<AssistantTidyDoc>): TidyDto {
@@ -67,7 +64,7 @@ export async function loadTidy(
   id: string,
 ): Promise<WithId<AssistantTidyDoc>> {
   const doc = withId(await assistantTidiesCol(db, actor.id).doc(id).get());
-  if (!doc || doc.boardId !== boardId) throw notFound();
+  if (!doc || doc.boardId !== boardId) notFound();
   return doc;
 }
 
@@ -88,7 +85,7 @@ export async function claimTidy(
   const ref = assistantTidiesCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
-    if (!current || current.boardId !== boardId) throw notFound();
+    if (!current || current.boardId !== boardId) notFound();
     await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
@@ -190,87 +187,16 @@ export async function proposeTidy(
     );
     const schema = await tidySchemaJson();
     model = env.ASSISTANT_MODEL;
-    const price = priceFor(model);
-    const caps = {
-      dailyTokens: env.ASSISTANT_DAILY_CAP_TOKENS,
-      monthlyMicroUsd: env.ASSISTANT_MONTHLY_CAP_MICRO_USD,
-    };
-    const controller = new AbortController();
-    const deadlineMs = deps.deadlineMs ?? TIDY_DEADLINE_MS;
-    const deadline = setTimeout(() => controller.abort(), deadlineMs);
-    const startedAt = Date.now();
-    const attempts = trackAttempts(db, actor.id, {
-      clock,
-      // The slot then stays until its lease expires; said by shape only, like a provider error.
-      onReleaseError: (error) =>
-        deps.logger?.warn({
-          type: 'assistant.release_failed',
-          boardId: board.id,
-          name: (error as { name?: unknown } | null)?.name,
-          code: (error as { code?: unknown } | null)?.code,
-        }),
+    const { output, startedAt } = await runMeteredCall(deps, {
+      actorId: actor.id,
+      boardId: board.id,
+      instructions,
+      prompt,
+      schema,
+      maxOutputTokens: TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
+      deadlineMs: deps.deadlineMs ?? TIDY_DEADLINE_MS,
+      run: (input) => deps.runner(input),
     });
-    let output;
-    try {
-      // A busy or failing provider gets one more try after a short pause, within the deadline.
-      // Each try frees whatever slot it still holds before the next one reserves.
-      output = await withOneRetry(
-        () =>
-          deps
-            .runner({
-              instructions,
-              prompt,
-              maxOutputTokens:
-                TIDY_OUTPUT_TOKENS_BASE + TIDY_OUTPUT_TOKENS_PER_MOVE * undated.length,
-              abortSignal: controller.signal,
-              onAttempt: async (info) => {
-                const { attemptId } = await attempts.reserve({
-                  estimate: {
-                    inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-                    outputTokens: info.maxOutputTokens,
-                  },
-                  price,
-                  caps,
-                });
-                return {
-                  settle: (used) =>
-                    attempts.settle(attemptId, {
-                      inputTokens: used.inputTokens,
-                      outputTokens: used.outputTokens,
-                    }),
-                  release: () => attempts.release(attemptId),
-                };
-              },
-            })
-            .finally(attempts.releaseRest),
-        {
-          signal: controller.signal,
-          deadlineAt: startedAt + deadlineMs,
-          minAttemptMs: MIN_ATTEMPT_MS,
-          delayMs: retryDelayMs,
-        },
-      );
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      // Our own deadline, not the provider's fault: said as a timeout.
-      if (controller.signal.aborted) {
-        deps.logger?.warn({
-          type: 'assistant.timeout',
-          boardId: board.id,
-          ms: Date.now() - startedAt,
-        });
-        throw new AppError(504, 'ASSISTANT_TIMEOUT', 'The model did not answer in time');
-      }
-      deps.logger?.warn({
-        type: 'assistant.provider_error',
-        boardId: board.id,
-        name: (error as { name?: unknown } | null)?.name,
-        status: (error as { statusCode?: unknown } | null)?.statusCode,
-      });
-      throw new AppError(502, 'ASSISTANT_PROVIDER_ERROR', 'The model provider failed');
-    } finally {
-      clearTimeout(deadline);
-    }
     deps.logger?.info({
       type: 'assistant.tidy',
       boardId: board.id,
@@ -313,21 +239,6 @@ export async function proposeTidy(
     tx.create(ref, doc);
   });
   return toTidyDto({ ...doc, id: ref.id });
-}
-
-function operationContext(
-  deps: SuggestionDeps,
-  ctx: SuggestionContext,
-  id: string,
-): OperationContext {
-  return {
-    db: deps.db,
-    actor: ctx.actor,
-    boardId: ctx.board.id,
-    // The tidy is the approval record; a tidy has no conversation (as a suggestion, plan R2 of slice 2).
-    provenance: { via: 'assistant', conversationId: id, approvalId: id },
-    logger: deps.logger,
-  };
 }
 
 /**
@@ -406,7 +317,7 @@ async function completeKeep(
   const now = deps.now?.() ?? new Date();
   return deps.db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
-    if (!current) throw notFound();
+    if (!current) notFound();
     await assertAssistantBoardActive(deps.db, ctx.actor.id, current.boardId, tx);
     if (current.status !== 'KEPT' || current.applied) return current;
     const next: WithId<AssistantTidyDoc> = {

@@ -23,6 +23,7 @@ import {
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
+import { notFound } from '../commands/context.js';
 import {
   assistantSuggestionsCol,
   docsWithId,
@@ -41,9 +42,6 @@ import type {
 } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { canSeeNote, isValidAssignee } from '../notes.js';
-import { estimateTokens } from './budget/estimate.js';
-import { trackAttempts } from './budget/ledger.js';
-import { priceFor } from './budget/prices.js';
 import {
   judgeCapture,
   buildCaptureCall,
@@ -52,7 +50,7 @@ import {
   type CaptureContext,
 } from './captureProposal.js';
 import { suggestionSchemaJson, type SuggestionRunner } from './model/index.js';
-import { retryDelayMs, withOneRetry } from './model/retry.js';
+import { runMeteredCall } from './meteredCall.js';
 import { runOperation, type OperationContext } from './run.js';
 
 export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
@@ -63,8 +61,6 @@ export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
  * on the EU endpoint took 20 to 50 s for a capture (Vertex's model_invocation_latencies).
  */
 export const SUGGESTION_DEADLINE_MS = 40_000;
-/** A retry starts only when at least this much of the deadline is left for it. */
-export const MIN_ATTEMPT_MS = 4_000;
 /** As long as the receipts the keep and the undo rely on (RFC-0003-wally-agent.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
@@ -92,7 +88,6 @@ export interface SuggestionContext {
   role: EffectiveRole;
 }
 
-const notFound = () => new AppError(404, 'NOT_FOUND', 'Not found');
 const settled = () =>
   new AppError(409, 'ASSISTANT_SUGGESTION_SETTLED', 'This suggestion was already decided');
 
@@ -240,7 +235,7 @@ export async function suggestForCapture(
   // Enrichment of a note the person just wrote (the slice), so only their own: on anyone
   // else's a keep could be refused after the call was paid for, and the answer is the same
   // 404 a note they cannot see gets.
-  if (note.createdBy?.id !== actor.id) throw notFound();
+  if (note.createdBy?.id !== actor.id) notFound();
   /** A capture that ends before the model is called says why, so "nothing came" is never silent. */
   const skipped = (reason: 'no_words' | 'nothing_open' | 'no_call') => {
     deps.logger?.info({
@@ -277,87 +272,16 @@ export async function suggestForCapture(
   // The response schema travels with the call, so the estimate counts its real size.
   const schema = await suggestionSchemaJson();
   const model = env.ASSISTANT_MODEL;
-  const price = priceFor(model);
-  const caps = {
-    dailyTokens: env.ASSISTANT_DAILY_CAP_TOKENS,
-    monthlyMicroUsd: env.ASSISTANT_MONTHLY_CAP_MICRO_USD,
-  };
-  const controller = new AbortController();
-  const deadlineMs = deps.deadlineMs ?? SUGGESTION_DEADLINE_MS;
-  const deadline = setTimeout(() => controller.abort(), deadlineMs);
-  const startedAt = Date.now();
-  const attempts = trackAttempts(db, actor.id, {
-    clock,
-    // The slot then stays until its lease expires; said by shape only, like a provider error.
-    onReleaseError: (error) =>
-      deps.logger?.warn({
-        type: 'assistant.release_failed',
-        boardId: board.id,
-        name: (error as { name?: unknown } | null)?.name,
-        code: (error as { code?: unknown } | null)?.code,
-      }),
+  const { output, startedAt } = await runMeteredCall(deps, {
+    actorId: actor.id,
+    boardId: board.id,
+    instructions,
+    prompt,
+    schema,
+    maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
+    deadlineMs: deps.deadlineMs ?? SUGGESTION_DEADLINE_MS,
+    run: (input) => deps.runner(input),
   });
-  let output;
-  try {
-    // A busy or failing provider gets one more try after a short pause, within the deadline.
-    // Each try frees whatever slot it still holds before the next one reserves.
-    output = await withOneRetry(
-      () =>
-        deps
-          .runner({
-            instructions,
-            prompt,
-            maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
-            abortSignal: controller.signal,
-            onAttempt: async (info) => {
-              const { attemptId } = await attempts.reserve({
-                estimate: {
-                  inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-                  // The runner's allowance, thinking room included: everything the call may bill.
-                  outputTokens: info.maxOutputTokens,
-                },
-                price,
-                caps,
-              });
-              return {
-                settle: (usage) =>
-                  attempts.settle(attemptId, {
-                    inputTokens: usage.inputTokens,
-                    outputTokens: usage.outputTokens,
-                  }),
-                release: () => attempts.release(attemptId),
-              };
-            },
-          })
-          .finally(attempts.releaseRest),
-      {
-        signal: controller.signal,
-        deadlineAt: startedAt + deadlineMs,
-        minAttemptMs: MIN_ATTEMPT_MS,
-        delayMs: retryDelayMs,
-      },
-    );
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    // Our own deadline, not the provider's fault: said as a timeout.
-    if (controller.signal.aborted) {
-      deps.logger?.warn({
-        type: 'assistant.timeout',
-        boardId: board.id,
-        ms: Date.now() - startedAt,
-      });
-      throw new AppError(504, 'ASSISTANT_TIMEOUT', 'The model did not answer in time');
-    }
-    deps.logger?.warn({
-      type: 'assistant.provider_error',
-      boardId: board.id,
-      name: (error as { name?: unknown } | null)?.name,
-      status: (error as { statusCode?: unknown } | null)?.statusCode,
-    });
-    throw new AppError(502, 'ASSISTANT_PROVIDER_ERROR', 'The model provider failed');
-  } finally {
-    clearTimeout(deadline);
-  }
   // Which rule kept or dropped each proposed field, by name only: the words never reach the log.
   const judged = output.fields ? judgeCapture(output.fields, call, note, captureCtx) : null;
   const fields = judged?.fields ?? null;
@@ -419,7 +343,7 @@ async function loadSuggestion(
   id: string,
 ): Promise<WithId<AssistantSuggestionDoc>> {
   const doc = withId(await assistantSuggestionsCol(db, actor.id).doc(id).get());
-  if (!doc || doc.boardId !== boardId) throw notFound();
+  if (!doc || doc.boardId !== boardId) notFound();
   return doc;
 }
 
@@ -451,7 +375,7 @@ async function claim(
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
-    if (!current || current.boardId !== boardId) throw notFound();
+    if (!current || current.boardId !== boardId) notFound();
     await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
@@ -468,7 +392,8 @@ async function claim(
   });
 }
 
-function operationContext(
+/** The command context a keep or an undo of a suggestion or a tidy writes through. */
+export function operationContext(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
   id: string,
@@ -477,7 +402,8 @@ function operationContext(
     db: deps.db,
     actor: ctx.actor,
     boardId: ctx.board.id,
-    // The suggestion is the approval record; a capture turn has no conversation (plan R2).
+    // The suggestion or tidy is the approval record; neither has a conversation (plan R2 of
+    // slice 2).
     provenance: { via: 'assistant', conversationId: id, approvalId: id },
     logger: deps.logger,
   };
@@ -916,7 +842,7 @@ async function settleKeep(
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
     const current = withId(await tx.get(ref));
-    if (!current) throw notFound();
+    if (!current) notFound();
     await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
     if (current.status !== 'KEPT' || current.applied) return current;
     const next: WithId<AssistantSuggestionDoc> = {

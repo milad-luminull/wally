@@ -6,6 +6,7 @@ export { createConfiguredTurnRunner, toolDefinitionsJson } from './runTurn.js';
 export { createConfiguredSuggestionRunner, suggestionSchemaJson } from './suggest.js';
 export { createConfiguredTidyRunner, tidySchemaJson } from './tidy.js';
 export { parseModelRef } from './config.js';
+export { retryDelayMs, withOneRetry } from './retry.js';
 export type {
   ApprovalDecision,
   AttemptInfo,
