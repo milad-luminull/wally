@@ -14,20 +14,17 @@
 > model has been removed, with no migration or upgrade flow. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-- **Status:** released to production in v0.9.x, according to the production release variables; superseded by [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md) on 2026-10-26.
+- **Status:** first released to production in v0.8.3 (2026-10-25); superseded on 2026-10-26 by [RFC-0012](0012-supabase-auth-and-mcp.md) and [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md).
 - **Date:** 2026-10-19
 - **Decision:** [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md), superseded by [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)
 
-## Current state and outcome
+## Status and goal
 
-Production Wally still uses Firebase Authentication and has no enabled MCP endpoint.
-The implementation adds opt-in Auth0 web/REST authentication, verified identity mapping,
-MCP discovery, five read tools, eight write tools and board-scoped connection grants.
-Auth0 issues OAuth tokens; Fastify verifies them and enforces Wally permissions.
-
-The Auth0 account and Wally Web SPA registration exist. `login.luminull.com` was verified
-with Auth0-managed certificates and a DNS-only Cloudflare CNAME. This infrastructure
-setup has not changed Wally's authentication or enabled MCP.
+Shipped in v0.8.3 (2026-10-25): Auth0 web and REST sign-in, verified identity mapping,
+MCP discovery, read and write tools, and account-wide connections. Production runs
+v0.9.2; current configuration is in [AUTH0.md](../AUTH0.md) and the
+[connection model](../MCP_CONNECTION_MODEL.md). The sections below record the rollout
+design.
 
 The goal is Google sign-in through Auth0 with existing Wally accounts preserved, then
 remote MCP access to authorized boards. The [existing MCP RFC](0004-wally-mcp.md) remains the
@@ -44,8 +41,7 @@ boundaries and delivery order. Its parity gaps are not all required for the firs
 - MCP endpoint, OAuth resource and proposed Auth0 MCP audience:
   `https://api.wally.luminull.com/mcp`.
 
-The API is behind the custom API domain. MCP is implemented but remains disabled in
-production; the endpoint above is its activation address. Use these exact audiences
+The API is behind the custom API domain. Use these exact audiences
 consistently in authorization requests, token validation and discovery. Publish the MCP
 protected-resource metadata at
 `https://api.wally.luminull.com/.well-known/oauth-protected-resource/mcp` and advertise
@@ -107,9 +103,8 @@ flowchart LR
    receipts/audit, current permissions, switches and rate limits. Prove lost-response
    retries and revocation across API instances and restarts before enabling writes.
 
-Each gate is pending. The owner approved implementation; the first slice is tracked in
-[the API foundation plan](../superpowers/plans/2026-10-19-auth0-api-foundation.md). Update deployment guidance, privacy/data inventory and rollback instructions with
-the relevant implementation; complete the MCP RFC's security review before release.
+All three gates shipped in v0.8.3. The first slice was
+[the API foundation plan](../superpowers/plans/2026-10-19-auth0-api-foundation.md).
 
 ## Constraints and decisions before implementation
 
@@ -131,18 +126,3 @@ model-backed assistant workflows are outside this first release.
 Sources: [Auth0 MCP](https://auth0.com/ai/docs/mcp/overview),
 [Free-plan limits](https://auth0.com/pricing),
 [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
-
-## Connection endpoints
-
-Implemented locally: `GET /me/connections` lists the caller’s MCP grants and availability;
-`POST /me/connections` explicitly grants selected boards to the configured client, read-only
-by default; `DELETE /me/connections/:connectionId` revokes a caller-owned grant idempotently.
-`GET/PATCH /whiteboards/:boardId/mcp-access` reads/sets the owner permission; only the owner
-can change it. A transfer of ownership invalidates the former owner's permission.
-
-Revocation affects subsequent calls and is rechecked inside write/replay transactions.
-Foreign connection IDs return 404. Changing a connection's selection or scopes requires
-revoking it and creating a new grant. Tokens issued before the new grant (including the
-same second) cannot use it; reconnect the client after approving access in Wally.
-MCP tools use the single `/mcp` endpoint. Deployment and real-client verification remain
-separate rollout gates.

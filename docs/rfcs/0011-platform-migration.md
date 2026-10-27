@@ -39,7 +39,7 @@ The brief's table is authoritative for the choice of provider. In short:
 - A Cloudflare Worker as a pure reverse proxy for `api.wally.luminull.com`.
 - Cloud Run `wally-api`, plus a private `wally-background` service fed by Cloud Tasks
   and Cloud Scheduler.
-- Resend as Supabase Auth's custom SMTP.
+- Resend for all email: Supabase Auth's custom SMTP and notification email.
 - GitHub Actions to Artifact Registry to Cloud Run.
 - OpenTofu or Terraform for infrastructure. Which one is open.
 
@@ -58,7 +58,8 @@ The brief's table is authoritative for the choice of provider. In short:
   - The production environment's release variables enable Auth0 login, open signup, and
     MCP with writes (`AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
     `MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`).
-  - Releases v0.9.0 to v0.9.2 went out on 2026-10-25 and 2026-10-26.
+  - Auth0 and full MCP were first released in v0.8.3 (2026-10-25). Releases v0.9.0 to
+    v0.9.2 went out on 2026-10-25 and 2026-10-26; production runs v0.9.2.
   - Firebase identities are kept for rollback.
   - Identity mapping lives in `authIdentities`, keyed by `(issuer, subject)`.
   - Wally user IDs are the original Firebase UIDs (opaque text), plus random UUIDs for
@@ -67,8 +68,8 @@ The brief's table is authoritative for the choice of provider. In short:
   `api.wally.luminull.com` through a Cloud Run domain mapping, which is a Preview feature
   (ADR-0015).
 - **Jobs:**
-  - None for accounts. Self-service export and deletion were removed on 2026-10-26, and
-    the `wally-account-cleanup` worker was retired on 2026-10-27
+  - None for accounts. Self-service export and deletion and the `wally-account-cleanup`
+    worker were removed in PR #76; the worker's cloud resources were deleted on 2026-10-27
     ([DEPLOY.md](../DEPLOY.md#account-cleanup-worker-retired)). Both are rebuilt
     on Supabase after the migration.
   - Board cleanup jobs drain inline after a command.
@@ -224,6 +225,15 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
     - The brief's provider-independent AI SDK matches ADR-0013.
     - Production uses Vertex AI in the EU.
     - The Gemini free developer tier is only for synthetic data, as the brief says.
+14. **No background service exists yet:**
+    - The brief says to keep the existing Cloud Scheduler → private Cloud Run background
+      service arrangement. It no longer exists: the only scheduled workload, the
+      account-cleanup Cloud Run job, was removed in PR #76
+      ([DEPLOY.md](../DEPLOY.md#account-cleanup-worker-retired)).
+    - `wally-background` and its Scheduler job are therefore new in workstream 5.
+    - Supabase Free can pause a project after about seven days of low database activity
+      (owner brief). Until the background service queries PostgreSQL regularly, a
+      keepalive needs a decision.
 
 ## 8. Open owner decisions
 

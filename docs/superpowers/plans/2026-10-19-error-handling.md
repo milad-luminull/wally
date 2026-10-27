@@ -1,5 +1,7 @@
 # Error handling Implementation Plan
 
+> **Status:** executed in PR #64.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Every failure is shown once, where it happened, with the next step; the server retries a temporary model failure once; the AI explains itself on its card; one release together with the switch to Gemini 3.8 Flash on `eu`.

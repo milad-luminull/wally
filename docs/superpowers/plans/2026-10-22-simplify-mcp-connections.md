@@ -1,6 +1,6 @@
 # Simplify MCP connections implementation plan
 
-> **Status:** executed. Merged in PR #66 and first released in v0.8.1.
+> **Status:** executed. Merged in PR #66 and first released in v0.8.3 (2026-10-25).
 
 > Execute inline with superpowers:executing-plans.
 

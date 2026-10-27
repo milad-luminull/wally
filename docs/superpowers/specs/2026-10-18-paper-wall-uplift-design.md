@@ -1,6 +1,8 @@
 # Wally Paper Wall visual uplift — iteration one
 
-Status: approved by owner; implementation authorized, with current theme retained as Minimal.
+> **Status:** executed in PR #60.
+
+Approved by the owner, with the current theme retained as Minimal.
 
 ## Intent and agreed scope
 

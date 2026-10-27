@@ -1,4 +1,4 @@
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import type { WhiteboardRole } from '@wally/shared';
 import {
   docsWithId,
@@ -13,26 +13,6 @@ import {
   whiteboardsCol,
   withId,
 } from './db/collections.js';
-
-/**
- * Field-path update that keeps a whiteboard's `memberRoles` cache in step with a
- * membership write. Every caller must issue this in the SAME transaction or batch as the
- * member document it mirrors — see WhiteboardDoc.memberRoles.
- */
-export function memberRoleUpdate(userId: string, role: WhiteboardRole) {
-  return { [`memberRoles.${userId}`]: role };
-}
-
-/**
- * Drops a user's entry from the cache. Only ever correct once NO active member row remains
- * for them on that board — see the DELETE route, which recomputes from the surviving rows
- * rather than assuming the row it just removed was the only one. A single helper that took
- * `role | null` hid exactly that distinction, and hiding it is what let a removal revoke
- * access a second, still-live row was granting.
- */
-export function memberRoleRemoval(userId: string) {
-  return { [`memberRoles.${userId}`]: FieldValue.delete() };
-}
 
 /** EDIT outranks VIEW. The one place the "strongest role wins" rule is spelled out. */
 export function strongestRole(roles: WhiteboardRole[]): WhiteboardRole | null {

@@ -6,7 +6,7 @@
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:**
   - [ADR-0016](0016-auth0-for-web-and-mcp.md). It was never formally accepted, but it
-    has served production since v0.9.0.
+    has served production since v0.8.3 (2026-10-25).
   - The identity source in [ADR-0004](0004-firebase-auth-with-lazy-provisioning.md). Its
     lazy provisioning stays.
 

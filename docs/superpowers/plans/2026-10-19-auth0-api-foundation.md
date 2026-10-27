@@ -1,6 +1,6 @@
 # Auth0 API foundation implementation plan
 
-> **Status:** executed. Merged in PR #66 and first released in v0.8.1. The one-off import tooling was removed on 2026-10-26.
+> **Status:** executed. Merged in PR #66 and first released in v0.8.3 (2026-10-25). The one-off import tooling was removed in PR #76.
 
 > **For agentic workers:** Use superpowers:executing-plans and test-driven-development. Track completion below.
 

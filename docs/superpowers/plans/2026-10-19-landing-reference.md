@@ -1,5 +1,7 @@
 # Wally Landing reference implementation plan
 
+> **Status:** executed in PR #62.
+
 > **For agentic workers:** Implement inline with superpowers:executing-plans; review the finished branch with superpowers:requesting-code-review.
 
 **Goal:** Replace the current root landing page with the user's `../wally-design/Wally Landing.dc.html`, preserving the palette/appearance/language settings and authenticated navigation.

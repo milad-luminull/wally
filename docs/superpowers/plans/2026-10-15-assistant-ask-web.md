@@ -1,5 +1,7 @@
 # Ask the Board, Web Half: Implementation Plan
 
+> **Status:** executed in PR #42, landed on `main` in PR #45.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A panel beside the board where a person types a question and reads the answer, plain text with the notes it relied on listed underneath, opened from the command palette, a shortcut and the top bar, hidden entirely when the assistant is off.

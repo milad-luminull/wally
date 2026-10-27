@@ -7,13 +7,13 @@ A personal digital whiteboard for managing to-dos as movable notes. Notes live o
 pnpm workspaces + Turborepo monorepo:
 
 ```
-apps/api          Fastify + Cloud Firestore — REST API, Firebase-token auth
+apps/api          Fastify + Cloud Firestore — REST API and MCP endpoint, Auth0 or Firebase-token auth
 apps/web          Vite + React 19 + TanStack Query + shadcn/ui + dnd-kit
 packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-Wally runs entirely on Firebase: **Authentication** (email/password + Google) for sign-in, **Cloud Firestore** for all data. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator; the intended deploy target is Google Cloud Run. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions this repo follows, [`docs/RULE.md`](docs/RULE.md) for working rules, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
+In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.com`, the web app on Firebase Hosting at `wally.luminull.com`, and all data in **Cloud Firestore** (database `wally`). **Auth0** signs users in, for the web app and for MCP clients such as ChatGPT ([`docs/AUTH0.md`](docs/AUTH0.md)); Firebase Authentication remains only as a rollback path and is the local default. Only the API talks to Firestore — it uses the Admin SDK, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against the Firestore emulator. The decided move to Supabase and Cloudflare is planned in [`docs/rfcs/0011-platform-migration.md`](docs/rfcs/0011-platform-migration.md); nothing is migrated yet. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions and working rules this repo follows, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
 
 ## Prerequisites
 

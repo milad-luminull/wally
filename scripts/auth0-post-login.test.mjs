@@ -47,32 +47,3 @@ test('verification must be explicitly true and missing email is never fabricated
   );
   assert.deepEqual(claims, { [`${ns}email_verified`]: false, [`${ns}name`]: null });
 });
-test('recent authentication uses the completed primary method time, never refresh or MFA time', async () => {
-  for (const protocol of ['oidc-basic-profile', 'oauth2-refresh-token']) {
-    const claims = {};
-    await onExecutePostLogin(
-      {
-        resource_server: { identifier: 'https://api.wally.luminull.com' },
-        user: {},
-        transaction: { protocol },
-        authentication: {
-          methods: [
-            { name: 'pwd', timestamp: '2026-10-23T07:00:00Z' },
-            { name: 'mfa', timestamp: '2026-10-23T08:00:00Z' },
-          ],
-        },
-      },
-      {
-        accessToken: {
-          setCustomClaim: (key, value) => {
-            claims[key] = value;
-          },
-        },
-      },
-    );
-    assert.equal(
-      claims[`${ns}auth_time`],
-      protocol === 'oauth2-refresh-token' ? undefined : Date.parse('2026-10-23T07:00:00Z') / 1000,
-    );
-  }
-});

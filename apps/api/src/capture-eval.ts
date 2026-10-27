@@ -7,8 +7,9 @@
  * package:
  *
  *   cd apps/api
- *   eval "$(python3 -I /Users/mr_user/wally-emulator-data/exportenv.py /Users/mr_user/development/apps/wally/.env)"
  *   ASSISTANT_VERTEX_PROJECT=luminull-wally pnpm assistant:capture-eval
+ *
+ * with the assistant variables from the root `.env` exported in the shell.
  *
  * Never used by tests.
  */

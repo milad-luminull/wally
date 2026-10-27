@@ -78,58 +78,6 @@ export const de = {
     login: 'Anmelden',
     signup: 'Registrieren',
     start: 'Deine Wand starten',
-    context: 'Ein Platz für alles, was dir durch den Kopf geht.',
-    headline: 'Mehr Platz im Kopf.',
-    description:
-      'Lose Ideen, kleine Aufgaben, der nächste große Schritt. Bring sie auf eine Wand, schaffe ein wenig Ordnung und mach weiter mit deinem Tag.',
-    note: 'Deine Notizen. Dein Tempo. Dein Überblick.',
-    preview: 'Eine Beispielwand mit farbigen Notizen für Arbeit und Alltag',
-    sample: 'Ein bisschen Arbeit. Ein bisschen Leben.',
-    previewCaption: 'Beispielnotizen. Deine Wand beginnt mit dir.',
-    how: 'So funktioniert Wally',
-    closing: 'Ein klarer Kopf beginnt mit einer Notiz.',
-    footer: 'Für die Dinge, die du erledigen möchtest.',
-    cards: {
-      call: {
-        title: 'Andrea am Freitag anrufen',
-        body: 'Die nächsten Schritte zur Verlängerung besprechen.',
-        meta: 'Freitag · 2 Schritte',
-      },
-      slides: {
-        title: 'Die Geschichte vereinfachen',
-        body: 'Drei gute Folien statt dreißig voller Details.',
-        meta: 'Diese Woche',
-      },
-      weekend: {
-        title: 'Platz fürs Wochenende lassen',
-        body: 'Ein langer Spaziergang. Ohne festes Ziel.',
-        meta: 'Privat',
-      },
-      idea: {
-        title: 'Eine Idee für später',
-        body: 'Ein kleiner Gedanke, den ich behalten möchte.',
-        meta: 'Hat Zeit',
-      },
-      done: {
-        title: 'Den ersten Entwurf senden',
-        body: 'Ein Gedanke weniger im Kopf.',
-        meta: 'Eine Sache weniger im Kopf',
-      },
-    },
-    moments: {
-      capture: {
-        title: 'Festhalten, solange es da ist.',
-        body: 'Fang mit einer Zeile an. Ergänze die Details später. Eine Notiz kann eine Aufgabe, eine Frage oder einfach ein Gedanke sein.',
-      },
-      organise: {
-        title: 'Deinen Überblick finden.',
-        body: 'Ordne Notizen frei an, gruppiere sie nach Zeit oder Priorität oder nutze eine einfache Liste. Dieselben Notizen, ein anderer Blick.',
-      },
-      review: {
-        title: 'Du behältst das letzte Wort.',
-        body: 'Wallybot kann hilfreiche Details vorschlagen. Prüfe Ergänzungen, behalte, was hilft, und mache eine Änderung bei Bedarf rückgängig.',
-      },
-    },
   },
   landing: {
     nav: {
@@ -415,7 +363,6 @@ export const de = {
     none: 'Keine',
     yes: 'Ja',
     no: 'Nein',
-    review: 'Prüfen',
     actions: {
       update: 'Aktualisieren',
       create: 'Notiz erstellen',
@@ -491,7 +438,6 @@ export const de = {
     canvas: { label: 'Hintergrund der freien Wand', dots: 'Punkte', grid: 'Raster', none: 'Leer' },
     language: {
       label: 'Sprache',
-      review: 'Prüfe dieses Beispiel',
       saving: 'Wird gespeichert…',
       saveFailed: 'Konnte die Sprache nicht speichern',
     },
@@ -603,7 +549,6 @@ export const de = {
     },
   },
   toast: {
-    saveFailed: 'Konnte die Änderung nicht speichern',
     prefsFailed: 'Konnte deine Einstellungen nicht speichern',
     noteDeleted: '„{{title}}“ gelöscht',
     noteDeletedUntitled: 'Notiz gelöscht',
@@ -706,8 +651,6 @@ export const de = {
       open_other: '{{count}} offen',
       overdue_one: '{{count}} überfällig',
       overdue_other: '{{count}} überfällig',
-      membersAria_one: '{{count}} Mitglied',
-      membersAria_other: '{{count}} Mitglieder',
       // Quoted verbatim by board.empty.board.canEdit — keep the two in step.
       newNote: 'Neue Notiz',
       newPrivateNote: 'Neue private Notiz',
@@ -928,14 +871,6 @@ export const de = {
       subtasks_one: '{{count}} Schritt',
       subtasks_other: '{{count}} Schritte',
       link: 'Verwandt: {{title}}',
-      links_one: '{{count}} verwandte Notiz',
-      links_other: '{{count}} verwandte Notizen',
-    },
-    title: {
-      /** The second line under the person's own title (BRAND rule 7). */
-      proposed: 'Vorschlag: {{title}}',
-      take: 'Vorschlag für den Titel übernehmen',
-      mine: 'Meinen Titel behalten',
     },
     /** The pending card's list of suggested fields (smarter capture, after Paper Wall v3). */
     rows: {
@@ -975,20 +910,7 @@ export const de = {
     },
     /** The note panel's review of a pending change, grouped by source (§3.4, plan R3, R4). */
     review: {
-      typed: 'Aus deinem Text',
-      added: 'Von Wallybot ergänzt',
       kept: 'Übernommen.',
-      rowTitle: 'Titel: {{title}}',
-      rowText: 'Text',
-      rowDue: 'Fällig {{date}}',
-      rowAssignee: 'Zuständig: {{name}}',
-      rowReference: '{{key}}: {{value}}',
-      rowStep: 'Schritt: {{text}}',
-      rowLink: 'Verwandt: {{title}}',
-      rowDescription: 'Text: {{text}}',
-      rowWhen: 'Wann: {{value}}',
-      rowPrivate: 'Privat: nur du siehst sie',
-      rowTag: 'Tag: {{tag}}',
     },
   },
   /** Tidy on the horizon wall (0005-wallybot-inline.md §3.5). No name, no first person. */
@@ -1104,7 +1026,6 @@ export const de = {
       'Personen mit Zugriff auf dieses Board. Ausstehende Einladungen findest du in den Freigaben.',
     membersFailed: 'Konnte die Mitglieder nicht laden',
     linkSection: 'Board-Link',
-    linkLoadFailed: 'Die Link-Einstellungen konnten nicht geladen werden.',
     enable: 'Link-Freigabe aktivieren',
     disable: 'Link deaktivieren',
     regenerate: 'Link erneuern',

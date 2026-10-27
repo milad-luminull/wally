@@ -1,5 +1,7 @@
 # Paper Wall Uplift Implementation Plan
 
+> **Status:** executed in PR #60.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Apply the approved Paper Wall layout, public landing page and nine configurable light/dark palettes while retaining current behavior and Minimal's original colours.

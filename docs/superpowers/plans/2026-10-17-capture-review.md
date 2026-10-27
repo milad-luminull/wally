@@ -1,5 +1,7 @@
 # Review Grouped by Source Implementation Plan
 
+> **Status:** executed in PR #47.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** After Enter, Wallybot also proposes what the parser could not read and slice 2 left out: subtasks, a reference property ("Kunde: Müller GmbH") and a cleaner title offered beside the person's own; the note panel shows the pending change as two groups, **From what you typed** and **Added by Wallybot**, each row with a checkbox, and the card follows every tick; keep and undo stay one server record and one step.

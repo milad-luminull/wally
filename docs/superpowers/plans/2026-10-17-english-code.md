@@ -1,5 +1,7 @@
 # English Code Implementation Plan
 
+> **Status:** executed in PR #51.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Steps 2 and 3 of ADR-0014: every German identifier in the code becomes English, sorting and key folding stop hardcoding German, and the unit tests, API tests, seed and E2E data read English. Persisted values (`HOCH`, `HEUTE`, `WEISS`, `wand`) are NOT touched here; they move in the expand release that follows (ADR-0014 step 4).

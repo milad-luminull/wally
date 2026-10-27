@@ -71,58 +71,6 @@ export const en = {
     login: 'Log in',
     signup: 'Sign up',
     start: 'Start your wall',
-    context: 'A place for everything on your mind.',
-    headline: 'Get it out of your head.',
-    description:
-      'Rough ideas, small tasks, the next big thing. Put them on one wall, give them a little order, and get on with your day.',
-    note: 'Your notes. Your pace. Your way of seeing things.',
-    preview: 'An example Wally wall with colourful notes for work and everyday life',
-    sample: 'A little of work. A little of life.',
-    previewCaption: 'Sample notes. Your wall starts with you.',
-    how: 'How Wally works',
-    closing: 'A clear head starts with one note.',
-    footer: 'Made for the things you want to get done.',
-    cards: {
-      call: {
-        title: 'Call Andrea on Friday',
-        body: 'Talk through the next steps for the renewal.',
-        meta: 'Friday · 2 steps',
-      },
-      slides: {
-        title: 'Make the story simpler',
-        body: 'Three good slides beat thirty busy ones.',
-        meta: 'This week',
-      },
-      weekend: {
-        title: 'Leave room for the weekend',
-        body: 'A long walk. No particular destination.',
-        meta: 'Personal',
-      },
-      idea: {
-        title: 'An idea for later',
-        body: 'A tiny thought worth keeping around.',
-        meta: 'No rush',
-      },
-      done: {
-        title: 'Send the first draft',
-        body: 'One less thing to keep in mind.',
-        meta: 'One less thing on your mind',
-      },
-    },
-    moments: {
-      capture: {
-        title: 'Write it while it’s there.',
-        body: 'Start with a line. Add the details when you have them. A note can hold a task, a question, or something you don’t want to forget.',
-      },
-      organise: {
-        title: 'See it your way.',
-        body: 'Arrange notes on a free wall, group them by time or priority, or keep things simple with a list. Same notes, a different perspective.',
-      },
-      review: {
-        title: 'Keep the final say.',
-        body: 'Wallybot can suggest useful details. Review what it adds, keep what helps, and undo a change when you need to.',
-      },
-    },
   },
   landing: {
     nav: {
@@ -401,7 +349,6 @@ export const en = {
     none: 'None',
     yes: 'Yes',
     no: 'No',
-    review: 'Review',
     actions: {
       update: 'Update',
       create: 'Create note',
@@ -476,7 +423,6 @@ export const en = {
     canvas: { label: 'Free canvas background', dots: 'Dots', grid: 'Grid', none: 'Plain' },
     language: {
       label: 'Language',
-      review: 'Review this example',
       saving: 'Saving…',
       saveFailed: 'Couldn’t save your language',
     },
@@ -584,7 +530,6 @@ export const en = {
     },
   },
   toast: {
-    saveFailed: 'Couldn’t save that change',
     prefsFailed: 'Couldn’t save your settings',
     noteDeleted: '“{{title}}” deleted',
     noteDeletedUntitled: 'Note deleted',
@@ -684,8 +629,6 @@ export const en = {
       open_other: '{{count}} open',
       overdue_one: '{{count}} overdue',
       overdue_other: '{{count}} overdue',
-      membersAria_one: '{{count}} member',
-      membersAria_other: '{{count}} members',
       newNote: 'New note',
       newPrivateNote: 'New private note',
       display: {
@@ -899,13 +842,6 @@ export const en = {
       subtasks_one: '{{count}} step',
       subtasks_other: '{{count}} steps',
       link: 'Related: {{title}}',
-      links_one: '{{count}} related note',
-      links_other: '{{count}} related notes',
-    },
-    title: {
-      proposed: 'Suggested: {{title}}',
-      take: 'Take the suggested title',
-      mine: 'Keep my title',
     },
     rows: {
       title: 'Title',
@@ -942,20 +878,7 @@ export const en = {
       keep: 'Keep',
     },
     review: {
-      typed: 'From what you typed',
-      added: 'Added by Wallybot',
       kept: 'Kept.',
-      rowTitle: 'Title: {{title}}',
-      rowText: 'Text',
-      rowDue: 'Due {{date}}',
-      rowAssignee: 'Assigned to {{name}}',
-      rowReference: '{{key}}: {{value}}',
-      rowStep: 'Step: {{text}}',
-      rowLink: 'Related: {{title}}',
-      rowDescription: 'Text: {{text}}',
-      rowWhen: 'When: {{value}}',
-      rowPrivate: 'Private: only you see it',
-      rowTag: 'Tag: {{tag}}',
     },
   },
   tidy: {
@@ -1067,7 +990,6 @@ export const en = {
       'People with access to this board. Pending invitations are listed in sharing settings.',
     membersFailed: 'Couldn’t load the members',
     linkSection: 'Board link',
-    linkLoadFailed: 'Could not load link settings.',
     enable: 'Enable link sharing',
     disable: 'Disable link',
     regenerate: 'Regenerate link',

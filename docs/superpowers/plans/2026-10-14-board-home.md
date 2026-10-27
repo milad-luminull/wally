@@ -1,5 +1,7 @@
 # Board Home and Multiple Boards Implementation Plan
 
+> **Status:** executed in PR #31.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix the cross-account 404 after sign-out, and give every user a board home with create, delete and leave, so a user can hold several own boards next to the ones they were invited to.
