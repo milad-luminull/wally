@@ -15,8 +15,8 @@ beforeEach(() => vi.resetAllMocks());
 
 it.each<CapturePlacement>([
   { kind: 'list' },
-  { kind: 'zone', axis: 'priority', key: 'HOCH', at: { freeX: 32, freeY: 32 } },
-  { kind: 'zone', axis: 'horizon', key: 'HEUTE', at: { freeX: 32, freeY: 32 } },
+  { kind: 'zone', axis: 'priority', key: 'HIGH', at: { freeX: 32, freeY: 32 } },
+  { kind: 'zone', axis: 'horizon', key: 'TODAY', at: { freeX: 32, freeY: 32 } },
 ])(
   'assigns an unoccupied wall position to a $kind capture using the whole board',
   async (placement) => {

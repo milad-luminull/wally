@@ -5,7 +5,7 @@ import { proposalRows } from './proposalRows';
 describe('proposalRows', () => {
   const fields = {
     dueDate: { value: '2026-10-23', reason: 'Friday' },
-    priority: { value: 'HOCH' as const, reason: 'urgent' },
+    priority: { value: 'HIGH' as const, reason: 'urgent' },
     assignee: null,
     title: { value: 'Smart note', reason: 'shorter' },
     reference: null,
@@ -14,13 +14,13 @@ describe('proposalRows', () => {
       items: [{ index: 2, noteId: 'n9', title: 'Acme renewal', reason: 'Acme' }],
       reason: 'r',
     },
-    horizon: { value: 'DIESE_WOCHE' as const, reason: 'this week' },
+    horizon: { value: 'THIS_WEEK' as const, reason: 'this week' },
     visibility: { value: 'PRIVATE' as const, reason: 'personal' },
     tags: { items: ['ops', 'sales'], reason: 'tags' },
     properties: { items: [{ key: 'Customer', value: 'Acme' }], reason: 'named' },
     description: { value: 'The detail.', reason: 'moved' },
   };
-  const plain = makeNote({ dueDate: null, priority: 'MITTEL', assignee: null });
+  const plain = makeNote({ dueDate: null, priority: 'MEDIUM', assignee: null });
 
   it('lists the title first, then every proposed item in order, crossed-out ones with on: false', () => {
     const base = makeSuggestionMark();
@@ -73,10 +73,10 @@ describe('proposalRows', () => {
       },
       fields: [],
     });
-    const note = makeNote({ dueDate: '2026-10-20', priority: 'HOCH', assignee: null });
+    const note = makeNote({ dueDate: '2026-10-20', priority: 'HIGH', assignee: null });
     expect(proposalRows(note, mark)).toEqual([
       expect.objectContaining({ kind: 'date', field: 'dueDate', iso: '2026-10-20', fixed: true }),
-      expect.objectContaining({ kind: 'priority', field: 'priority', value: 'HOCH', fixed: true }),
+      expect.objectContaining({ kind: 'priority', field: 'priority', value: 'HIGH', fixed: true }),
     ]);
   });
 

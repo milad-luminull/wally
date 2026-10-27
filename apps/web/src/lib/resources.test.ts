@@ -44,15 +44,15 @@ describe('notesApi write-route response contract', () => {
   });
 
   /** Exactly what the API sends back: no `subtasks`, no `history`. */
-  const listShaped = makeNote({ horizon: 'SPAETER' });
+  const listShaped = makeNote({ horizon: 'LATER' });
 
   it('accepts a list-shaped body from move', async () => {
     respondWith(listShaped);
     await expect(
-      notesApi.move('note-1', { mode: 'HORIZON', horizon: 'SPAETER' }),
+      notesApi.move('note-1', { mode: 'HORIZON', horizon: 'LATER' }),
     ).resolves.toMatchObject({
       id: 'note-1',
-      horizon: 'SPAETER',
+      horizon: 'LATER',
     });
   });
 
@@ -78,7 +78,7 @@ describe('notesApi write-route response contract', () => {
   it('still accepts a fuller detail-shaped body, so the routes may grow later', async () => {
     respondWith({ ...listShaped, subtasks: [], history: [] });
     await expect(
-      notesApi.move('note-1', { mode: 'PRIORITY', priority: 'HOCH' }),
+      notesApi.move('note-1', { mode: 'PRIORITY', priority: 'HIGH' }),
     ).resolves.toMatchObject({
       id: 'note-1',
     });

@@ -18,6 +18,12 @@ import { createTestQueryClient } from '@/test/renderWithProviders';
 import { scopedQueryKeys } from './queryKeys';
 import { useBoardViewState } from './useBoardViewState';
 
+/**
+ * The board view and priority as they were spelled before ADR-0014 and ADR-0024. Spelled here,
+ * and only here, to show a stale link carrying them is ignored.
+ */
+const OLD = { view: 'wand', priority: 'HOCH' } as const;
+
 // Hooks rendered outside AuthProvider read and write the signed-out scope.
 const queryKeys = scopedQueryKeys(null);
 
@@ -34,7 +40,7 @@ const PROFILE: MeDto = {
         axis: 'priority',
         done: false,
         mine: true,
-        priority: ['HOCH'],
+        priority: ['HIGH'],
         visibility: 'all',
       },
     },
@@ -61,8 +67,8 @@ function setup(route: string, profile: MeDto = PROFILE) {
 describe('useBoardViewState', () => {
   it('changes view and axis atomically when navigating from list to a wall', async () => {
     const { result } = setup('/boards/b1?view=list');
-    act(() => result.current.view.setLayout('wand', 'priority'));
-    expect(result.current.view.view).toBe('wand');
+    act(() => result.current.view.setLayout('wall', 'priority'));
+    expect(result.current.view.view).toBe('wall');
     expect(result.current.view.axis).toBe('priority');
   });
   beforeEach(() => {
@@ -85,7 +91,7 @@ describe('useBoardViewState', () => {
       axis: 'priority',
       done: false,
       mine: true,
-      priority: ['HOCH'],
+      priority: ['HIGH'],
     });
   });
 
@@ -93,7 +99,7 @@ describe('useBoardViewState', () => {
     const { result } = setup('/boards/b2');
 
     expect(result.current.view).toMatchObject({
-      view: 'wand',
+      view: 'wall',
       axis: 'horizon',
       done: true,
       mine: false,
@@ -103,9 +109,9 @@ describe('useBoardViewState', () => {
   });
 
   it('lets a shared link override the saved settings', () => {
-    const { result } = setup('/boards/b1?view=wand&axis=free&done=1');
+    const { result } = setup('/boards/b1?view=wall&axis=free&done=1');
 
-    expect(result.current.view).toMatchObject({ view: 'wand', axis: 'free', done: true });
+    expect(result.current.view).toMatchObject({ view: 'wall', axis: 'free', done: true });
     // Untouched by the link, so still the saved value.
     expect(result.current.view.mine).toBe(true);
   });
@@ -113,15 +119,15 @@ describe('useBoardViewState', () => {
   it('saves a change to the profile and drops the remembered params from the URL', async () => {
     const { result, queryClient } = setup('/boards/b1?axis=free&q=report');
 
-    act(() => result.current.view.setView('wand'));
+    act(() => result.current.view.setView('wall'));
 
     // Optimistic: the cached profile already carries the full effective state.
     expect(queryClient.getQueryData<MeDto>(queryKeys.profile())?.preferences.boards.b1).toEqual({
-      view: 'wand',
+      view: 'wall',
       axis: 'free',
       done: false,
       mine: true,
-      priority: ['HOCH'],
+      priority: ['HIGH'],
       visibility: 'all',
     });
     expect(result.current.location.search).toBe('?q=report');
@@ -137,11 +143,11 @@ describe('useBoardViewState', () => {
     expect(meApi.updatePreferences).toHaveBeenCalledWith({
       boards: {
         b1: {
-          view: 'wand',
+          view: 'wall',
           axis: 'free',
           done: true,
           mine: true,
-          priority: ['HOCH'],
+          priority: ['HIGH'],
           visibility: 'all',
         },
       },
@@ -149,7 +155,7 @@ describe('useBoardViewState', () => {
   });
 
   it('keeps layout, grouping and filters independent across a complete navigation round trip', async () => {
-    const { result, queryClient } = setup('/boards/b1?view=wand&axis=priority&q=report');
+    const { result, queryClient } = setup('/boards/b1?view=wall&axis=priority&q=report');
     await act(async () => {
       result.current.view.setView('list');
       // React Query batches cache notifications for the next timer tick.
@@ -161,7 +167,7 @@ describe('useBoardViewState', () => {
       q: 'report',
       mine: true,
       done: false,
-      priority: ['HOCH'],
+      priority: ['HIGH'],
     });
     await act(async () => {
       result.current.view.setAxis('horizon');
@@ -170,14 +176,14 @@ describe('useBoardViewState', () => {
     });
     expect(result.current.view).toMatchObject({ view: 'list', axis: 'horizon', q: 'report' });
     await act(async () => {
-      result.current.view.setView('wand');
+      result.current.view.setView('wall');
       // React Query batches cache notifications for the next timer tick.
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(result.current.view).toMatchObject({ view: 'wand', axis: 'horizon', q: 'report' });
+    expect(result.current.view).toMatchObject({ view: 'wall', axis: 'horizon', q: 'report' });
     expect(
       queryClient.getQueryData<MeDto>(queryKeys.profile())?.preferences.boards.b1,
-    ).toMatchObject({ view: 'wand', axis: 'horizon', mine: true, done: false, priority: ['HOCH'] });
+    ).toMatchObject({ view: 'wall', axis: 'horizon', mine: true, done: false, priority: ['HIGH'] });
   });
 
   it('reset forgets the board and clears every filter', async () => {
@@ -185,7 +191,7 @@ describe('useBoardViewState', () => {
 
     act(() => result.current.view.resetView());
 
-    expect(result.current.view).toMatchObject({ view: 'wand', axis: 'horizon', q: '' });
+    expect(result.current.view).toMatchObject({ view: 'wall', axis: 'horizon', q: '' });
     expect(result.current.view.fieldKey).toBeNull();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SAVE_DELAY_MS);
@@ -202,7 +208,7 @@ describe('useBoardViewState', () => {
     expect(result.current.view).toMatchObject({
       done: false,
       mine: true,
-      priority: ['HOCH'],
+      priority: ['HIGH'],
       visibility: 'private',
       fieldKey: 'Customer',
     });
@@ -277,7 +283,7 @@ describe('useBoardViewState', () => {
           axis: 'priority',
           done: false,
           mine: true,
-          priority: ['HOCH'],
+          priority: ['HIGH'],
           visibility: 'shared',
         },
       },
@@ -299,7 +305,7 @@ describe('useBoardViewState', () => {
           axis: 'priority',
           done: true,
           mine: true,
-          priority: ['HOCH'],
+          priority: ['HIGH'],
           visibility: 'private',
         },
       },
@@ -314,6 +320,27 @@ describe('useBoardViewState', () => {
 
     expect(result.current.view.visibility).toBe('all');
     expect(result.current.location.search).toBe('');
+  });
+
+  it('ignores a stale link with values that no longer exist', () => {
+    const stale = `?view=${OLD.view}&axis=priority&priority=${OLD.priority}`;
+
+    // The saved view stands, the valid grouping applies, the unknown priority is dropped.
+    expect(setup(`/boards/b1${stale}`).result.current.view).toMatchObject({
+      view: 'list',
+      axis: 'priority',
+      priority: [],
+    });
+    // With nothing saved, the built-in default view.
+    expect(setup(`/boards/b2${stale}`).result.current.view).toMatchObject({
+      view: 'wall',
+      axis: 'priority',
+      priority: [],
+    });
+    expect(setup('/boards/b2?view=wall&priority=HIGH,LOW').result.current.view).toMatchObject({
+      view: 'wall',
+      priority: ['HIGH', 'LOW'],
+    });
   });
 
   it('drops a stale ask parameter when a note opens', () => {

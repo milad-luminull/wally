@@ -22,9 +22,9 @@ const keys = scopedQueryKeys(null);
 const all = () => true;
 const none: ReadonlySet<string> = new Set();
 
-const late = makeNote({ id: 'late', horizon: 'DIESE_WOCHE', dueDate: '2026-10-19', revision: 2 });
-const jotted = makeNote({ id: 'jotted', horizon: 'HEUTE', dueDate: null, revision: 1 });
-const placed = makeNote({ id: 'placed', horizon: 'SPAETER', dueDate: null });
+const late = makeNote({ id: 'late', horizon: 'THIS_WEEK', dueDate: '2026-10-19', revision: 2 });
+const jotted = makeNote({ id: 'jotted', horizon: 'TODAY', dueDate: null, revision: 1 });
+const placed = makeNote({ id: 'placed', horizon: 'LATER', dueDate: null });
 
 const dto = (over: Partial<TidyDto> = {}): TidyDto => ({
   id: 't1',
@@ -34,16 +34,16 @@ const dto = (over: Partial<TidyDto> = {}): TidyDto => ({
     {
       noteId: 'late',
       baseRevision: 2,
-      from: 'DIESE_WOCHE',
-      to: 'SPAETER',
+      from: 'THIS_WEEK',
+      to: 'LATER',
       reason: null,
       source: 'date',
     },
     {
       noteId: 'jotted',
       baseRevision: 1,
-      from: 'HEUTE',
-      to: 'SPAETER',
+      from: 'TODAY',
+      to: 'LATER',
       reason: 'next month',
       source: 'words',
     },
@@ -113,8 +113,8 @@ describe('useTidy', () => {
     expect(body.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(result.current).toMatchObject({ phase: 'pending', moving: 2 });
     expect(result.current.markFor('late')).toEqual({
-      to: 'SPAETER',
-      from: 'DIESE_WOCHE',
+      to: 'LATER',
+      from: 'THIS_WEEK',
       reason: null,
       source: 'date',
       phase: 'pending',
@@ -134,7 +134,7 @@ describe('useTidy', () => {
     expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
     // A new note in Today is a new candidate: the affordance is back.
     rerender({
-      list: [late, jotted, placed, makeNote({ id: 'new', horizon: 'HEUTE', dueDate: null })],
+      list: [late, jotted, placed, makeNote({ id: 'new', horizon: 'TODAY', dueDate: null })],
     });
     expect(result.current.count).toBe(3);
   });
@@ -147,8 +147,8 @@ describe('useTidy', () => {
     act(() => result.current.tidy());
     await settle();
     act(() => result.current.keep('enter'));
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('SPAETER');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('LATER');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('LATER');
     expect(result.current).toMatchObject({ phase: 'kept', moving: 2 });
     expect(result.current.markFor('late')?.phase).toBe('kept');
     expect(assistantApi.decideTidy).toHaveBeenCalledWith(BOARD, 't1', {
@@ -176,8 +176,8 @@ describe('useTidy', () => {
     await settle();
     act(() => result.current.keep('click'));
     await settle();
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('LATER');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current.markFor('jotted')).toBeUndefined();
     expect(result.current.markFor('late')?.phase).toBe('kept');
 
@@ -193,9 +193,9 @@ describe('useTidy', () => {
     act(() => result.current.tidy());
     await settle();
     act(() => result.current.keep('enter'));
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('LATER');
     await settle();
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
     // The refusal is said, briefly: the notes changed meanwhile.
     expect(result.current).toMatchObject({ phase: 'failed', failure: { kind: 'changed' } });
     await act(() => vi.advanceTimersByTimeAsync(EMPTY_NOTICE_MS));
@@ -247,8 +247,8 @@ describe('useTidy', () => {
       took = result.current.undoLast();
     });
     expect(took).toBe(true);
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     await settle();
     expect(assistantApi.decideTidy).toHaveBeenLastCalledWith(BOARD, 't1', {
       decision: 'undo',
@@ -270,8 +270,8 @@ describe('useTidy', () => {
     act(() => result.current.keep('enter'));
     expect(result.current).toMatchObject({ phase: 'kept', moving: 2 });
     await settle();
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current).toMatchObject({ phase: 'idle', moving: 0, trackedIds: [] });
     expect(result.current.markFor('late')).toBeUndefined();
     expect(result.current.markFor('jotted')).toBeUndefined();
@@ -410,7 +410,7 @@ describe('useTidy', () => {
     expect(vi.mocked(assistantApi.tidy).mock.calls[0]![1].only).toEqual(['late', 'placed']);
 
     const many = Array.from({ length: TIDY_MAX_MOVES * 4 + 1 }, (_, i) =>
-      makeNote({ id: `n${i}`, horizon: 'HEUTE', dueDate: null }),
+      makeNote({ id: `n${i}`, horizon: 'TODAY', dueDate: null }),
     );
     const crowded = setup(many);
     act(() => crowded.result.current.tidy());
@@ -521,8 +521,8 @@ describe('useTidy', () => {
     await settle();
     act(() => result.current.keep('enter'));
     await settle();
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     rerender({ list: cached() });
     expect(result.current.failure?.kind).toBe('changed');
     await act(() => vi.advanceTimersByTimeAsync(EMPTY_NOTICE_MS));
@@ -538,7 +538,7 @@ describe('useTidy', () => {
     act(() => result.current.keep('click'));
     await settle();
     rerender({ list: cached() });
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
     expect(result.current).toMatchObject({
       phase: 'failed',
       failure: { kind: 'saveFailed', canRetry: true },
@@ -571,8 +571,8 @@ describe('useTidy', () => {
     act(() => result.current.keep('enter'));
     act(() => result.current.undo('click'));
     // The cards are back at once; the server has heard only the keep.
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     await settle();
     expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -585,15 +585,15 @@ describe('useTidy', () => {
       source: 'click',
     });
     // The keep's answer did not put the cards on their destinations.
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
     await act(async () => {
       undoAnswer({
         tidy: dto({ status: 'UNDONE', kept: { noteIds: ['late', 'jotted'], skipped: [] } }),
       });
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current).toMatchObject({ phase: 'idle', moving: 0 });
     expect(result.current.undoLast()).toBe(false);
   });
@@ -614,8 +614,8 @@ describe('useTidy', () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(assistantApi.decideTidy).toHaveBeenCalledTimes(1);
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current.phase).toBe('idle');
   });
 
@@ -630,10 +630,10 @@ describe('useTidy', () => {
     act(() => result.current.keep('enter'));
     await settle();
     act(() => result.current.undo('click'));
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('THIS_WEEK');
     await settle();
-    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('SPAETER');
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('SPAETER');
+    expect(cached().find((n) => n.id === 'late')?.horizon).toBe('LATER');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('LATER');
     // The person asked for an undo that did not happen: it is said, with nothing to retry.
     expect(result.current).toMatchObject({
       phase: 'failed',
@@ -651,7 +651,7 @@ describe('useTidy', () => {
     await settle();
     rerender({ list: cached() });
     // A note jotted in Today while Undo is still offered: a new candidate.
-    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'HEUTE', dueDate: null })] });
+    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'TODAY', dueDate: null })] });
     await act(() => vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS));
     expect(result.current).toMatchObject({ phase: 'idle', count: 1 });
   });
@@ -684,7 +684,7 @@ describe('useTidy', () => {
     vi.mocked(assistantApi.tidy)
       .mockResolvedValueOnce({ tidy: dto() })
       .mockResolvedValueOnce({
-        tidy: dto({ id: 't2', moves: [{ ...dto().moves[0]!, from: 'HEUTE', baseRevision: 3 }] }),
+        tidy: dto({ id: 't2', moves: [{ ...dto().moves[0]!, from: 'TODAY', baseRevision: 3 }] }),
       });
     vi.mocked(assistantApi.decideTidy)
       .mockResolvedValueOnce({ tidy: kept() })
@@ -702,7 +702,7 @@ describe('useTidy', () => {
     await settle();
     // The board catches up with a collaborator who put `late` in Today meanwhile.
     queryClient.setQueryData<NoteDto[]>(keys.notes(BOARD), (list) =>
-      list?.map((n) => (n.id === 'late' ? { ...n, horizon: 'HEUTE', revision: 3 } : n)),
+      list?.map((n) => (n.id === 'late' ? { ...n, horizon: 'TODAY', revision: 3 } : n)),
     );
     rerender({ list: cached() });
     act(() => result.current.tidy());
@@ -711,13 +711,13 @@ describe('useTidy', () => {
     act(() => result.current.keep('enter'));
     await settle();
     // Back where it was just before this keep, not where it was before the first one.
-    expect(cached().find((n) => n.id === 'late')).toMatchObject({ horizon: 'HEUTE', revision: 3 });
+    expect(cached().find((n) => n.id === 'late')).toMatchObject({ horizon: 'TODAY', revision: 3 });
   });
 
   it('a Tidy pressed while an undo waits for its keep is ignored; the next batch keeps its cards and its snapshots', async () => {
     const second = dto({
       id: 't2',
-      moves: [{ ...dto().moves[1]!, to: 'DIESE_WOCHE', reason: 'by Friday' }],
+      moves: [{ ...dto().moves[1]!, to: 'THIS_WEEK', reason: 'by Friday' }],
     });
     vi.mocked(assistantApi.tidy)
       .mockResolvedValueOnce({ tidy: dto() })
@@ -743,22 +743,22 @@ describe('useTidy', () => {
       keepOneFail(new Error('offline'));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current).toMatchObject({ phase: 'idle', count: 2 });
     // Batch 2: `jotted` was in batch 1 too.
     act(() => result.current.tidy());
     await settle();
     expect(result.current.phase).toBe('pending');
     act(() => result.current.keep('click'));
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('THIS_WEEK');
     await settle();
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('DIESE_WOCHE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('THIS_WEEK');
     // Keep 2's snapshot is there: its refusal puts the card back where it was before keep 2.
     await act(async () => {
       keepTwoFail(new Error('offline'));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('HEUTE');
+    expect(cached().find((n) => n.id === 'jotted')?.horizon).toBe('TODAY');
     expect(result.current).toMatchObject({ phase: 'failed', failure: { kind: 'saveFailed' } });
   });
 
@@ -792,7 +792,7 @@ describe('useTidy', () => {
     rerender({ list: cached() });
     expect(result.current).toMatchObject({ phase: 'idle', count: 0 });
     // A note jotted in Today since is a new candidate: the affordance is back.
-    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'HEUTE', dueDate: null })] });
+    rerender({ list: [...cached(), makeNote({ id: 'new', horizon: 'TODAY', dueDate: null })] });
     expect(result.current.count).toBe(3);
     act(() => result.current.tidy());
     expect(result.current.phase).toBe('asking');
@@ -802,7 +802,7 @@ describe('useTidy', () => {
   it('the count follows the date: at midnight a note due that day joins it', async () => {
     // Saturday a minute before midnight: a note due on Sunday belongs to This week.
     vi.setSystemTime(new Date(2026, 9, 17, 23, 59, 0));
-    const sunday = makeNote({ id: 'sunday', horizon: 'DIESE_WOCHE', dueDate: '2026-10-18' });
+    const sunday = makeNote({ id: 'sunday', horizon: 'THIS_WEEK', dueDate: '2026-10-18' });
     const { result } = setup([sunday]);
     expect(result.current.count).toBe(0);
     // Sunday: it is due today, so it belongs to Today.

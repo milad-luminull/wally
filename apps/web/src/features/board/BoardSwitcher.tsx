@@ -26,13 +26,7 @@ interface BoardSwitcherProps {
 }
 
 // Stable visual identities for the existing boards; no new saved colour setting.
-const swatches = [
-  '--note-butter',
-  '--note-minze',
-  '--note-himmel',
-  '--note-rose',
-  '--note-flieder',
-];
+const swatches = ['--note-oat', '--note-mint', '--note-sky', '--note-rose', '--note-heather'];
 function boardSwatch(id: string) {
   const index =
     [...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0) % swatches.length;

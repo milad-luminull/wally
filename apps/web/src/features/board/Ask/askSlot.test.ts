@@ -23,7 +23,7 @@ describe('placementsTaken', () => {
       placementsTaken([NOTE], {
         kind: 'zone',
         axis: 'horizon',
-        key: 'HEUTE',
+        key: 'TODAY',
         at: { freeX: 32, freeY: 32 },
       }),
     ).toEqual([NOTE]);

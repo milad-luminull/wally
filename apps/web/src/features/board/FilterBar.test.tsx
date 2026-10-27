@@ -6,7 +6,7 @@ import { FilterBar } from './FilterBar';
 
 function baseView(overrides: Partial<BoardViewState> = {}): BoardViewState {
   return {
-    view: 'wand',
+    view: 'wall',
     axis: 'horizon',
     q: '',
     priority: [],
@@ -75,11 +75,11 @@ describe('FilterBar', () => {
     ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
     await userEvent.click(screen.getByRole('button', { name: 'Filter by High priority' }));
-    expect(setPriority).toHaveBeenCalledWith(['HOCH']);
+    expect(setPriority).toHaveBeenCalledWith(['HIGH']);
 
     rerender(
       <FilterBar
-        view={baseView({ priority: ['HOCH'] })}
+        view={baseView({ priority: ['HIGH'] })}
         setQuery={vi.fn()}
         setPriority={setPriority}
         setMine={vi.fn()}
@@ -95,7 +95,7 @@ describe('FilterBar', () => {
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Filter by Medium priority' }));
-    expect(setPriority).toHaveBeenCalledWith(['HOCH', 'MITTEL']);
+    expect(setPriority).toHaveBeenCalledWith(['HIGH', 'MEDIUM']);
   });
 
   it('toggles "Only mine" and "Hide completed"', async () => {
@@ -214,7 +214,7 @@ describe('FilterBar', () => {
     it('resets every filter with one call from the popover Reset button', async () => {
       const resetFilters = vi.fn();
       const setVisibility = renderBar(
-        { visibility: 'shared', mine: true, done: false, priority: ['HOCH'] },
+        { visibility: 'shared', mine: true, done: false, priority: ['HIGH'] },
         { showVisibility: true, resetFilters },
       );
       await userEvent.click(screen.getByRole('button', { name: 'Filters' }));

@@ -4,8 +4,8 @@ import type { TidyController, TidyMark } from './useTidy';
 import { useTidyFor } from './useTidyFor';
 
 const mark: TidyMark = {
-  to: 'SPAETER',
-  from: 'HEUTE',
+  to: 'LATER',
+  from: 'TODAY',
   reason: null,
   source: 'date',
   phase: 'pending',

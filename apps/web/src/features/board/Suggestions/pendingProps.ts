@@ -112,7 +112,7 @@ export function proposedValues(note: NoteDto, pending: PendingProps | undefined)
   const has = (key: SuggestionFieldKey) => mark.fields.includes(key);
   return {
     dueDate: has('dueDate') && open && note.dueDate === null ? fields.dueDate : null,
-    priority: has('priority') && open && note.priority === 'MITTEL' ? fields.priority : null,
+    priority: has('priority') && open && note.priority === 'MEDIUM' ? fields.priority : null,
     assignee:
       has('assignee') && note.visibility !== 'PRIVATE' && note.assignee === null
         ? fields.assignee

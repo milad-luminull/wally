@@ -15,7 +15,7 @@ function CaptureIllustration() {
   return (
     <div className="landing-step-art landing-capture-art" aria-hidden>
       <div className="landing-capture-tags">
-        {['butter', 'himmel', 'rose', 'minze'].map((colour, i) => (
+        {['oat', 'sky', 'rose', 'mint'].map((colour, i) => (
           <span key={colour} data-colour={colour}>
             {t('landing.captureKinds', { returnObjects: true })[i]}
           </span>
@@ -33,7 +33,7 @@ function SortIllustration() {
   return (
     <div className="landing-step-art" aria-hidden>
       <div className="landing-demo-card-glow" data-working="true">
-        <div className="landing-sort-example" data-colour="himmel">
+        <div className="landing-sort-example" data-colour="sky">
           <span>{t('landing.voiceCards.0.title')}</span>
           <div>
             <span>{t('landing.demo.days.fri')}</span>
@@ -53,9 +53,9 @@ function WeekIllustration() {
         <div key={key}>
           <span>{t(key === 'next' ? 'landing.views.week.label' : `landing.demo.days.${key}`)}</span>
           {[
-            ['himmel', 'butter', 'weiss'],
-            ['minze', 'rose'],
-            ['butter', 'himmel', 'minze'],
+            ['sky', 'oat', 'chalk'],
+            ['mint', 'rose'],
+            ['oat', 'sky', 'mint'],
           ][i]!.map((colour, n) => (
             <i key={n} data-colour={colour} />
           ))}
@@ -93,7 +93,7 @@ export function WelcomePage() {
       <main id="landing-main">
         <section id="top" className="landing-hero">
           <div className="landing-floating-notes" aria-hidden>
-            {['butter', 'himmel', 'minze', 'rose'].map((colour, i) => (
+            {['oat', 'sky', 'mint', 'rose'].map((colour, i) => (
               <span key={colour} data-colour={colour}>
                 {t('landing.floating', { returnObjects: true })[i]}
               </span>
@@ -162,7 +162,7 @@ export function WelcomePage() {
               <h2>{t('landing.controlTitle')}</h2>
             </div>
             <div className="landing-control-cards">
-              {['butter', 'himmel', 'minze'].map((colour, i) => (
+              {['oat', 'sky', 'mint'].map((colour, i) => (
                 <article key={colour} data-colour={colour}>
                   <h3>{t('landing.control', { returnObjects: true })[i]!.title}</h3>
                   <p>{t('landing.control', { returnObjects: true })[i]!.body}</p>

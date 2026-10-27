@@ -130,20 +130,20 @@
    * fills from dissolving into the wall. */
   --note-border: rgba(16, 16, 20, 0.07);
   --note-selected: var(--fg-1);
-  --note-weiss: #ffffff;
-  --note-sand: #eeece8;
-  --note-butter: #fff0b8;
-  --note-lehm: #fcdcc8;
-  --note-nebel: #dfe6ee;
-  --note-salbei: #dfead8;
-  --note-flieder: #e7dff7;
-  --note-eis: #dcf1f6;
-  --note-himmel: #d6e6fb;
-  --note-minze: #d3f1e3;
-  --note-seegruen: #cdebe6;
-  --note-oliv: #e8eccb;
+  --note-chalk: #ffffff;
+  --note-stone: #eeece8;
+  --note-oat: #fff0b8;
+  --note-clay: #fcdcc8;
+  --note-mist: #dfe6ee;
+  --note-sage: #dfead8;
+  --note-heather: #e7dff7;
+  --note-ice: #dcf1f6;
+  --note-sky: #d6e6fb;
+  --note-mint: #d3f1e3;
+  --note-sea-green: #cdebe6;
+  --note-olive: #e8eccb;
   --note-rose: #fcdde5;
-  --note-malve: #ecdbef;
+  --note-mallow: #ecdbef;
 }
 
 /* Dark: the same names, re-pointed. Notes become the hue at ~16% over the surface. */
@@ -199,20 +199,20 @@
   --chip-on-foreground: #0e0e10;
 
   --note-border: rgba(255, 255, 255, 0.07);
-  --note-weiss: #242427;
-  --note-sand: #2c2b2d;
-  --note-butter: #393117;
-  --note-lehm: #39281d;
-  --note-nebel: #282b31;
-  --note-salbei: #2a2e29;
-  --note-flieder: #2c273b;
-  --note-eis: #21363b;
-  --note-himmel: #202b3b;
-  --note-minze: #19332c;
-  --note-seegruen: #183332;
-  --note-oliv: #2e2e1f;
+  --note-chalk: #242427;
+  --note-stone: #2c2b2d;
+  --note-oat: #393117;
+  --note-clay: #39281d;
+  --note-mist: #282b31;
+  --note-sage: #2a2e29;
+  --note-heather: #2c273b;
+  --note-ice: #21363b;
+  --note-sky: #202b3b;
+  --note-mint: #19332c;
+  --note-sea-green: #183332;
+  --note-olive: #2e2e1f;
   --note-rose: #392329;
-  --note-malve: #322736;
+  --note-mallow: #322736;
 }
 
 .board-surface {

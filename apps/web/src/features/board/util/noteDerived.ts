@@ -70,20 +70,20 @@ export const dueToneClass: Record<DueTone, string> = {
  * all. The Record type keeps it exhaustive.
  */
 export const noteColourFillClass: Record<NoteColour, string> = {
-  WEISS: 'bg-[color:var(--note-weiss)]',
-  EIS: 'bg-[color:var(--note-eis)]',
-  SAND: 'bg-[color:var(--note-sand)]',
-  MINZE: 'bg-[color:var(--note-minze)]',
-  HIMMEL: 'bg-[color:var(--note-himmel)]',
-  NEBEL: 'bg-[color:var(--note-nebel)]',
-  BUTTER: 'bg-[color:var(--note-butter)]',
-  LEHM: 'bg-[color:var(--note-lehm)]',
+  CHALK: 'bg-[color:var(--note-chalk)]',
+  ICE: 'bg-[color:var(--note-ice)]',
+  STONE: 'bg-[color:var(--note-stone)]',
+  MINT: 'bg-[color:var(--note-mint)]',
+  SKY: 'bg-[color:var(--note-sky)]',
+  MIST: 'bg-[color:var(--note-mist)]',
+  OAT: 'bg-[color:var(--note-oat)]',
+  CLAY: 'bg-[color:var(--note-clay)]',
   ROSE: 'bg-[color:var(--note-rose)]',
-  MALVE: 'bg-[color:var(--note-malve)]',
-  FLIEDER: 'bg-[color:var(--note-flieder)]',
-  SEEGRUEN: 'bg-[color:var(--note-seegruen)]',
-  SALBEI: 'bg-[color:var(--note-salbei)]',
-  OLIV: 'bg-[color:var(--note-oliv)]',
+  MALLOW: 'bg-[color:var(--note-mallow)]',
+  HEATHER: 'bg-[color:var(--note-heather)]',
+  SEA_GREEN: 'bg-[color:var(--note-sea-green)]',
+  SAGE: 'bg-[color:var(--note-sage)]',
+  OLIVE: 'bg-[color:var(--note-olive)]',
 };
 
 /** No manual per-zone ordering (see the plan's data-model decision) — zones auto-flow by
@@ -107,16 +107,16 @@ export interface NoteGroup<K extends string> {
   notes: NoteDto[];
 }
 
-const HORIZON_ORDER: NoteHorizon[] = ['HEUTE', 'DIESE_WOCHE', 'SPAETER'];
+const HORIZON_ORDER: NoteHorizon[] = ['TODAY', 'THIS_WEEK', 'LATER'];
 const PRIORITY_ORDER: NotePriority[] = [...notePriorityValues];
 
 /**
  * Where a new note goes on a zoned wall when no zone was chosen (N, New note): the first
- * horizon (HEUTE), but the middle priority (MITTEL, the schema default) rather than the first
+ * horizon (TODAY), but the middle priority (MEDIUM, the schema default) rather than the first
  * band, so pressing N again and again never makes every note high priority.
  */
 export function defaultZoneKey(axis: 'horizon' | 'priority'): NoteHorizon | NotePriority {
-  return axis === 'horizon' ? HORIZON_ORDER[0]! : 'MITTEL';
+  return axis === 'horizon' ? HORIZON_ORDER[0]! : 'MEDIUM';
 }
 
 /** Groups + sorts notes by the active axis. Always returns one entry per zone (even

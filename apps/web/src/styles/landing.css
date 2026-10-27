@@ -21,20 +21,20 @@
   --landing-contrast: var(--inset);
   --landing-on-contrast: var(--fg-1);
 }
-.landing-page [data-colour='butter'] {
-  background-color: var(--note-butter);
+.landing-page [data-colour='oat'] {
+  background-color: var(--note-oat);
 }
-.landing-page [data-colour='himmel'] {
-  background-color: var(--note-himmel);
+.landing-page [data-colour='sky'] {
+  background-color: var(--note-sky);
 }
-.landing-page [data-colour='minze'] {
-  background-color: var(--note-minze);
+.landing-page [data-colour='mint'] {
+  background-color: var(--note-mint);
 }
 .landing-page [data-colour='rose'] {
   background-color: var(--note-rose);
 }
-.landing-page [data-colour='weiss'] {
-  background-color: var(--note-weiss);
+.landing-page [data-colour='chalk'] {
+  background-color: var(--note-chalk);
 }
 .landing-page :is(a, button, input):focus-visible {
   outline: 2px solid var(--ring);
@@ -166,8 +166,8 @@
   color: var(--accent-foreground);
   background: linear-gradient(
     transparent 14%,
-    color-mix(in oklab, var(--accent) 55%, var(--note-butter)) 14%,
-    color-mix(in oklab, var(--accent) 55%, var(--note-butter)) 88%,
+    color-mix(in oklab, var(--accent) 55%, var(--note-oat)) 14%,
+    color-mix(in oklab, var(--accent) 55%, var(--note-oat)) 88%,
     transparent 88%
   );
   padding: 0 6px;

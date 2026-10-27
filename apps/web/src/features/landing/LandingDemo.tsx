@@ -154,7 +154,7 @@ export function LandingDemo({
           {hasCard ? (
             <div className="landing-demo-card-wrap" data-phase={state.phase} data-tray={note.tray}>
               <div className="landing-demo-card-glow" data-working={state.phase !== 'kept'}>
-                <article className="landing-demo-card" data-colour={reveal ? note.colour : 'weiss'}>
+                <article className="landing-demo-card" data-colour={reveal ? note.colour : 'chalk'}>
                   <div className="landing-demo-title">
                     <span className="landing-check" />
                     <span>{reveal ? note.title : state.raw}</span>
@@ -250,7 +250,7 @@ export function LandingDemo({
         <div className="landing-demo-trays">
           {(['today', 'week', 'meet', 'ideas'] as Tray[]).map((key, i) => (
             <div key={key} data-active={state.phase === 'kept' && state.tray === key}>
-              <i data-colour={['butter', 'minze', 'himmel', 'rose'][i]} />
+              <i data-colour={['oat', 'mint', 'sky', 'rose'][i]} />
               <span>{t(`landing.demo.trays.${key}`)}</span>
               <output
                 aria-label={t('landing.demo.trayCount', { name: t(`landing.demo.trays.${key}`) })}

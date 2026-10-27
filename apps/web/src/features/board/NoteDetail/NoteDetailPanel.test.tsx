@@ -48,10 +48,10 @@ import { membersApi, notesApi } from '@/lib/resources';
 
 beforeEach(() => {
   vi.mocked(notesApi.get).mockResolvedValue(
-    makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE' }),
+    makeNoteDetail({ priority: 'MEDIUM', horizon: 'TODAY' }),
   );
   vi.mocked(notesApi.move).mockResolvedValue(
-    makeNoteDetail({ priority: 'HOCH', horizon: 'SPAETER' }),
+    makeNoteDetail({ priority: 'HIGH', horizon: 'LATER' }),
   );
   vi.mocked(notesApi.remove).mockResolvedValue(undefined);
   vi.mocked(notesApi.list).mockResolvedValue([]);
@@ -253,7 +253,7 @@ describe('NoteDetailPanel', () => {
     beforeEach(() => {
       vi.mocked(notesApi.update).mockImplementation(async (_id, input) => {
         vi.mocked(notesApi.get).mockResolvedValue(
-          makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE', ...input }),
+          makeNoteDetail({ priority: 'MEDIUM', horizon: 'TODAY', ...input }),
         );
         return makeNote({ ...input });
       });
@@ -307,7 +307,7 @@ describe('NoteDetailPanel', () => {
     beforeEach(() => {
       vi.mocked(notesApi.update).mockImplementation(async (_id, input) => {
         vi.mocked(notesApi.get).mockResolvedValue(
-          makeNoteDetail({ priority: 'MITTEL', horizon: 'HEUTE', ...input }),
+          makeNoteDetail({ priority: 'MEDIUM', horizon: 'TODAY', ...input }),
         );
         return makeNote({ ...input });
       });
@@ -572,7 +572,7 @@ describe('NoteDetailPanel', () => {
     await waitFor(() =>
       expect(notesApi.move).toHaveBeenCalledWith(
         'note-1',
-        { mode: 'PRIORITY', priority: 'HOCH' },
+        { mode: 'PRIORITY', priority: 'HIGH' },
         expect.objectContaining({
           operationId: expect.any(String),
           resource: expect.stringMatching(/^note:/),
@@ -592,7 +592,7 @@ describe('NoteDetailPanel', () => {
     await waitFor(() =>
       expect(notesApi.move).toHaveBeenCalledWith(
         'note-1',
-        { mode: 'HORIZON', horizon: 'SPAETER' },
+        { mode: 'HORIZON', horizon: 'LATER' },
         expect.objectContaining({
           operationId: expect.any(String),
           resource: expect.stringMatching(/^note:/),
@@ -646,7 +646,7 @@ describe('NoteDetailPanel', () => {
 
     expect(screen.getByLabelText('Title')).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'High' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: enumLabels(i18n.t).colour.WEISS })).toBeDisabled();
+    expect(screen.getByRole('button', { name: enumLabels(i18n.t).colour.CHALK })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 
@@ -819,7 +819,7 @@ describe('NoteDetailPanel', () => {
       unmount();
 
       vi.mocked(notesApi.get).mockResolvedValue(
-        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+        makeNoteDetail({ priority: 'MEDIUM', dueDate: '2026-10-23' }),
       );
       renderPanel({ pending: pendingFor() });
       await screen.findByLabelText('Title');
@@ -884,7 +884,7 @@ describe('NoteDetailPanel', () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
       vi.mocked(notesApi.get).mockResolvedValue(
-        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+        makeNoteDetail({ priority: 'MEDIUM', dueDate: '2026-10-23' }),
       );
       const pending = pendingFor();
       renderPanel({ pending });
@@ -915,7 +915,7 @@ describe('NoteDetailPanel', () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.update).mockResolvedValue(makeNote({ dueDate: null }));
       vi.mocked(notesApi.get).mockResolvedValue(
-        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+        makeNoteDetail({ priority: 'MEDIUM', dueDate: '2026-10-23' }),
       );
       const props = {
         noteId: 'note-1',
@@ -954,7 +954,7 @@ describe('NoteDetailPanel', () => {
     it('leaves focus alone when the person clicked away from the review before it went', async () => {
       const user = userEvent.setup();
       vi.mocked(notesApi.get).mockResolvedValue(
-        makeNoteDetail({ priority: 'MITTEL', dueDate: '2026-10-23' }),
+        makeNoteDetail({ priority: 'MEDIUM', dueDate: '2026-10-23' }),
       );
       const props = {
         noteId: 'note-1',

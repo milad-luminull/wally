@@ -63,11 +63,28 @@ One colour is also what lets the icon survive on all fourteen note fills. See
 ### Note colour belongs to the user
 
 Fourteen fills. The persisted keys are the English labels (`CHALK`, `ICE`, `STONE`, …) and
-never change again; the German keys they replace are migrated in place
-([ADR-0014](adr/ADR-0014-english-identifiers-and-persisted-values.md)). In light mode they are clean pastels; in dark mode
+never change again; they replaced the German keys in one release with a data reset
+([ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md)). In light mode they are clean pastels; in dark mode
 each is the same hue at ~16% over the surface. Cards carry a `--note-border` hairline so pale
 fills never dissolve into the wall. On the wall a note is filled edge to edge; in the list it
 is a small swatch beside the title.
+
+| Key         | CSS variable       | English label |
+| ----------- | ------------------ | ------------- |
+| `CHALK`     | `--note-chalk`     | Chalk         |
+| `ICE`       | `--note-ice`       | Ice blue      |
+| `STONE`     | `--note-stone`     | Stone         |
+| `MINT`      | `--note-mint`      | Mint          |
+| `SKY`       | `--note-sky`       | Sky           |
+| `MIST`      | `--note-mist`      | Mist          |
+| `OAT`       | `--note-oat`       | Oat           |
+| `CLAY`      | `--note-clay`      | Clay          |
+| `ROSE`      | `--note-rose`      | Rose          |
+| `MALLOW`    | `--note-mallow`    | Mallow        |
+| `HEATHER`   | `--note-heather`   | Heather       |
+| `SEA_GREEN` | `--note-sea-green` | Sea green     |
+| `SAGE`      | `--note-sage`      | Sage          |
+| `OLIVE`     | `--note-olive`     | Olive         |
 
 Minimal retains its original contrast floors: body text ≥ 10:1, metadata ≥ 4.9:1 and status text ≥ 5:1. Across all palettes, metadata, status and action labels meet at least 4.5:1; canvas body text meets 7:1.
 
@@ -193,9 +210,11 @@ follow, and `brandGuards.test.ts` enforces the first one.
 ### "Wand" is the German word for the wall
 
 It appears only in the German catalogue (`Wand`, `'Wally — Meine Wand'`) and in the German
-default board name. Code names are English (`WallView`, `WallCanvas`, `board.topBar.view.wall`;
-[ADR-0014](adr/ADR-0014-english-identifiers-and-persisted-values.md) renames what still carries
-it). The guard test matches lucide import specifiers only, never catalogue values.
+default board name. Code names are English (`WallView`, `WallCanvas`, `board.topBar.view.wall`),
+and so is the stored board view, `wall`
+([ADR-0014](adr/ADR-0014-english-identifiers-and-persisted-values.md),
+[ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md)). The guard test matches
+lucide import specifiers only, never catalogue values.
 
 ### Connection status lights
 

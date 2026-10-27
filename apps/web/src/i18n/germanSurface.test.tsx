@@ -40,7 +40,7 @@ beforeEach(async () => {
 
 describe('the German surface', () => {
   it('renders board copy in German', () => {
-    const notes = [makeNote({ id: 'n1', title: 'Ship it', horizon: 'HEUTE', priority: 'HOCH' })];
+    const notes = [makeNote({ id: 'n1', title: 'Ship it', horizon: 'TODAY', priority: 'HIGH' })];
 
     renderWithProviders(
       <ListView

@@ -21,9 +21,9 @@ export function captureRendersIn(
 ): boolean {
   switch (placement.kind) {
     case 'free':
-      return view === 'wand' && axis === 'free';
+      return view === 'wall' && axis === 'free';
     case 'zone':
-      return view === 'wand' && axis === placement.axis;
+      return view === 'wall' && axis === placement.axis;
     case 'list':
       return view === 'list';
   }

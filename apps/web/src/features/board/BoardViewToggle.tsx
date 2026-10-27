@@ -19,7 +19,7 @@ export function BoardViewToggle({
       onChange={onSetView}
       options={[
         { value: 'list', label: t('board.topBar.view.list'), icon: <List aria-hidden /> },
-        { value: 'wand', label: t('board.topBar.view.wall'), icon: <Columns3 aria-hidden /> },
+        { value: 'wall', label: t('board.topBar.view.wall'), icon: <Columns3 aria-hidden /> },
       ]}
     />
   );

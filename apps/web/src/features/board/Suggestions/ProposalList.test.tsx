@@ -10,7 +10,7 @@ import { dueInfo } from '../util/noteDerived';
 const dueWords = (iso: string) => dueInfo({ status: 'OPEN', dueDate: iso }, i18n.t).label;
 
 const base = makeSuggestionMark();
-const note = makeNote({ dueDate: null, priority: 'MITTEL', assignee: null });
+const note = makeNote({ dueDate: null, priority: 'MEDIUM', assignee: null });
 const fields = {
   ...base.suggestion!.fields,
   assignee: null,
@@ -19,7 +19,7 @@ const fields = {
     items: ['Find the number of the practice near the office', 'Book a slot'],
     reason: 'steps',
   },
-  horizon: { value: 'DIESE_WOCHE' as const, reason: '"this week"' },
+  horizon: { value: 'THIS_WEEK' as const, reason: '"this week"' },
   visibility: { value: 'PRIVATE' as const, reason: 'a dentist visit' },
   tags: { items: ['ops', 'sales'], reason: 'board tags' },
   properties: { items: [{ key: 'Customer', value: 'Acme' }], reason: 'named' },
@@ -94,7 +94,7 @@ describe('ProposalList', () => {
   });
 
   it('shows a typed field as a row with no button', () => {
-    const typedNote = makeNote({ dueDate: '2026-10-20', priority: 'MITTEL', assignee: null });
+    const typedNote = makeNote({ dueDate: '2026-10-20', priority: 'MEDIUM', assignee: null });
     render(
       <ProposalList
         note={typedNote}

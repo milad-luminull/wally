@@ -191,7 +191,7 @@ describe('NoteCard with a pending change', () => {
     render(
       <DndContext>
         <NoteCard
-          note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })}
+          note={makeNote({ dueDate: null, priority: 'MEDIUM', assignee: null })}
           currentUserId="user-1"
           selected={false}
           onOpen={vi.fn()}
@@ -468,8 +468,8 @@ describe('NoteCard with a pending change', () => {
 
 describe('NoteCard in a tidy batch', () => {
   const mark = (phase: TidyMark['phase'] = 'pending'): TidyMark => ({
-    to: 'SPAETER',
-    from: 'HEUTE',
+    to: 'LATER',
+    from: 'TODAY',
     reason: null,
     source: 'date',
     phase,

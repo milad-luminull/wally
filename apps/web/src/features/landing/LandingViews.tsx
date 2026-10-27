@@ -4,14 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const views = ['week', 'priority', 'whiteboard', 'today', 'focus'] as const;
 const notes = [
-  { colour: 'butter', week: 1, priority: 1 },
-  { colour: 'himmel', week: 1, priority: 2 },
-  { colour: 'butter', week: 1, priority: 2 },
-  { colour: 'minze', week: 2, priority: 2 },
-  { colour: 'himmel', week: 3, priority: 2 },
+  { colour: 'oat', week: 1, priority: 1 },
+  { colour: 'sky', week: 1, priority: 2 },
+  { colour: 'oat', week: 1, priority: 2 },
+  { colour: 'mint', week: 2, priority: 2 },
+  { colour: 'sky', week: 3, priority: 2 },
   { colour: 'rose', week: 3, priority: 1 },
-  { colour: 'weiss', week: 4, priority: 3 },
-  { colour: 'minze', week: 4, priority: 3 },
+  { colour: 'chalk', week: 4, priority: 3 },
+  { colour: 'mint', week: 4, priority: 3 },
 ];
 const positions = [
   [4, 6, -3],
@@ -48,7 +48,7 @@ export function LandingViews() {
                 <div
                   className="landing-view-note"
                   key={i}
-                  data-colour={view === 'focus' ? 'himmel' : note.colour}
+                  data-colour={view === 'focus' ? 'sky' : note.colour}
                   style={
                     {
                       '--week': note.week,

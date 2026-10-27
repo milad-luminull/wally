@@ -171,7 +171,7 @@ export function AskCard({
       className={cn(
         'relative flex flex-col gap-2 rounded-lg border border-dashed border-[color:var(--note-border)] p-3 text-left shadow-e2 outline-none',
         'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--note-selected)]',
-        noteColourFillClass.WEISS,
+        noteColourFillClass.CHALK,
         layout === 'card' ? 'w-[376px] max-w-full' : 'w-full',
         // 180 ms of opacity, then the shell removes the card; nothing moves under reduced motion.
         phase === 'fading' &&

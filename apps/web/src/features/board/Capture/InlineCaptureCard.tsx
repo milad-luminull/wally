@@ -311,7 +311,7 @@ export function InlineCaptureCard({
         // Grows from the click point: the card's top-left is where the person clicked.
         'animate-capture-in motion-reduce:animate-none',
         layout === 'card' ? 'origin-top-left' : 'origin-top',
-        noteColourFillClass.WEISS,
+        noteColourFillClass.CHALK,
         layout === 'card' ? 'w-[248px]' : 'w-full',
       )}
     >

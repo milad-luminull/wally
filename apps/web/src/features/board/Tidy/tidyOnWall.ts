@@ -7,5 +7,5 @@ import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
  * shows where a horizon batch would send it.
  */
 export function tidyOnWall(assistantEnabled: boolean, view: BoardView, axis: BoardAxis): boolean {
-  return assistantEnabled && view === 'wand' && axis === 'horizon';
+  return assistantEnabled && view === 'wall' && axis === 'horizon';
 }

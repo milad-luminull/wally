@@ -43,28 +43,28 @@ describe('useMoveNote', () => {
   }
 
   it('optimistically patches the notes-list cache before the request resolves, then keeps it on success', async () => {
-    const note = makeNote({ horizon: 'HEUTE' });
+    const note = makeNote({ horizon: 'TODAY' });
     let resolveMove!: (value: Awaited<ReturnType<typeof notesApi.move>>) => void;
     vi.mocked(notesApi.move).mockReturnValue(new Promise((resolve) => (resolveMove = resolve)));
 
     const { queryClient, result } = setup(note);
 
-    result.current.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: 'SPAETER' } });
+    result.current.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: 'LATER' } });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      expect(cached?.[0]?.horizon).toBe('SPAETER');
+      expect(cached?.[0]?.horizon).toBe('LATER');
     });
 
-    resolveMove({ ...note, horizon: 'SPAETER' });
+    resolveMove({ ...note, horizon: 'LATER' });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-    expect(cached?.[0]?.horizon).toBe('SPAETER');
+    expect(cached?.[0]?.horizon).toBe('LATER');
   });
 
   it('rolls back the optimistic patch when the request fails', async () => {
-    const note = makeNote({ horizon: 'HEUTE' });
+    const note = makeNote({ horizon: 'TODAY' });
     let rejectMove!: (err: unknown) => void;
     vi.mocked(notesApi.move).mockReturnValue(
       new Promise((_resolve, reject) => (rejectMove = reject)),
@@ -72,33 +72,33 @@ describe('useMoveNote', () => {
 
     const { queryClient, result } = setup(note);
 
-    result.current.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: 'SPAETER' } });
+    result.current.mutate({ noteId: note.id, input: { mode: 'HORIZON', horizon: 'LATER' } });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      expect(cached?.[0]?.horizon).toBe('SPAETER');
+      expect(cached?.[0]?.horizon).toBe('LATER');
     });
 
     rejectMove(new Error('network error'));
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      expect(cached?.[0]?.horizon).toBe('HEUTE');
+      expect(cached?.[0]?.horizon).toBe('TODAY');
     });
     expect(result.current.isError).toBe(true);
   });
 
   it('only patches the field for the given move mode (priority move never touches horizon)', async () => {
-    const note = makeNote({ horizon: 'HEUTE', priority: 'MITTEL' });
+    const note = makeNote({ horizon: 'TODAY', priority: 'MEDIUM' });
     vi.mocked(notesApi.move).mockReturnValue(new Promise(() => {}));
     const { queryClient, result } = setup(note);
 
-    result.current.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: 'HOCH' } });
+    result.current.mutate({ noteId: note.id, input: { mode: 'PRIORITY', priority: 'HIGH' } });
 
     await waitFor(() => {
       const cached = queryClient.getQueryData<NoteDto[]>(queryKeys.notes(boardId));
-      expect(cached?.[0]?.priority).toBe('HOCH');
-      expect(cached?.[0]?.horizon).toBe('HEUTE');
+      expect(cached?.[0]?.priority).toBe('HIGH');
+      expect(cached?.[0]?.horizon).toBe('TODAY');
     });
   });
 });

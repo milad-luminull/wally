@@ -79,14 +79,14 @@ describe('useDuplicateNote', () => {
 
   it('lets a drop placement override where the copy goes', async () => {
     vi.mocked(notesApi.duplicate).mockReturnValue(new Promise(() => {}));
-    const { result } = setup(makeNote({ id: 'note-1', horizon: 'HEUTE' }));
+    const { result } = setup(makeNote({ id: 'note-1', horizon: 'TODAY' }));
 
-    act(() => result.current.duplicate('note-1', { horizon: 'SPAETER', freeX: 500, freeY: 600 }));
+    act(() => result.current.duplicate('note-1', { horizon: 'LATER', freeX: 500, freeY: 600 }));
 
     await waitFor(() => expect(notesApi.duplicate).toHaveBeenCalled());
     expect(notesApi.duplicate).toHaveBeenCalledWith(
       'note-1',
-      expect.objectContaining({ horizon: 'SPAETER', freeX: 500, freeY: 600 }),
+      expect.objectContaining({ horizon: 'LATER', freeX: 500, freeY: 600 }),
       expect.objectContaining({
         operationId: expect.any(String),
         resource: expect.stringMatching(/^note:/),

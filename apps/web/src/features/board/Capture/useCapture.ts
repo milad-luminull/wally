@@ -38,7 +38,7 @@ export type CaptureAsk = (question: string, options: AskOptions) => void;
 export interface CaptureFields {
   dueDate: string | null;
   assigneeId: string | null;
-  priority: 'HOCH' | 'NIEDRIG' | null;
+  priority: 'HIGH' | 'LOW' | null;
 }
 
 export interface CaptureController {

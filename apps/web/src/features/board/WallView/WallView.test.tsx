@@ -67,7 +67,7 @@ function Wall({
   tidyFor?: (noteId: string) => TidyProps | undefined;
   editFor?: (note: NoteDto) => InlineEditProps | undefined;
 }) {
-  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
+  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'TODAY', priority: 'HIGH' })];
   const [capture, setCapture] = useState<CapturePlacement | null>(null);
   return (
     <WallView
@@ -105,7 +105,7 @@ function renderWall(
 const pendingTidyFor = (noteId: string): TidyProps | undefined =>
   noteId === 'n1'
     ? {
-        mark: { to: 'DIESE_WOCHE', from: 'HEUTE', reason: null, source: 'words', phase: 'pending' },
+        mark: { to: 'THIS_WEEK', from: 'TODAY', reason: null, source: 'words', phase: 'pending' },
         onKeep: vi.fn(),
         onDiscard: vi.fn(),
         onUndo: vi.fn(),
@@ -175,7 +175,7 @@ describe('WallView: every create path writes the note in place, with its visibil
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'PRIVATE', horizon: 'HEUTE' }),
+        expect.objectContaining({ visibility: 'PRIVATE', horizon: 'TODAY' }),
       );
     });
 
@@ -187,7 +187,7 @@ describe('WallView: every create path writes the note in place, with its visibil
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'PRIVATE', priority: 'HOCH' }),
+        expect.objectContaining({ visibility: 'PRIVATE', priority: 'HIGH' }),
       );
     });
 
@@ -231,7 +231,7 @@ describe('WallView: every create path writes the note in place, with its visibil
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'SHARED', horizon: 'HEUTE' }),
+        expect.objectContaining({ visibility: 'SHARED', horizon: 'TODAY' }),
       );
     });
 
@@ -243,7 +243,7 @@ describe('WallView: every create path writes the note in place, with its visibil
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       expect(notesApi.create).toHaveBeenCalledWith(
         'board-1',
-        expect.objectContaining({ visibility: 'SHARED', priority: 'HOCH' }),
+        expect.objectContaining({ visibility: 'SHARED', priority: 'HIGH' }),
       );
     });
 
@@ -316,7 +316,7 @@ describe('WallView: a card of a Tidy batch', () => {
 
 describe('WallView answer card', () => {
   const owner = boardAccess('OWNER', 'me', 'all');
-  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE' })];
+  const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'TODAY' })];
 
   function renderWithAnswer(onCapture = vi.fn()) {
     return renderWithProviders(
@@ -339,7 +339,7 @@ describe('WallView answer card', () => {
           placement: {
             kind: 'zone',
             axis: 'horizon',
-            key: 'DIESE_WOCHE',
+            key: 'THIS_WEEK',
             at: { freeX: 0, freeY: 0 },
           },
           card: <div data-testid="answer" />,

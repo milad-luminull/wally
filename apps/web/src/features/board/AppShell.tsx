@@ -320,7 +320,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
             ) : notesQuery.isError && !notesQuery.data ? (
               // Never drawn as an empty board: the notes did not load, and that is said.
               <BoardLoadError onRetry={() => void notesQuery.refetch()} />
-            ) : effectiveView === 'wand' ? (
+            ) : effectiveView === 'wall' ? (
               <WallView
                 boardId={boardId}
                 notes={filteredNotes}

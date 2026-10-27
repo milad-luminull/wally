@@ -61,7 +61,7 @@ let nextId = 1;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  server = [makeNote({ id: 'n1', title: 'Existing', horizon: 'HEUTE', priority: 'HOCH' })];
+  server = [makeNote({ id: 'n1', title: 'Existing', horizon: 'TODAY', priority: 'HIGH' })];
   nextId = 1;
   vi.mocked(notesApi.list).mockImplementation(async () => server.map((n) => ({ ...n })));
   vi.mocked(notesApi.create).mockImplementation(async (_board, input) => {
@@ -239,8 +239,8 @@ function copiesOutsideCapture(title: string) {
 
 describe('useCaptureSession: the note being written has one card', () => {
   it.each([
-    ['in a zone', 'wand', 'horizon'],
-    ['on the free canvas', 'wand', 'free'],
+    ['in a zone', 'wall', 'horizon'],
+    ['on the free canvas', 'wall', 'free'],
     ['in the list', 'list', 'horizon'],
   ] as const)(
     'shows only the capture %s while typing, then the real card on commit',
@@ -254,19 +254,19 @@ describe('useCaptureSession: the note being written has one card', () => {
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(vi.mocked(notesApi.list).mock.calls.length).toBeGreaterThan(1));
       expect(copiesOutsideCapture('M')).toEqual([]);
-      if (view === 'wand') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(1);
+      if (view === 'wall') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(1);
 
       await userEvent.type(await titleField(), 'unich{Enter}');
       await waitFor(() =>
         expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
       );
       expect(await screen.findAllByText('Munich')).toHaveLength(1);
-      if (view === 'wand') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
+      if (view === 'wall') expect(container.querySelectorAll('[data-note-id]')).toHaveLength(2);
     },
   );
 
   it('a plain Enter never opens the panel; ⌘↵ / Ctrl+↵ does', async () => {
-    const { openNote } = renderBoard('wand', 'horizon');
+    const { openNote } = renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'First{Enter}');
@@ -284,7 +284,7 @@ describe('useCaptureSession: the note being written has one card', () => {
   });
 
   it('after Enter, the keyboard carries on from the committed card', async () => {
-    const { container } = renderBoard('wand', 'horizon');
+    const { container } = renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Onward{Enter}');
@@ -310,7 +310,7 @@ describe('useCaptureSession: the note being written has one card', () => {
   });
 
   it('after Enter the shell hears which fields were typed', async () => {
-    const { onCommitted } = renderBoard('wand', 'horizon');
+    const { onCommitted } = renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'Gone{Escape}');
@@ -330,10 +330,10 @@ describe('useCaptureSession: the note being written has one card', () => {
   });
 
   it.each([
-    ['priority', { priority: 'MITTEL' }],
-    ['horizon', { horizon: 'HEUTE' }],
+    ['priority', { priority: 'MEDIUM' }],
+    ['horizon', { horizon: 'TODAY' }],
   ] as const)('N on the %s wall writes the note in the default zone', async (axis, expected) => {
-    renderBoard('wand', axis);
+    renderBoard('wall', axis);
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'new' }));
     await userEvent.type(await titleField(), 'X');
@@ -351,7 +351,7 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
     await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
 
     // Back/Forward or a resize to desktop: the list is gone, nothing blurred the card.
-    rerender({ view: 'wand', axis: 'horizon' });
+    rerender({ view: 'wall', axis: 'horizon' });
     await waitFor(() =>
       expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
@@ -370,12 +370,12 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
   });
 
   it('closes a zone capture when the axis changes under it', async () => {
-    const { rerender } = renderBoard('wand', 'horizon');
+    const { rerender } = renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await captureCard();
 
-    rerender({ view: 'wand', axis: 'priority' });
+    rerender({ view: 'wall', axis: 'priority' });
     await waitFor(() =>
       expect(screen.queryByRole('group', { name: 'Write a new note' })).toBeNull(),
     );
@@ -384,7 +384,7 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
   });
 
   it('a zone plus while a commit is still settling opens a fresh card there', async () => {
-    renderBoard('wand', 'horizon');
+    renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     await userEvent.click(screen.getByRole('button', { name: 'Add a note to “Today”' }));
     await userEvent.type(await titleField(), 'First');
@@ -411,7 +411,7 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
   });
 
   it('the same zone’s plus again while a commit is settling gives a fresh card, not the old one', async () => {
-    renderBoard('wand', 'horizon');
+    renderBoard('wall', 'horizon');
     await screen.findByText('Existing');
     const plus = screen.getByRole('button', { name: 'Add a note to “Today”' });
     await userEvent.click(plus);
@@ -431,7 +431,7 @@ describe('useCaptureSession: a capture never blocks the next one', () => {
   });
 
   it('a second double-click on the canvas while the first capture has text moves the capture', async () => {
-    const { container } = renderBoard('wand', 'free');
+    const { container } = renderBoard('wall', 'free');
     await screen.findByText('Existing');
     const canvas = screen.getByTestId('wall-canvas');
     fireEvent.doubleClick(canvas, { clientX: 300, clientY: 200 });
@@ -457,7 +457,7 @@ describe('useCaptureSession asking', () => {
     const { result } = renderHook(() =>
       useCaptureSession({
         boardId: BOARD,
-        view: 'wand',
+        view: 'wall',
         axis: 'free',
         openNoteId: null,
         openNote: vi.fn(),
@@ -484,12 +484,12 @@ describe('useCaptureSession asking from the real views', () => {
   it.each([
     [
       'in a zone',
-      'wand',
+      'wall',
       'horizon',
       'Add a note to “Today”',
-      { kind: 'zone', axis: 'horizon', key: 'HEUTE' },
+      { kind: 'zone', axis: 'horizon', key: 'TODAY' },
     ],
-    ['on the free canvas', 'wand', 'free', 'new', { kind: 'free', x: 40, y: 40 }],
+    ['on the free canvas', 'wall', 'free', 'new', { kind: 'free', x: 40, y: 40 }],
     ['in the list', 'list', 'horizon', 'new', { kind: 'list' }],
   ] as const)(
     'a question typed %s reaches the shell with its placement and leaves no note',
@@ -524,8 +524,8 @@ describe('useCaptureSession asking from the real views', () => {
 
   it.each([
     // A column picked on the horizon wall decides the horizon; nothing else decides a field.
-    ['in a zone', 'wand', 'horizon', 'Add a note to “Today”', ['horizon']],
-    ['on the free canvas', 'wand', 'free', 'new', []],
+    ['in a zone', 'wall', 'horizon', 'Add a note to “Today”', ['horizon']],
+    ['on the free canvas', 'wall', 'free', 'new', []],
     ['in the list', 'list', 'horizon', 'new', []],
   ] as const)(
     'with the assistant off, a question mark typed %s is a plain note',
