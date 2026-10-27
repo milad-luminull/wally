@@ -38,7 +38,7 @@ export const mcpToolInputs = {
   assign_note: operationInputs.assign_note.extend({ operationId }),
 } as const;
 export type McpToolName = keyof typeof mcpToolInputs;
-export const mcpToolNames = Object.keys(mcpToolInputs) as McpToolName[];
+const mcpToolNames = Object.keys(mcpToolInputs) as McpToolName[];
 const descriptions: Record<McpToolName, string> = {
   list_boards: 'List your currently accessible boards, including your role.',
   get_board: 'Read metadata, revision and assistant availability for a board you can access.',
@@ -62,7 +62,7 @@ const descriptions: Record<McpToolName, string> = {
     'Assign a note to a current member, or clear assignment, at expectedRevision. Retry with the same operationId and input.',
 };
 const isRead = (name: McpToolName) => name.startsWith('list_') || name.startsWith('get_');
-export const mcpToolDefinitions = mcpToolNames.map((name) => ({
+const mcpToolDefinitions = mcpToolNames.map((name) => ({
   name,
   description: descriptions[name],
   inputSchema: mcpToolInputs[name],

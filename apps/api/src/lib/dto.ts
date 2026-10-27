@@ -30,7 +30,7 @@ import { assistantEnabledFor } from './assistant/switch.js';
 /** Users referenced by the documents being mapped, keyed by id — see loadUsers. */
 export type UserMap = Map<string, WithId<UserDoc>>;
 
-export function toUserSummary(user: WithId<UserDoc> | null | undefined): UserSummary | null {
+function toUserSummary(user: WithId<UserDoc> | null | undefined): UserSummary | null {
   if (!user) return null;
   return { id: user.id, email: user.email, displayName: user.displayName };
 }
@@ -79,14 +79,14 @@ export function toSubtaskDto(subtask: WithId<SubtaskDoc>): SubtaskDto {
   };
 }
 
-export function toSubtaskSummary(subtasks: WithId<SubtaskDoc>[]): SubtaskSummary {
+function toSubtaskSummary(subtasks: WithId<SubtaskDoc>[]): SubtaskSummary {
   return {
     total: subtasks.length,
     done: subtasks.filter((s) => s.done).length,
   };
 }
 
-export function toHistoryEventDto(event: WithId<HistoryEventDoc>, users: UserMap): HistoryEventDto {
+function toHistoryEventDto(event: WithId<HistoryEventDoc>, users: UserMap): HistoryEventDto {
   return {
     id: event.id,
     type: event.type,
