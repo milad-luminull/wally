@@ -16,7 +16,8 @@ CREATE TABLE "mcp_connections" (
 	"created_at" timestamp with time zone NOT NULL,
 	"issued_after" bigint NOT NULL,
 	"revoked_at" timestamp with time zone,
-	CONSTRAINT "mcp_connections_scopes_check" CHECK ("mcp_connections"."scopes" <@ array['wally:read', 'wally:write']::text[])
+	CONSTRAINT "mcp_connections_scopes_check" CHECK ("mcp_connections"."scopes" <@ array['wally:read', 'wally:write']::text[]),
+	CONSTRAINT "mcp_connections_scopes_not_empty_check" CHECK (cardinality("mcp_connections"."scopes") > 0)
 );
 --> statement-breakpoint
 ALTER TABLE "mcp_connections" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -147,7 +148,9 @@ CREATE TABLE "assistant_audit" (
 	"connection_id" text,
 	"revision" integer NOT NULL,
 	"occurred_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL
+	"expires_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "assistant_audit_command_type_check" CHECK ("assistant_audit"."command_type" in ('note.create', 'note.update', 'note.move', 'note.assign', 'note.duplicate', 'note.complete', 'note.reopen', 'note.delete', 'subtask.create', 'subtask.update', 'subtask.delete', 'board.rename', 'board.assistant', 'board.create', 'board.delete', 'board.leave', 'member.invite', 'member.update', 'member.delete', 'link.create', 'link.update', 'link.rotate', 'link.delete', 'link.redeem')),
+	CONSTRAINT "assistant_audit_via_check" CHECK ("assistant_audit"."via" in ('mcp'))
 );
 --> statement-breakpoint
 ALTER TABLE "assistant_audit" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -172,7 +175,8 @@ CREATE TABLE "board_operations" (
 	"provenance" jsonb,
 	"created_at" timestamp with time zone NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "board_operations_user_id_operation_id_pk" PRIMARY KEY("user_id","operation_id")
+	CONSTRAINT "board_operations_user_id_operation_id_pk" PRIMARY KEY("user_id","operation_id"),
+	CONSTRAINT "board_operations_roles_check" CHECK ("board_operations"."roles" <@ array['OWNER', 'EDIT', 'VIEW']::text[])
 );
 --> statement-breakpoint
 ALTER TABLE "board_operations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -240,7 +244,8 @@ CREATE TABLE "assistant_suggestions" (
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "assistant_suggestions_status_check" CHECK ("assistant_suggestions"."status" in ('PENDING', 'KEPT', 'UNDONE', 'DISCARDED'))
+	CONSTRAINT "assistant_suggestions_status_check" CHECK ("assistant_suggestions"."status" in ('PENDING', 'KEPT', 'UNDONE', 'DISCARDED')),
+	CONSTRAINT "assistant_suggestions_typed_check" CHECK ("assistant_suggestions"."typed" <@ array['dueDate', 'priority', 'assignee', 'title', 'reference', 'subtasks', 'links', 'horizon', 'visibility', 'tags', 'properties', 'description']::text[])
 );
 --> statement-breakpoint
 ALTER TABLE "assistant_suggestions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -288,9 +293,11 @@ ALTER TABLE "assistant_suggestions" ADD CONSTRAINT "assistant_suggestions_user_i
 ALTER TABLE "assistant_tidies" ADD CONSTRAINT "assistant_tidies_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assistant_usage" ADD CONSTRAINT "assistant_usage_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "auth_identities_user_id_index" ON "auth_identities" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "mcp_connections_user_id_client_id_index" ON "mcp_connections" USING btree ("user_id","client_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mcp_connections_one_active_per_client" ON "mcp_connections" USING btree ("user_id","client_id") WHERE "mcp_connections"."revoked_at" is null;--> statement-breakpoint
 CREATE INDEX "users_email_index" ON "users" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "board_members_board_id_user_id_index" ON "board_members" USING btree ("board_id","user_id");--> statement-breakpoint
+CREATE INDEX "board_members_user_id_status_index" ON "board_members" USING btree ("user_id","status");--> statement-breakpoint
 CREATE INDEX "board_members_invited_email_index" ON "board_members" USING btree ("invited_email");--> statement-breakpoint
 CREATE INDEX "whiteboards_owner_id_index" ON "whiteboards" USING btree ("owner_id");--> statement-breakpoint
 CREATE INDEX "note_history_note_id_occurred_at_index" ON "note_history" USING btree ("note_id","occurred_at");--> statement-breakpoint

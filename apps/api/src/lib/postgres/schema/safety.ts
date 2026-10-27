@@ -1,9 +1,9 @@
 import { index, integer, jsonb, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
-import { effectiveRoleValues, type BoardCommand } from '@wally/shared';
+import { boardCommandSchema, effectiveRoleValues, type BoardCommand } from '@wally/shared';
 import type { Provenance } from '../../assistant/provenance.js';
 import type { CommandResult } from '../../commands/context.js';
 import { users } from './accounts.js';
-import { instant, oneOf } from './columns.js';
+import { allOf, instant, oneOf } from './columns.js';
 
 /**
  * A board command's receipt, per user and operation id, kept 7 days for replay. It names
@@ -29,6 +29,7 @@ export const boardOperations = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.operationId] }),
     index().on(table.expiresAt),
+    allOf('board_operations_roles_check', table.roles, effectiveRoleValues),
   ],
 ).enableRLS();
 
@@ -51,6 +52,11 @@ export const boardCleanup = pgTable(
   (table) => [oneOf('board_cleanup_kind_check', table.kind, boardCleanupKindValues)],
 ).enableRLS();
 
+const boardCommandTypes: readonly BoardCommand['type'][] = boardCommandSchema.options.map(
+  (option) => option.shape.type.value,
+);
+const auditViaValues = ['mcp'] as const;
+
 /** One contents-free record per command the assistant or MCP committed, kept 30 days. */
 export const assistantAudit = pgTable(
   'assistant_audit',
@@ -63,11 +69,15 @@ export const assistantAudit = pgTable(
     commandType: text().$type<BoardCommand['type']>().notNull(),
     conversationId: text(),
     approvalId: text(),
-    via: text({ enum: ['mcp'] }),
+    via: text({ enum: auditViaValues }),
     connectionId: text(),
     revision: integer().notNull(),
     occurredAt: instant().notNull(),
     expiresAt: instant().notNull(),
   },
-  (table) => [index().on(table.expiresAt)],
+  (table) => [
+    index().on(table.expiresAt),
+    oneOf('assistant_audit_command_type_check', table.commandType, boardCommandTypes),
+    oneOf('assistant_audit_via_check', table.via, auditViaValues),
+  ],
 ).enableRLS();

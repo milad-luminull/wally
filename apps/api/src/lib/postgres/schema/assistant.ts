@@ -9,14 +9,14 @@ import {
   primaryKey,
   text,
 } from 'drizzle-orm/pg-core';
-import { tidyStatusSchema } from '@wally/shared';
+import { suggestionFieldKeySchema, tidyStatusSchema } from '@wally/shared';
 import type {
   AssistantConversationDoc,
   AssistantSuggestionDoc,
   AssistantTidyDoc,
 } from '../../db/types.js';
 import { users } from './accounts.js';
-import { instant, oneOf } from './columns.js';
+import { allOf, instant, oneOf } from './columns.js';
 import type { AsJson } from './json.js';
 
 /**
@@ -144,6 +144,7 @@ export const assistantSuggestions = pgTable(
     index().on(table.userId, table.noteId),
     index().on(table.expiresAt),
     oneOf('assistant_suggestions_status_check', table.status, suggestionStatusValues),
+    allOf('assistant_suggestions_typed_check', table.typed, suggestionFieldKeySchema.options),
   ],
 ).enableRLS();
 

@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { languageValues } from '@wally/shared';
 import type { StoredPreferences } from '../../db/types.js';
-import { instant, oneOf } from './columns.js';
+import { allOf, instant, oneOf } from './columns.js';
 
 export const users = pgTable(
   'users',
@@ -67,10 +67,9 @@ export const mcpConnections = pgTable(
     revokedAt: instant(),
   },
   (table) => [
-    check(
-      'mcp_connections_scopes_check',
-      sql`${table.scopes} <@ array[${sql.raw(mcpScopeValues.map((scope) => `'${scope}'`).join(', '))}]::text[]`,
-    ),
+    allOf('mcp_connections_scopes_check', table.scopes, mcpScopeValues),
+    check('mcp_connections_scopes_not_empty_check', sql`cardinality(${table.scopes}) > 0`),
+    index().on(table.userId, table.clientId),
     uniqueIndex('mcp_connections_one_active_per_client')
       .on(table.userId, table.clientId)
       .where(sql`${table.revokedAt} is null`),

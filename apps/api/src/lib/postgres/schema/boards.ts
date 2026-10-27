@@ -43,6 +43,8 @@ export const boardMembers = pgTable(
   },
   (table) => [
     index().on(table.boardId, table.userId),
+    // "Which boards am I an active member of" (listBoards).
+    index().on(table.userId, table.status),
     index().on(table.invitedEmail),
     oneOf('board_members_role_check', table.role, whiteboardRoleValues),
     oneOf('board_members_status_check', table.status, membershipStatusValues),
