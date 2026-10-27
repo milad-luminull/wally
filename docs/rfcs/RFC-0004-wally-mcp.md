@@ -10,7 +10,7 @@
 connections ([connection model](../MCP_CONNECTION_MODEL.md)).
 
 Provider and delivery: the first release used [Auth0](RFC-0006-auth0-mcp-rollout.md)
-([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)). Supabase Auth replaces it
+([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)), which still serves production. Supabase Auth is to replace it
 ([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
 [Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md)). These define the first release; the coverage
 findings below do not imply full app parity in the first release.
@@ -148,8 +148,8 @@ against CSRF, and disable development-only authentication behavior in production
 
 ## 6. Decisions and remaining validation
 
-Supabase Auth's OAuth 2.1 server replaces Auth0 as the authorization server
-([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md)). ChatGPT is the first target host.
+Supabase Auth's OAuth 2.1 server is to replace Auth0 as the authorization server
+([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md), not built yet; Auth0 serves production today). ChatGPT is the first target host.
 A connection is account-wide: it follows the user's current Wally membership and roles,
 with no board selection or owner approval. Disconnect blocks the next call, and a
 disconnected app needs an explicit Reconnect in Wally

@@ -17,7 +17,8 @@ The user stays in control. The interaction is defined in
 - The model runs inside the existing API through the boundary accepted in
   [ADR-0013](../adr/ADR-0013-model-library-behind-an-owned-boundary.md). The implemented
   providers are Google Vertex and Anthropic through Vertex, using deployment configuration.
-- User-supplied provider keys, user model selection, and MCP connections are not implemented.
+- User-supplied provider keys and user model selection are not implemented. MCP connections
+  are live since v0.8.3 under [RFC-0004](RFC-0004-wally-mcp.md).
 
 ## 2. Product requirements
 
