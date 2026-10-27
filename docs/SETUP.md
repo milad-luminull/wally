@@ -54,14 +54,16 @@ same way). The stack itself needs only Docker and `make`.
 
 ## Docker
 
-- One `docker-compose.yml` at the root. Services: `api`, `web`, `firestore` (the Firebase emulator, built from `infra/firebase-emulator.Dockerfile`), plus any other dependency (redis, mailpit, etc.).
+- One `docker-compose.yml` at the root. Services: `api`, `web`, `firestore` (the Firebase emulator, built from `infra/firebase-emulator.Dockerfile`), `postgres` (Supabase's PostgreSQL image, [ADR-0025](adr/ADR-0025-local-postgres-and-per-file-test-databases.md)), plus any other dependency (redis, mailpit, etc.).
+- `postgres` publishes no port. Open a shell with `docker compose exec postgres psql -U postgres -h localhost`. The API does not use it yet; only its PostgreSQL test suites do.
+- Schema changes: edit `apps/api/src/lib/postgres/schema/`, then run `pnpm --filter @wally/api db:generate` to write the SQL migration to `apps/api/drizzle/`. Until a hosted database has applied it, delete and regenerate the single migration rather than adding another.
 - All dependencies live in compose. Never ask the developer to install or run anything outside it.
 - One `Dockerfile` per app, multi-stage: `dev` target with hot reload, `prod` target minimal.
 - `.env.example` lists every variable. Compose reads `.env`. Never commit `.env` or write real secret values into the repo.
 
 ## Tests
 
-- Backend: Vitest. Unit tests for business logic and validation. Integration tests for each API route against the Firestore emulator in compose. Each test file declares its own emulator project id so files stay isolated and can run in parallel.
+- Backend: Vitest. Unit tests for business logic and validation. Integration tests for each API route against the Firestore emulator in compose. Each test file declares its own emulator project id so files stay isolated and can run in parallel. PostgreSQL suites call `createTestDatabase()` (`apps/api/test/postgres.ts`) for a database of their own, cloned from a template migrated once per run, and drop it in `afterAll`.
 - Frontend: Vitest + React Testing Library for components with logic (forms, state, conditional rendering). No tests for pure layout components.
 - End-to-end: Playwright. One happy-path test per main user flow. No more.
 - Test behaviour, not implementation. No snapshot tests. No tests that only check a mock was called.

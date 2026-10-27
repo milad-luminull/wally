@@ -1,6 +1,6 @@
 # ADR-0009: Local dev and CI run in Docker Compose against the Firestore emulator, with real Firebase Auth
 
-- **Status:** accepted
+- **Status:** accepted; partly superseded by [ADR-0025](ADR-0025-local-postgres-and-per-file-test-databases.md) (local PostgreSQL)
 - **Date:** 2026-09-18
 - **Deciders:** Milad Rezazadeh
 

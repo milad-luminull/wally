@@ -107,6 +107,22 @@ jobs:
       # works: the API suites inject a fake AuthVerifier and never verify a real token, and
       # each test file namespaces itself with its own emulator project id.
       FIREBASE_PROJECT_ID: wally-ci
+      # The PostgreSQL suites (apps/api/src/lib/postgres) clone their own database from a
+      # template migrated once per run. 127.0.0.1 for the same reason as the emulator.
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    services:
+      # Same image and tag as docker-compose.yml, so CI runs the engine Supabase runs.
+      postgres:
+        image: supabase/postgres:17.11.0.003
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -h localhost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }

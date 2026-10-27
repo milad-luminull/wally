@@ -41,6 +41,24 @@ services:
       retries: 20
       start_period: 20s
 
+  # PostgreSQL for the move off Firestore (RFC-0008, ADR-0025). Nothing in the API uses it
+  # until workstream 2; today only the API's PostgreSQL test suites do. Same image and tag
+  # as CI. No published port: several compose projects (worktrees) run side by side, and a
+  # fixed host port would collide. Reach it with
+  # `docker compose exec postgres psql -U postgres -h localhost`.
+  postgres:
+    image: supabase/postgres:17.11.0.003
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-h', 'localhost']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
   api:
     build:
       context: .
@@ -61,10 +79,14 @@ services:
       MCP_ENABLED: ${MCP_ENABLED:-false}
       MCP_WRITES_ENABLED: ${MCP_WRITES_ENABLED:-false}
       # Optional MCP_CLIENT_ID is inherited from .env; do not inject an empty string.
+      # Read only by the PostgreSQL test harness (apps/api/test/postgres.ts) for now.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
     ports:
       - '4000:4000'
     depends_on:
       firestore:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     volumes:
       - .:/app
@@ -110,3 +132,6 @@ services:
       - /repo/apps/web/node_modules
       - /repo/packages/shared/node_modules
       - /repo/packages/config/node_modules
+
+volumes:
+  postgres-data:
