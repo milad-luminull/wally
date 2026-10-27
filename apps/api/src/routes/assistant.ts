@@ -3,7 +3,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
   apiErrorSchema,
-  assistantConversationDtoSchema,
   assistantTurnRequestSchema,
   assistantTurnResponseSchema,
   captureSuggestRequestSchema,
@@ -17,11 +16,6 @@ import {
   tidyResponseSchema,
 } from '@wally/shared';
 import { loadEnv } from '../env.js';
-import {
-  latestOpenConversation,
-  loadConversation,
-  toVisibleConversationDto,
-} from '../lib/assistant/conversations.js';
 import {
   createConfiguredSuggestionRunner,
   createConfiguredTidyRunner,
@@ -44,7 +38,6 @@ import { AppError } from '../lib/errors.js';
 
 const params = z.object({
   id: z.string().min(1).max(128),
-  conversationId: z.string().min(1).max(128).optional(),
 });
 const suggestionParams = z.object({
   id: z.string().min(1).max(128),
@@ -127,38 +120,6 @@ export default async function assistantRoutes(
         },
       );
       return { conversation };
-    },
-  );
-
-  app.get(
-    '/whiteboards/:id/assistant/conversations/latest',
-    { schema: { params, response: { 200: assistantConversationDtoSchema } } },
-    async (request) => {
-      const { board } = await boardFor(request);
-      const conversation = await latestOpenConversation(
-        request.server.db,
-        request.user.id,
-        board.id,
-        env.ASSISTANT_MODEL,
-      );
-      if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
-      return toVisibleConversationDto(request.server.db, request.user, conversation);
-    },
-  );
-
-  app.get(
-    '/whiteboards/:id/assistant/conversations/:conversationId',
-    { schema: { params, response: { 200: assistantConversationDtoSchema } } },
-    async (request) => {
-      const { board } = await boardFor(request);
-      const conversation = await loadConversation(
-        request.server.db,
-        request.user.id,
-        board.id,
-        request.params.conversationId!,
-      );
-      if (!conversation) throw new AppError(404, 'NOT_FOUND', 'Not found');
-      return toVisibleConversationDto(request.server.db, request.user, conversation);
     },
   );
 

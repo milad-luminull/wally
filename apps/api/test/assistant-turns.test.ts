@@ -339,15 +339,13 @@ describe('assistant turns', () => {
       payload: { visibility: 'PRIVATE' },
     });
     expect(patch.statusCode).toBe(200);
-    for (const path of [first.id, 'latest']) {
-      const res = await ctx.inject({
-        method: 'GET',
-        url: `/whiteboards/${fx.boardId}/assistant/conversations/${path}`,
-        headers: ctx.authHeader(fx.editToken),
-      });
-      expect(res.statusCode, path).toBe(200);
-      expect(res.json().entries[1], path).toMatchObject({ text: 'See Soon private.', chips: [] });
-    }
+    // The next turn hands back the whole conversation, the stored entry included.
+    const next = await turn(fx.editToken, fx.boardId, 'again', first.id);
+    expect(next.statusCode).toBe(200);
+    expect(next.json().conversation.entries[1]).toMatchObject({
+      text: 'See Soon private.',
+      chips: [],
+    });
     // The owner still sees the note, and so the chip.
     const owner = await turn(fx.ownerToken, fx.boardId, `markers:[note:${note.id}]`);
     expect(owner.json().conversation.entries[1].chips).toEqual([
@@ -441,23 +439,8 @@ describe('assistant turns', () => {
     expect(second.entries).toHaveLength(4);
     const third = (await turn(fx.ownerToken, fx.boardId, 'three')).json().conversation;
     expect(third.id).not.toBe(first.id);
-    const latest = await ctx.inject({
-      method: 'GET',
-      url: `/whiteboards/${fx.boardId}/assistant/conversations/latest`,
-      headers: ctx.authHeader(fx.ownerToken),
-    });
-    expect(latest.json().id).toBe(third.id);
-    const byId = await ctx.inject({
-      method: 'GET',
-      url: `/whiteboards/${fx.boardId}/assistant/conversations/${first.id}`,
-      headers: ctx.authHeader(fx.ownerToken),
-    });
-    expect(byId.json().entries).toHaveLength(4);
-    const foreign = await ctx.inject({
-      method: 'GET',
-      url: `/whiteboards/${fx.boardId}/assistant/conversations/${first.id}`,
-      headers: ctx.authHeader(fx.editToken),
-    });
+    // Another member cannot continue it: it is found only by its owner.
+    const foreign = await turn(fx.editToken, fx.boardId, 'four', first.id);
     expect(foreign.statusCode).toBe(404);
   });
 
@@ -562,15 +545,6 @@ describe('assistant turns', () => {
     expect((await turn(fx.outsiderToken, fx.boardId, 'one')).statusCode).toBe(404);
     await whiteboardsCol(ctx.db).doc(fx.boardId).update({ assistantDisabled: true });
     expect((await turn(fx.ownerToken, fx.boardId, 'one')).statusCode).toBe(404);
-    expect(
-      (
-        await ctx.inject({
-          method: 'GET',
-          url: `/whiteboards/${fx.boardId}/assistant/conversations/latest`,
-          headers: ctx.authHeader(fx.ownerToken),
-        })
-      ).statusCode,
-    ).toBe(404);
   });
 
   it('rejects a bad body', async () => {
