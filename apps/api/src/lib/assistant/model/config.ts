@@ -22,11 +22,7 @@ export function parseModelRef(value: string): ModelRef {
 
 type VertexEnv = Pick<
   Env,
-  | 'ASSISTANT_VERTEX_LOCATION'
-  | 'ASSISTANT_VERTEX_PROJECT'
-  | 'FIREBASE_PROJECT_ID'
-  | 'FIREBASE_CLIENT_EMAIL'
-  | 'FIREBASE_PRIVATE_KEY'
+  'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT' | 'FIREBASE_PROJECT_ID'
 >;
 
 /** The library's model object; `LanguageModel` also admits a bare id string, which this never returns. */
@@ -37,18 +33,8 @@ export function resolveLanguageModel(ref: ModelRef, env: VertexEnv): ResolvedLan
   const settings = {
     project: env.ASSISTANT_VERTEX_PROJECT ?? env.FIREBASE_PROJECT_ID,
     location: env.ASSISTANT_VERTEX_LOCATION,
-    // Locally the Firebase service account doubles as the Vertex caller once it has
-    // roles/aiplatform.user; on Cloud Run the runtime account applies by default.
-    ...(env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY
-      ? {
-          googleAuthOptions: {
-            credentials: {
-              client_email: env.FIREBASE_CLIENT_EMAIL,
-              private_key: env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-            },
-          },
-        }
-      : {}),
+    // No credentials are passed: the provider uses Application Default Credentials (the
+    // Cloud Run runtime account, or a developer's `gcloud auth application-default login`).
   };
   switch (ref.provider) {
     case 'vertex':

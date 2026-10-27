@@ -55,17 +55,6 @@ describe('resolveLanguageModel', () => {
     );
     expect(model.modelId).toBe('gemini-3.8-flash');
   });
-  it('hands the configured service account to the provider for local use', () => {
-    const model = resolveLanguageModel(
-      { provider: 'vertex', model: 'gemini-3.8-flash' },
-      {
-        ...env,
-        FIREBASE_CLIENT_EMAIL: 'sa@wally-test.iam.gserviceaccount.com',
-        FIREBASE_PRIVATE_KEY: 'line1\\nline2',
-      },
-    );
-    expect(model.modelId).toBe('gemini-3.8-flash');
-  });
 });
 
 describe('defaultProviderOptions', () => {

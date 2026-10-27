@@ -152,8 +152,6 @@ export function createConfiguredTidyRunner(
     | 'ASSISTANT_VERTEX_LOCATION'
     | 'ASSISTANT_VERTEX_PROJECT'
     | 'FIREBASE_PROJECT_ID'
-    | 'FIREBASE_CLIENT_EMAIL'
-    | 'FIREBASE_PRIVATE_KEY'
   >,
 ): TidyRunner {
   const ref = parseModelRef(env.ASSISTANT_MODEL);
