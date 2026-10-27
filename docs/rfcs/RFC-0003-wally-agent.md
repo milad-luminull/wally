@@ -51,6 +51,9 @@ permissions and command layer. See [RFC-0005-wallybot-inline.md](RFC-0005-wallyb
 - **Confirmation:** fresh-capture countdowns are the limited exception to explicit approval.
   Existing-note changes and moves require a yes. Note deletion, assignment to someone else,
   and making a private note shared require an additional confirmation naming the action.
+  **Not built yet:** `riskOf` in [`operations.ts`](../../apps/api/src/lib/assistant/operations.ts)
+  classifies these three cases, but only its tests call it; no surface asks for the
+  additional confirmation.
 - **Recovery:** repeated decisions and lost replies reuse the original operation ids.
   Replay committed outcomes; do not create new actions during recovery. After the seven-day
   receipt window, unresolved writes return to review rather than being resubmitted.
@@ -98,6 +101,10 @@ The authoritative schemas and annotations are in
   timestamp 30 days after the last turn.
 - Re-read authorized board data for continuations. Previously visible notes must not be
   reused as model context after access is lost. Filter references when returning history.
+- The GET routes that returned a stored conversation (`conversations/latest` and
+  `conversations/:id`) were removed because no client called them: the turn response
+  carries the whole conversation, and nothing restores one after a reload. Pending capture suggestions are still recovered
+  (`GET /whiteboards/:id/assistant/suggestions/pending`).
 - Treat copied note text and member names as personal data. Do not log their contents or
   credentials. Request date/timezone is transient context.
 - Deployment processing stays on the approved Google-hosted route and region. A new
@@ -135,5 +142,4 @@ closed by the existence of an assistant route or an expiry field.
   write-turn requirements are not supplied by the current read-only question flow. Keep
   them as remaining work, not a description of shipped behavior.
 - **Operational/privacy closure:** verify retention enforcement, deletion/export and notices
-  against GDPR.md. ADR-0010 still says proposed despite its implemented command layer;
-  reconcile its approval status separately rather than treating it as a new build blocker.
+  against GDPR.md. ADR-0010 is accepted (recorded on 2026-10-27; built since v0.3.3).
