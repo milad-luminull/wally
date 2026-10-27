@@ -62,7 +62,7 @@
   - `function applyMigrations(url: string): Promise<void>` in `migrate.ts`: one-connection client, Drizzle's postgres-js migrator, folder resolved from `import.meta.url` to `apps/api/drizzle`.
   - `schema/index.ts` re-exports every schema file (`export * from './accounts.js'` …).
   - `users` table in `accounts.ts`: `id` text PK, `email` text not null (indexed, not unique), `display_name` text null, `email_verified` boolean not null, `language` text not null (Drizzle `enum: languageValues`), `preferences` jsonb not null default `{}` typed `StoredPreferences`, `created_at`, `updated_at` timestamptz not null. `.enableRLS()`.
-  - `type TestDatabase = { db: Database; sql: postgres.Sql; name: string; drop(): Promise<void> }` and `function createTestDatabase(): Promise<TestDatabase>` in `apps/api/test/postgres.ts`.
+  - `type TestDatabase = { db: Database; sql: postgres.Sql; name: string; drop(): Promise<void> }` and `function createTestDatabase(options?: { max?: number }): Promise<TestDatabase>` in `apps/api/test/postgres.ts` (`max` defaults to 5).
 
 - [ ] **Step 1: Add the compose service.** In `docker-compose.yml` add `postgres` with `image: supabase/postgres:17.11.0.003`, `environment: { POSTGRES_PASSWORD: postgres }`, volume `postgres-data:/var/lib/postgresql/data`, healthcheck `pg_isready -U postgres -h localhost` (interval 5s, retries 20, start_period 20s), and **no published port** (several compose projects run side by side; use `docker compose exec postgres psql -U postgres`). The `api` service gets `DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres` and `depends_on: postgres: condition: service_healthy`. Comment that the API does not use it until workstream 2. Run `docker compose up -d postgres` and wait for the healthy state.
 
@@ -109,7 +109,7 @@ it('rejects with a message naming DATABASE_URL when it is unset', async () => {
     - drop every database named `wally_test_%` or `wally_template` (`DROP DATABASE … WITH (FORCE)`), since one test run owns a database server;
     - create `wally_template` and run `applyMigrations` against it;
     - return a teardown that drops `wally_template`.
-  - `postgres.ts` `createTestDatabase()`: throws `Error('DATABASE_URL is not set: run the tests through `make test` or start the postgres service')` when it's empty. Otherwise it runs `CREATE DATABASE wally_test_<8 random [a-z0-9]> TEMPLATE wally_template` and returns a client on it (`max: 5`) whose `drop()` closes the client and force-drops the database.
+  - `postgres.ts` `createTestDatabase()`: throws `Error('DATABASE_URL is not set: run the tests through `make test` or start the postgres service')` when it's empty. Otherwise it runs `CREATE DATABASE wally_test_<8 random [a-z0-9]> TEMPLATE wally_template` and returns a client on it (`max: options?.max ?? 5`) whose `drop()` closes the client and force-drops the database.
   - Add `globalSetup: ['test/postgres-global-setup.ts']` to `vitest.config.ts`. Update its comment on parallel files.
 
 - [ ] **Step 7: Run the tests and see them pass.** Same command as Step 4. Expected: 5 passed. Then `make test`. Expected: the whole suite passes, the Firestore suites unchanged.
@@ -248,7 +248,7 @@ Board references in assistant tables carry no FK: they are user-scoped records w
 
 - [ ] **Step 3: Implement** `errors.ts` and `transaction.ts`.
 
-- [ ] **Step 4: Run and see them pass.** Same command. Expected: 11 passed.
+- [ ] **Step 4: Run and see them pass.** Same command. Expected: all pass.
 
 - [ ] **Step 5: Commit.** `git commit -m "feat(api): serializable withTransaction with bounded retry and error classification"` (new files added).
 
@@ -264,7 +264,7 @@ Board references in assistant tables carry no FK: they are user-scoped records w
 - Consumes: `withTransaction`, `TransactionConflictError`, the schema, `createTestDatabase()`.
 - Produces: nothing for later code. The proofs are test-only SQL, not repository functions.
 
-- [ ] **Step 1: Write the concurrency proofs** in `concurrency.test.ts`, on a test database created with `max: 10`. To expose that, `createTestDatabase(options?: { max?: number })` gains the parameter, defaulting to 5. Each body sleeps between its read and its write (`select pg_sleep(0.05)`), so the transactions really overlap.
+- [ ] **Step 1: Write the concurrency proofs** in `concurrency.test.ts`, on a test database created with `createTestDatabase({ max: 10 })`. Each body sleeps between its read and its write (`select pg_sleep(0.05)`), so the transactions really overlap.
   - `never lets an owner pass 20 boards`: 15 boards exist for `u1`. Ten concurrent `withTransaction` calls each count `u1`'s live boards and insert one only if the count is below 20, returning `'created'` or `'limit'`. Expect the final count to be **20**, exactly 5 `'created'`, and every other call either `'limit'` or rejected with `TransactionConflictError`. No other rejection is allowed.
   - `lets exactly one of two writers advance a note revision`: a note at revision 1. Two concurrent calls each read the revision, sleep, and update to 2 only if they read 1, returning `'ok'`, or `'stale'` when it no longer is 1. Expect the outcomes sorted to be `['ok', 'stale']` and the final revision 2.
   - `shows the board limit breaks without the helper` (control): the same ten calls through plain `db.transaction` at the default isolation end with **more than 20** boards. This proves the first test can fail.
