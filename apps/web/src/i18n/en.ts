@@ -45,7 +45,7 @@ export const en = {
     reconnectHint:
       'Choose Reconnect, then return to ChatGPT, Claude or your chosen provider and sign in to Wally again.',
     issue: 'Connection issue',
-    inherited: 'Connected',
+    connected: 'Connected',
     revokeNamed: 'Disconnect {{name}}',
     revoke: 'Disconnect',
     reconnectNamed: 'Reconnect {{name}}',

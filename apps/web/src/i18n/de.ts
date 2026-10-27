@@ -51,7 +51,7 @@ export const de = {
     reconnectHint:
       'Wähle Erneut verbinden. Kehre dann zu ChatGPT, Claude oder deinem gewählten Anbieter zurück und melde dich erneut bei Wally an.',
     issue: 'Verbindungsproblem',
-    inherited: 'Verbunden',
+    connected: 'Verbunden',
     revokeNamed: '{{name}} trennen',
     revoke: 'Trennen',
     reconnectNamed: '{{name}} erneut verbinden',

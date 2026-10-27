@@ -110,7 +110,7 @@ export function ConnectionsSettings() {
                         ? 'connections.revoked'
                         : hasIssue(connection)
                           ? 'connections.issue'
-                          : 'connections.inherited',
+                          : 'connections.connected',
                     )}
                   </ConnectionStatus>
                   {connection.revokedAt && (
