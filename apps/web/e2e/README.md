@@ -2,10 +2,13 @@
 
 These assume the **full stack** is running (`make up` at the repo root: `api` + `web` +
 `firestore`, seeded via `make seed`) — they are not runnable standalone against `apps/web`
-in isolation, since sign-in goes through real Firebase Authentication and every board
-action round-trips through the real API and the Firestore emulator.
+in isolation, since sign-in goes through a real identity provider (Firebase Authentication by
+default, Auth0 in Auth0 mode) and every board action round-trips through the real API and the
+Firestore emulator. Production signs in with Auth0; CI uses Firebase by the owner's choice
+until Supabase Auth replaces both, and runs Auth0 mode only on request (below).
 
-Before running `pnpm --filter @wally/web test:e2e`:
+Playwright runs on the host, as in CI: `make e2e` from the repo root, or
+`pnpm --filter @wally/web test:e2e`. Before running it:
 
 1. `make up && make seed` from the repo root.
 2. Create (or confirm) a Firebase test user and export its credentials:
@@ -16,8 +19,10 @@ Before running `pnpm --filter @wally/web test:e2e`:
    (the seed script's demo owner — see `apps/api/src/seed.ts` — but Firebase Auth accounts
    aren't seedable from the app's own data, so this account has to exist in the project's
    Firebase Auth separately; that's a one-time manual/CLI step, not part of `make seed`.)
-3. Optionally set `PLAYWRIGHT_BASE_URL` if `apps/web` isn't on the default
-   `http://localhost:5173`.
+3. Install the browsers once: `pnpm --filter @wally/web exec playwright install chromium webkit`.
+4. `make e2e` points Playwright at `http://localhost:5174`, where `make up` publishes the web
+   app. Running Playwright directly, set `PLAYWRIGHT_BASE_URL=http://localhost:5174`; its
+   default is `http://localhost:5173`.
 
 Each spec is a single happy path per SETUP.md's "one happy-path test per main user flow.
 No more." — they intentionally don't chase edge cases; that's what the Vitest suites are for.
@@ -33,7 +38,7 @@ works on it.
 The test account's UI is German, so the specs find controls by their German labels; the test
 data they create (note titles, subtasks) is English.
 
-## Auth0 mode (opt-in, cutover validation pending)
+## Auth0 mode (opt-in)
 
 Set `E2E_AUTH_PROVIDER=auth0` for Playwright and `VITE_AUTH_PROVIDER=auth0` for the
 web container. The API must use `AUTH0_ENABLED=true`, `AUTH0_SIGNUP_ENABLED=false`,
@@ -57,11 +62,11 @@ Auth0 account. `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` feed the actual hosted l
 form; the helper checks the expected login origin before entering credentials.
 Browser traces and video are disabled, including local runs.
 
-For GitHub CI, keep the existing Firebase secrets as rollback credentials. Add repository
-variables `VITE_AUTH0_CLIENT_ID`, `E2E_AUTH0_SUBJECT`, `E2E_AUTH0_EMAIL` and a separate
-secret `E2E_AUTH0_USER_PASSWORD`. Only set repository variable
-`E2E_AUTH_PROVIDER=auth0` after validation; until then CI keeps its Firebase path.
-For a controlled pre-cutover run, a maintainer can apply the `auth0-validation` label
+For GitHub CI, the Firebase secrets `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` serve the
+default path. Auth0 mode needs repository variables `VITE_AUTH0_CLIENT_ID`,
+`E2E_AUTH0_SUBJECT`, `E2E_AUTH0_EMAIL` and a separate secret `E2E_AUTH0_USER_PASSWORD`.
+Setting repository variable `E2E_AUTH_PROVIDER=auth0` switches CI's default to Auth0.
+To run one pull request on Auth0, a maintainer can apply the `auth0-validation` label
 to a same-repository pull request. That PR then uses Auth0 while the repository
 default stays Firebase. Removing the label restores that PR's default mode.
 Do not apply the label until both applicable test identities and secret stores are ready.

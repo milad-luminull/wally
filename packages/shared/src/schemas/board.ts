@@ -5,17 +5,14 @@ import { BOARD_NAME_MAX_LENGTH } from '../constants.js';
 export const whiteboardRenameSchema = z.object({
   name: z.string().trim().min(1).max(BOARD_NAME_MAX_LENGTH),
 });
-export type WhiteboardRenameInput = z.infer<typeof whiteboardRenameSchema>;
 
 /** Same rule as rename: one trimmed, non-empty name. Kept separate so the two can diverge. */
 export const whiteboardCreateSchema = whiteboardRenameSchema;
-export type WhiteboardCreateInput = z.infer<typeof whiteboardCreateSchema>;
 
 /** PATCH /whiteboards/:id/assistant — the board owner's switch for the assistant. */
 export const whiteboardAssistantSchema = z.object({
   enabled: z.boolean(),
 });
-export type WhiteboardAssistantInput = z.infer<typeof whiteboardAssistantSchema>;
 
 export const whiteboardDtoSchema = z.object({
   revision: z.number().int().nonnegative(),

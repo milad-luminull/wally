@@ -1,6 +1,6 @@
 # English Values Implementation Plan
 
-> **Status:** executed on branch feat/english-values.
+> **Status:** executed in #83, released in v0.11.0.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

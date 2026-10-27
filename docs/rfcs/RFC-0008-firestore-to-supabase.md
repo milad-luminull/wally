@@ -35,15 +35,16 @@ initial release stays under $50/month.
 
 ## What has to move
 
-There are 21 collection paths. Shapes are in `apps/api/src/lib/db/types.ts`, plus the
-auth and MCP modules.
+There are 19 collection paths (`apps/api/src/lib/db/collections.ts`, plus the auth, MCP and
+command modules). Shapes are in `apps/api/src/lib/db/types.ts`, plus the auth and MCP
+modules.
 
 - **Accounts:**
   - `users`, with embedded preferences;
   - `authIdentities`;
   - per-user `mcpConnections` and `mcpLimits` (the MCP request and write budgets);
-  - `accountDeletionJobs` and `accountDenials`, which nothing reads since self-service
-    export and deletion were removed in PR #76. They are not migrated.
+  - `accountDeletionJobs` and `accountDenials` are gone: nothing read them after PR #76,
+    and they were deleted on 2026-10-27. Nothing to migrate.
 - **Boards:**
   - `whiteboards` and its `members`, with the cached `memberRoles`;
   - `shareLinks`.
@@ -60,20 +61,25 @@ auth and MCP modules.
 
 Rules for the schema:
 
-- **IDs stay text.** Firebase UIDs, Firestore auto-ids, the first board keyed by its
-  owner's UID, receipt and audit ids, and share tokens all keep their exact values.
-  Foreign keys use those values.
-- **Missing fields read as defaults.** Fields that may be absent on old documents
-  (`revision`, `visibility`, `language`, `emailVerified`, `description`, `links`) get
-  explicit defaults during import. The defaulting helpers then stay as read guards until
-  the code is cleaned up.
+- **IDs stay text.** User ids (random UUIDs from Auth0 signups; since the v0.11.0 data
+  reset none is a Firebase UID), Firestore auto-ids, the first board keyed by its owner's
+  user id, receipt and audit ids, and share tokens all keep their exact values. Foreign
+  keys use those values.
+- **No legacy defaults.** Every production document was written by v0.11.0 or later, after
+  the reset ([ADR-0024](../adr/ADR-0024-rename-persisted-values-without-migration.md)), so
+  the defaults for fields older documents lacked are not needed: new notes get
+  `description` and `visibility` from the create schema, notes and boards start at
+  `revision` 1, and Auth0 signups write `language` and `emailVerified`. `links` is absent
+  until a note is first linked and imports as an empty list. The owner is to confirm this
+  before the import drops the other defaults.
 - **Nested maps and arrays become `jsonb` or child tables.** This covers preferences,
   `inFlight` slots, conversation messages and suggestion/tidy payloads. Each one becomes
   a child table only where it is queried or constrained.
 - **Timestamps become `timestamptz`.** Values that the newer MCP code stores as ISO
   strings or epoch seconds keep their meaning.
-- **Enum values import exactly as stored.** The German-to-English value migration
-  (ADR-0014) stays a separate change and is not folded into this import.
+- **Enum values import exactly as stored.** They are already English: the German values
+  were replaced in v0.11.0 ([ADR-0024](../adr/ADR-0024-rename-persisted-values-without-migration.md)),
+  so the import carries no value mapping.
 
 ## Behavior that must be re-proven in SQL
 

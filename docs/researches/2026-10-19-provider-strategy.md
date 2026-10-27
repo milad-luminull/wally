@@ -9,17 +9,18 @@
 - **Research date:** 2026-10-19
 - **Purpose:** support the [Firestore-to-Supabase migration](../rfcs/RFC-0008-firestore-to-supabase.md)
   and [EU platform and AI workers RFC](../rfcs/RFC-0007-eu-platform-and-ai-workers.md).
-- **Original interactive analysis:** [offline HTML snapshot](2026-10-19-provider-strategy.html).
+- **Original interactive analysis:** an offline HTML snapshot, removed on 2026-10-27 as
+  superseded (it remains in git history); this document keeps the comparison.
 - **Status:** dated comparison and recommendation, not an accepted architecture decision,
   benchmark, live billing audit or implemented migration.
 
-The snapshot preserves the analysis presented in the conversation, including its
+The snapshot preserved the analysis presented in the conversation, including its
 calculators and official references. Its Supabase Auth recommendation predates the
 repository's explicit Auth0 direction. The owner accepted **Supabase for data and files
 and Auth0 for identity** on 2026-10-19. Supabase Auth will not be used; Neon remains a
-historical competitor, not an open selection. The snapshot does not override
-[ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md). Local source-file links inside the snapshot
-are machine-specific; repository-relative links in this document and the RFC are canonical.
+historical competitor, not an open selection. The snapshot did not override
+[ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md); repository-relative links in this
+document and the RFC are canonical.
 
 ## Scope and recommendation
 
@@ -164,7 +165,7 @@ Three such intermittent databases total $9.00 versus a $45 Supabase Pro/Micro ba
 for three projects; at continuous usage the Neon example becomes about $59.09. These
 are different service bundles, not equivalent total-stack quotes.
 
-The interactive snapshot also models illustrative text inference: 3,000 input and
+The interactive snapshot also modelled illustrative text inference: 3,000 input and
 500 output tokens/call, at editable rates of $1 and $5 per million respectively.
 100 interactions/day, six model calls each, for 30 days is $99. This is not a current
 quote for a named model and excludes voice, reasoning overhead, embeddings and retries.

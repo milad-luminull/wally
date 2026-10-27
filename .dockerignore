@@ -16,3 +16,7 @@ playwright-report
 test-results
 .vite
 .pnpm-store
+# Not needed by any image: documentation, and local agent skills and scratch.
+docs
+.agents
+.superpowers

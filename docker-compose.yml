@@ -51,14 +51,13 @@ services:
     environment:
       # The Admin SDK reads this itself and routes all Firestore traffic to the emulator.
       # Firebase Auth is NOT redirected — ID tokens are still verified against the real
-      # project, which is why the FIREBASE_* credentials in .env still matter.
+      # project, which is why FIREBASE_PROJECT_ID in .env still matters (it is the only
+      # Firebase value the API needs; there is no service-account key).
       FIRESTORE_EMULATOR_HOST: firestore:8080
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
       AUTH0_ENABLED: ${AUTH0_ENABLED:-false}
       AUTH0_SIGNUP_ENABLED: ${AUTH0_SIGNUP_ENABLED:-false}
-      AUTH0_ISSUER: https://login.luminull.com/
-      AUTH0_AUDIENCE: https://api.wally.luminull.com
       MCP_ENABLED: ${MCP_ENABLED:-false}
       MCP_WRITES_ENABLED: ${MCP_WRITES_ENABLED:-false}
       # Optional MCP_CLIENT_ID is inherited from .env; do not inject an empty string.

@@ -6,7 +6,6 @@
   "type": "module",
   "exports": {
     "./tsconfig.base.json": "./tsconfig.base.json",
-    "./prettier": "./prettier.config.js",
     "./eslint": "./eslint.config.base.js"
   },
   "devDependencies": {

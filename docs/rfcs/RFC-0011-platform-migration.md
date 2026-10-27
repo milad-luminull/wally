@@ -58,12 +58,13 @@ The brief's table is authoritative for the choice of provider. In short:
   - The production environment's release variables enable Auth0 login, open signup, and
     MCP with writes (`AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
     `MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`).
-  - Auth0 and full MCP were first released in v0.8.3 (2026-10-25). Releases v0.9.0 to
-    v0.9.2 went out on 2026-10-25 and 2026-10-26; production runs v0.9.2.
-  - Firebase identities are kept for rollback.
+  - Auth0 and full MCP were first released in v0.8.3 (2026-10-25). Production runs
+    v0.11.0 (deployed 2026-10-27), whose release deleted all production data (ADR-0024).
+  - Firebase Authentication is the local and CI sign-in, not a production fallback: every
+    production account is an Auth0 signup, so a switch back would give every user a new,
+    empty account.
   - Identity mapping lives in `authIdentities`, keyed by `(issuer, subject)`.
-  - Wally user IDs are the original Firebase UIDs (opaque text), plus random UUIDs for
-    Auth0 signups.
+  - Wally user IDs are random UUIDs created at Auth0 signup; none is a Firebase UID.
 - **Web:** Firebase Hosting at `wally.luminull.com`. The API is at
   `api.wally.luminull.com` through a Cloud Run domain mapping, which is a Preview feature
   (ADR-0015).

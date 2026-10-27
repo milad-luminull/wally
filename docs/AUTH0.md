@@ -2,8 +2,11 @@
 
 Production signs users in through Auth0, with signup open and MCP reads and writes
 enabled (release variables `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
-`MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`). Firebase login remains only as a
-rollback path. The decision is [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery
+`MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`). Firebase login is the local and CI
+default, not a production fallback: since the
+[ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
+account is an Auth0 signup with a random Wally id, so a production switch back to Firebase
+would give every user a new, empty account. The decision is [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery
 history is in [the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
 
 Auth0 is to be replaced by Supabase Auth for web login and MCP
@@ -74,7 +77,7 @@ The issuer and audiences are pinned in code, not supplied by variables. See
   to a Wally user ID.
 - Fields: `issuer`, `subject`, `userId` and `createdAt`. No credential or email is stored.
 
-**Binding:** `bindImportedIdentity` in
+**Binding:** `bindKnownIdentity` in
 [identities.ts](../apps/api/src/lib/auth/identities.ts) is the only way to bind an
 existing user.
 
@@ -83,9 +86,9 @@ existing user.
 - It has no HTTP route.
 - Owners are never discovered by email.
 
-**Firebase-to-Auth0 import:** this one-off was completed on 2026-10-23. Every existing
-Wally user was mapped under their original Firebase UID. Password users reset their
-password through Auth0. The import tooling was removed in PR #76; it is in git history.
+**History:** a one-off import on 2026-10-23 mapped every Firebase-era user to Auth0 under
+their original Firebase UID (tooling removed in PR #76). The v0.11.0 data reset deleted those
+users and mappings; every account since is an Auth0 signup.
 
 ## Signup gate
 

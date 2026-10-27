@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      # 13 of 15 API test files import apps/api/test/helpers.ts, which THROWS (does not
+      # 34 of 65 API test files import apps/api/test/helpers.ts, which THROWS (does not
       # skip) unless this is set. 127.0.0.1 rather than localhost: the emulator binds IPv4
       # and Node 22 resolves localhost to ::1 first.
       FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
@@ -134,8 +134,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      # Keep Firebase until the Auth0 hosted-login suite has passed with its own CI identity.
-      # A maintainer can opt one PR into validation without changing the repository default.
+      # CI signs in with Firebase by the owner's choice, until Supabase Auth replaces both
+      # providers; production signs in with Auth0. The `auth0-validation` label runs one PR
+      # on Auth0, and the repository variable E2E_AUTH_PROVIDER changes the default.
       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
       PLAYWRIGHT_BASE_URL: http://localhost:5174
       E2E_AUTH_PROVIDER: ${{ contains(github.event.pull_request.labels.*.name, 'auth0-validation') && 'auth0' || vars.E2E_AUTH_PROVIDER || 'firebase' }}
@@ -188,14 +189,10 @@ jobs:
         run: pnpm --filter @wally/web exec playwright install-deps chromium webkit
 
       # docker-compose.yml declares `env_file: .env` non-optionally, so compose aborts if
-      # the file is missing.
+      # the file is missing. Optional variables are left out rather than blanked: env_file
+      # turns `KEY=` into an empty string, which env.ts rejects at boot.
       #
-      # FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY are OMITTED, not blanked: env.ts
-      # declares them z.string().min(1).optional(), and .optional() accepts an absent key
-      # but rejects an empty string — while env_file turns `KEY=` into an empty string. So
-      # copying .env.example verbatim would make the api container throw at boot.
-      #
-      # No service-account key is needed at all: Firestore is emulated, and verifying a real
+      # No service-account key is needed: Firestore is emulated, and verifying a real
       # Firebase ID token needs only the project id (firebase-admin checks the signature
       # against Google's public certificates). See apps/api/src/plugins/firebase.ts.
       - name: Generate .env for the compose stack
@@ -361,7 +358,7 @@ jobs:
       - name: Fail if the suite was vacuously green
         if: always()
         env:
-          MIN_EXECUTED: '12' # 11 under chromium-desktop + 1 under mobile-list-only
+          MIN_EXECUTED: '22' # 21 under chromium-desktop + 1 under mobile-list-only
         run: |
           set -euo pipefail
           REPORT=apps/web/playwright-results.json

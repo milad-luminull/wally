@@ -42,11 +42,13 @@
 
 ## 3. Account migration
 
-There are few accounts. The read-only inventory of 2026-10-22 counted nine Firebase
-accounts and seven Wally users. Recount before the import; do not reuse these numbers.
+There are few accounts. The read-only inventory of 2026-10-22 predates the v0.11.0 data
+reset (ADR-0024), which deleted every Wally user it counted; since then every one is an
+Auth0 signup. Recount before the import.
 
 1. **Inventory (read-only):**
-   - Read every active Wally user with their Auth0 and Firebase mappings.
+   - Read every active Wally user with their Auth0 mapping (no Firebase mappings exist
+     since the reset).
    - Classify each as Google or password.
    - Record the result without emails in the repository.
 2. **Create Supabase users explicitly**, one per Wally user, through the admin API, with
@@ -54,7 +56,7 @@ accounts and seven Wally users. Recount before the import; do not reuse these nu
    unconfirmed pre-created user would leave Google sign-in creating a second Supabase
    user. Then
    write the mapping `(supabase issuer, auth.users.id) → Wally user ID` through a trusted
-   binding function. This works like `bindImportedIdentity`: create once, exact retries
+   binding function. This works like `bindKnownIdentity`: create once, exact retries
    are idempotent, a mapping is never reassigned, and there is no HTTP route.
 3. **Google accounts:**
    - The identity is proven by Google's subject when the user first signs in, not by the

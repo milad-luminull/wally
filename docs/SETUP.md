@@ -36,16 +36,19 @@
 
 ## Commands
 
-All commands run inside Docker. The host needs only Docker and `make`.
+All commands run inside Docker, except `make format` and `make e2e`, which run on the host
+with Node and pnpm (Playwright needs browsers the dev containers do not have; CI runs it the
+same way). The stack itself needs only Docker and `make`.
 
-| Command     | Purpose                         |
-| ----------- | ------------------------------- |
-| `make up`   | Build and start the whole stack |
-| `make down` | Stop and remove containers      |
-| `make logs` | Follow logs of all services     |
-| `make test` | Run all tests                   |
-| `make lint` | Run lint and type checks        |
-| `make seed` | Load development seed data      |
+| Command          | Purpose                         |
+| ---------------- | ------------------------------- |
+| `make up`        | Build and start the whole stack |
+| `make down`      | Stop and remove containers      |
+| `make logs`      | Follow logs of all services     |
+| `make test`      | Run all tests                   |
+| `make lint`      | Run lint                        |
+| `make typecheck` | Run type checks                 |
+| `make seed`      | Load development seed data      |
 
 `make up` is the only command a new developer needs.
 
