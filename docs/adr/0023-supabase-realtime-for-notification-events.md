@@ -81,5 +81,3 @@ Tests prove that:
 ## More information
 
 - [Platform migration](../rfcs/0011-platform-migration.md), workstream 5.
-- The in-flight reminder and notification drafts must be reconciled with this decision
-  (platform migration, section 9).

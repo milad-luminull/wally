@@ -68,8 +68,8 @@ The brief's table is authoritative for the choice of provider. In short:
   (ADR-0015).
 - **Jobs:**
   - None for accounts. Self-service export and deletion were removed on 2026-10-26, and
-    the `wally-account-cleanup` worker is being retired
-    ([DEPLOY.md](../DEPLOY.md#retiring-the-account-cleanup-worker)). Both are rebuilt
+    the `wally-account-cleanup` worker was retired on 2026-10-27
+    ([DEPLOY.md](../DEPLOY.md#account-cleanup-worker-retired)). Both are rebuilt
     on Supabase after the migration.
   - Board cleanup jobs drain inline after a command.
   - Firestore TTL policies expire receipts and assistant records.
@@ -86,7 +86,7 @@ and its own E2E specs. Plans are not stacked.
 | 2   | **Persistence switch and data cutover**                                         | 1                             | [Data RFC](0008-firestore-to-supabase.md)     |
 | 3   | **Identity and MCP on Supabase Auth**, then retire Auth0                        | 2                             | [Identity RFC](0012-supabase-auth-and-mcp.md) |
 | 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting               | none (smallest; can go first) | ADR-0022                                      |
-| 5   | **Background service, Realtime notifications, Resend**                          | 2, 3                          | Reminder work; see section 7                  |
+| 5   | **Background service, Realtime notifications, Resend**                          | 2, 3                          | [Durable workers](0010-durable-ai-workers.md) |
 | 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0           | all, plus rollback windows    | Section 6                                     |
 
 **Data goes before identity.** Supabase Auth's users then sit in the same database as
@@ -182,9 +182,6 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
    - Without custom SMTP, Supabase Auth sends 2 emails per hour, and only to the
      project's team ([custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)).
    - So Resend must be configured before any real sign-up or password reset.
-   - **Conflict:** the in-flight reminders draft
-     (ADR-0019, not yet merged) chooses Brevo for notification
-     email. One provider or two is an open owner decision (section 8).
 5. **Password accounts:**
    - Moving password hashes out of Auth0 is _unverified_ on the Free plan.
    - Plan for a password reset for the few password accounts, as the Auth0 move already
@@ -230,8 +227,9 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
 
 ## 8. Open owner decisions
 
-- **Email:** Resend for everything, or Resend for auth and Brevo for notifications
-  (point 4 above).
+Decided on 2026-10-27: Resend sends all email, and the owner brief is the target stack.
+Still open:
+
 - **Rollback windows** for the data and identity cutovers, and the retention of the final
   Firestore export.
 - **Infrastructure tooling:** OpenTofu or Terraform, and which resources it manages first.
@@ -243,28 +241,7 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
   move to Pro. The brief says stay on Free until a trigger is met. The restore drill
   decides whether our own backups are enough.
 
-## 9. In-flight work that must be reconciled
-
-The reminders RFC and the ADR-0017 to ADR-0019 drafts (2026-10-25) are in progress
-elsewhere and are not on `main`. They assume:
-
-- Firestore for storage;
-- a Scheduler-only private Cloud Run worker;
-- Brevo for email;
-- optional FCM for push.
-
-Under this migration:
-
-- Reminders and notifications persist in PostgreSQL.
-- In-app delivery uses Realtime events (ADR-0023).
-- Scheduling follows the brief: Scheduler, Cloud Tasks and `wally-background`.
-- The email provider follows section 8.
-
-Those drafts keep their ADR numbers. When the reminders RFC lands, it takes the next
-free RFC number (currently 0013), following the naming rule in [docs/README.md](../README.md). The ADRs in this migration start at 0020 so the two
-sets cannot collide.
-
-## 10. Operations the brief expects from day one
+## 9. Operations the brief expects from day one
 
 - **Before production data moves:**
   - Billing alerts on Google Cloud, Supabase and Cloudflare. Alerts are not caps.
@@ -276,5 +253,5 @@ sets cannot collide.
   - Realtime connections and messages;
   - AI spend.
 - **Email volume:** Resend's free allowance is 3,000 emails a month and 100 a day (owner
-  brief). If Resend also sends notifications, the daily limit is shared with sign-in and
-  recovery mail.
+  brief). Resend sends every email, so notifications share the daily limit with sign-in
+  and recovery mail.

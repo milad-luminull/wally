@@ -20,9 +20,7 @@ access are covered by the [Supabase Auth RFC](0012-supabase-auth-and-mcp.md).
 
 Reminder schedules live in PostgreSQL, not as one Scheduler job per user. One recurring
 Scheduler job counts as one job, and the first three per billing account are free (owner brief, citing
-[Cloud Scheduler pricing](https://cloud.google.com/scheduler/pricing)). The
-in-flight [reminder work](0011-platform-migration.md#9-in-flight-work-that-must-be-reconciled)
-has to adopt this model.
+[Cloud Scheduler pricing](https://cloud.google.com/scheduler/pricing)).
 
 ## Execution
 

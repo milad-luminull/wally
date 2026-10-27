@@ -980,31 +980,21 @@ and pending cleanup records intact across rollback; never restore deleted notes 
 client drafts. Reverting to an older API also reverts enforcement, so prefer a forward fix
 once writes have resumed.
 
-## Retiring the account-cleanup worker
+## Account-cleanup worker (retired)
 
 Self-service account export and deletion were removed on 2026-10-26 (see GDPR.md, GAP-01
-and GAP-02). Production still has the scheduled worker that processed deletions.
-Releases no longer touch it, and the new API creates no deletion jobs, so it only finds
-nothing to do.
+and GAP-02). No deletion was pending, and on 2026-10-27 the worker and everything it used
+were deleted:
 
-Retire it in this order. These are operator steps and need your own `gcloud` login.
+- the Cloud Scheduler job and the Cloud Run job, both `wally-account-cleanup`;
+- the secret `wally-auth0-account-cleanup`, the service accounts `wally-account-cleanup@`
+  and `wally-account-scheduler@`, their project bindings and the custom role
+  `wallyAccountIdentityDeletion`;
+- the production environment variables `AUTH0_MANAGEMENT_DOMAIN`,
+  `AUTH0_CLEANUP_CLIENT_ID` and `AUTH0_CLEANUP_SECRET_VERSION`.
 
-1. **Before releasing the removal,** open `accountDeletionJobs` in the Firestore console
-   (database `wally`). Continue only if it is empty, or every job has status `complete`.
-   A `pending` job means a deletion is half done: let the worker finish it first.
-2. **After the release has served for a day, delete the schedule and the job:**
+Still to delete in the Auth0 dashboard: the Management API client used for cleanup
+(`delete:users`, client ID `WGRHW4m65HZ8WNTgRH3tBDWanxkR49oH`).
 
-   ```sh
-   gcloud scheduler jobs delete wally-account-cleanup --project=luminull-wally --location=europe-west1
-   gcloud run jobs delete wally-account-cleanup --project=luminull-wally --region=europe-west1
-   ```
-
-3. **Delete the credentials:**
-   - Delete the `wally-auth0-account-cleanup` Secret Manager secret, and the service accounts
-     `wally-account-cleanup@luminull-wally.iam.gserviceaccount.com` and
-     `wally-account-scheduler@luminull-wally.iam.gserviceaccount.com`.
-   - Delete the Auth0 Management API client used for cleanup (`delete:users`).
-   - Remove the production environment variables `AUTH0_MANAGEMENT_DOMAIN`,
-     `AUTH0_CLEANUP_CLIENT_ID` and `AUTH0_CLEANUP_SECRET_VERSION`.
-4. **Old records:** the `accountDeletionJobs` and `accountDenials` collections are no
-   longer read. They go when Firestore is retired, or you can delete them by hand.
+The `accountDeletionJobs` and `accountDenials` collections are no longer read. They go
+when Firestore is retired.
