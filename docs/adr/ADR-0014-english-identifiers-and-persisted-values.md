@@ -3,7 +3,7 @@
 - **Status:** proposed
 - **Date:** 2026-10-17
 - **Deciders:** Milad Rezazadeh
-- **Supersedes:** the context sentence of [ADR-0007](0007-ui-text-in-bundled-i18next-catalogues.md) ("Wally's domain language is German …") and the sentence in [`BRAND.md`](../BRAND.md) that the persisted colour keys never change
+- **Supersedes:** the context sentence of [ADR-0007](ADR-0007-ui-text-in-bundled-i18next-catalogues.md) ("Wally's domain language is German …") and the sentence in [`BRAND.md`](../BRAND.md) that the persisted colour keys never change
 
 ## Context and problem statement
 

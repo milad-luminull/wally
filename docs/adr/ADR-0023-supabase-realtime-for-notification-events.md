@@ -4,7 +4,7 @@
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** the "no real-time channel" rule in
-  [ADR-0006](0006-server-state-in-tanstack-query-no-realtime.md). Its TanStack Query
+  [ADR-0006](ADR-0006-server-state-in-tanstack-query-no-realtime.md). Its TanStack Query
   rules stay in force.
 
 ## Context and problem statement
@@ -80,4 +80,4 @@ Tests prove that:
 
 ## More information
 
-- [Platform migration](../rfcs/0011-platform-migration.md), workstream 5.
+- [Platform migration](../rfcs/RFC-0011-platform-migration.md), workstream 5.

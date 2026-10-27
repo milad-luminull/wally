@@ -9,10 +9,10 @@
 **Status:** live in production with reads and writes since v0.8.3 (2026-10-25), with account-wide
 connections ([connection model](../MCP_CONNECTION_MODEL.md)).
 
-Provider and delivery: the first release used [Auth0](0006-auth0-mcp-rollout.md)
-([ADR-0016](../adr/0016-auth0-for-web-and-mcp.md)). Supabase Auth replaces it
-([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md),
-[Supabase Auth RFC](0012-supabase-auth-and-mcp.md)). These define the first release; the coverage
+Provider and delivery: the first release used [Auth0](RFC-0006-auth0-mcp-rollout.md)
+([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)). Supabase Auth replaces it
+([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
+[Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md)). These define the first release; the coverage
 findings below do not imply full app parity in the first release.
 
 The production endpoint is `https://api.wally.luminull.com/mcp`, hosted in the
@@ -22,7 +22,7 @@ for discovery and deployment configuration. It is behind the MCP deployment swit
 ## 1. Outcome
 
 Let a user work with an authorized Wally board from an external AI host such as Claude or
-ChatGPT. Reuse the [assistant operations](0003-wally-agent.md#33-operations), permissions,
+ChatGPT. Reuse the [assistant operations](RFC-0003-wally-agent.md#33-operations), permissions,
 revisions, receipts and audit rules. The host runs the model; Wally serves board operations.
 
 ## 2. Requirements
@@ -149,7 +149,7 @@ against CSRF, and disable development-only authentication behavior in production
 ## 6. Decisions and remaining validation
 
 Supabase Auth's OAuth 2.1 server replaces Auth0 as the authorization server
-([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)). ChatGPT is the first target host.
+([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md)). ChatGPT is the first target host.
 A connection is account-wide: it follows the user's current Wally membership and roles,
 with no board selection or owner approval. Disconnect blocks the next call, and a
 disconnected app needs an explicit Reconnect in Wally

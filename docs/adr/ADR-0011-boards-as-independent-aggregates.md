@@ -7,7 +7,7 @@
 
 ## Context and problem statement
 
-ADR-0004 made "one whiteboard per owner" a property of the key space: the board's document id was the owner's uid, and the auth hook recreated that board whenever it was missing. The board home ([RFC BOARD_HOME](../rfcs/0002-board-home.md), approved 2026-10-14) needs a user to own several boards, delete one, and leave a shared one. How are boards created, identified and deleted once there can be more than one per owner?
+ADR-0004 made "one whiteboard per owner" a property of the key space: the board's document id was the owner's uid, and the auth hook recreated that board whenever it was missing. The board home ([RFC BOARD_HOME](../rfcs/RFC-0002-board-home.md), approved 2026-10-14) needs a user to own several boards, delete one, and leave a shared one. How are boards created, identified and deleted once there can be more than one per owner?
 
 ## Considered options
 

@@ -39,7 +39,7 @@ At 1080px and wider, a 216px rail provides board switching, List, Horizon, Prior
    in the accent family around the card, the shimmer on the words while they are being read,
    the pulsing dots after "Filling in", and the small dot before each line of the proposed
    fields. Never a fill, and gone the moment the changes are kept or undone
-   (`rfcs/0005-wallybot-inline.md`). The review footer's countdown ring is ink.
+   (`rfcs/RFC-0005-wallybot-inline.md`). The review footer's countdown ring is ink.
 
 Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
@@ -64,7 +64,7 @@ One colour is also what lets the icon survive on all fourteen note fills. See
 
 Fourteen fills. The persisted keys are the English labels (`CHALK`, `ICE`, `STONE`, …) and
 never change again; the German keys they replace are migrated in place
-([ADR-0014](adr/0014-english-identifiers-and-persisted-values.md)). In light mode they are clean pastels; in dark mode
+([ADR-0014](adr/ADR-0014-english-identifiers-and-persisted-values.md)). In light mode they are clean pastels; in dark mode
 each is the same hue at ~16% over the surface. Cards carry a `--note-border` hairline so pale
 fills never dissolve into the wall. On the wall a note is filled edge to edge; in the list it
 is a small swatch beside the title.
@@ -194,7 +194,7 @@ follow, and `brandGuards.test.ts` enforces the first one.
 
 It appears only in the German catalogue (`Wand`, `'Wally — Meine Wand'`) and in the German
 default board name. Code names are English (`WallView`, `WallCanvas`, `board.topBar.view.wall`;
-[ADR-0014](adr/0014-english-identifiers-and-persisted-values.md) renames what still carries
+[ADR-0014](adr/ADR-0014-english-identifiers-and-persisted-values.md) renames what still carries
 it). The guard test matches lucide import specifiers only, never catalogue values.
 
 ### Connection status lights

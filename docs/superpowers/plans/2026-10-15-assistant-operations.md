@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript, Fastify + firebase-admin Firestore (API), Zod contract in `packages/shared`, Vitest against the Firestore emulator. No model library in this slice.
 
-**Spec:** `docs/rfcs/0003-wally-agent.md` as of PR milad-luminull/wally#38, commit `c820a938`. It is not on this branch yet; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/0003-wally-agent.md`. Section numbers below (§3.2, §3.3 …) refer to it. The command layer it builds on is documented in `docs/architecture/board-operations.md` and `docs/adr/0010-board-commands-revisions-and-receipts.md` on this branch.
+**Spec:** `docs/rfcs/RFC-0003-wally-agent.md` as of PR milad-luminull/wally#38, commit `c820a938`. It is not on this branch yet; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/RFC-0003-wally-agent.md`. Section numbers below (§3.2, §3.3 …) refer to it. The command layer it builds on is documented in `docs/architecture/board-operations.md` and `docs/adr/ADR-0010-board-commands-revisions-and-receipts.md` on this branch.
 
 ## Context
 
@@ -315,7 +315,7 @@ import {
 } from '@wally/shared';
 
 /**
- * The whole v1 operation surface of the assistant (0003-wally-agent.md §3.3). Each operation is
+ * The whole v1 operation surface of the assistant (RFC-0003-wally-agent.md §3.3). Each operation is
  * a thin adapter over one query or one command of the board operations contract; adding
  * one is a product decision. The annotations are MCP's behaviour hints, carried here so
  * the MCP proposal needs no second definition.
@@ -396,7 +396,7 @@ export const operationAnnotations: Record<OperationName, OperationAnnotations> =
   delete_note: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
 };
 
-/** The risky cases that need a second, named confirm (0003-wally-agent.md §3.2). */
+/** The risky cases that need a second, named confirm (RFC-0003-wally-agent.md §3.2). */
 export type OperationRisk = 'DELETE' | 'ASSIGN_OTHER' | 'MAKE_SHARED';
 
 export function riskOf<N extends OperationName>(
@@ -636,7 +636,7 @@ Create `apps/api/src/lib/assistant/provenance.ts`:
 ```ts
 /**
  * Trusted execution context for a write the assistant made. The server supplies it; it is
- * never read from a model-controlled argument (0003-wally-agent.md §3.3). The command layer
+ * never read from a model-controlled argument (RFC-0003-wally-agent.md §3.3). The command layer
  * stores it on the receipt, folds it into the idempotency fingerprint, marks note history
  * with `via`, and writes one contents-free audit record per committed command.
  */

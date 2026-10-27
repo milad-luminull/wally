@@ -44,7 +44,7 @@ export function mayMoveFor(role: EffectiveRole, actorId: string): (note: TidyNot
 }
 
 /**
- * What Tidy looks at (0005-wallybot-inline.md §3.5, plan R2, R3): among the open notes the person
+ * What Tidy looks at (RFC-0005-wallybot-inline.md §3.5, plan R2, R3): among the open notes the person
  * may move, the dated ones whose zone disagrees with their date move by the rule, and the
  * undated ones still in Today, newest first and at most `TIDY_MAX_UNDATED`, go to the model.
  */

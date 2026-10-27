@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript across `apps/api`, `apps/web`, `packages/shared`; Vitest; Playwright (parsed only, run in CI). No new dependency.
 
-**Spec:** `docs/adr/0014-english-identifiers-and-persisted-values.md` (the decision and the value table), the audit at `/Users/mr_user/development/apps/wally-review/.superpowers/german-audit.md` (file:line for every finding; read-only, in another worktree), `docs/BRAND.md`, ADR-0007 (the catalogue decision, unchanged).
+**Spec:** `docs/adr/ADR-0014-english-identifiers-and-persisted-values.md` (the decision and the value table), the audit at `/Users/mr_user/development/apps/wally-review/.superpowers/german-audit.md` (file:line for every finding; read-only, in another worktree), `docs/BRAND.md`, ADR-0007 (the catalogue decision, unchanged).
 
 ## Context
 

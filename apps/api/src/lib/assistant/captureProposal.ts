@@ -21,7 +21,7 @@ import {
 import type { ModelSuggestion } from './model/index.js';
 
 /**
- * The capture call without Firestore (0005-wallybot-inline.md §3.3): which fields may be proposed,
+ * The capture call without Firestore (RFC-0005-wallybot-inline.md §3.3): which fields may be proposed,
  * what the model is told, and what of its answer survives. The route reads the note and the
  * board and stores the record; the scoring script (`capture-eval.ts`) runs the same functions
  * on fixtures, so what it scores is what the person gets.

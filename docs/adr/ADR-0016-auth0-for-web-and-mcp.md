@@ -1,6 +1,6 @@
 # ADR-0016: Auth0 for web login and MCP authorization
 
-- **Status:** superseded by [ADR-0021](0021-supabase-auth-for-web-and-mcp.md)
+- **Status:** superseded by [ADR-0021](ADR-0021-supabase-auth-for-web-and-mcp.md)
 - **Date:** 2026-10-19
 - **Deciders:** Milad Rezazadeh
 
@@ -8,7 +8,7 @@
 
 At the start of this decision, Wally used Firebase Authentication and had no MCP implementation. The owner
 has selected Auth0 and requires a Free-plan design with clear boundaries and existing
-accounts preserved. The [MCP RFC](../rfcs/0004-wally-mcp.md) specifies delegated board access
+accounts preserved. The [MCP RFC](../rfcs/RFC-0004-wally-mcp.md) specifies delegated board access
 but leaves the authorization implementation open. Which system should issue web and MCP
 tokens, and how should Wally retain ownership of identity and permissions?
 
@@ -69,7 +69,7 @@ and next-call revocation across instances, with Free-plan entitlements and a rea
 
 ## More information
 
-- [Scope, boundaries and delivery gates](../rfcs/0006-auth0-mcp-rollout.md)
-- [Current identity decision](0004-firebase-auth-with-lazy-provisioning.md)
-- [Current local/CI authentication](0009-docker-compose-with-firestore-emulator-and-real-auth.md)
+- [Scope, boundaries and delivery gates](../rfcs/RFC-0006-auth0-mcp-rollout.md)
+- [Current identity decision](ADR-0004-firebase-auth-with-lazy-provisioning.md)
+- [Current local/CI authentication](ADR-0009-docker-compose-with-firestore-emulator-and-real-auth.md)
 - [Existing board operations](../architecture/board-operations.md)

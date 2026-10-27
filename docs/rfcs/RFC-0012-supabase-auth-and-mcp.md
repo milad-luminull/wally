@@ -3,11 +3,11 @@
 - **Status:** accepted by the owner on 2026-10-26; nothing built yet. The authorization
   server is in beta, so this RFC is gated on the proof in section 6.
 - **Date:** 2026-10-26
-- **Decision:** [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)
-- **Context:** [platform migration](0011-platform-migration.md), workstream 3. It comes after
-  the [data cutover](0008-firestore-to-supabase.md).
-- **Replaces:** the provider choice in [Auth0 login and first MCP release](0006-auth0-mcp-rollout.md).
-  The MCP requirements in that RFC, in [Wally over MCP](0004-wally-mcp.md) and in the
+- **Decision:** [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md)
+- **Context:** [platform migration](RFC-0011-platform-migration.md), workstream 3. It comes after
+  the [data cutover](RFC-0008-firestore-to-supabase.md).
+- **Replaces:** the provider choice in [Auth0 login and first MCP release](RFC-0006-auth0-mcp-rollout.md).
+  The MCP requirements in that RFC, in [Wally over MCP](RFC-0004-wally-mcp.md) and in the
   [connection model](../MCP_CONNECTION_MODEL.md) still apply.
 
 ## 1. Outcome

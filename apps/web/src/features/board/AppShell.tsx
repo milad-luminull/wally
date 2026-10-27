@@ -86,7 +86,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // never mount WallView (its DndContext/sensors never initialize on a small screen).
   const effectiveView = isDesktop ? viewState.view : 'list';
 
-  // Wallybot's fill-in after Enter (0005-wallybot-inline.md §3.3): the capture hands over the fields
+  // Wallybot's fill-in after Enter (RFC-0005-wallybot-inline.md §3.3): the capture hands over the fields
   // the person decided, the shell asks once the commit has settled, and the views draw each
   // note's pending change.
   const suggestions = useSuggestions(boardId, board.assistantEnabled, user?.uid);
@@ -141,7 +141,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // countdown (R3).
   const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
-  // A question typed into the capture card (0005-wallybot-inline.md §3.6): the shell asks the board
+  // A question typed into the capture card (RFC-0005-wallybot-inline.md §3.6): the shell asks the board
   // and draws the answer where the question was written. Off means a `?` is a plain title.
   const askController = useAskSession(boardId);
   const { ask: askQuestion } = askController;
@@ -151,7 +151,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [askQuestion],
   );
 
-  // The note being written in place (0005-wallybot-inline.md §3.1). The panel no longer opens on
+  // The note being written in place (RFC-0005-wallybot-inline.md §3.1). The panel no longer opens on
   // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
   const {
     capture,
@@ -210,7 +210,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
     [boardNotes, viewState, user?.uid],
   );
 
-  // Tidy on the horizon wall (0005-wallybot-inline.md §3.5): the shell counts, asks and decides;
+  // Tidy on the horizon wall (RFC-0005-wallybot-inline.md §3.5): the shell counts, asks and decides;
   // the wall shows the bar and the marks. It reads the notes the wall draws, so a filter's
   // hidden notes are neither counted nor moved (R1). A note with a pending Wallybot change is
   // left out. Anywhere else, or with the assistant off, the wall gets neither (plan R4, R10).

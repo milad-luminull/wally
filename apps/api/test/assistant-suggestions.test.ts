@@ -2490,7 +2490,7 @@ describe('capture suggestions', () => {
       links: [0, 2],
       source: 'click',
     });
-    // The undo runs on the kept revision (0005-wallybot-inline.md §4), as for every other field, so
+    // The undo runs on the kept revision (RFC-0005-wallybot-inline.md §4), as for every other field, so
     // the hand edit refuses it before anything is written: the hand link stays, and so do the
     // kept ones.
     const linked = await patchNote(fx.editToken, n.id, { linkChanges: { add: [b.id] } });

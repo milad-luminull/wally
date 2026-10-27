@@ -1,8 +1,8 @@
 # MCP connection model
 
 > **2026-10-26:** Supabase Auth replaces Auth0 as the MCP authorization server
-> ([ADR-0021](adr/0021-supabase-auth-for-web-and-mcp.md),
-> [Supabase Auth RFC](rfcs/0012-supabase-auth-and-mcp.md)). The behavior here still applies.
+> ([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
+> [Supabase Auth RFC](rfcs/RFC-0012-supabase-auth-and-mcp.md)). The behavior here still applies.
 > What changes:
 >
 > - Sign-in happens through Supabase.

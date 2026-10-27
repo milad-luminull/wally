@@ -1,7 +1,7 @@
 # Board home and multiple boards — requirements
 
 **Status:** approved 2026-10-14 and implemented on `feat/board-home`. §5 to §12 now live in
-[`SPEC.md` §4b](../SPEC.md) and [ADR-0011](../adr/0011-boards-as-independent-aggregates.md);
+[`SPEC.md` §4b](../SPEC.md) and [ADR-0011](../adr/ADR-0011-boards-as-independent-aggregates.md);
 this file is kept for the reasoning and the alternatives considered. One deviation:
 `board.create` has no per-route rate limit (§12.1 said "like invites"); `MAX_OWN_BOARDS` and
 the global limit bound it.
@@ -285,7 +285,7 @@ rule in [`me.ts`](../../packages/shared/src/schemas/me.ts) continues to hold.
 
 ### 12.2 Deleting a board
 
-Deletion follows the note pattern in [ADR-0010](../adr/0010-board-commands-revisions-and-receipts.md):
+Deletion follows the note pattern in [ADR-0010](../adr/ADR-0010-board-commands-revisions-and-receipts.md):
 
 1. In the command transaction: check OWNER and revision, set `deletedAt` on the board
    document, delete `shareLinks/{token}` if there is one, and write a `boardCleanup` job of a

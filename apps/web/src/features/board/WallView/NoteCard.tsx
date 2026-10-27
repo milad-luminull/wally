@@ -54,7 +54,7 @@ interface NoteCardProps {
    * and a note that is only linked to has none of its own (L1).
    */
   relatedCount?: number;
-  /** The note's part in a Tidy batch, pending or just moved (0005-wallybot-inline.md §3.5). */
+  /** The note's part in a Tidy batch, pending or just moved (RFC-0005-wallybot-inline.md §3.5). */
   tidy?: TidyProps;
   /** Editing the note's words in place; absent for a note the person may not edit. */
   edit?: InlineEditProps;

@@ -55,7 +55,7 @@ interface WallCanvasProps {
   /** True when the board has notes but the active filter hides all of them. */
   filtered: boolean;
   activeDragId: string | null;
-  /** The pending Wallybot change each note shows, if any (0005-wallybot-inline.md §3.3). */
+  /** The pending Wallybot change each note shows, if any (RFC-0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
   editFor?: (note: NoteDto) => InlineEditProps | undefined;

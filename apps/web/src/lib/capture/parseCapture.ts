@@ -1,7 +1,7 @@
 import type { Language } from '@wally/shared';
 
 /**
- * The instant, local layer of capture (0005-wallybot-inline.md §3.2): dates, people and urgency
+ * The instant, local layer of capture (RFC-0005-wallybot-inline.md §3.2): dates, people and urgency
  * words found while typing, with no network. Pure and synchronous so it can run on every
  * keystroke. The first match of each kind wins; the title is never rewritten.
  */

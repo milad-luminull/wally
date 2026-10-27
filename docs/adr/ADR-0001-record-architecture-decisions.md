@@ -16,7 +16,7 @@ Wally is small, but its main decisions are already hard to reverse: the data sto
 
 ## Decision outcome
 
-Chosen option: **ADRs in `docs/adr/`**, in the trimmed [MADR](https://adr.github.io/madr/) format described in [`README.md`](README.md), with the template in [`0000-template.md`](0000-template.md). The same convention is used in the sibling phoenix repository, so a reader moving between the two finds the same shape.
+Chosen option: **ADRs in `docs/adr/`**, in the trimmed [MADR](https://adr.github.io/madr/) format described in [`README.md`](README.md), with the template in [`ADR-0000-template.md`](ADR-0000-template.md). The same convention is used in the sibling phoenix repository, so a reader moving between the two finds the same shape.
 
 - An ADR is written when a decision is hard to reverse, changes stored data, or picks between real alternatives.
 - An accepted ADR is never edited; it is superseded by a new one.

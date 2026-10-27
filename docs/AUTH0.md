@@ -3,12 +3,12 @@
 Production signs users in through Auth0, with signup open and MCP reads and writes
 enabled (release variables `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
 `MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`). Firebase login remains only as a
-rollback path. The decision is [ADR-0016](adr/0016-auth0-for-web-and-mcp.md); delivery
-history is in [the rollout](rfcs/0006-auth0-mcp-rollout.md).
+rollback path. The decision is [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery
+history is in [the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
 
 Auth0 is to be replaced by Supabase Auth for web login and MCP
-([ADR-0021](adr/0021-supabase-auth-for-web-and-mcp.md),
-[RFC-0012](rfcs/0012-supabase-auth-and-mcp.md)). This page describes production until
+([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
+[RFC-0012](rfcs/RFC-0012-supabase-auth-and-mcp.md)). This page describes production until
 that cutover.
 
 ## Configuration

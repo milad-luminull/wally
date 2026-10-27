@@ -13,7 +13,7 @@ Technical documentation for Wally. Everything here is Markdown, lives next to th
 | Setup and working conventions | [`SETUP.md`](SETUP.md)                                                                 | Monorepo layout, stack, commands, test policy, definition of done.                                                                                                                                                                                                                           |
 | Deploying and operating       | [`DEPLOY.md`](DEPLOY.md)                                                               | Firebase Hosting, Cloud Run, Firestore, the release workflow and rollback.                                                                                                                                                                                                                   |
 | Standards                     | [`BRAND.md`](BRAND.md), [`GDPR.md`](GDPR.md)                                           | Visual identity and voice; data inventory and open obligations.                                                                                                                                                                                                                              |
-| Proposals                     | [`rfcs/`](rfcs/)                                                                       | Numbered RFCs, oldest first. Start with the assistant ([`0003`](rfcs/0003-wally-agent.md)), MCP ([`0004`](rfcs/0004-wally-mcp.md)) and the platform migration ([`0011`](rfcs/0011-platform-migration.md)). Historical decisions and execution details remain in ADRs, plans and Git history. |
+| Proposals                     | [`rfcs/`](rfcs/)                                                                       | Numbered RFCs, oldest first. Start with the assistant ([`0003`](rfcs/RFC-0003-wally-agent.md)), MCP ([`0004`](rfcs/RFC-0004-wally-mcp.md)) and the platform migration ([`0011`](rfcs/RFC-0011-platform-migration.md)). Historical decisions and execution details remain in ADRs, plans and Git history. |
 | Research                      | [`researches/`](researches/)                                                           | Dated research and the owner's stack brief. References, not decisions.                                                                                                                                                                                                                       |
 | Plans and specs               | [`superpowers/plans/`](superpowers/plans/), [`superpowers/specs/`](superpowers/specs/) | Dated implementation plans and design specs. Each carries a status line naming the PR that executed it; executed plans are historical.                                                                                                                                                       |
 
@@ -42,15 +42,15 @@ We loosely follow [Diátaxis](https://diataxis.fr/): keep how-to guides, referen
 
 Platform migration (decided 2026-10-26): Wally moves to Supabase for data, identity and
 notification events, and to Cloudflare for the web app and API edge. Firebase and Auth0
-are then decommissioned. Start with [the platform RFC](rfcs/0011-platform-migration.md), then
-the [data](rfcs/0008-firestore-to-supabase.md) and [identity and MCP](rfcs/0012-supabase-auth-and-mcp.md)
-RFCs and ADRs [0020](adr/0020-supabase-postgres-through-the-api-with-drizzle.md) to
-[0023](adr/0023-supabase-realtime-for-notification-events.md). The owner's
+are then decommissioned. Start with [the platform RFC](rfcs/RFC-0011-platform-migration.md), then
+the [data](rfcs/RFC-0008-firestore-to-supabase.md) and [identity and MCP](rfcs/RFC-0012-supabase-auth-and-mcp.md)
+RFCs and ADRs [0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) to
+[0023](adr/ADR-0023-supabase-realtime-for-notification-events.md). The owner's
 [stack brief](researches/2026-10-26-tech-stack-and-architecture.md) and the earlier
 [provider research](researches/2026-10-19-provider-strategy.md) are dated references.
 Nothing has been migrated yet.
 
 Auth0 login and MCP, which currently serve production until the Supabase Auth cutover:
-[rollout](rfcs/0006-auth0-mcp-rollout.md), [architecture and setup](AUTH0.md), [connection model](MCP_CONNECTION_MODEL.md), [card views](MCP_CARD_UI.md),
-[decision](adr/0016-auth0-for-web-and-mcp.md), superseded
-by [ADR-0021](adr/0021-supabase-auth-for-web-and-mcp.md).
+[rollout](rfcs/RFC-0006-auth0-mcp-rollout.md), [architecture and setup](AUTH0.md), [connection model](MCP_CONNECTION_MODEL.md), [card views](MCP_CARD_UI.md),
+[decision](adr/ADR-0016-auth0-for-web-and-mcp.md), superseded
+by [ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md).

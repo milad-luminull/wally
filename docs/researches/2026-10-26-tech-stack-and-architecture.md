@@ -1,7 +1,7 @@
 <!--
 Owner's decision brief, received 2026-10-26 and stored unchanged below this note.
 It is the source for the platform decisions in ADR-0020 to ADR-0023 and for
-../rfcs/0011-platform-migration.md, which also records the review of this brief against
+../rfcs/RFC-0011-platform-migration.md, which also records the review of this brief against
 Wally's current state. Where the RFC or an ADR is more specific, they win.
 -->
 

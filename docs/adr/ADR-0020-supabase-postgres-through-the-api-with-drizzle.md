@@ -3,7 +3,7 @@
 - **Status:** accepted
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
-- **Supersedes:** [ADR-0003](0003-firestore-reached-only-through-the-api.md)
+- **Supersedes:** [ADR-0003](ADR-0003-firestore-reached-only-through-the-api.md)
 
 ## Context and problem statement
 
@@ -66,7 +66,7 @@ Chosen option: **option 1**.
   ([backups](https://supabase.com/docs/guides/platform/backups)).
 
 The scope, data inventory, backup routine and cutover are in the
-[data RFC](../rfcs/0008-firestore-to-supabase.md).
+[data RFC](../rfcs/RFC-0008-firestore-to-supabase.md).
 
 ### Consequences
 
@@ -97,5 +97,5 @@ The scope, data inventory, backup routine and cutover are in the
 
 ## More information
 
-- [Platform migration](../rfcs/0011-platform-migration.md) and the [data RFC](../rfcs/0008-firestore-to-supabase.md).
+- [Platform migration](../rfcs/RFC-0011-platform-migration.md) and the [data RFC](../rfcs/RFC-0008-firestore-to-supabase.md).
 - Browser access to Supabase Auth and Realtime: ADR-0021 and ADR-0023.

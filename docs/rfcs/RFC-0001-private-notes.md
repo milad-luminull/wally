@@ -117,8 +117,8 @@ Numbered so an implementation checklist and tests can cite them.
   rejoins with any role, the notes are visible to them again.
 - **R9 Owner transparency.** The share sheet tells the owner, in one sentence, that members
   can keep private notes the owner cannot see (copy in §6.6).
-- **R10 Assistant and MCP.** The proposals in [`0003-wally-agent.md`](0003-wally-agent.md) and
-  [`0004-wally-mcp.md`](0004-wally-mcp.md) call `listNotes`, `getNote` and the same commands with the
+- **R10 Assistant and MCP.** The proposals in [`RFC-0003-wally-agent.md`](RFC-0003-wally-agent.md) and
+  [`RFC-0004-wally-mcp.md`](RFC-0004-wally-mcp.md) call `listNotes`, `getNote` and the same commands with the
   user's own identity, so they inherit R1 to R5 without a change. When they are built,
   `create_note` and `update_note` carry `visibility` like any other field, and the named
   confirm for "assigned to someone else" cannot arise on a private note.
@@ -295,9 +295,9 @@ stateDiagram-v2
 - **404, not 403.** Someone who is not the creator learns nothing from a private note's id:
   reads and commands answer "not found", the same as for a deleted note.
 - **No new trust.** The actor is the verified Firebase identity, as everywhere
-  ([ADR-0004](../adr/0004-firebase-auth-with-lazy-provisioning.md)); the owner has no
+  ([ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md)); the owner has no
   override, and the Admin SDK path stays API-only
-  ([ADR-0003](../adr/0003-firestore-reached-only-through-the-api.md)).
+  ([ADR-0003](../adr/ADR-0003-firestore-reached-only-through-the-api.md)).
 - **Logs stay contents-free.** Commands already log type, operation id, board id and
   outcome, never inputs. `visibility` is not logged.
 - **GDPR.** `visibility` is not personal data by itself. Two edits to

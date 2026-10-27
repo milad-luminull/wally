@@ -2,7 +2,7 @@
 
 This document describes Wally at the system level: what the repository contains, how the parts relate, and where the boundaries are. It follows the [C4 model](https://c4model.com/); levels 1 and 2 live here. Decisions and their reasons are in the [ADRs](../adr/README.md).
 
-It describes production today. The decided move to Supabase and Cloudflare is planned in [RFC-0011](../rfcs/0011-platform-migration.md); nothing is migrated yet.
+It describes production today. The decided move to Supabase and Cloudflare is planned in [RFC-0011](../rfcs/RFC-0011-platform-migration.md); nothing is migrated yet.
 
 ## Level 1: System context
 
@@ -53,18 +53,18 @@ flowchart LR
   api -->|assistant| model
 ```
 
-The browser never talks to Firestore. [`firestore.rules`](../../firestore.rules) denies every direct read and write; the Admin SDK bypasses rules, so the API is the only door ([ADR-0003](../adr/0003-firestore-reached-only-through-the-api.md)).
+The browser never talks to Firestore. [`firestore.rules`](../../firestore.rules) denies every direct read and write; the Admin SDK bypasses rules, so the API is the only door ([ADR-0003](../adr/ADR-0003-firestore-reached-only-through-the-api.md)).
 
 ## The life of a request
 
 1. The browser attaches a fresh access token to every call made through `apiClient.ts`: an Auth0 access token in production, a Firebase ID token on the rollback path. MCP clients send their own Auth0 access token to `/mcp`.
-2. The `preHandler` in [`apps/api/src/plugins/auth.ts`](../../apps/api/src/plugins/auth.ts) verifies the token, resolves the Wally user through `authIdentities` ([AUTH0.md](../AUTH0.md#stable-account-ids)) and, on the caller's first request, creates their user record and their own whiteboard in one transaction ([ADR-0004](../adr/0004-firebase-auth-with-lazy-provisioning.md)).
+2. The `preHandler` in [`apps/api/src/plugins/auth.ts`](../../apps/api/src/plugins/auth.ts) verifies the token, resolves the Wally user through `authIdentities` ([AUTH0.md](../AUTH0.md#stable-account-ids)) and, on the caller's first request, creates their user record and their own whiteboard in one transaction ([ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md)).
 3. Board routes adapt transport to shared `lib/commands` functions; the command schema is validated again at the application boundary. Identity comes from the verified token.
 4. A write transaction reads its receipt, board permissions and affected records, checks role, scope and expected integer revision, and commits data, denormalized fields and a receipt together. Authorized retries replay that result. Missing preconditions fail with 428; stale writes and changed-payload retries fail with 409.
 5. The browser serializes work per note or board administration aggregate and advances only from its own acknowledged writes. Remote changes require draft review; failed optimism rolls back only fields owned by the failed operation. Text drafts remain separate from server data until acknowledged.
 6. Deletion commits a hidden tombstone and durable cleanup job. Recursive cleanup runs immediately and can resume through a retry or maintenance command. Account changes abort and clear queued browser work.
 
-The full command contract and operating procedures are in [Board operations](board-operations.md) and [ADR-0010](../adr/0010-board-commands-revisions-and-receipts.md).
+The full command contract and operating procedures are in [Board operations](board-operations.md) and [ADR-0010](../adr/ADR-0010-board-commands-revisions-and-receipts.md).
 
 ## Repository layout
 
@@ -79,7 +79,7 @@ The full command contract and operating procedures are in [Board operations](boa
 | `.github/`                     | CI and release workflows, PR template, Dependabot                                                                                                                                          | no         |
 | `firebase.json`, `firestore.*` | Hosting, named database, rules and composite indexes, deployed by the release                                                                                                              | no         |
 
-The monorepo is pnpm workspaces under Turborepo ([ADR-0002](../adr/0002-pnpm-turborepo-monorepo-with-shared-contract.md)). Everything runs in Docker Compose locally and in CI ([ADR-0009](../adr/0009-docker-compose-with-firestore-emulator-and-real-auth.md)).
+The monorepo is pnpm workspaces under Turborepo ([ADR-0002](../adr/ADR-0002-pnpm-turborepo-monorepo-with-shared-contract.md)). Everything runs in Docker Compose locally and in CI ([ADR-0009](../adr/ADR-0009-docker-compose-with-firestore-emulator-and-real-auth.md)).
 
 ## Data model
 
@@ -97,23 +97,23 @@ Document shapes are declared in [`apps/api/src/lib/db/types.ts`](../../apps/api/
 | `authIdentities/{id}`                                   | `(issuer, subject)` mapped to a Wally user id ([AUTH0.md](../AUTH0.md#stable-account-ids))                                                                                                                           |
 | `users/{uid}/mcpConnections`, `users/{uid}/mcpLimits`   | Account-wide MCP connection records and the MCP request and write budgets ([connection model](../MCP_CONNECTION_MODEL.md))                                                                                           |
 | `users/{uid}/boardOperations/{id}`, `boardCleanup/{id}` | Command receipts (7-day TTL) and durable cleanup jobs ([Board operations](board-operations.md))                                                                                                                      |
-| `users/{uid}/assistant*`                                | Assistant usage, attempts, conversations, suggestions and tidies; `assistantAudit` and the deployment-wide `assistantSpend` are top-level ([RFC-0003](../rfcs/0003-wally-agent.md))                                  |
+| `users/{uid}/assistant*`                                | Assistant usage, attempts, conversations, suggestions and tidies; `assistantAudit` and the deployment-wide `assistantSpend` are top-level ([RFC-0003](../rfcs/RFC-0003-wally-agent.md))                              |
 
 Notes are top-level rather than nested under their board because routes address a note by id alone. A note keeps three independent placements, one per board mode (horizon, priority, free), and a move changes only its own mode's field.
 
 ## Boundaries and rules
 
-- Only the API talks to Firestore. The web app has no Firestore client. [ADR-0003](../adr/0003-firestore-reached-only-through-the-api.md)
-- Identity comes from Auth0 (Firebase Authentication as rollback); permissions are Wally's own, enforced in the API. [ADR-0004](../adr/0004-firebase-auth-with-lazy-provisioning.md), [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md)
-- The contract between the apps is the Zod schemas in `@wally/shared`; neither app imports the other's source. [ADR-0002](../adr/0002-pnpm-turborepo-monorepo-with-shared-contract.md), [ADR-0005](../adr/0005-rest-api-validated-with-shared-zod-schemas.md)
-- There is no real-time channel. Members of a shared board see each other's changes on the next refetch. [ADR-0006](../adr/0006-server-state-in-tanstack-query-no-realtime.md)
-- UI text lives in the web catalogues; identifiers, enum values and API messages are English, the German ones being migrated in place. [ADR-0007](../adr/0007-ui-text-in-bundled-i18next-catalogues.md), [ADR-0014](../adr/0014-english-identifiers-and-persisted-values.md)
-- A release is a `v*` tag on `main`, deployed keyless with a smoke test and automatic rollback. [ADR-0008](../adr/0008-tag-triggered-release-to-hosting-and-cloud-run.md)
+- Only the API talks to Firestore. The web app has no Firestore client. [ADR-0003](../adr/ADR-0003-firestore-reached-only-through-the-api.md)
+- Identity comes from Auth0 (Firebase Authentication as rollback); permissions are Wally's own, enforced in the API. [ADR-0004](../adr/ADR-0004-firebase-auth-with-lazy-provisioning.md), [ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)
+- The contract between the apps is the Zod schemas in `@wally/shared`; neither app imports the other's source. [ADR-0002](../adr/ADR-0002-pnpm-turborepo-monorepo-with-shared-contract.md), [ADR-0005](../adr/ADR-0005-rest-api-validated-with-shared-zod-schemas.md)
+- There is no real-time channel. Members of a shared board see each other's changes on the next refetch. [ADR-0006](../adr/ADR-0006-server-state-in-tanstack-query-no-realtime.md)
+- UI text lives in the web catalogues; identifiers, enum values and API messages are English, the German ones being migrated in place. [ADR-0007](../adr/ADR-0007-ui-text-in-bundled-i18next-catalogues.md), [ADR-0014](../adr/ADR-0014-english-identifiers-and-persisted-values.md)
+- A release is a `v*` tag on `main`, deployed keyless with a smoke test and automatic rollback. [ADR-0008](../adr/ADR-0008-tag-triggered-release-to-hosting-and-cloud-run.md)
 
 ## Related documents
 
 - [ADR index](../adr/README.md)
 - [Setup and conventions](../SETUP.md), [Deploying](../DEPLOY.md), [GDPR](../GDPR.md)
 - [Product spec](../SPEC.md)
-- [Wally assistant](../rfcs/0003-wally-agent.md) and [Wally over MCP](../rfcs/0004-wally-mcp.md)
-- [Platform migration](../rfcs/0011-platform-migration.md), planned
+- [Wally assistant](../rfcs/RFC-0003-wally-agent.md) and [Wally over MCP](../rfcs/RFC-0004-wally-mcp.md)
+- [Platform migration](../rfcs/RFC-0011-platform-migration.md), planned

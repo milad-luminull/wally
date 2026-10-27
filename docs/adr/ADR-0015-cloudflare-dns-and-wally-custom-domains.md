@@ -1,12 +1,12 @@
 # ADR-0015: Cloudflare DNS for Wally custom domains
 
-- **Status:** superseded by [ADR-0022](0022-cloudflare-pages-and-api-proxy.md)
+- **Status:** superseded by [ADR-0022](ADR-0022-cloudflare-pages-and-api-proxy.md)
 - **Date:** 2026-10-19
 - **Deciders:** Milad Rezazadeh
 
 ## Context and problem statement
 
-`luminull.com` is managed in Cloudflare. Wally needs branded web and API addresses while retaining Firebase Hosting and Cloud Run, as chosen in [ADR-0008](0008-tag-triggered-release-to-hosting-and-cloud-run.md).
+`luminull.com` is managed in Cloudflare. Wally needs branded web and API addresses while retaining Firebase Hosting and Cloud Run, as chosen in [ADR-0008](ADR-0008-tag-triggered-release-to-hosting-and-cloud-run.md).
 
 ## Considered options
 

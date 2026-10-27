@@ -19,7 +19,7 @@
 - Node 22, Fastify, Cloud Firestore (Firebase Admin SDK).
 - Zod schemas live in `packages/shared` and are reused for API validation.
 - Change trigger: use Python (FastAPI, SQLAlchemy, Pydantic) only if the app needs heavy data or ML libraries. Keep the same folder layout and share types via an OpenAPI spec.
-- The move to a relational database is decided: Supabase PostgreSQL with Drizzle, reached only through the API ([ADR-0020](adr/0020-supabase-postgres-through-the-api-with-drizzle.md), plan in [RFC-0011](rfcs/0011-platform-migration.md)). Until that cutover, Firestore is the database.
+- The move to a relational database is decided: Supabase PostgreSQL with Drizzle, reached only through the API ([ADR-0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md), plan in [RFC-0011](rfcs/RFC-0011-platform-migration.md)). Until that cutover, Firestore is the database.
 - Firestore has no schema and no migrations. Document shapes are declared in `apps/api/src/lib/db/types.ts`, and composite indexes in `firestore.indexes.json` at the repo root. Both are hand-maintained; nothing enforces them at write time.
 
 ## Frontend (React)
@@ -85,7 +85,7 @@ All commands run inside Docker. The host needs only Docker and `make`.
 ## Documentation
 
 - Docs live in `docs/`; start at [`docs/README.md`](README.md) for what goes where.
-- A decision that is hard to reverse, changes stored data, or picks between real alternatives gets an ADR in `docs/adr/` (template: `0000-template.md`, process: [`docs/adr/README.md`](adr/README.md)).
+- A decision that is hard to reverse, changes stored data, or picks between real alternatives gets an ADR in `docs/adr/` (template: `ADR-0000-template.md`, process: [`docs/adr/README.md`](adr/README.md)).
 - Never edit an accepted ADR; supersede it with a new one.
 - This file holds working conventions. The reasoning behind a convention belongs in its ADR.
 

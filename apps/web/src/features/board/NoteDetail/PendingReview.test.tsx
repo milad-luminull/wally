@@ -94,7 +94,7 @@ describe('PendingReview', () => {
     expect(screen.queryByText('Wallybot')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep' }));
-    // A click on the review's button, recorded as one (0005-wallybot-inline.md §4).
+    // A click on the review's button, recorded as one (RFC-0005-wallybot-inline.md §4).
     expect(pending.onKeep).toHaveBeenCalledWith('click');
     expect(pending.onKeep).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Undo' }));

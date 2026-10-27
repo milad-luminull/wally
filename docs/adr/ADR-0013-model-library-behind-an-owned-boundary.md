@@ -7,7 +7,7 @@
 
 ## Context and problem statement
 
-The assistant proposal ([`0003-wally-agent.md`](../rfcs/0003-wally-agent.md)) needs code that sends
+The assistant proposal ([`RFC-0003-wally-agent.md`](../rfcs/RFC-0003-wally-agent.md)) needs code that sends
 messages and tool definitions to a model, runs the tool-call loop, pauses a write tool until
 a person approves it, and normalises each provider's output. The proposal requires that the
 model provider is configuration, that a user can bring their own key for several vendors, and
@@ -94,4 +94,4 @@ Vendor facts were checked on 2026-10-12; re-check before an upgrade.
 - `@google/adk` registers only Google models. https://github.com/google/adk-js
 - Re-evaluate when a multi-turn workflow needs to be resumable, when a second agent exists
   to delegate to, or when an upgrade costs more than rewriting the boundary.
-- Requirements this serves: [`0003-wally-agent.md`](../rfcs/0003-wally-agent.md) §3.5.
+- Requirements this serves: [`RFC-0003-wally-agent.md`](../rfcs/RFC-0003-wally-agent.md) §3.5.

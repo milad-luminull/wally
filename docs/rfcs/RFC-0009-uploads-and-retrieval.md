@@ -2,13 +2,13 @@
 
 - **Status:** proposed; not implemented. Revised 2026-10-26 for the new platform.
 - **Date:** 2026-10-19
-- **Context:** [Platform migration](0011-platform-migration.md)
+- **Context:** [Platform migration](RFC-0011-platform-migration.md)
 
 ## Scope
 
 Store documents in private EU object storage, and use permission-filtered pgvector
-retrieval for document search. This follows the [database migration](0008-firestore-to-supabase.md).
-Identity follows the [Supabase Auth RFC](0012-supabase-auth-and-mcp.md).
+retrieval for document search. This follows the [database migration](RFC-0008-firestore-to-supabase.md).
+Identity follows the [Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md).
 
 The storage provider is open:
 
@@ -25,7 +25,7 @@ Pick one before implementation.
   signed upload URL. Validate the completed object before processing.
 - Start with proposed limits of 25 MB/document and 1 GB retained files/user.
 - Store bytes in object storage and metadata in SQL. Process documents through the
-  [durable worker pipeline](0010-durable-ai-workers.md); keep bytes out of queue messages.
+  [durable worker pipeline](RFC-0010-durable-ai-workers.md); keep bytes out of queue messages.
 - Keep original documents authoritative and embeddings rebuildable, with model/version
   metadata. Filter retrieval by current access before returning content to a model.
 - Delete originals and derived text/vectors together. Verify EU processing for extraction

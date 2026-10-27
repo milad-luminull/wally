@@ -2,7 +2,7 @@
 
 - **Status:** proposed; not implemented. Revised 2026-10-26 for the new platform.
 - **Date:** 2026-10-19
-- **Context:** [Platform migration](0011-platform-migration.md), workstream 5
+- **Context:** [Platform migration](RFC-0011-platform-migration.md), workstream 5
 
 ## Scope
 
@@ -15,10 +15,10 @@ Run longer AI work and other background work in a private Cloud Run service,
   PostgreSQL (ADR-0020).
 - Separate queues for notifications and AI.
 - Notification email is sent through Resend, the same provider as Supabase Auth's
-  email; both count against one daily allowance ([platform migration](0011-platform-migration.md), section 9).
+  email; both count against one daily allowance ([platform migration](RFC-0011-platform-migration.md), section 9).
 
-Preserve the existing [assistant controls](0003-wally-agent.md). Identity and external MCP
-access are covered by the [Supabase Auth RFC](0012-supabase-auth-and-mcp.md).
+Preserve the existing [assistant controls](RFC-0003-wally-agent.md). Identity and external MCP
+access are covered by the [Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md).
 
 Reminder schedules live in PostgreSQL, not as one Scheduler job per user. One recurring
 Scheduler job counts as one job, and the first three per billing account are free (owner brief, citing

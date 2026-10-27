@@ -1,6 +1,6 @@
 # ADR-0003: Cloud Firestore as the only data store, reached only through the API
 
-- **Status:** superseded by [ADR-0020](0020-supabase-postgres-through-the-api-with-drizzle.md)
+- **Status:** superseded by [ADR-0020](ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)
 - **Date:** 2026-09-20
 - **Deciders:** Milad Rezazadeh
 

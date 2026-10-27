@@ -6,22 +6,22 @@
 
 **Goal:** After Enter, Wallybot also proposes what the parser could not read and slice 2 left out: subtasks, a reference property ("Kunde: Müller GmbH") and a cleaner title offered beside the person's own; the note panel shows the pending change as two groups, **From what you typed** and **Added by Wallybot**, each row with a checkbox, and the card follows every tick; keep and undo stay one server record and one step.
 
-**Architecture:** The suggestion record of slice 2 grows three fields (`title`, `reference`, `subtasks`) and remembers which fields the person typed (`typed`), so the review can group rows by source. A keep still runs one deterministic chain of command-layer writes under operation ids minted at creation: `update_note` for the title and the reference (`fieldChanges.set`), one `add_subtask` per kept item; undo is the inverse, which needs one new operation, `delete_subtask`, added to the registry as the product decision `0003-wally-agent.md` §3.3 asks for. On the web, the controller's mark gains per-item subtask choices and the title stays opt-in (never kept by the countdown); the card shows the new fields in the note's own type; the note panel renders the grouped review from the same mark, and opening it pauses the countdown.
+**Architecture:** The suggestion record of slice 2 grows three fields (`title`, `reference`, `subtasks`) and remembers which fields the person typed (`typed`), so the review can group rows by source. A keep still runs one deterministic chain of command-layer writes under operation ids minted at creation: `update_note` for the title and the reference (`fieldChanges.set`), one `add_subtask` per kept item; undo is the inverse, which needs one new operation, `delete_subtask`, added to the registry as the product decision `RFC-0003-wally-agent.md` §3.3 asks for. On the web, the controller's mark gains per-item subtask choices and the title stays opt-in (never kept by the countdown); the card shows the new fields in the note's own type; the note panel renders the grouped review from the same mark, and opening it pauses the countdown.
 
 **Tech Stack:** Fastify + Zod + firebase-admin, Vercel AI SDK behind `apps/api/src/lib/assistant/model/`, React 19 + TanStack Query 5 + Radix checkbox + Tailwind tokens. No new dependency.
 
-**Spec:** `docs/rfcs/0005-wallybot-inline.md` §3.3 (the title line), §3.4 (grouped review), §4, §7; `docs/rfcs/0003-wally-agent.md` §3.2 and §3.3; `docs/BRAND.md` "## AI" rules 3, 4, 6 and 7. Slice 2's plan `docs/superpowers/plans/2026-10-17-capture-suggest.md` is the record of what this builds on (its rulings R1–R8 and their amendments stand).
+**Spec:** `docs/rfcs/RFC-0005-wallybot-inline.md` §3.3 (the title line), §3.4 (grouped review), §4, §7; `docs/rfcs/RFC-0003-wally-agent.md` §3.2 and §3.3; `docs/BRAND.md` "## AI" rules 3, 4, 6 and 7. Slice 2's plan `docs/superpowers/plans/2026-10-17-capture-suggest.md` is the record of what this builds on (its rulings R1–R8 and their amendments stand).
 
 ## Context
 
 Slice 2 (PR #46) proposes a due date, a priority and a person after Enter. This slice adds the rest of what §3.3 and §3.4 describe for one note, and the review surface. Decisions, each with its reason and its cost if wrong:
 
-- **R1. Links between notes are not in this slice.** §3.4's hairline between related notes needs a stored relation on notes (a schema, a command, a DTO, the panel), the model reading the board's other notes, and lines drawn across the wall's scroll containers. That is a product decision (`0003-wally-agent.md` §3.3: adding an operation is one) and a design risk of its own; it goes to a follow-up slice with its own plan. Cost if wrong: one more PR.
+- **R1. Links between notes are not in this slice.** §3.4's hairline between related notes needs a stored relation on notes (a schema, a command, a DTO, the panel), the model reading the board's other notes, and lines drawn across the wall's scroll containers. That is a product decision (`RFC-0003-wally-agent.md` §3.3: adding an operation is one) and a design risk of its own; it goes to a follow-up slice with its own plan. Cost if wrong: one more PR.
 - **R2. The title is opt-in.** A cleaner title is offered as a second line beside the person's own (BRAND rule 7) and is never kept by the countdown: it joins the change only when the person ticks it in the review or taps the line on the card; "use mine" (the ×) drops it. A proposal that holds nothing but a title runs no countdown; ticking the title stops a running countdown, and Enter then keeps it with the rest (ruling of 2026-10-17: a countdown keep never carries the title, ticked or not). Cost if wrong: a tap more for a title the person would have taken.
 - **R3. The grouped review lives in the note panel**, the detail layer §3.1 names, not in a card that expands on the wall: a card growing inside a zone's scroll container would reflow the wall, and the panel already opens on a click of the committed card. Opening the panel on a note with a pending change pauses its countdown while it is open. Cost if wrong: one click more than an in-place expansion.
 - **R4. "From what you typed" rows are the fields the person's chips set** at commit (`locked` from slice 1, stored on the record as `typed`) plus the title and text they wrote. Those rows are shown checked and read-only (ruling of 2026-10-17): they document what the person wrote, and changing a typed value is done in the panel's own fields, which ends the pending change as any edit under one does (slice 2's stale-revision rule). Cost if wrong: a person who wants to drop a typed date edits it in the panel and loses the proposal.
 - **R5. No "source mark" on the card.** §3.4 mentions a small source mark per field; BRAND rule 3, amended with this feature, allows only the dashed edge and the dot as markers, and the reason sits on each field as before. The groups in the panel are where the source is read. Cost if wrong: nothing to remove later.
-- **R6. One new operation, `delete_subtask`.** Undoing a kept subtask needs it; it maps to `subtask.delete`, is marked destructive and idempotent, needs no named confirm (§3.2 names note deletion, not a subtask), and is recorded in `0003-wally-agent.md` §3.3 as this slice's product decision. Cost if wrong: a row in a table.
+- **R6. One new operation, `delete_subtask`.** Undoing a kept subtask needs it; it maps to `subtask.delete`, is marked destructive and idempotent, needs no named confirm (§3.2 names note deletion, not a subtask), and is recorded in `RFC-0003-wally-agent.md` §3.3 as this slice's product decision. Cost if wrong: a row in a table.
 - **R7. A reference proposes one property only**, reusing one of the board's existing property keys when the words fit one (the board's keys travel in the prompt as data), on a note that has no property yet. Subtasks are proposed only for a note with none, two to five items, each a short step in the person's language. Cost if wrong: fewer proposals, never a wrong overwrite.
 - **R8. Undo restores exactly:** the title as it was, the reference key removed (or its previous value put back when the key existed), every kept subtask deleted by its own id, newest first, each under its own operation id, chained on revisions as in slice 2.
 - **Records written by slice 2** have no title, reference or subtask ids; they read as having nothing proposed there. Nothing migrates.
@@ -68,7 +68,7 @@ In `packages/shared/src/schemas/assistant.ts` replace the field-key block and ex
 ```ts
 /**
  * The fields Wallybot may fill in on a note written in place: slice 2's three, and slice 3's
- * title line, reference property and subtasks (0005-wallybot-inline.md §3.3, §3.4).
+ * title line, reference property and subtasks (RFC-0005-wallybot-inline.md §3.3, §3.4).
  */
 export const suggestionFieldKeys = [
   'dueDate',
@@ -195,7 +195,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `apps/api/src/lib/assistant/run.ts`
 - Modify: `apps/api/src/lib/assistant/operations.test.ts`
 - Modify: `apps/api/test/assistant-operations.test.ts`
-- Modify: `docs/rfcs/0003-wally-agent.md` (§3.3 table)
+- Modify: `docs/rfcs/RFC-0003-wally-agent.md` (§3.3 table)
 
 - [ ] **Step 1: Failing tests**
 
@@ -220,14 +220,14 @@ Run the unit file (no emulator) and the route file (emulator): FAIL.
     }
 ```
 
-`docs/rfcs/0003-wally-agent.md` §3.3 table: add the row `| \`delete_subtask\` | \`subtask.delete\` | approval; marked destructive; added 2026-10-17 so a kept subtask can be undone in one step (\`0005-wallybot-inline.md\` slice 3) |`after`add_subtask, toggle_subtask`.
+`docs/rfcs/RFC-0003-wally-agent.md` §3.3 table: add the row `| \`delete_subtask\` | \`subtask.delete\` | approval; marked destructive; added 2026-10-17 so a kept subtask can be undone in one step (\`RFC-0005-wallybot-inline.md\` slice 3) |`after`add_subtask, toggle_subtask`.
 
 - [ ] **Step 3: Green, checks, commit**
 
 Run both files (one at a time), then `pnpm --filter @wally/api typecheck && pnpm --filter @wally/api lint && pnpm format:check`.
 
 ```bash
-git add apps/api/src/lib/assistant/operations.ts apps/api/src/lib/assistant/run.ts apps/api/src/lib/assistant/operations.test.ts apps/api/test/assistant-operations.test.ts docs/rfcs/0003-wally-agent.md
+git add apps/api/src/lib/assistant/operations.ts apps/api/src/lib/assistant/run.ts apps/api/src/lib/assistant/operations.test.ts apps/api/test/assistant-operations.test.ts docs/rfcs/RFC-0003-wally-agent.md
 git -c core.hooksPath=/dev/null commit -m "feat(api): delete_subtask, so a kept subtask can be undone in one step
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -818,7 +818,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 
-- Modify: `docs/rfcs/0005-wallybot-inline.md` (status line: slice 3 started; links moved to a follow-up by this plan's R1)
+- Modify: `docs/rfcs/RFC-0005-wallybot-inline.md` (status line: slice 3 started; links moved to a follow-up by this plan's R1)
 - Modify: `docs/SPEC.md` (the capture paragraph gains one sentence on the review and the new fields)
 - Modify: `docs/BRAND.md` ("## AI" first paragraph names the review in the panel and the title line as rule 7's instance)
 - Modify: `apps/web/e2e/note-create.spec.ts` (after the note is visible, open it with a click and assert `[data-pending-review]` has count 0: a plain note has no review section)
@@ -826,7 +826,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Edit the four files**, run `pnpm format:check` and `cd apps/web && pnpm exec playwright test --list`, commit:
 
 ```bash
-git add docs/rfcs/0005-wallybot-inline.md docs/SPEC.md docs/BRAND.md apps/web/e2e/note-create.spec.ts
+git add docs/rfcs/RFC-0005-wallybot-inline.md docs/SPEC.md docs/BRAND.md apps/web/e2e/note-create.spec.ts
 git -c core.hooksPath=/dev/null commit -m "docs: the review grouped by source; the E2E pins that a plain note has none
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
