@@ -7,14 +7,13 @@ const db = getTestDb(project);
 const identity = { subject: 'google-oauth2|local-owner', email: 'owner@example.invalid' };
 beforeEach(() => resetDatabase(project));
 afterAll(() => db.terminate());
-it('creates synthetic boards idempotently with no implicit MCP consent', async () => {
+it('creates synthetic boards idempotently without connecting an MCP client', async () => {
   await seedMcpLocal(db, identity);
   await seedMcpLocal(db, identity);
   expect(
     await resolveIdentity(db, { issuer: 'https://login.luminull.com/', subject: identity.subject }),
   ).toBe('mcp-local-owner');
   expect((await db.collection('whiteboards').get()).size).toBe(3);
-  expect((await db.collection('mcpBoardPolicies').get()).empty).toBe(true);
   expect(
     (await db.collection('users').doc('mcp-local-owner').collection('mcpConnections').get()).empty,
   ).toBe(true);

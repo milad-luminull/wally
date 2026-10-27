@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
-import { bindImportedIdentity } from '../src/lib/auth/identities.js';
+import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import {
   createFakeAuthVerifier,
   createTestUser,
@@ -76,10 +76,10 @@ describe('opt-in Auth0 signup', () => {
       identity.emailVerified = false;
     }
   });
-  it('preserves an imported user ID and preferences when signup is enabled', async () => {
+  it('keeps a linked user ID and preferences when signup is enabled', async () => {
     await createTestUser(db, 'firebase-stable', 'new@example.com');
     await db.collection('users').doc('firebase-stable').update({ 'preferences.theme': 'dark' });
-    await bindImportedIdentity(db, identity, 'firebase-stable');
+    await bindKnownIdentity(db, identity, 'firebase-stable');
     expect((await me()).json()).toMatchObject({
       id: 'firebase-stable',
       preferences: { theme: 'dark' },
@@ -92,8 +92,8 @@ describe('opt-in Auth0 signup', () => {
     await createTestBoard(db, 'google-original');
     const google = { issuer: identity.issuer, subject: 'google-oauth2|12345' };
     // Binding is idempotent for the same account.
-    await bindImportedIdentity(db, google, 'google-original');
-    await bindImportedIdentity(db, google, 'google-original');
+    await bindKnownIdentity(db, google, 'google-original');
+    await bindKnownIdentity(db, google, 'google-original');
     const responses = await Promise.all([me('google-oauth2|12345'), me('google-oauth2|12345')]);
     expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
     expect(responses.every((r) => r.json().id === 'google-original')).toBe(true);
@@ -107,7 +107,7 @@ describe('opt-in Auth0 signup', () => {
       'google-original',
     );
     await createTestUser(db, 'wrong-owner', 'other@example.com');
-    await expect(bindImportedIdentity(db, google, 'wrong-owner')).rejects.toMatchObject({
+    await expect(bindKnownIdentity(db, google, 'wrong-owner')).rejects.toMatchObject({
       code: 'IDENTITY_CONFLICT',
     });
   });
@@ -148,9 +148,9 @@ describe('opt-in Auth0 signup', () => {
     expect((await db.collection('users').get()).size).toBe(1);
     expect((await db.collection('authIdentities').get()).size).toBe(1);
   });
-  it('never resurrects a deleted mapped user even with signup enabled', async () => {
+  it('never recreates a linked user whose record is gone, even with signup enabled', async () => {
     await createTestUser(db, 'deleted', 'new@example.com');
-    await bindImportedIdentity(db, identity, 'deleted');
+    await bindKnownIdentity(db, identity, 'deleted');
     await db.collection('users').doc('deleted').delete();
     expect((await me()).statusCode).toBe(403);
     expect((await db.collection('users').get()).empty).toBe(true);

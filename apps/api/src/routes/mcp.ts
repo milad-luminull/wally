@@ -95,7 +95,11 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         return unauthorized();
       const userId = await resolveIdentity(app.db, identity);
       if (!(await usersCol(app.db).doc(userId).get()).exists)
-        throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+        throw new AppError(
+          403,
+          'IDENTITY_NOT_LINKED',
+          'This sign-in is not linked to a Wally account',
+        );
       const token = { clientId, issuedAt: identity.issuedAt, scopes: identity.scopes };
       const grant = await requireConnection(app.db, userId, token, identity.emailVerified);
       try {

@@ -27,13 +27,17 @@ function identityRef(db: Firestore, identity: ExternalIdentity) {
 export async function resolveIdentity(db: Firestore, identity: ExternalIdentity): Promise<string> {
   const record = (await identityRef(db, identity).get()).data() as AuthIdentityDoc | undefined;
   if (!record || record.issuer !== identity.issuer || record.subject !== identity.subject) {
-    throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+    throw new AppError(403, 'IDENTITY_NOT_LINKED', 'This sign-in is not linked to a Wally account');
   }
   return record.userId;
 }
 
-/** Trusted migration boundary only: never expose this operation to a public request. */
-export async function bindImportedIdentity(
+/**
+ * Links an external identity to an existing Wally user. Idempotent for the same user; refuses
+ * an identity already linked to another. Server-side only (the local and E2E seeds, and
+ * tests): never expose this operation to a public request.
+ */
+export async function bindKnownIdentity(
   db: Firestore,
   identity: ExternalIdentity,
   userId: string,
@@ -41,7 +45,7 @@ export async function bindImportedIdentity(
   const ref = identityRef(db, identity);
   await db.runTransaction(async (tx) => {
     const [mapping, user] = await Promise.all([tx.get(ref), tx.get(usersCol(db).doc(userId))]);
-    if (!user.exists) throw new AppError(404, 'USER_NOT_FOUND', 'Migration target does not exist');
+    if (!user.exists) throw new AppError(404, 'USER_NOT_FOUND', 'User does not exist');
     if (mapping.exists) {
       const stored = mapping.data() as AuthIdentityDoc;
       if (
@@ -85,7 +89,11 @@ export async function resolveOrCreateIdentity(
     // transaction as creation so concurrent first logins cannot bypass collision checks.
     const collisions = await tx.get(usersCol(db).where('email', '==', email).limit(1));
     if (!collisions.empty)
-      throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+      throw new AppError(
+        403,
+        'IDENTITY_NOT_LINKED',
+        'This sign-in is not linked to a Wally account',
+      );
     const timestamp = now();
     tx.create(userRef, {
       email,

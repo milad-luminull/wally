@@ -1,7 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import type { WhiteboardDoc } from '../db/types.js';
-import { bindImportedIdentity } from './identities.js';
+import { bindKnownIdentity } from './identities.js';
 import { membersCol, normalizeEmail, now, usersCol, whiteboardsCol } from '../db/collections.js';
 import { executeBoardCommand } from '../commands/index.js';
 
@@ -31,7 +31,7 @@ export async function seedMcpLocal(
   ];
   const boards: (Pick<WhiteboardDoc, 'name' | 'ownerId' | 'memberRoles'> & { id: string })[] = [
     { id: ownerId, name: 'MCP test board 1', ownerId, memberRoles: {} },
-    { id: 'mcp-local-unselected', name: 'MCP test board 2', ownerId, memberRoles: {} },
+    { id: 'mcp-local-second', name: 'MCP test board 2', ownerId, memberRoles: {} },
     {
       id: 'mcp-local-shared',
       name: 'MCP shared test board',
@@ -79,7 +79,7 @@ export async function seedMcpLocal(
         activatedAt: timestamp,
       });
   });
-  await bindImportedIdentity(db, { issuer: 'https://login.luminull.com/', subject }, ownerId);
+  await bindKnownIdentity(db, { issuer: 'https://login.luminull.com/', subject }, ownerId);
   // Commands provide valid note defaults and stable operation receipts for safe reruns.
   await executeBoardCommand(
     db,

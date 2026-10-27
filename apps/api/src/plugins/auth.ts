@@ -97,7 +97,11 @@ async function provisionUser(
   return db.runTransaction(async (tx) => {
     const existing = withId(await tx.get(userRef));
     if (!existing && !allowCreate) {
-      throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+      throw new AppError(
+        403,
+        'IDENTITY_NOT_LINKED',
+        'This sign-in is not linked to a Wally account',
+      );
     }
     // Read only for a new identity, and only so a leftover board under this uid (a user record
     // removed by hand) is kept rather than overwritten. That includes a tombstoned board still
@@ -250,9 +254,14 @@ export default fp(
       const userSnapshot = await usersCol(db).doc(decoded.uid).get();
       const emailVerified = decoded.emailVerified;
       const existing = withId(userSnapshot);
-      // Imported mappings must never resurrect a deleted account or create an empty one.
+      // A linked identity whose user record is gone (removed by hand) is refused: it never
+      // recreates that user or creates an empty one.
       if (externalIdentity && !existing) {
-        throw new AppError(403, 'IDENTITY_NOT_LINKED', 'Account migration is required');
+        throw new AppError(
+          403,
+          'IDENTITY_NOT_LINKED',
+          'This sign-in is not linked to a Wally account',
+        );
       }
 
       // emailVerified MUST take part in this comparison. Without it, a user who verifies

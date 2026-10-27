@@ -54,7 +54,7 @@ describe('MCP operations', () => {
     expect(schemaOf('create_note')).toContain('SEA_GREEN');
     expect(schemaOf('list_notes')).toContain('LATER');
   });
-  it('discovers empty boards and filters revoked board grants', async () => {
+  it('discovers empty boards and hides boards the connection can no longer reach', async () => {
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
     expect((await runMcpTool(context, 'list_notes', { boardId: 'board' })).data).toMatchObject({
       notes: [],

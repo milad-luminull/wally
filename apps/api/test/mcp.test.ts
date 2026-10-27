@@ -11,7 +11,7 @@ import * as grants from '../src/lib/mcp/grants.js';
 import { AppError } from '../src/lib/errors.js';
 import { buildApp } from '../src/app.js';
 import { createTestUser, getTestDb, resetDatabase } from './helpers.js';
-import { bindImportedIdentity } from '../src/lib/auth/identities.js';
+import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import { connectAccount, revokeConnection } from '../src/lib/mcp/grants.js';
 import { runMcpTool, type McpToolContext } from '../src/lib/mcp/tools.js';
 import {
@@ -94,7 +94,7 @@ beforeEach(async () => {
     scopes: ['wally:read', 'wally:write'],
     issuedAt: Math.floor(Date.now() / 1000) + 2,
   };
-  await bindImportedIdentity(db, identity, actor.id);
+  await bindKnownIdentity(db, identity, actor.id);
   grantId = (await connectAccount(db, actor.id, 'chatgpt')).id;
 });
 afterEach(async () => {
@@ -184,7 +184,7 @@ describe('stateless MCP HTTP boundary', () => {
     const list = (await call(app, 'show_cards', { boardId: 'board' })).json().result;
     expect(list.structuredContent).toMatchObject({ view: 'list', total: 1, nextCursor: null });
     expect(list.structuredContent.cards).toHaveLength(1);
-    const denied = (await call(app, 'show_cards', { boardId: 'unselected' })).json().result;
+    const denied = (await call(app, 'show_cards', { boardId: 'not-a-member' })).json().result;
     expect(denied).toMatchObject({ isError: true });
     expect(denied.structuredContent).toBeUndefined();
     const listed = (await rpc(app, 'tools/list')).json().result.tools;
@@ -310,7 +310,7 @@ describe('stateless MCP HTTP boundary', () => {
     );
     await check(
       'create_note',
-      { ...args, boardId: 'unselected', operationId: randomUUID() },
+      { ...args, boardId: 'not-a-member', operationId: randomUUID() },
       'NOT_FOUND',
     );
     expect((await notesCol(db).get()).size).toBe(1);
