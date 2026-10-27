@@ -35,7 +35,6 @@
   --canvas-mark: #d8d8d7;
   --canvas-line: #ececeb;
   --zone-surface: #fafafa;
-  --zone-surface-over: #fcfcfc;
   --note-border: #e7e7e7;
   --note-chalk: #ffffff;
   --note-stone: #eeece8;
@@ -88,7 +87,6 @@
   --canvas-mark: #2e2f30;
   --canvas-line: #1a1b1c;
   --zone-surface: #141516;
-  --zone-surface-over: #161718;
   --note-border: #2f3031;
   --note-chalk: #3e3f3f;
   --note-stone: #3b3c3c;
@@ -141,7 +139,6 @@
   --canvas-mark: #d0d9e1;
   --canvas-line: #e4ecf3;
   --zone-surface: #f6fafd;
-  --zone-surface-over: #fafcfe;
   --note-border: #e7e8ea;
   --note-chalk: #fdfeff;
   --note-stone: #eeedea;
@@ -194,7 +191,6 @@
   --canvas-mark: #2a343d;
   --canvas-line: #16212b;
   --zone-surface: #101d28;
-  --zone-surface-over: #12202c;
   --note-border: #2b3944;
   --note-chalk: #3a4751;
   --note-stone: #38444d;
@@ -247,7 +243,6 @@
   --canvas-mark: #d6d6d6;
   --canvas-line: #e9e9e9;
   --zone-surface: #f8f8f8;
-  --zone-surface-over: #fbfbfb;
   --note-border: #e7e7e7;
   --note-chalk: #fefefe;
   --note-stone: #efede9;
@@ -300,7 +295,6 @@
   --canvas-mark: #2f2f2d;
   --canvas-line: #1b1c19;
   --zone-surface: #161713;
-  --zone-surface-over: #191a15;
   --note-border: #32332e;
   --note-chalk: #40423d;
   --note-stone: #3e3f39;
@@ -353,7 +347,6 @@
   --canvas-mark: #d7dae1;
   --canvas-line: #eaedf3;
   --zone-surface: #f9fbfd;
-  --zone-surface-over: #fcfdfe;
   --note-border: #e8e8ea;
   --note-chalk: #fefeff;
   --note-stone: #efedea;
@@ -406,7 +399,6 @@
   --canvas-mark: #292930;
   --canvas-line: #15151c;
   --zone-surface: #101017;
-  --zone-surface-over: #12121a;
   --note-border: #2b2b34;
   --note-chalk: #3a3a42;
   --note-stone: #38373e;
@@ -459,7 +451,6 @@
   --canvas-mark: #e0d8d3;
   --canvas-line: #f4ece6;
   --zone-surface: #fffaf7;
-  --zone-surface-over: #fffcfa;
   --note-border: #e8e7e7;
   --note-chalk: #fffefd;
   --note-stone: #f0ede9;
@@ -512,7 +503,6 @@
   --canvas-mark: #372f2d;
   --canvas-line: #251b19;
   --zone-surface: #221613;
-  --zone-surface-over: #261915;
   --note-border: #3f322e;
   --note-chalk: #4d413d;
   --note-stone: #4a3e39;
@@ -565,7 +555,6 @@
   --canvas-mark: #d4ddcc;
   --canvas-line: #e8efdd;
   --zone-surface: #f8fbf1;
-  --zone-surface-over: #fbfdf8;
   --note-border: #e7eae9;
   --note-chalk: #fdfefc;
   --note-stone: #eeede8;
@@ -618,7 +607,6 @@
   --canvas-mark: #2e352e;
   --canvas-line: #1a231a;
   --zone-surface: #152016;
-  --zone-surface-over: #182419;
   --note-border: #313d33;
   --note-chalk: #3f4b41;
   --note-stone: #3d483d;
@@ -671,7 +659,6 @@
   --canvas-mark: #e2d9c0;
   --canvas-line: #f5ecd3;
   --zone-surface: #fffaec;
-  --zone-surface-over: #fffcf5;
   --note-border: #e9e8e6;
   --note-chalk: #fffefb;
   --note-stone: #f0ede7;
@@ -724,7 +711,6 @@
   --canvas-mark: #37322a;
   --canvas-line: #251f16;
   --zone-surface: #221b0f;
-  --zone-surface-over: #261e11;
   --note-border: #3f372b;
   --note-chalk: #4d453a;
   --note-stone: #4a4236;
@@ -777,7 +763,6 @@
   --canvas-mark: #d8d8d8;
   --canvas-line: #ececec;
   --zone-surface: #fbfbfb;
-  --zone-surface-over: #fdfdfd;
   --note-border: #e6e6e6;
   --note-chalk: #fefefe;
   --note-stone: #efedea;
@@ -830,7 +815,6 @@
   --canvas-mark: #2e2e2e;
   --canvas-line: #1a1a1a;
   --zone-surface: #151515;
-  --zone-surface-over: #181818;
   --note-border: #313131;
   --note-chalk: #3f3f3f;
   --note-stone: #3d3c3c;
