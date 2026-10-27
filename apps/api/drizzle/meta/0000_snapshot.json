@@ -1,5 +1,5 @@
 {
-  "id": "5be4ed22-090d-4542-baa8-a0a786968390",
+  "id": "5f90081f-d798-4b95-b05e-1443ca82b24c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -932,7 +932,7 @@
         },
         "notes_private_is_authors_check": {
           "name": "notes_private_is_authors_check",
-          "value": "\"notes\".\"visibility\" <> 'PRIVATE' or (\"notes\".\"created_by_id\" is not null and \"notes\".\"assignee_id\" = \"notes\".\"created_by_id\")"
+          "value": "\"notes\".\"visibility\" <> 'PRIVATE' or (\"notes\".\"created_by_id\" is not null and \"notes\".\"assignee_id\" is not null and \"notes\".\"assignee_id\" = \"notes\".\"created_by_id\")"
         }
       },
       "isRLSEnabled": true

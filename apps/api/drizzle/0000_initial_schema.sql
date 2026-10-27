@@ -120,7 +120,7 @@ CREATE TABLE "notes" (
 	CONSTRAINT "notes_horizon_check" CHECK ("notes"."horizon" in ('TODAY', 'THIS_WEEK', 'LATER')),
 	CONSTRAINT "notes_colour_check" CHECK ("notes"."colour" in ('CHALK', 'ICE', 'STONE', 'MINT', 'SKY', 'MIST', 'OAT', 'CLAY', 'ROSE', 'MALLOW', 'HEATHER', 'SEA_GREEN', 'SAGE', 'OLIVE')),
 	CONSTRAINT "notes_visibility_check" CHECK ("notes"."visibility" in ('SHARED', 'PRIVATE')),
-	CONSTRAINT "notes_private_is_authors_check" CHECK ("notes"."visibility" <> 'PRIVATE' or ("notes"."created_by_id" is not null and "notes"."assignee_id" = "notes"."created_by_id"))
+	CONSTRAINT "notes_private_is_authors_check" CHECK ("notes"."visibility" <> 'PRIVATE' or ("notes"."created_by_id" is not null and "notes"."assignee_id" is not null and "notes"."assignee_id" = "notes"."created_by_id"))
 );
 --> statement-breakpoint
 ALTER TABLE "notes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

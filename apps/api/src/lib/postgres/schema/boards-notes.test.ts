@@ -127,6 +127,15 @@ describe('accounts, boards and notes tables', () => {
     expect(code).toBe('23514');
   });
 
+  it('rejects a private note with no assignee', async () => {
+    const code = await codeOf(
+      handle.db
+        .insert(notes)
+        .values(note({ visibility: 'PRIVATE', createdById: 'u1', assigneeId: null })),
+    );
+    expect(code).toBe('23514');
+  });
+
   it('allows one active MCP connection per user and client', async () => {
     const connection = (id: string) => ({
       id,

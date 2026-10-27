@@ -60,10 +60,11 @@ export const notes = pgTable(
     oneOf('notes_horizon_check', table.horizon, noteHorizonValues),
     oneOf('notes_colour_check', table.colour, noteColourValues),
     oneOf('notes_visibility_check', table.visibility, noteVisibilityValues),
-    // A private note belongs to its author alone (RFC-0001).
+    // A private note belongs to its author alone (RFC-0001). Spelled out with `is not null`:
+    // a NULL comparison would make the check NULL, and PostgreSQL lets a NULL check pass.
     check(
       'notes_private_is_authors_check',
-      sql`${table.visibility} <> 'PRIVATE' or (${table.createdById} is not null and ${table.assigneeId} = ${table.createdById})`,
+      sql`${table.visibility} <> 'PRIVATE' or (${table.createdById} is not null and ${table.assigneeId} is not null and ${table.assigneeId} = ${table.createdById})`,
     ),
   ],
 ).enableRLS();

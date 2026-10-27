@@ -68,16 +68,27 @@ describe('serializable transactions keep the invariants under concurrency', () =
   it('never lets an owner pass 20 boards', async () => {
     const outcomes = await Promise.all(
       Array.from({ length: 10 }, (_, index) =>
-        withTransaction(handle.db, (tx) => createBoard(tx, `new-${index}`)).catch(
-          (error: unknown) => {
-            if (error instanceof TransactionConflictError) return 'conflict' as const;
-            throw error;
-          },
-        ),
+        // Ten writers on one owner commit about one per retry wave, so the default five
+        // attempts leave no margin; ten let every caller finish with 'created' or 'limit'.
+        withTransaction(handle.db, (tx) => createBoard(tx, `new-${index}`), {
+          maxAttempts: 10,
+        }).catch((error: unknown) => {
+          if (error instanceof TransactionConflictError) return 'conflict' as const;
+          throw error;
+        }),
       ),
     );
     expect(await liveBoards()).toBe(BOARD_LIMIT);
-    expect(outcomes.filter((outcome) => outcome === 'created')).toHaveLength(5);
+    const tally = (wanted: string) => outcomes.filter((outcome) => outcome === wanted).length;
+    expect({
+      created: tally('created'),
+      limit: tally('limit'),
+      conflict: tally('conflict'),
+    }).toEqual({
+      created: 5,
+      limit: 5,
+      conflict: 0,
+    });
   });
 
   it('lets exactly one of two writers advance a note revision', async () => {
