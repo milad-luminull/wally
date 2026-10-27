@@ -16,17 +16,44 @@ import { join, relative, sep } from 'node:path';
 /** vitest runs with cwd at the package root (see vitest.config.ts). */
 const REPO = join(process.cwd(), '..', '..');
 
-/** What is scanned, repo-relative: a directory (recursively) or a single file. */
+/**
+ * What is scanned, repo-relative: a directory (recursively) or a single file. A directory
+ * contributes only files with a scanned extension; a single file is read whatever its name.
+ * Every entry must exist and yield at least one file, so a moved root fails loudly instead of
+ * letting the scan pass on nothing.
+ */
 const SCANNED = [
   'apps/web/src',
   'apps/web/e2e',
   'apps/web/index.html',
+  'apps/web/public',
   'apps/api/src',
   'apps/api/test',
   'packages/shared/src',
+  'scripts',
+  'infra',
+  '.github',
+  'firestore.rules',
+  'firestore.indexes.json',
 ];
 
-const EXTENSIONS = /\.(ts|tsx|css|html)$/;
+/** Root files matched by name, so a new compose file is scanned without a list change. */
+const ROOT_FILE_PATTERNS: readonly RegExp[] = [/^docker-compose.*\.ya?ml$/];
+
+/** Text formats that can carry a stored value. Markdown is docs, outside the scan. */
+const EXTENSIONS = /\.(ts|tsx|mjs|cjs|css|html|svg|json|ya?ml)$/;
+
+/** Dependencies, build output and lockfiles: generated, not written by hand. */
+const SKIPPED_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.turbo',
+  'test-results',
+  'playwright-report',
+]);
+const LOCKFILES = new Set(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock']);
 
 /** Case-sensitive: `Hoch` and `Minze` are German UI labels, not stored values. */
 const OLD_SPELLINGS: readonly RegExp[] = [
@@ -39,8 +66,6 @@ const OLD_SPELLINGS: readonly RegExp[] = [
 
 /** Files that may name an old spelling anywhere, repo-relative, with the reason. */
 const ALLOWED_FILES = new Map([
-  ['apps/web/src/i18n/de.ts', 'the German catalogue: its values are German by design'],
-  ['apps/web/src/lib/capture/parseCapture.ts', 'the German word list the capture parser reads'],
   ['apps/web/src/englishValues.test.ts', 'this file names the patterns'],
   ['apps/web/src/englishIdentifiers.test.ts', 'it lists the German words it bans from names'],
 ]);
@@ -61,9 +86,32 @@ const REFUSAL_TESTS = [
 
 function files(path: string): string[] {
   if (!statSync(path).isDirectory()) return [path];
-  return readdirSync(path).flatMap((entry) =>
-    entry === 'node_modules' ? [] : files(join(path, entry)),
+  return readdirSync(path).flatMap((entry) => {
+    const child = join(path, entry);
+    if (statSync(child).isDirectory()) return SKIPPED_DIRECTORIES.has(entry) ? [] : files(child);
+    return EXTENSIONS.test(entry) && !LOCKFILES.has(entry) ? [child] : [];
+  });
+}
+
+/** The files of one scanned entry. Throws when the entry is missing or yields nothing. */
+function scannedFiles(rel: string): string[] {
+  const path = join(REPO, rel);
+  if (!existsSync(path)) throw new Error(`scanned path ${rel} does not exist`);
+  const found = files(path);
+  if (found.length === 0) throw new Error(`scanned path ${rel} holds no scanned file`);
+  return found;
+}
+
+/** Every scanned file, absolute, each once. */
+function allScannedFiles(): string[] {
+  const rootFiles = readdirSync(REPO).filter((entry) =>
+    ROOT_FILE_PATTERNS.some((pattern) => pattern.test(entry)),
   );
+  for (const pattern of ROOT_FILE_PATTERNS) {
+    if (!rootFiles.some((entry) => pattern.test(entry)))
+      throw new Error(`no root file matches ${pattern}`);
+  }
+  return [...new Set([...SCANNED, ...rootFiles].flatMap(scannedFiles))];
 }
 
 const repoRelative = (file: string) => relative(REPO, file).split(sep).join('/');
@@ -90,9 +138,7 @@ function oldConstant(text: string): { first: number; last: number } | null {
 
 describe('the persisted values are English', () => {
   it('names no old spelling outside the allow-list', () => {
-    const offences = SCANNED.map((path) => join(REPO, path))
-      .flatMap(files)
-      .filter((file) => EXTENSIONS.test(file))
+    const offences = allScannedFiles()
       .map((file) => [repoRelative(file), file] as const)
       .filter(([rel]) => !ALLOWED_FILES.has(rel) && !REFUSAL_TESTS.includes(rel))
       .flatMap(([rel, file]) =>
