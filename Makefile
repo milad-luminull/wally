@@ -23,10 +23,11 @@ logs:
 test:
 	$(COMPOSE) run --rm api pnpm turbo run test
 
-## Run lint + type checks across the whole workspace inside Docker.
+## Run lint across the whole workspace inside Docker (type checks: `make typecheck`).
 lint:
 	$(COMPOSE) run --rm api pnpm turbo run lint
 
+## Type-check the whole workspace inside Docker.
 typecheck:
 	$(COMPOSE) run --rm api pnpm turbo run typecheck
 
@@ -38,6 +39,9 @@ format:
 seed:
 	$(COMPOSE) run --rm api pnpm --filter @wally/api seed
 
-## Run the Playwright end-to-end suite against the running stack (run `make up` first).
+## Run the Playwright suite from the host against the running stack, as CI does. Needs
+## `make up && make seed`, the browsers (`pnpm --filter @wally/web exec playwright install
+## chromium webkit`) and E2E_USER_EMAIL / E2E_USER_PASSWORD exported; see apps/web/e2e/README.md.
+PLAYWRIGHT_BASE_URL ?= http://localhost:5174
 e2e:
-	$(COMPOSE) exec web pnpm --filter @wally/web test:e2e
+	PLAYWRIGHT_BASE_URL=$(PLAYWRIGHT_BASE_URL) pnpm --filter @wally/web exec playwright test
