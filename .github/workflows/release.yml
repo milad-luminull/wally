@@ -420,18 +420,6 @@ jobs:
             echo "::error::the bundle contains localhost:4000"; exit 1
           fi
 
-      # The account-cleanup worker (a Cloud Run job its schedule starts every 5 minutes) runs
-      # the API image, so it moves to this release's tested image. Only the image changes; the
-      # job's identity, secret and settings are owned by scripts/deploy-account-cleanup.sh.
-      # Before traffic moves, so no deletion can be completed by older code once the new API
-      # writes data that only newer cleanup knows about; a failure here stops the release
-      # with nothing to roll back. New cleanup code reading data the old API wrote is safe.
-      - name: Move the account-cleanup worker to this release
-        if: env.AUTH0_ENABLED == 'true'
-        run: |
-          gcloud run jobs update wally-account-cleanup --region="${GCP_REGION}" \
-            --image="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.image.outputs.digest }}"
-
       # Prepare and validate BOTH artifacts before enforcing the new API contract.
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Shift all traffic to the new revision

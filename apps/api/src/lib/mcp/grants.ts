@@ -1,5 +1,5 @@
-import { assertAccountActive } from '../account/access.js';
 import { randomUUID } from 'node:crypto';
+import { runQueryTransaction } from '../db/transaction.js';
 import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { liveWhiteboard, whiteboardsCol } from '../db/collections.js';
 import { requireAccess, type Actor } from '../commands/context.js';
@@ -22,7 +22,6 @@ export async function listConnections(db: Firestore, userId: string): Promise<Co
 export async function revokeConnection(db: Firestore, userId: string, id: string): Promise<void> {
   const ref = connections(db, userId).doc(id);
   await db.runTransaction(async (tx) => {
-    await assertAccountActive(db, userId, tx);
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) throw new AppError(404, 'NOT_FOUND', 'Not found');
     if (snapshot.data()!.revokedAt === null)
@@ -37,8 +36,7 @@ export async function requireConnection(
   establish = false,
 ): Promise<ConnectionGrant> {
   if (!token.scopes.includes('wally:read')) throw consentRequired();
-  const grant = await db.runTransaction(async (tx) => {
-    await assertAccountActive(db, userId, tx);
+  const grant = await runQueryTransaction(db, async (tx) => {
     const rows = (
       await tx.get(connections(db, userId).where('clientId', '==', token.clientId))
     ).docs.map((doc) => doc.data() as ConnectionGrant);
@@ -80,8 +78,7 @@ export async function connectAccount(
   userId: string,
   clientId: string,
 ): Promise<ConnectionGrant> {
-  return db.runTransaction(async (tx) => {
-    await assertAccountActive(db, userId, tx);
+  return runQueryTransaction(db, async (tx) => {
     const rows = (await tx.get(connections(db, userId).where('clientId', '==', clientId))).docs.map(
       (doc) => doc.data() as ConnectionGrant,
     );
@@ -102,7 +99,6 @@ export async function authorizeConnectionBoardInTransaction(
   write: boolean,
   enabled: boolean,
 ): Promise<void> {
-  await assertAccountActive(db, actor.id, tx);
   if (!enabled) throw new AppError(503, 'MCP_DISABLED', 'External AI access is disabled');
   const grant = (await tx.get(connections(db, actor.id).doc(connectionId))).data() as
     ConnectionGrant | undefined;

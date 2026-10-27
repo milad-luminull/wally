@@ -33,4 +33,4 @@ We loosely follow [Diátaxis](https://diataxis.fr/): keep how-to guides, referen
 - `SETUP.md` holds working conventions for the code and tooling. The reasoning behind a convention belongs in an ADR, which `SETUP.md` links.
 - Secrets, credentials, or personal data. Ever.
 
-Auth0 login and MCP: [rollout](rfcs/AUTH0_MCP_ROLLOUT.md), [architecture and setup](AUTH0.md), [migration](AUTH0_MIGRATION.md), [decision](adr/0016-auth0-for-web-and-mcp.md). Production activation remains pending.
+Auth0 login and MCP: [rollout](rfcs/AUTH0_MCP_ROLLOUT.md), [architecture and setup](AUTH0.md), [connection model](MCP_CONNECTION_MODEL.md), [card views](MCP_CARD_UI.md), [decision](adr/0016-auth0-for-web-and-mcp.md).

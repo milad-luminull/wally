@@ -60,13 +60,3 @@ test('denied preflight read stops immediately without mutations', () => {
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(0, 3), ['run', 'services', 'describe']);
 });
-test('the cleanup worker moves to the release image before traffic, and only its image', () => {
-  assert.doesNotMatch(workflow, /run: bash scripts\/deploy-account-cleanup|scheduler jobs|--check/);
-  const worker = workflow.indexOf('- name: Move the account-cleanup worker to this release');
-  assert.ok(worker > workflow.indexOf('- name: Verify what was baked into the bundle'));
-  assert.ok(worker < workflow.indexOf('- name: Shift all traffic to the new revision'));
-  assert.match(
-    workflow,
-    /gcloud run jobs update wally-account-cleanup --region="\$\{GCP_REGION\}" \\\n\s+--image="\$\{GCP_REGION\}-docker\.pkg\.dev\/\$\{GCP_PROJECT_ID\}\/wally\/wally-api@\$\{\{ steps\.image\.outputs\.digest \}\}"\n/,
-  );
-});

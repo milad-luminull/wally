@@ -3,13 +3,12 @@ import { boardEntryWithReturn, readReturnPath } from './returnPath';
 
 describe('readReturnPath', () => {
   it('accepts share links and board paths', () => {
-    expect(readReturnPath({ from: '/settings/account' })).toBe('/settings/account');
-    expect(readReturnPath({ from: '/settings/account?redirect=https://evil.example' })).toBeNull();
     expect(readReturnPath({ from: '/share/tok' })).toBe('/share/tok');
     expect(readReturnPath({ from: '/boards/abc?view=list' })).toBe('/boards/abc?view=list');
   });
 
   it('ignores anything that is not one of those', () => {
+    expect(readReturnPath({ from: '/settings/account' })).toBeNull();
     for (const from of [
       '//evil.example',
       'https://evil.example',

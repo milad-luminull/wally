@@ -161,11 +161,6 @@ export function Auth0SessionProvider({
         verificationSendFailed: false,
         authError,
         hostedLogin,
-        reauthenticate: (returnPath) =>
-          session.client.loginWithRedirect({
-            appState: { returnPath: readReturnPath({ from: returnPath }) },
-            authorizationParams: { prompt: 'login', max_age: 0 },
-          }),
         signOut,
         signInWithEmail: () => hostedLogin(false, null),
         signUpWithEmail: () => hostedLogin(true, null),

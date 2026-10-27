@@ -23,7 +23,6 @@ export interface AuthContextValue {
   resendVerificationEmail: () => Promise<void>;
   refreshUser: () => Promise<boolean>;
   hostedLogin?: (signup: boolean, returnPath: string | null) => Promise<void>;
-  reauthenticate?: (returnPath: string) => Promise<void>;
   authError?: 'migration' | 'unavailable' | null;
 }
 export const AuthContext = createContext<AuthContextValue | null>(null);

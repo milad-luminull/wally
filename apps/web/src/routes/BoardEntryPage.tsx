@@ -41,7 +41,6 @@ export function BoardEntryPage() {
   }
 
   const to = readReturnPath({ from: (location.state as { to?: unknown } | null)?.to });
-  if (to === '/settings/account') return <Navigate to={to} replace />;
   if (to?.startsWith('/share/')) return <Navigate to={to} replace />;
   const boardId = to?.match(/^\/boards\/([^/?#]+)/)?.[1];
   if (to && boards.some((board) => board.id === boardId)) return <Navigate to={to} replace />;

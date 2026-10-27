@@ -1,8 +1,4 @@
-import {
-  assertAccountActive,
-  assertAssistantBoardActive,
-  assertAssistantNotesActive,
-} from '../account/access.js';
+import { assertAssistantBoardActive, assertAssistantNotesActive } from './guards.js';
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import type {
@@ -408,10 +404,8 @@ export async function suggestForCapture(
   };
   const ref = assistantSuggestionsCol(db, actor.id).doc();
   await db.runTransaction(async (tx) => {
-    await assertAccountActive(db, actor.id, tx);
     await assertAssistantBoardActive(db, actor.id, board.id, tx, board.revision ?? 0);
     await assertAssistantNotesActive(db, actor.id, board.id, tx, [note, ...boardNotes]);
-    if (fields.assignee?.value) await assertAccountActive(db, fields.assignee.value, tx);
     tx.create(ref, doc);
   });
   return toDto(db, board, actor.id, { ...doc, id: ref.id });
@@ -456,7 +450,6 @@ async function claim(
   const field = to === 'UNDONE' ? 'undone' : 'decision';
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
-    await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current || current.boardId !== boardId) throw notFound();
     await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
@@ -923,7 +916,6 @@ async function settleKeep(
 ): Promise<WithId<AssistantSuggestionDoc>> {
   const ref = assistantSuggestionsCol(db, actor.id).doc(id);
   return db.runTransaction(async (tx) => {
-    await assertAccountActive(db, actor.id, tx);
     const current = withId(await tx.get(ref));
     if (!current) throw notFound();
     await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
@@ -1244,7 +1236,6 @@ export async function pendingSuggestions(
     // again in the transaction, so one kept or discarded in another tab since the query is
     // left as that tab decided it.
     await db.runTransaction(async (tx) => {
-      await assertAccountActive(db, actor.id, tx);
       for (const snap of await tx.getAll(...refs))
         if (snap.data()?.status === 'PENDING')
           tx.update(snap.ref, { status: 'DISCARDED', updatedAt: stamp });

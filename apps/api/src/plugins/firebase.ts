@@ -10,7 +10,6 @@ import { loadEnv } from '../env.js';
 
 /** The minimal shape our app needs out of a verified Firebase ID token. */
 export interface DecodedAuthToken {
-  authenticatedAt?: number;
   uid: string;
   email: string | null;
   /**
@@ -88,7 +87,6 @@ export default fp(
         const decoded = await auth.verifyIdToken(idToken);
         return {
           uid: decoded.uid,
-          authenticatedAt: decoded.auth_time,
           email: decoded.email ?? null,
           emailVerified: decoded.email_verified ?? false,
           name: (decoded.name as string | undefined) ?? null,

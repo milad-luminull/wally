@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
-import { buildMigrationPlan, executeMigration } from '../src/lib/auth/migration.js';
 import { bindImportedIdentity } from '../src/lib/auth/identities.js';
 import {
   createFakeAuthVerifier,
@@ -91,32 +90,10 @@ describe('opt-in Auth0 signup', () => {
   it('first Google login uses the prepared account and boards, but same-email subjects cannot', async () => {
     await createTestUser(db, 'google-original', 'new@example.com');
     await createTestBoard(db, 'google-original');
-    const plan = buildMigrationPlan(
-      project,
-      'db',
-      [
-        {
-          uid: 'google-original',
-          email: 'new@example.com',
-          emailVerified: true,
-          disabled: false,
-          providers: [{ providerId: 'google.com', uid: '12345' }],
-        },
-      ],
-      ['google-original'],
-    );
-    const prepare = () =>
-      executeMigration(
-        plan,
-        async () => {
-          throw new Error('No Auth0 profile yet');
-        },
-        (value, uid) => bindImportedIdentity(db, value, uid),
-        true,
-        'google-first-login',
-      );
-    expect((await prepare())[0]?.status).toBe('bound');
-    expect((await prepare())[0]?.status).toBe('bound');
+    const google = { issuer: identity.issuer, subject: 'google-oauth2|12345' };
+    // Binding is idempotent for the same account.
+    await bindImportedIdentity(db, google, 'google-original');
+    await bindImportedIdentity(db, google, 'google-original');
     const responses = await Promise.all([me('google-oauth2|12345'), me('google-oauth2|12345')]);
     expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
     expect(responses.every((r) => r.json().id === 'google-original')).toBe(true);
@@ -130,17 +107,9 @@ describe('opt-in Auth0 signup', () => {
       'google-original',
     );
     await createTestUser(db, 'wrong-owner', 'other@example.com');
-    expect(
-      (
-        await executeMigration(
-          { ...plan, identities: plan.identities.map((i) => ({ ...i, userId: 'wrong-owner' })) },
-          async () => null,
-          (value, uid) => bindImportedIdentity(db, value, uid),
-          true,
-          'google-first-login',
-        )
-      )[0]?.errorCode,
-    ).toBe('IDENTITY_CONFLICT');
+    await expect(bindImportedIdentity(db, google, 'wrong-owner')).rejects.toMatchObject({
+      code: 'IDENTITY_CONFLICT',
+    });
   });
 
   it('leaves unmapped accounts blocked by default', async () => {

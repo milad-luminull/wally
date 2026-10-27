@@ -15,8 +15,7 @@
     "seed": "tsx src/seed.ts",
     "maintenance": "tsx src/maintenance.ts",
     "assistant:smoke": "tsx src/assistant-smoke.ts",
-    "assistant:capture-eval": "tsx src/capture-eval.ts",
-    "account:maintenance": "tsx src/account-maintenance.ts"
+    "assistant:capture-eval": "tsx src/capture-eval.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "5.0.119",
