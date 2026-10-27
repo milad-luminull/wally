@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
@@ -30,10 +31,11 @@ const envSchema = z.object({
   // Local transport alias only. Auth0's registered MCP JWT audience stays canonical.
   MCP_LOCAL_URL: z.string().url().optional(),
   MCP_CLIENT_ID: z.string().min(1).optional(),
-  AUTH0_ISSUER: z.literal('https://login.luminull.com/').default('https://login.luminull.com/'),
-  AUTH0_AUDIENCE: z
-    .literal('https://api.wally.luminull.com')
-    .default('https://api.wally.luminull.com'),
+  // Fixed values (lib/auth/constants.ts), which the API uses directly. Still accepted here so
+  // existing compose and release configuration keeps working, but only with exactly those
+  // values: anything else fails at boot.
+  AUTH0_ISSUER: z.literal(AUTH0_ISSUER).optional(),
+  AUTH0_AUDIENCE: z.literal(AUTH0_AUDIENCE).optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // The assistant's deployment switch. Off by default: with it off, the board response
   // reports `assistantEnabled: false` and every assistant operation answers 404.

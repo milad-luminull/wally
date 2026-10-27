@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import type { WhiteboardDoc } from '../db/types.js';
 import { bindKnownIdentity } from './identities.js';
+import { AUTH0_ISSUER } from './constants.js';
 import { membersCol, normalizeEmail, now, usersCol, whiteboardsCol } from '../db/collections.js';
 import { executeBoardCommand } from '../commands/index.js';
 
@@ -79,7 +80,7 @@ export async function seedMcpLocal(
         activatedAt: timestamp,
       });
   });
-  await bindKnownIdentity(db, { issuer: 'https://login.luminull.com/', subject }, ownerId);
+  await bindKnownIdentity(db, { issuer: AUTH0_ISSUER, subject }, ownerId);
   // Commands provide valid note defaults and stable operation receipts for safe reruns.
   await executeBoardCommand(
     db,

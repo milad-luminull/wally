@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { bindKnownIdentity } from './identities.js';
+import { AUTH0_ISSUER } from './constants.js';
 import { normalizeEmail } from '../db/collections.js';
 
 /** CLI fixture only; never called by the server or used as an authentication bypass. */
@@ -19,6 +20,6 @@ export async function seedAuth0E2eIdentity(
     .regex(/^auth0\|[^/\s]+$/)
     .parse(env.E2E_AUTH0_SUBJECT);
   const email = normalizeEmail(z.string().email().parse(env.E2E_AUTH0_EMAIL));
-  await bindKnownIdentity(db, { issuer: 'https://login.luminull.com/', subject }, 'seed-owner');
+  await bindKnownIdentity(db, { issuer: AUTH0_ISSUER, subject }, 'seed-owner');
   await db.collection('users').doc('seed-owner').update({ email });
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { _resetEnvCacheForTests, loadEnv } from './env.js';
 import { priceFor } from './lib/assistant/budget/prices.js';
+import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 
 describe('the assistant model defaults', () => {
   // Gemini 2.5 Flash is retired by Google on 2026-10-20; 3.8 Flash is served for this project
@@ -44,6 +45,23 @@ describe('local MCP transport configuration', () => {
         MCP_LOCAL_URL: url,
       }),
     ).toThrow();
+    _resetEnvCacheForTests();
+  });
+});
+
+describe('the fixed Auth0 values', () => {
+  it('accepts AUTH0_ISSUER and AUTH0_AUDIENCE only with the values the API uses', () => {
+    const base = { FIREBASE_PROJECT_ID: 'p' };
+    _resetEnvCacheForTests();
+    expect(() => loadEnv({ ...base, AUTH0_ISSUER, AUTH0_AUDIENCE })).not.toThrow();
+    for (const other of [
+      { AUTH0_ISSUER: 'https://evil.example/' },
+      { AUTH0_AUDIENCE: 'https://api.example' },
+      { AUTH0_ISSUER: '' },
+    ]) {
+      _resetEnvCacheForTests();
+      expect(() => loadEnv({ ...base, ...other }), JSON.stringify(other)).toThrow();
+    }
     _resetEnvCacheForTests();
   });
 });

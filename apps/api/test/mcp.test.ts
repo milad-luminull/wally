@@ -20,7 +20,8 @@ import {
 } from '../src/lib/mcp/grants.js';
 import { consumeMcpWriteBudget } from '../src/lib/mcp/rate.js';
 import { notesCol, now, whiteboardsCol } from '../src/lib/db/collections.js';
-import { MCP_METADATA_PATH, MCP_RESOURCE, type McpRouteOptions } from '../src/routes/mcp.js';
+import { MCP_RESOURCE } from '../src/lib/auth/constants.js';
+import { MCP_METADATA_PATH, type McpRouteOptions } from '../src/routes/mcp.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 /** The horizon's spelling from before ADR-0024, refused like any unknown value. */
 const OLD = { horizon: 'SPAETER' } as const;
