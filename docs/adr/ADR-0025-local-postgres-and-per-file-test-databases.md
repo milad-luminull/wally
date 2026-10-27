@@ -33,11 +33,14 @@ Chosen option: **option 1**.
 - `docker-compose.yml` runs `postgres` from `supabase/postgres`, pinned to an exact tag. CI's
   unit-test job runs the same image as a service.
 - It publishes no port, so several Compose projects can run side by side.
-- A Vitest global setup creates `wally_template` and applies the migrations once per run.
-  Each test file creates its own `wally_test_<random>` database from it with
+- A Vitest global setup creates `wally_template_<run>` and applies the migrations once per
+  run. Each test file creates its own `wally_test_<run>_<random>` database from it with
   `CREATE DATABASE … TEMPLATE`
   ([template databases](https://www.postgresql.org/docs/current/manage-ag-templatedbs.html))
   and drops it when done.
+- The run id starts with the run's start time, so several runs can share one server: each
+  drops only its own databases, and leftovers of runs older than two hours are cleared at
+  the next start.
 - Clients disable prepared statements, as the transaction pooler requires in production.
 - The Firestore emulator stays until the API has moved off Firestore (workstream 2 of
   [RFC-0011](../rfcs/RFC-0011-platform-migration.md)). The rest of ADR-0009 still holds.

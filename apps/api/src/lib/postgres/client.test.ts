@@ -33,7 +33,7 @@ describe('PostgreSQL client and test databases', () => {
 
   it('gives this file its own database cloned from the migrated template', async () => {
     const [row] = await handle.sql`select current_database() as name`;
-    expect(row!.name).toMatch(/^wally_test_[a-z0-9]{8}$/);
+    expect(row!.name).toMatch(/^wally_test_[0-9a-z]+_[0-9a-z]{4}_[0-9a-z]{8}$/);
     const [users] = await handle.sql`select to_regclass('public.users')::text as t`;
     expect(users!.t).toBe('users');
   });

@@ -1,9 +1,16 @@
-import { randomBytes } from 'node:crypto';
 import postgres from 'postgres';
+import { inject } from 'vitest';
 import { createDatabase, type Database } from '../src/lib/postgres/client.js';
+import { TEST_PREFIX, databaseUrl, randomId, templateDatabase } from './postgres-databases.js';
 
-/** Migrated once per run by test/postgres-global-setup.ts. */
-export const TEMPLATE_DATABASE = 'wally_template';
+export { dropStaleDatabases } from './postgres-databases.js';
+
+declare module 'vitest' {
+  export interface ProvidedContext {
+    /** This run's id, provided by test/postgres-global-setup.ts. */
+    postgresRun: string;
+  }
+}
 
 export type TestDatabase = {
   db: Database;
@@ -12,15 +19,8 @@ export type TestDatabase = {
   drop(): Promise<void>;
 };
 
-/** `url` with its database name replaced. */
-export function databaseUrl(url: string, database: string): string {
-  const parsed = new URL(url);
-  parsed.pathname = `/${database}`;
-  return parsed.toString();
-}
-
 /**
- * A database of this test file's own, cloned from the migrated template.
+ * A database of this test file's own, cloned from the run's migrated template.
  *
  * Files run in parallel, as they do on the Firestore emulator with a project id each:
  * no file can see or wipe another's rows. Call drop() in afterAll.
@@ -32,13 +32,12 @@ export async function createTestDatabase(options: { max?: number } = {}): Promis
       'DATABASE_URL is not set: run the tests through `make test` or start the postgres service',
     );
 
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const suffix = Array.from(randomBytes(8), (byte) => alphabet[byte % alphabet.length]).join('');
-  const name = `wally_test_${suffix}`;
+  const run = inject('postgresRun');
+  const name = `${TEST_PREFIX}${run}_${randomId(8)}`;
 
   const admin = postgres(url, { max: 1, onnotice: () => {} });
   try {
-    await admin.unsafe(`create database "${name}" template "${TEMPLATE_DATABASE}"`);
+    await admin.unsafe(`create database "${name}" template "${templateDatabase(run)}"`);
   } finally {
     await admin.end();
   }
