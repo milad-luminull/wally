@@ -153,7 +153,6 @@ export function Auth0SessionProvider({
     <AuthContext.Provider
       value={{
         user: loaded?.user ?? null,
-        idToken: loaded?.accessToken ?? null,
         emailVerified: loaded?.emailVerified ?? false,
         status,
         signedOut,
