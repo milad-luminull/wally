@@ -16,7 +16,7 @@ export function endOfWeek(today: string): string {
  * is Later. Both strings are YYYY-MM-DD, so the string order is the calendar order.
  */
 export function horizonForDueDate(dueDate: string, today: string): NoteHorizon {
-  if (dueDate <= today) return 'HEUTE';
-  if (dueDate <= endOfWeek(today)) return 'DIESE_WOCHE';
-  return 'SPAETER';
+  if (dueDate <= today) return 'TODAY';
+  if (dueDate <= endOfWeek(today)) return 'THIS_WEEK';
+  return 'LATER';
 }

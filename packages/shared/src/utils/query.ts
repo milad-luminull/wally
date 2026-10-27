@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Parses a comma-separated query string param (e.g. "?priority=HOCH,MITTEL") into an
+ * Parses a comma-separated query string param (e.g. "?priority=HIGH,MEDIUM") into an
  * array validated against the given enum. Already parsed arrays remain valid when the
  * application layer validates a query again. Empty/missing values become undefined so
  * "no filter applied" and "filtered to nothing" stay distinguishable downstream.

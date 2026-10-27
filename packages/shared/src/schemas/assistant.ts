@@ -110,7 +110,7 @@ const reasonSchema = z.string().max(120);
 
 export const suggestionFieldsSchema = z.object({
   dueDate: z.object({ value: z.string().date(), reason: reasonSchema }).nullable(),
-  priority: z.object({ value: z.enum(['HOCH', 'NIEDRIG']), reason: reasonSchema }).nullable(),
+  priority: z.object({ value: z.enum(['HIGH', 'LOW']), reason: reasonSchema }).nullable(),
   assignee: z.object({ value: userSummarySchema, reason: reasonSchema }).nullable(),
   /** A cleaner title, offered beside the person's own and never applied by a countdown (R2). */
   title: z
@@ -159,7 +159,7 @@ export const suggestionFieldsSchema = z.object({
     })
     .nullable(),
   /** This week or Later for a note just written; Today is the default and is never proposed. */
-  horizon: z.object({ value: z.enum(['DIESE_WOCHE', 'SPAETER']), reason: reasonSchema }).nullable(),
+  horizon: z.object({ value: z.enum(['THIS_WEEK', 'LATER']), reason: reasonSchema }).nullable(),
   /** Only ever Private, and only taken by the person (`suggestionOptInFieldKeys`). */
   visibility: z.object({ value: z.literal('PRIVATE'), reason: reasonSchema }).nullable(),
   /** Up to three tags, the board's own spelling where it has one; kept one by one. */
