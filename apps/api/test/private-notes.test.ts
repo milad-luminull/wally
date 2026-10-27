@@ -120,7 +120,7 @@ describe('private notes: reads', () => {
   });
 
   it('reads stored board preferences without a visibility as "all"', () => {
-    const stored = { view: 'wand', axis: 'horizon', done: true, mine: false, priority: [] };
+    const stored = { view: 'wall', axis: 'horizon', done: true, mine: false, priority: [] };
     expect(boardPreferencesSchema.parse(stored).visibility).toBe('all');
   });
 });
@@ -160,7 +160,7 @@ describe('private notes: writes', () => {
       {
         method: 'POST' as const,
         url: `/notes/${note.id}/move`,
-        payload: { mode: 'HORIZON', horizon: 'SPAETER' },
+        payload: { mode: 'HORIZON', horizon: 'LATER' },
       },
       { method: 'POST' as const, url: `/notes/${note.id}/complete`, payload: {} },
       { method: 'POST' as const, url: `/notes/${note.id}/reopen`, payload: {} },

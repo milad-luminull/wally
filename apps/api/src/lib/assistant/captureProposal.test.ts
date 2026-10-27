@@ -18,10 +18,10 @@ function note(overrides: Partial<CaptureNote> = {}): CaptureNote {
     title: 'Send the offer to Acme',
     description: '',
     dueDate: null,
-    priority: 'MITTEL',
+    priority: 'MEDIUM',
     assignee: null,
     visibility: 'SHARED',
-    horizon: 'HEUTE',
+    horizon: 'TODAY',
     tags: [],
     customFields: {},
     subtaskSummary: { total: 0, done: 0 },
@@ -37,8 +37,8 @@ function boardNote(overrides: Partial<CaptureBoardNote> & { id: string }): Captu
     status: 'OPEN',
     createdAt: '2026-10-10T10:00:00.000Z',
     visibility: 'SHARED',
-    horizon: 'HEUTE',
-    priority: 'MITTEL',
+    horizon: 'TODAY',
+    priority: 'MEDIUM',
     tags: [],
     customFields: {},
     createdBy: me,
@@ -77,12 +77,12 @@ describe('buildCaptureCall', () => {
   it('returns null when every field is filled or locked', () => {
     const full = note({
       dueDate: '2026-10-20',
-      priority: 'HOCH',
+      priority: 'HIGH',
       assignee: me,
       customFields: { Customer: 'Acme' },
       subtaskSummary: { total: 1, done: 0 },
       links: ['n-2'],
-      horizon: 'DIESE_WOCHE',
+      horizon: 'THIS_WEEK',
       tags: ['sales'],
       description: 'Already written.',
     });
@@ -106,7 +106,7 @@ describe('acceptCapture', () => {
       {
         ...none,
         dueDate: { value: '2026-10-18', confidence: 0.9, reason: 'yesterday' },
-        priority: { value: 'HOCH', confidence: 0.4, reason: 'maybe' },
+        priority: { value: 'HIGH', confidence: 0.4, reason: 'maybe' },
         assignee: { memberId: 'u-stranger', confidence: 0.9, reason: 'named' },
         links: {
           items: [{ noteId: 'n-unknown', reason: 'same customer' }],
@@ -223,7 +223,7 @@ describe('which new fields a capture may propose', () => {
     );
     expect(opened(note())).not.toContain('reference');
     const filled = note({
-      horizon: 'DIESE_WOCHE',
+      horizon: 'THIS_WEEK',
       visibility: 'PRIVATE',
       tags: ['sales'],
       customFields: { Customer: 'Acme' },
@@ -277,24 +277,21 @@ describe('the rules applied to an answer', () => {
     // Today is Monday 2026-10-19; the week ends on Sunday the 25th.
     const today = accept({
       dueDate: { value: '2026-10-19', ...sure },
-      horizon: { value: 'DIESE_WOCHE', ...sure },
+      horizon: { value: 'THIS_WEEK', ...sure },
     });
     expect(today?.horizon).toBeNull();
     const later = accept({
       dueDate: { value: '2026-10-29', ...sure },
-      horizon: { value: 'DIESE_WOCHE', ...sure },
+      horizon: { value: 'THIS_WEEK', ...sure },
     });
     expect(later?.horizon).toBeNull();
     const agrees = accept({
       dueDate: { value: '2026-10-29', ...sure },
-      horizon: { value: 'SPAETER', ...sure },
+      horizon: { value: 'LATER', ...sure },
     });
-    expect(agrees?.horizon?.value).toBe('SPAETER');
+    expect(agrees?.horizon?.value).toBe('LATER');
     // A date the person typed counts the same way.
-    const typed = accept(
-      { horizon: { value: 'SPAETER', ...sure } },
-      note({ dueDate: '2026-10-21' }),
-    );
+    const typed = accept({ horizon: { value: 'LATER', ...sure } }, note({ dueDate: '2026-10-21' }));
     expect(typed).toBeNull();
   });
 
@@ -362,7 +359,7 @@ describe('judgeCapture: why each proposed field was kept or dropped', () => {
     const { fields, outcomes } = judge(
       {
         dueDate: { value: '2026-10-01', ...sure },
-        priority: { value: 'HOCH', ...unsure },
+        priority: { value: 'HIGH', ...unsure },
         assignee: { memberId: 'u-stranger', ...sure },
         title: { value: 'Send the offer to Acme', ...sure },
         tags: { items: ['Sales'], ...sure },
@@ -381,7 +378,7 @@ describe('judgeCapture: why each proposed field was kept or dropped', () => {
 
   it('says a field was not open when the note already has it or the person typed it', () => {
     const { outcomes } = judge(
-      { dueDate: { value: '2026-10-23', ...sure }, priority: { value: 'HOCH', ...sure } },
+      { dueDate: { value: '2026-10-23', ...sure }, priority: { value: 'HIGH', ...sure } },
       note({ dueDate: '2026-10-21' }),
       { ...ctx, locked: ['priority'] },
     );
@@ -391,7 +388,7 @@ describe('judgeCapture: why each proposed field was kept or dropped', () => {
   it('says why a horizon, a text, a person beside Private, and an empty list were dropped', () => {
     const { outcomes } = judge({
       dueDate: { value: '2026-10-19', ...sure },
-      horizon: { value: 'SPAETER', ...sure },
+      horizon: { value: 'LATER', ...sure },
       description: { value: 'Detail', ...sure },
       visibility: { value: 'PRIVATE', ...sure },
       assignee: { memberId: 'u-anna', ...sure },
@@ -409,7 +406,7 @@ describe('judgeCapture: why each proposed field was kept or dropped', () => {
 
   it('keeps acceptCapture as it was: the fields, or null when nothing survived', () => {
     const n = note();
-    const answer = { ...none, priority: { value: 'HOCH' as const, ...unsure } };
+    const answer = { ...none, priority: { value: 'HIGH' as const, ...unsure } };
     const call = buildCaptureCall(n, board, ctx)!;
     expect(acceptCapture(answer, call, n, ctx)).toBeNull();
     expect(judgeCapture(answer, call, n, ctx).fields).toBeNull();

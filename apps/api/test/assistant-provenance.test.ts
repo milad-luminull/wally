@@ -117,7 +117,7 @@ describe('assistant provenance on the command layer', () => {
     await executeBoardCommand(
       ctx.db,
       owner,
-      { type: 'note.move', noteId, boardId, input: { mode: 'HORIZON', horizon: 'SPAETER' } },
+      { type: 'note.move', noteId, boardId, input: { mode: 'HORIZON', horizon: 'LATER' } },
       { operationId: randomUUID(), expectedRevision: created.revision },
       { provenance },
     );
@@ -125,8 +125,8 @@ describe('assistant provenance on the command layer', () => {
     const moved = history.find((h) => h.type === 'MOVED');
     expect(moved?.metadata).toEqual({
       mode: 'HORIZON',
-      from: 'HEUTE',
-      to: 'SPAETER',
+      from: 'TODAY',
+      to: 'LATER',
       via: 'assistant',
     });
     const audits = docsWithId(await assistantAuditCol(ctx.db).get());

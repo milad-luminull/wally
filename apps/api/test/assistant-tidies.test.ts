@@ -49,11 +49,11 @@ const fakeRunner: TidyRunner = async (input): Promise<TidyOutput> => {
     });
   const moves = rows.flatMap((r) =>
     r.title.startsWith('later')
-      ? [{ noteId: r.id, horizon: 'SPAETER', confidence: 0.9, reason: 'next month' }]
+      ? [{ noteId: r.id, horizon: 'LATER', confidence: 0.9, reason: 'next month' }]
       : r.title.startsWith('week')
-        ? [{ noteId: r.id, horizon: 'DIESE_WOCHE', confidence: 0.8, reason: 'by Friday' }]
+        ? [{ noteId: r.id, horizon: 'THIS_WEEK', confidence: 0.8, reason: 'by Friday' }]
         : r.title.startsWith('maybe')
-          ? [{ noteId: r.id, horizon: 'SPAETER', confidence: 0.3, reason: 'maybe' }]
+          ? [{ noteId: r.id, horizon: 'LATER', confidence: 0.3, reason: 'maybe' }]
           : [],
   );
   await lease.settle(usage);
@@ -116,13 +116,13 @@ describe('tidies', () => {
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'Monday',
         dueDate: '2026-10-19',
-        horizon: 'DIESE_WOCHE',
+        horizon: 'THIS_WEEK',
       })
     ).json();
     await createNote(fx.ownerToken, fx.boardId, {
       title: 'right',
       dueDate: '2026-10-19',
-      horizon: 'SPAETER',
+      horizon: 'LATER',
     });
     const res = await tidy(fx.ownerToken, fx.boardId);
     expect(res.statusCode).toBe(200);
@@ -134,8 +134,8 @@ describe('tidies', () => {
         {
           noteId: late.id,
           baseRevision: late.revision,
-          from: 'DIESE_WOCHE',
-          to: 'SPAETER',
+          from: 'THIS_WEEK',
+          to: 'LATER',
           reason: null,
           source: 'date',
         },
@@ -146,7 +146,7 @@ describe('tidies', () => {
     const doc = await stored(fx.ownerId, dto.id);
     expect(doc.model).toBeNull();
     expect(doc.moves[0]!.operationIds.apply).toMatch(/[0-9a-f-]{36}/);
-    expect((await note(late.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(late.id)).horizon).toBe('THIS_WEEK');
   });
 
   it('asks the model about the undated notes of Today and keeps only its confident moves', async () => {
@@ -158,15 +158,15 @@ describe('tidies', () => {
       })
     ).json();
     await createNote(fx.ownerToken, fx.boardId, { title: 'maybe sometime' });
-    await createNote(fx.ownerToken, fx.boardId, { title: 'placed', horizon: 'SPAETER' });
+    await createNote(fx.ownerToken, fx.boardId, { title: 'placed', horizon: 'LATER' });
     const res = await tidy(fx.ownerToken, fx.boardId);
     const { tidy: dto } = res.json();
     expect(dto.moves).toEqual([
       {
         noteId: later.id,
         baseRevision: later.revision,
-        from: 'HEUTE',
-        to: 'SPAETER',
+        from: 'TODAY',
+        to: 'LATER',
         reason: 'next month',
         source: 'words',
       },
@@ -284,13 +284,13 @@ describe('tidies', () => {
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'Monday',
         dueDate: '2026-10-19',
-        horizon: 'DIESE_WOCHE',
+        horizon: 'THIS_WEEK',
       })
     ).json();
     await createNote(fx.ownerToken, fx.boardId, {
       title: 'hidden Monday',
       dueDate: '2026-10-19',
-      horizon: 'DIESE_WOCHE',
+      horizon: 'THIS_WEEK',
     });
     const shownUndated = (
       await createNote(fx.ownerToken, fx.boardId, { title: 'later: shown' })
@@ -343,21 +343,21 @@ describe('tidies', () => {
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'Monday',
         dueDate: '2026-10-19',
-        horizon: 'DIESE_WOCHE',
+        horizon: 'THIS_WEEK',
       })
     ).json();
     const b = (
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'Tuesday',
         dueDate: '2026-10-20',
-        horizon: 'DIESE_WOCHE',
+        horizon: 'THIS_WEEK',
       })
     ).json();
     const c = (
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'Overdue',
         dueDate: '2026-10-01',
-        horizon: 'SPAETER',
+        horizon: 'LATER',
       })
     ).json();
     const dto = (await tidy(fx.ownerToken, fx.boardId)).json().tidy;
@@ -383,9 +383,9 @@ describe('tidies', () => {
       // The record's order: dated moves earliest due first.
       kept: { noteIds: [c.id, a.id, b.id], skipped: [] },
     });
-    expect((await note(a.id)).horizon).toBe('SPAETER');
-    expect((await note(b.id)).horizon).toBe('SPAETER');
-    expect((await note(c.id)).horizon).toBe('HEUTE');
+    expect((await note(a.id)).horizon).toBe('LATER');
+    expect((await note(b.id)).horizon).toBe('LATER');
+    expect((await note(c.id)).horizon).toBe('TODAY');
     expect(await movedByAssistant(a.id)).toBe(1);
     expect(await audits(fx.ownerId)).toBe(3);
     // A repeat replays the receipts: nothing moves twice, nothing is audited twice.
@@ -408,9 +408,9 @@ describe('tidies', () => {
       noteIds: [a.id, b.id],
     });
     expect(res.json().tidy.kept).toEqual({ noteIds: [a.id], skipped: [b.id] });
-    expect((await note(a.id)).horizon).toBe('SPAETER');
-    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
-    expect((await note(c.id)).horizon).toBe('SPAETER');
+    expect((await note(a.id)).horizon).toBe('LATER');
+    expect((await note(b.id)).horizon).toBe('THIS_WEEK');
+    expect((await note(c.id)).horizon).toBe('LATER');
     expect(await audits(fx.ownerId)).toBe(1);
   });
 
@@ -435,9 +435,9 @@ describe('tidies', () => {
       kept: { noteIds: [c.id, b.id], skipped: [a.id] },
     });
     expect((await stored(fx.ownerId, dto.id)).status).toBe('KEPT');
-    expect((await note(c.id)).horizon).toBe('HEUTE');
-    expect((await note(b.id)).horizon).toBe('SPAETER');
-    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(c.id)).horizon).toBe('TODAY');
+    expect((await note(b.id)).horizon).toBe('LATER');
+    expect((await note(a.id)).horizon).toBe('THIS_WEEK');
     expect(await movedByAssistant(c.id)).toBe(1);
     expect(await movedByAssistant(b.id)).toBe(1);
     expect(await movedByAssistant(a.id)).toBe(0);
@@ -464,8 +464,8 @@ describe('tidies', () => {
     expect(undone.json().tidy.status).toBe('UNDONE');
     expect((await stored(fx.ownerId, dto.id)).status).toBe('UNDONE');
     expect((await stored(fx.ownerId, dto.id)).undone?.noteIds).toEqual([b.id, c.id]);
-    expect((await note(c.id)).horizon).toBe('SPAETER');
-    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(c.id)).horizon).toBe('LATER');
+    expect((await note(b.id)).horizon).toBe('THIS_WEEK');
     const untouched = await note(a.id);
     expect(untouched.horizon).toBe(edited.horizon);
     expect(untouched.revision).toBe(edited.revision);
@@ -492,9 +492,9 @@ describe('tidies', () => {
       source: 'click',
     });
     expect(res.json().tidy.status).toBe('UNDONE');
-    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
-    expect((await note(b.id)).horizon).toBe('DIESE_WOCHE');
-    expect((await note(c.id)).horizon).toBe('HEUTE');
+    expect((await note(a.id)).horizon).toBe('THIS_WEEK');
+    expect((await note(b.id)).horizon).toBe('THIS_WEEK');
+    expect((await note(c.id)).horizon).toBe('TODAY');
     expect(await audits(fx.ownerId)).toBe(5);
     // The record names the notes the undo moved back, in the order it moved them.
     expect((await stored(fx.ownerId, dto.id)).undone).toMatchObject({
@@ -574,8 +574,8 @@ describe('tidies', () => {
     });
     expect((await note(c.id)).revision).toBe(c.revision + 1);
     expect(await movedByAssistant(c.id)).toBe(1);
-    expect((await note(a.id)).horizon).toBe('SPAETER');
-    expect((await note(b.id)).horizon).toBe('SPAETER');
+    expect((await note(a.id)).horizon).toBe('LATER');
+    expect((await note(b.id)).horizon).toBe('LATER');
     expect(await audits(fx.ownerId)).toBe(3);
   });
 
@@ -587,7 +587,7 @@ describe('tidies', () => {
       source: 'esc',
     });
     expect(res.json().tidy.status).toBe('DISCARDED');
-    expect((await note(a.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(a.id)).horizon).toBe('THIS_WEEK');
     expect(
       (await decide(fx.ownerToken, fx.boardId, dto.id, { decision: 'keep', source: 'enter' }))
         .statusCode,

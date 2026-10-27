@@ -6,12 +6,27 @@ import { createTidyRunner, modelTidySchema, modelTidyWireSchema, tidySchemaJson 
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { TidyInput } from './types.js';
 
+/** Spellings from before ADR-0024; a move that carries one is dropped, never stored. */
+const OLD = { horizon: 'DIESE_WOCHE' } as const;
+
 describe('modelTidySchema', () => {
+  it('accepts THIS_WEEK and drops a move with an old spelling', () => {
+    const checked = modelTidySchema.parse({
+      moves: [
+        { noteId: 'n1', horizon: 'THIS_WEEK', confidence: 0.9, reason: 'by Friday' },
+        { noteId: 'n2', horizon: OLD.horizon, confidence: 0.9, reason: 'by Friday' },
+      ],
+    });
+    expect(checked.moves).toEqual([
+      { noteId: 'n1', horizon: 'THIS_WEEK', confidence: 0.9, reason: 'by Friday' },
+    ]);
+  });
+
   it('keeps well-formed moves and cuts a long reason', () => {
     const checked = modelTidySchema.parse({
       moves: [
-        { noteId: 'n1', horizon: 'SPAETER', confidence: 0.9, reason: 'x'.repeat(200) },
-        { noteId: 'n2', horizon: 'DIESE_WOCHE', confidence: 0.7, reason: 'by Friday' },
+        { noteId: 'n1', horizon: 'LATER', confidence: 0.9, reason: 'x'.repeat(200) },
+        { noteId: 'n2', horizon: 'THIS_WEEK', confidence: 0.7, reason: 'by Friday' },
       ],
     });
     expect(checked.moves).toHaveLength(2);
@@ -21,10 +36,10 @@ describe('modelTidySchema', () => {
   it('drops a move that does not fit instead of refusing the reply', () => {
     const checked = modelTidySchema.parse({
       moves: [
-        { noteId: '', horizon: 'SPAETER', confidence: 0.9, reason: 'no id' },
-        { noteId: 'n2', horizon: 'HEUTE', confidence: 0.9, reason: 'not away from today' },
-        { noteId: 'n3', horizon: 'SPAETER', confidence: 1.5, reason: 'too sure' },
-        { noteId: 'n4', horizon: 'SPAETER', confidence: 0.8, reason: 'fine' },
+        { noteId: '', horizon: 'LATER', confidence: 0.9, reason: 'no id' },
+        { noteId: 'n2', horizon: 'TODAY', confidence: 0.9, reason: 'not away from today' },
+        { noteId: 'n3', horizon: 'LATER', confidence: 1.5, reason: 'too sure' },
+        { noteId: 'n4', horizon: 'LATER', confidence: 0.8, reason: 'fine' },
       ],
     });
     expect(checked.moves.map((m) => m.noteId)).toEqual(['n4']);
@@ -51,7 +66,7 @@ const input = (onAttempt: TidyInput['onAttempt']) => ({
 describe('createTidyRunner', () => {
   it('returns the validated moves and settles one attempt', async () => {
     const moves = {
-      moves: [{ noteId: 'n1', horizon: 'SPAETER', confidence: 0.9, reason: 'next month' }],
+      moves: [{ noteId: 'n1', horizon: 'LATER', confidence: 0.9, reason: 'next month' }],
     };
     const model = new MockLanguageModelV3({ doGenerate: [reply(JSON.stringify(moves))] });
     const a = attempts();

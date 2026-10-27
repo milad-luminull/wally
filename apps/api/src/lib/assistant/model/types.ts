@@ -120,12 +120,12 @@ export interface SuggestionInput {
 }
 export interface ModelSuggestion {
   dueDate: { value: string; confidence: number; reason: string } | null;
-  priority: { value: 'HOCH' | 'NIEDRIG'; confidence: number; reason: string } | null;
+  priority: { value: 'HIGH' | 'LOW'; confidence: number; reason: string } | null;
   assignee: { memberId: string; confidence: number; reason: string } | null;
   title: { value: string; confidence: number; reason: string } | null;
   subtasks: { items: string[]; confidence: number; reason: string } | null;
   links: { items: { noteId: string; reason: string }[]; confidence: number; reason: string } | null;
-  horizon: { value: 'DIESE_WOCHE' | 'SPAETER'; confidence: number; reason: string } | null;
+  horizon: { value: 'THIS_WEEK' | 'LATER'; confidence: number; reason: string } | null;
   visibility: { value: 'PRIVATE'; confidence: number; reason: string } | null;
   tags: { items: string[]; confidence: number; reason: string } | null;
   properties: {
@@ -156,7 +156,7 @@ export interface ModelTidy {
   moves: {
     noteId: string;
     /** Only away from Today: a note the words leave for today needs no move. */
-    horizon: 'DIESE_WOCHE' | 'SPAETER';
+    horizon: 'THIS_WEEK' | 'LATER';
     confidence: number;
     reason: string;
   }[];

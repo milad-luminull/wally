@@ -13,6 +13,9 @@ import { listNotes } from '../src/lib/commands/queries.js';
 
 const PROJECT_ID = 'wally-test-notes-routes';
 
+/** Spellings from before ADR-0024, refused like any unknown value. */
+const OLD = { priority: 'HOCH', horizon: 'SPAETER' } as const;
+
 describe('note routes', () => {
   let ctx: TestContext;
 
@@ -47,21 +50,21 @@ describe('note routes', () => {
     it('preserves priority, horizon and assignment filters through HTTP and direct queries', async () => {
       const fx = await createBoardFixture(ctx);
       for (const input of [
-        { title: 'Match', priority: 'HOCH', horizon: 'HEUTE', assigneeId: fx.ownerId },
-        { title: 'Other priority', priority: 'NIEDRIG', horizon: 'HEUTE', assigneeId: fx.ownerId },
-        { title: 'Other horizon', priority: 'HOCH', horizon: 'SPAETER', assigneeId: fx.ownerId },
-        { title: 'Other assignee', priority: 'HOCH', horizon: 'HEUTE', assigneeId: fx.editorId },
+        { title: 'Match', priority: 'HIGH', horizon: 'TODAY', assigneeId: fx.ownerId },
+        { title: 'Other priority', priority: 'LOW', horizon: 'TODAY', assigneeId: fx.ownerId },
+        { title: 'Other horizon', priority: 'HIGH', horizon: 'LATER', assigneeId: fx.ownerId },
+        { title: 'Other assignee', priority: 'HIGH', horizon: 'TODAY', assigneeId: fx.editorId },
       ]) {
         expect((await createNote(fx.boardId, fx.ownerToken, input)).statusCode).toBe(201);
       }
 
       for (const [query, titles] of [
-        ['priority=HOCH', ['Match', 'Other assignee', 'Other horizon']],
-        ['horizon=HEUTE', ['Match', 'Other assignee', 'Other priority']],
+        ['priority=HIGH', ['Match', 'Other assignee', 'Other horizon']],
+        ['horizon=TODAY', ['Match', 'Other assignee', 'Other priority']],
         ['assignedToMe=true', ['Match', 'Other horizon', 'Other priority']],
-        ['priority=HOCH&horizon=HEUTE&assignedToMe=true', ['Match']],
+        ['priority=HIGH&horizon=TODAY&assignedToMe=true', ['Match']],
         [
-          'priority=HOCH,NIEDRIG&horizon=HEUTE&assignedToMe=false',
+          'priority=HIGH,LOW&horizon=TODAY&assignedToMe=false',
           ['Match', 'Other assignee', 'Other priority'],
         ],
       ] as const) {
@@ -81,8 +84,8 @@ describe('note routes', () => {
 
       const actor = { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true };
       const notes = await listNotes(ctx.db, actor, fx.boardId, {
-        priority: ['HOCH'],
-        horizon: ['HEUTE'],
+        priority: ['HIGH'],
+        horizon: ['TODAY'],
         assignedToMe: true,
       });
       expect(notes.map((note) => note.title)).toEqual(['Match']);
@@ -226,6 +229,37 @@ describe('note routes', () => {
         'Late',
         'No date',
       ]);
+    });
+  });
+
+  describe('values that are not one of the English ones', () => {
+    it('refuses a value that is not one of the English ones', async () => {
+      const fx = await createBoardFixture(ctx);
+      const refused = await createNote(fx.boardId, fx.ownerToken, { priority: OLD.priority });
+      expect(refused.statusCode).toBe(400);
+      expect((await notesCol(ctx.db).where('whiteboardId', '==', fx.boardId).get()).size).toBe(0);
+
+      const created = await createNote(fx.boardId, fx.ownerToken);
+      expect(created.statusCode).toBe(201);
+      const noteId = created.json().id as string;
+      const moved = await ctx.inject({
+        method: 'POST',
+        url: `/notes/${noteId}/move`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { mode: 'HORIZON', horizon: OLD.horizon },
+      });
+      expect(moved.statusCode).toBe(400);
+      expect((await notesCol(ctx.db).doc(noteId).get()).data()).toMatchObject({
+        horizon: 'TODAY',
+        revision: created.json().revision,
+      });
+
+      const listed = await ctx.inject({
+        method: 'GET',
+        url: `/whiteboards/${fx.boardId}/notes?priority=${OLD.priority}`,
+        headers: ctx.authHeader(fx.ownerToken),
+      });
+      expect(listed.statusCode).toBe(400);
     });
   });
 
@@ -544,12 +578,12 @@ describe('note routes', () => {
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.editToken),
-        payload: { mode: 'HORIZON', horizon: 'SPAETER' },
+        payload: { mode: 'HORIZON', horizon: 'LATER' },
       });
       expect(res.statusCode).toBe(200);
       const after = res.json();
 
-      expect(after.horizon).toBe('SPAETER');
+      expect(after.horizon).toBe('LATER');
       expect(after.priority).toBe(beforeNote.priority);
       expect(after.freeX).toBe(beforeNote.freeX);
       expect(after.freeY).toBe(beforeNote.freeY);
@@ -560,7 +594,7 @@ describe('note routes', () => {
         headers: ctx.authHeader(fx.ownerToken),
       });
       const moved = detail.json().history.find((h: { type: string }) => h.type === 'MOVED');
-      expect(moved.metadata).toEqual({ mode: 'HORIZON', from: 'HEUTE', to: 'SPAETER' });
+      expect(moved.metadata).toEqual({ mode: 'HORIZON', from: 'TODAY', to: 'LATER' });
     });
 
     it('POST /notes/:id/move — 403 for VIEW, 404 for non-member', async () => {
@@ -569,7 +603,7 @@ describe('note routes', () => {
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.viewToken),
-        payload: { mode: 'PRIORITY', priority: 'HOCH' },
+        payload: { mode: 'PRIORITY', priority: 'HIGH' },
       });
       expect(forbidden.statusCode).toBe(403);
 
@@ -577,7 +611,7 @@ describe('note routes', () => {
         method: 'POST',
         url: `/notes/${noteId}/move`,
         headers: ctx.authHeader(fx.outsiderToken),
-        payload: { mode: 'PRIORITY', priority: 'HOCH' },
+        payload: { mode: 'PRIORITY', priority: 'HIGH' },
       });
       expect(notFound.statusCode).toBe(404);
     });
@@ -692,15 +726,15 @@ describe('note routes', () => {
       const created = await createNote(fx.boardId, fx.ownerToken, {
         title: 'Template',
         description: 'What needs doing',
-        priority: 'HOCH',
-        horizon: 'DIESE_WOCHE',
+        priority: 'HIGH',
+        horizon: 'THIS_WEEK',
         freeX: 100,
         freeY: 200,
         dueDate: '2026-11-02',
         assigneeId: fx.editorId,
         tags: ['customer'],
         customFields: { Customer: 'Müller GmbH' },
-        colour: 'BUTTER',
+        colour: 'OAT',
       });
       const noteId = created.json().id as string;
       for (const text of ['First', 'Second']) {
@@ -738,14 +772,14 @@ describe('note routes', () => {
         description: 'What needs doing',
         status: 'OPEN',
         completedAt: null,
-        priority: 'HOCH',
-        horizon: 'DIESE_WOCHE',
+        priority: 'HIGH',
+        horizon: 'THIS_WEEK',
         freeX: 100,
         freeY: 200,
         dueDate: '2026-11-02',
         tags: ['customer'],
         customFields: { Customer: 'Müller GmbH' },
-        colour: 'BUTTER',
+        colour: 'OAT',
         subtaskSummary: { total: 2, done: 1 },
       });
       expect(copy.assignee.id).toBe(fx.editorId);
@@ -780,16 +814,16 @@ describe('note routes', () => {
       const res = await duplicate(noteId, fx.ownerToken, {
         title: 'Not saved yet',
         description: '',
-        horizon: 'SPAETER',
-        priority: 'NIEDRIG',
+        horizon: 'LATER',
+        priority: 'LOW',
         freeX: 300,
         freeY: 400,
       });
       expect(res.json()).toMatchObject({
         title: 'Not saved yet',
         description: '',
-        horizon: 'SPAETER',
-        priority: 'NIEDRIG',
+        horizon: 'LATER',
+        priority: 'LOW',
         freeX: 300,
         freeY: 400,
       });

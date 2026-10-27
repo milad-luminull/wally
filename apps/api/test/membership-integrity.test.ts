@@ -189,11 +189,11 @@ describe('membership integrity', () => {
       headers: ctx.authHeader(ownerToken),
       payload: {
         title: 'Assigned',
-        priority: 'MITTEL',
-        horizon: 'HEUTE',
+        priority: 'MEDIUM',
+        horizon: 'TODAY',
         freeX: 0,
         freeY: 0,
-        colour: 'WEISS',
+        colour: 'CHALK',
         assigneeId: 'mi-alice',
       },
     });
@@ -222,11 +222,11 @@ describe('membership integrity', () => {
       headers: ctx.authHeader(ownerToken),
       payload: {
         title: 'Assigned',
-        priority: 'MITTEL',
-        horizon: 'HEUTE',
+        priority: 'MEDIUM',
+        horizon: 'TODAY',
         freeX: 0,
         freeY: 0,
-        colour: 'WEISS',
+        colour: 'CHALK',
         assigneeId: 'mi-alice',
       },
     });

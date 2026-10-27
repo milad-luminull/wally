@@ -48,9 +48,7 @@ export const modelSuggestionWireSchema = z.object({
       reason: z.string(),
     })
     .nullable(),
-  priority: z
-    .object({ value: z.enum(['HOCH', 'NIEDRIG']), confidence, reason: z.string() })
-    .nullable(),
+  priority: z.object({ value: z.enum(['HIGH', 'LOW']), confidence, reason: z.string() }).nullable(),
   assignee: z.object({ memberId: z.string(), confidence, reason: z.string() }).nullable(),
   title: z
     .object({
@@ -82,7 +80,7 @@ export const modelSuggestionWireSchema = z.object({
     .nullable(),
   horizon: z
     .object({
-      value: z.enum(['DIESE_WOCHE', 'SPAETER']).describe('This week, or Later.'),
+      value: z.enum(['THIS_WEEK', 'LATER']).describe('This week, or Later.'),
       confidence,
       reason: z.string(),
     })
@@ -214,7 +212,7 @@ const propertyItems = z
  */
 export const modelSuggestionSchema = z.object({
   dueDate: z.object({ value: z.string().date(), confidence, reason }).nullable(),
-  priority: z.object({ value: z.enum(['HOCH', 'NIEDRIG']), confidence, reason }).nullable(),
+  priority: z.object({ value: z.enum(['HIGH', 'LOW']), confidence, reason }).nullable(),
   assignee: z.object({ memberId: z.string().min(1), confidence, reason }).nullable(),
   title: z
     .object({
@@ -227,7 +225,7 @@ export const modelSuggestionSchema = z.object({
   subtasks: z.object({ items: steps, confidence, reason }).nullable().catch(null),
   links: z.object({ items: linkItems, confidence, reason }).nullable().catch(null),
   horizon: z
-    .object({ value: z.enum(['DIESE_WOCHE', 'SPAETER']), confidence, reason })
+    .object({ value: z.enum(['THIS_WEEK', 'LATER']), confidence, reason })
     .nullable()
     .catch(null),
   visibility: z

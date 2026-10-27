@@ -7,6 +7,7 @@ import {
   operationNames,
   riskOf,
 } from './operations.js';
+import { toolDefinitionsJson } from './model/runTurn.js';
 
 const board = { boardId: 'board-1' };
 const note = { boardId: 'board-1', noteId: 'note-1', expectedRevision: 3 };
@@ -107,6 +108,23 @@ describe('operation inputs', () => {
       status: 'OPEN',
       limit: LIST_NOTES_MAX,
     });
+  });
+
+  it('offers the model English filter values', async () => {
+    const [definition] = JSON.parse(
+      await toolDefinitionsJson([
+        {
+          name: 'list_notes',
+          description: '',
+          inputSchema: modelOperationInputs.list_notes,
+          needsApproval: false,
+          execute: async () => null,
+        },
+      ]),
+    ) as { inputSchema: { properties: Record<string, { items: { enum: string[] } }> } }[];
+    const { priority, horizon } = definition!.inputSchema.properties;
+    expect(priority!.items.enum).toEqual(['HIGH', 'MEDIUM', 'LOW']);
+    expect(horizon!.items.enum).toEqual(['TODAY', 'THIS_WEEK', 'LATER']);
   });
 });
 

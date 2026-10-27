@@ -12,6 +12,9 @@ import {
 
 const PROJECT_ID = 'wally-test-me';
 
+/** The board view's spelling from before ADR-0024, refused like any unknown value. */
+const OLD = { view: 'wand' } as const;
+
 /** Chrome's real header, and its German counterpart. */
 const EN_HEADER = { 'accept-language': 'en-US,en;q=0.9,de;q=0.8' };
 const DE_HEADER = { 'accept-language': 'de-DE,de;q=0.9' };
@@ -296,11 +299,11 @@ describe('/me', () => {
       axis: 'priority',
       done: false,
       mine: true,
-      priority: ['HOCH'],
+      priority: ['HIGH'],
       visibility: 'all',
     } as const;
     const WALL_FREE = {
-      view: 'wand',
+      view: 'wall',
       axis: 'free',
       done: true,
       mine: false,
@@ -453,6 +456,21 @@ describe('/me', () => {
         const response = await patch(token, payload);
         expect(response.statusCode).toBe(400);
       }
+    });
+
+    it('refuses a board view that is not one of the English ones, keeping the preferences', async () => {
+      const token = registerTestUser(ctx, 'pref-old', 'pref-old@example.com');
+      expect(
+        (await patch(token, { preferences: { boards: { b1: LIST_BY_PRIORITY } } })).statusCode,
+      ).toBe(200);
+
+      const response = await patch(token, {
+        preferences: { boards: { b1: { ...WALL_FREE, view: OLD.view } } },
+      });
+      expect(response.statusCode).toBe(400);
+
+      const again = await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
+      expect(again.json().preferences.boards).toEqual({ b1: LIST_BY_PRIORITY });
     });
 
     it('prunes the least recently saved boards past the cap', async () => {

@@ -38,9 +38,9 @@ header{display:flex;align-items:flex-start;justify-content:space-between;gap:16p
     const a=el('a',label); a.href=url; a.target='_blank'; a.rel='noopener noreferrer';
     a.addEventListener('click',event=>{ if(!ready)return; event.preventDefault(); request('ui/open-link',{url}).catch(()=>{const error=document.getElementById('error');error.textContent='Could not open Wally. Use the link’s context menu to open it in your browser.';error.hidden=false;}); }); return a;
   }
-  const priorities={HOCH:'High',MITTEL:'Medium',NIEDRIG:'Low'};
-  const horizons={HEUTE:'Today',DIESE_WOCHE:'This week',SPAETER:'Later'};
-  const colours={WEISS:'#d9d9d9',SAND:'#d4cbbd',BUTTER:'#e5c966',LEHM:'#dba98c',NEBEL:'#aab9ca',SALBEI:'#aec39e',FLIEDER:'#c2b1df',EIS:'#a8cbd4',HIMMEL:'#a3cce4',MINZE:'#a7cfb7',SEEGRUEN:'#97c5ba',OLIV:'#c1c795',ROSE:'#ddaebb',MALVE:'#c8a8cf'};
+  const priorities={HIGH:'High',MEDIUM:'Medium',LOW:'Low'};
+  const horizons={TODAY:'Today',THIS_WEEK:'This week',LATER:'Later'};
+  const colours={CHALK:'#d9d9d9',STONE:'#d4cbbd',OAT:'#e5c966',CLAY:'#dba98c',MIST:'#aab9ca',SAGE:'#aec39e',HEATHER:'#c2b1df',ICE:'#a8cbd4',SKY:'#a3cce4',MINT:'#a7cfb7',SEA_GREEN:'#97c5ba',OLIVE:'#c1c795',ROSE:'#ddaebb',MALLOW:'#c8a8cf'};
   function render(result) {
     root.replaceChildren(); document.getElementById('pagination').hidden=true;
     document.getElementById('board').textContent='Your cards';document.getElementById('count').textContent='';document.getElementById('error').hidden=true;
@@ -54,7 +54,7 @@ header{display:flex;align-items:flex-start;justify-content:space-between;gap:16p
     status.hidden=data.cards.length>0;status.textContent='No cards match this view.';
     for(const note of data.cards){
       if(!note || typeof note.title!=='string')continue;
-      const card=el('article');card.style.setProperty('--note',colours[note.colour]||colours.WEISS);
+      const card=el('article');card.style.setProperty('--note',colours[note.colour]||colours.CHALK);
       card.append(el('h2',note.title.trim()||'Untitled card'));
       const badges=el('div',undefined,'badges');badges.append(el('span',note.status==='DONE'?'Completed':'Open','badge '+(note.status==='DONE'?'done':'')),el('span',(priorities[note.priority]||note.priority)+' priority','badge'));card.append(badges);
       if(note.description)card.append(el('p',note.description,'description'));

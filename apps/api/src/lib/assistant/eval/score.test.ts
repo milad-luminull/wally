@@ -18,8 +18,8 @@ const fixture = (overrides: Partial<CaptureFixture>): CaptureFixture => ({
 
 describe('scoreFixture', () => {
   it('scores an exact field right, wrong or missed', () => {
-    const f = fixture({ expect: { dueDate: '2026-10-23', priority: 'HOCH', assignee: 'u-anna' } });
-    const scores = scoreFixture(f, { dueDate: '2026-10-23', priority: 'NIEDRIG' });
+    const f = fixture({ expect: { dueDate: '2026-10-23', priority: 'HIGH', assignee: 'u-anna' } });
+    const scores = scoreFixture(f, { dueDate: '2026-10-23', priority: 'LOW' });
     expect(scores).toEqual([
       { fixture: 'f', field: 'dueDate', outcome: 'right' },
       { fixture: 'f', field: 'priority', outcome: 'wrong' },

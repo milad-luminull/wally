@@ -8,6 +8,9 @@ import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } f
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { ModelRef, SuggestionInput } from './types.js';
 
+/** Spellings from before ADR-0024; a reply that carries one is refused, never stored. */
+const OLD = { priority: 'HOCH', horizon: 'DIESE_WOCHE' } as const;
+
 /** The fields this reply proposes nothing for. */
 const none = {
   title: null,
@@ -39,7 +42,7 @@ describe('createSuggestionRunner', () => {
         reason: 'two steps',
       },
       links: null,
-      horizon: { value: 'DIESE_WOCHE', confidence: 0.8, reason: '"this week"' },
+      horizon: { value: 'THIS_WEEK', confidence: 0.8, reason: '"this week"' },
       visibility: null,
       tags: { items: ['sales'], confidence: 0.7, reason: 'board tag' },
       properties: {
@@ -334,7 +337,7 @@ describe('createSuggestionRunner', () => {
         reply(
           JSON.stringify({
             dueDate: null,
-            priority: { value: 'HOCH', confidence: 0.9, reason: 'x'.repeat(200) },
+            priority: { value: 'HIGH', confidence: 0.9, reason: 'x'.repeat(200) },
             assignee: null,
             ...none,
           }),
@@ -344,7 +347,7 @@ describe('createSuggestionRunner', () => {
     const a = attempts();
     const out = await createSuggestionRunner(model)(input(a.onAttempt));
     expect(out.fields?.priority).toEqual({
-      value: 'HOCH',
+      value: 'HIGH',
       confidence: 0.9,
       reason: 'x'.repeat(120),
     });
@@ -425,7 +428,7 @@ describe('modelSuggestionSchema', () => {
   it('reads horizon, visibility, tags, properties and description from a reply', () => {
     const out = modelSuggestionSchema.parse({
       ...nothing,
-      horizon: { value: 'DIESE_WOCHE', confidence: 0.8, reason: '"this week"' },
+      horizon: { value: 'THIS_WEEK', confidence: 0.8, reason: '"this week"' },
       visibility: { value: 'PRIVATE', confidence: 0.9, reason: 'a dentist visit' },
       tags: { items: ['sales'], confidence: 0.7, reason: 'board tag' },
       properties: {
@@ -435,11 +438,28 @@ describe('modelSuggestionSchema', () => {
       },
       description: { value: 'They want it in writing.', confidence: 0.8, reason: 'detail' },
     });
-    expect(out.horizon?.value).toBe('DIESE_WOCHE');
+    expect(out.horizon?.value).toBe('THIS_WEEK');
     expect(out.visibility?.value).toBe('PRIVATE');
     expect(out.tags?.items).toEqual(['sales']);
     expect(out.properties?.items).toEqual([{ key: 'Customer', value: 'Acme Corp' }]);
     expect(out.description?.value).toBe('They want it in writing.');
+  });
+
+  it('accepts HIGH and THIS_WEEK and refuses the old spellings', () => {
+    const english = modelSuggestionSchema.parse({
+      ...nothing,
+      priority: { value: 'HIGH', confidence: 0.9, reason: '"asap"' },
+      horizon: { value: 'THIS_WEEK', confidence: 0.8, reason: '"this week"' },
+    });
+    expect(english.priority?.value).toBe('HIGH');
+    expect(english.horizon?.value).toBe('THIS_WEEK');
+    // A priority that does not fit refuses the reply; a horizon reads as not proposed.
+    const oldPriority = { value: OLD.priority, confidence: 0.9, reason: '"asap"' };
+    expect(modelSuggestionSchema.safeParse({ ...nothing, priority: oldPriority }).success).toBe(
+      false,
+    );
+    const oldHorizon = { value: OLD.horizon, confidence: 0.8, reason: '"this week"' };
+    expect(modelSuggestionSchema.parse({ ...nothing, horizon: oldHorizon }).horizon).toBeNull();
   });
 
   it('keeps the first three tags and properties, trimmed, blanks and repeats dropped', () => {

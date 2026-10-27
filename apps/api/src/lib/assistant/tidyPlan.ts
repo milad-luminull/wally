@@ -69,7 +69,7 @@ export function tidyCandidates(
       });
   }
   const undated = open
-    .filter((note) => !note.dueDate && note.horizon === 'HEUTE')
+    .filter((note) => !note.dueDate && note.horizon === 'TODAY')
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     .slice(0, TIDY_MAX_UNDATED);
   return { dated, undated };
@@ -92,7 +92,7 @@ export function acceptModelMoves(
   for (const move of moves) {
     const note = byId.get(move.noteId);
     if (!note || seen.has(move.noteId) || move.confidence < TIDY_MIN_CONFIDENCE) continue;
-    const to: NoteHorizon = sunday && move.horizon === 'DIESE_WOCHE' ? 'SPAETER' : move.horizon;
+    const to: NoteHorizon = sunday && move.horizon === 'THIS_WEEK' ? 'LATER' : move.horizon;
     if (to === note.horizon) continue;
     seen.add(move.noteId);
     out.push({

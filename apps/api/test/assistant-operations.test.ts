@@ -54,7 +54,7 @@ describe('runOperation', () => {
 
   it('creates, lists and reads a note', async () => {
     await fixture();
-    const created = await create(owner, { title: 'Call Müller', priority: 'HOCH' });
+    const created = await create(owner, { title: 'Call Müller', priority: 'HIGH' });
     expect(created.revision).toBe(1);
     const noteId = idOf(created);
 
@@ -66,7 +66,7 @@ describe('runOperation', () => {
       id: noteId,
       title: 'Call Müller',
       revision: 1,
-      priority: 'HOCH',
+      priority: 'HIGH',
     });
     expect(rows[0]).not.toHaveProperty('description');
 
@@ -88,11 +88,11 @@ describe('runOperation', () => {
 
   it('passes filters through to the query', async () => {
     await fixture();
-    await create(owner, { title: 'high', priority: 'HOCH' });
-    await create(owner, { title: 'low', priority: 'NIEDRIG' });
+    await create(owner, { title: 'high', priority: 'HIGH' });
+    await create(owner, { title: 'low', priority: 'LOW' });
     const list = await runOperation(
       as(owner),
-      call('list_notes', { boardId, priority: ['HOCH'], q: 'hi' }),
+      call('list_notes', { boardId, priority: ['HIGH'], q: 'hi' }),
     );
     expect((list.data as { notes: { title: string }[] }).notes.map((n) => n.title)).toEqual([
       'high',
@@ -120,7 +120,7 @@ describe('runOperation', () => {
         boardId,
         noteId,
         expectedRevision: 2,
-        input: { mode: 'HORIZON', horizon: 'SPAETER' },
+        input: { mode: 'HORIZON', horizon: 'LATER' },
       }),
     );
     expect(moved.revision).toBe(3);
