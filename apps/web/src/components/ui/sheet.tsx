@@ -8,7 +8,6 @@ import { buttonVariants } from './button-variants';
 
 export const Sheet = DialogPrimitive.Root;
 export const SheetTrigger = DialogPrimitive.Trigger;
-export const SheetClose = DialogPrimitive.Close;
 export const SheetPortal = DialogPrimitive.Portal;
 
 export const SheetOverlay = React.forwardRef<
@@ -107,15 +106,3 @@ export const SheetTitle = React.forwardRef<
   />
 ));
 SheetTitle.displayName = DialogPrimitive.Title.displayName;
-
-export const SheetDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn('text-13 text-fg-3', className)}
-    {...props}
-  />
-));
-SheetDescription.displayName = DialogPrimitive.Description.displayName;
