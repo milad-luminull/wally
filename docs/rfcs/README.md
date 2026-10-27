@@ -7,8 +7,7 @@ This index is the one place that says where each RFC stands. A document's own he
 records its decision; the **In production** column below is kept true by the pull request
 that changes it (see [Keeping the status true](../README.md#keeping-the-status-true)).
 
-Last checked against the code on 2026-10-27, at `main` 157bca44. Production runs
-**v0.10.1**.
+Last checked against the code on 2026-10-27, at `main` e72dd429. Production runs **v0.11.0**.
 
 ## Index
 
