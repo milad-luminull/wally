@@ -11,9 +11,8 @@ import { z } from 'zod';
  *
  * Lowercase BCP-47 rather than the SCREAMING style of the value sets below, deliberately.
  * Every other enum here is domain vocabulary whose display string has to come out of a label
- * map anyway, so its wire form is free. Several of those values are still German (`HOCH`,
- * `HEUTE`, `WEISS`, `wand`); they are migrated to English in place, in the expand-and-contract
- * sequence of ADR-0014 (steps 4 to 6), so until that release the arrays below do not change.
+ * map anyway, so its wire form is free. Those values are English (ADR-0014); they replaced
+ * the German ones in one release with a data reset (ADR-0024), so no other spelling exists.
  * A language tag is not domain vocabulary — it is a standardised identifier that four
  * separate consumers take verbatim: i18next's `changeLanguage`, `<html lang>`,
  * `Accept-Language`, and `Intl`. 'DE'|'EN' would buy
@@ -24,11 +23,11 @@ export const languageValues = ['de', 'en'] as const;
 export const languageSchema = z.enum(languageValues);
 export type Language = z.infer<typeof languageSchema>;
 
-export const notePriorityValues = ['HOCH', 'MITTEL', 'NIEDRIG'] as const;
+export const notePriorityValues = ['HIGH', 'MEDIUM', 'LOW'] as const;
 export const notePrioritySchema = z.enum(notePriorityValues);
 export type NotePriority = z.infer<typeof notePrioritySchema>;
 
-export const noteHorizonValues = ['HEUTE', 'DIESE_WOCHE', 'SPAETER'] as const;
+export const noteHorizonValues = ['TODAY', 'THIS_WEEK', 'LATER'] as const;
 export const noteHorizonSchema = z.enum(noteHorizonValues);
 export type NoteHorizon = z.infer<typeof noteHorizonSchema>;
 
@@ -36,30 +35,29 @@ export type NoteHorizon = z.infer<typeof noteHorizonSchema>;
 // only (the pin in the mark, one CTA per screen, the selection state), and separately notes
 // that a blue note would read as selected. See docs/BRAND.md.
 //
-// Order is append-only: the original five come first so no persisted value shifts meaning.
-// These fourteen names predate the brand guideline, which specifies seven; seven of the
-// entries below now carry a guideline colour exactly and seven are derived into the same
-// linen-dyed family, so nothing here had to be renamed or migrated in Firestore.
+// The keys are the English colour labels (ADR-0014, ADR-0024), in the original order: the
+// first five came first, and the order is append-only. Seven of the fourteen carry a brand
+// guideline colour exactly and seven are derived into the same linen-dyed family.
 //
 // Every entry needs an enums.colour.* label in BOTH message catalogues (see
-// apps/web/src/i18n/), an entry in enumLabels.ts, a --note-* fill (see
-// apps/web/src/styles/globals.css, where the contrast floors are documented), and an entry
-// in noteColourFillClass in apps/web/.../util/noteDerived.ts.
+// apps/web/src/i18n/), an entry in enumLabels.ts, a --note-<kebab> fill such as
+// --note-sea-green (see apps/web/src/styles/globals.css, where the contrast floors are
+// documented), and an entry in noteColourFillClass in apps/web/.../util/noteDerived.ts.
 export const noteColourValues = [
-  'WEISS',
-  'EIS',
-  'SAND',
-  'MINZE',
-  'HIMMEL',
-  'NEBEL',
-  'BUTTER',
-  'LEHM',
+  'CHALK',
+  'ICE',
+  'STONE',
+  'MINT',
+  'SKY',
+  'MIST',
+  'OAT',
+  'CLAY',
   'ROSE',
-  'MALVE',
-  'FLIEDER',
-  'SEEGRUEN',
-  'SALBEI',
-  'OLIV',
+  'MALLOW',
+  'HEATHER',
+  'SEA_GREEN',
+  'SAGE',
+  'OLIVE',
 ] as const;
 export const noteColourSchema = z.enum(noteColourValues);
 export type NoteColour = z.infer<typeof noteColourSchema>;
@@ -99,11 +97,8 @@ export const noteMoveModeValues = ['HORIZON', 'PRIORITY', 'FREE'] as const;
 export const noteMoveModeSchema = z.enum(noteMoveModeValues);
 export type NoteMoveMode = z.infer<typeof noteMoveModeSchema>;
 
-/**
- * How the board renders: the spatial wall, or the dense list. The wall's stored value is
- * still the German `wand`; ADR-0014 step 4 migrates it to `wall` (the code already says wall).
- */
-export const boardViewValues = ['wand', 'list'] as const;
+/** How the board renders: the spatial wall, or the dense list (ADR-0014, ADR-0024). */
+export const boardViewValues = ['wall', 'list'] as const;
 export const boardViewSchema = z.enum(boardViewValues);
 export type BoardView = z.infer<typeof boardViewSchema>;
 

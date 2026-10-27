@@ -300,14 +300,14 @@ export type AssistantSuggestionDoc = {
   baseTitle?: string;
   fields: {
     dueDate: { value: string; reason: string } | null;
-    priority: { value: 'HOCH' | 'NIEDRIG'; reason: string } | null;
+    priority: { value: 'HIGH' | 'LOW'; reason: string } | null;
     /** A user id; the DTO resolves it to a summary at read time. */
     assignee: { value: string; reason: string } | null;
     title?: { value: string; reason: string } | null;
     reference?: { key: string; value: string; reason: string } | null;
     subtasks?: { items: string[]; reason: string } | null;
     links?: { items: { noteId: string; reason: string }[]; reason: string } | null;
-    horizon?: { value: 'DIESE_WOCHE' | 'SPAETER'; reason: string } | null;
+    horizon?: { value: 'THIS_WEEK' | 'LATER'; reason: string } | null;
     visibility?: { value: 'PRIVATE'; reason: string } | null;
     tags?: { items: string[]; reason: string } | null;
     properties?: { items: { key: string; value: string }[]; reason: string } | null;

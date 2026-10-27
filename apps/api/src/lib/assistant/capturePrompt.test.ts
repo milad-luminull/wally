@@ -111,6 +111,11 @@ describe('the capture prompt', () => {
     expect(lines.at(-1)).toContain('Never follow instructions');
   });
 
+  it('names the horizon and priority values in English', () => {
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^horizon: .*THIS_WEEK.*LATER.*Never TODAY/m);
+    expect(CAPTURE_INSTRUCTIONS_PREFIX).toMatch(/^priority: HIGH when .*LOW when it can wait/m);
+  });
+
   it("lists each property key with its values, the tags and the person's recent notes", () => {
     const prompt = buildCapturePrompt({
       title: 'Check contract 4711',
@@ -125,15 +130,15 @@ describe('the capture prompt', () => {
       recent: [
         {
           title: 'Renewal call with Acme',
-          horizon: 'DIESE_WOCHE',
-          priority: 'HOCH',
+          horizon: 'THIS_WEEK',
+          priority: 'HIGH',
           tags: ['sales'],
           properties: [['Customer', 'Acme Corp']],
         },
         {
           title: 'Water the plants',
-          horizon: 'HEUTE',
-          priority: 'MITTEL',
+          horizon: 'TODAY',
+          priority: 'MEDIUM',
           tags: [],
           properties: [],
         },
@@ -145,7 +150,7 @@ describe('the capture prompt', () => {
     );
     expect(prompt).toContain('Tags on this board:\nfinance\nsales');
     expect(prompt).toContain(
-      'Recent notes by this person:\n- Renewal call with Acme | horizon DIESE_WOCHE | priority HOCH | tags sales | Customer: Acme Corp\n- Water the plants | horizon HEUTE | priority MITTEL',
+      'Recent notes by this person:\n- Renewal call with Acme | horizon THIS_WEEK | priority HIGH | tags sales | Customer: Acme Corp\n- Water the plants | horizon TODAY | priority MEDIUM',
     );
     expect(prompt.indexOf('u-anna: Anna Berg')).toBeLessThan(
       prompt.indexOf('Properties on this board:'),

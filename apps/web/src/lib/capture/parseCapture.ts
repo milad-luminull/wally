@@ -19,7 +19,7 @@ export interface CaptureMatch {
 export interface CaptureParse {
   dueDate: (CaptureMatch & { iso: string }) | null;
   assignee: (CaptureMatch & { memberId: string }) | null;
-  priority: (CaptureMatch & { value: 'HOCH' | 'NIEDRIG' }) | null;
+  priority: (CaptureMatch & { value: 'HIGH' | 'LOW' }) | null;
 }
 interface Context {
   language: Language;
@@ -191,7 +191,7 @@ function parsePerson(text: string, members: CaptureMember[]): CaptureParse['assi
 
 function parsePriority(text: string): CaptureParse['priority'] {
   return firstAccepted(text, word([...HIGH, ...LOW]), (m) => ({
-    value: HIGH.includes(m[0].toLowerCase()) ? ('HOCH' as const) : ('NIEDRIG' as const),
+    value: HIGH.includes(m[0].toLowerCase()) ? ('HIGH' as const) : ('LOW' as const),
   }));
 }
 

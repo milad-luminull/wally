@@ -10,8 +10,8 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     description: '',
     status: 'OPEN',
     completedAt: null,
-    priority: 'HOCH',
-    horizon: 'HEUTE',
+    priority: 'HIGH',
+    horizon: 'TODAY',
     freeX: 10,
     freeY: 20,
     dueDate: '2026-09-20',
@@ -19,7 +19,7 @@ export function makeNote(overrides: Partial<NoteDto> = {}): NoteDto {
     customFields: {},
     tags: [],
     links: [],
-    colour: 'WEISS',
+    colour: 'CHALK',
     visibility: 'SHARED',
     subtaskSummary: { done: 0, total: 0 },
     createdBy: null,
@@ -75,7 +75,7 @@ export function makeSuggestionMark(overrides: Partial<SuggestionMark> = {}): Sug
       baseRevision: 1,
       fields: {
         dueDate: { value: '2026-10-23', reason: 'Friday' },
-        priority: { value: 'HOCH', reason: 'urgent' },
+        priority: { value: 'HIGH', reason: 'urgent' },
         assignee: {
           value: { id: 'u-anna', email: 'anna@example.com', displayName: 'Anna' },
           reason: 'Anna',

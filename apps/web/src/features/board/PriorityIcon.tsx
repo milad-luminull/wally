@@ -11,7 +11,7 @@ interface PriorityIconProps {
 }
 
 /** How many of the three bars are filled at each level. */
-const FILLED_BARS: Record<NotePriority, number> = { HOCH: 3, MITTEL: 2, NIEDRIG: 1 };
+const FILLED_BARS: Record<NotePriority, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
 
 /* Three bars rising left to right, in a 16-unit box: x, y and height of each. */
 const BARS = [

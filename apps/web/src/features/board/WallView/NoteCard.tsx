@@ -303,7 +303,7 @@ export function NoteCard({
           {proposed.priority ? (
             <ProposedField
               name={t(
-                proposed.priority.value === 'HOCH'
+                proposed.priority.value === 'HIGH'
                   ? 'suggest.fields.priorityHigh'
                   : 'suggest.fields.priorityLow',
               )}

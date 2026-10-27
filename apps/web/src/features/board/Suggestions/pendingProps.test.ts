@@ -114,7 +114,7 @@ describe('proposedValues, place by place', () => {
 
   /** A note with room for every proposal: no date, no priority, nobody, no property, no step. */
   const empty = (over: Parameters<typeof makeNote>[0] = {}) =>
-    makeNote({ dueDate: null, priority: 'MITTEL', assignee: null, ...over });
+    makeNote({ dueDate: null, priority: 'MEDIUM', assignee: null, ...over });
 
   it('keeps the kept values in place until the refetched note reaches the kept revision', () => {
     const before = proposedValues(empty({ revision: 2 }), pending(kept(5)));
@@ -141,7 +141,7 @@ describe('proposedValues, place by place', () => {
     const done = proposedValues(empty({ status: 'DONE' }), all);
     expect(done.dueDate).toBeNull();
     expect(done.priority).toBeNull();
-    const own = proposedValues(empty({ dueDate: '2026-11-01', priority: 'NIEDRIG' }), all);
+    const own = proposedValues(empty({ dueDate: '2026-11-01', priority: 'LOW' }), all);
     expect(own.dueDate).toBeNull();
     expect(own.priority).toBeNull();
     expect(proposedValues(empty({ visibility: 'PRIVATE' }), all).assignee).toBeNull();

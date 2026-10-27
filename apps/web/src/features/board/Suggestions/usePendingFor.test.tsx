@@ -34,7 +34,7 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   baseRevision: 1,
   fields: {
     dueDate: { value: '2026-10-23', reason: 'Friday' },
-    priority: { value: 'HOCH', reason: 'urgent' },
+    priority: { value: 'HIGH', reason: 'urgent' },
     assignee: null,
     title: null,
     reference: null,
@@ -57,7 +57,7 @@ const baseNote = (over: Partial<NoteDto> = {}) =>
     id: NOTE_ID,
     revision: 1,
     dueDate: null,
-    priority: 'MITTEL',
+    priority: 'MEDIUM',
     assignee: null,
     customFields: {},
     subtaskSummary: { done: 0, total: 0 },
@@ -288,7 +288,7 @@ describe('the card and the review read one mark (§3.4)', () => {
     dto({
       fields: {
         dueDate: { value: '2026-10-23', reason: 'Friday' },
-        priority: { value: 'HOCH', reason: 'urgent' },
+        priority: { value: 'HIGH', reason: 'urgent' },
         assignee: null,
         title: { value: 'Quote for Müller', reason: 'shorter' },
         reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },

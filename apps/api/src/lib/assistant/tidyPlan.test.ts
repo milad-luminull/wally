@@ -6,7 +6,7 @@ const note = (over: Partial<TidyNote> & { id: string }): TidyNote => ({
   title: 'A note',
   description: '',
   status: 'OPEN',
-  horizon: 'HEUTE',
+  horizon: 'TODAY',
   dueDate: null,
   revision: 2,
   visibility: 'SHARED',
@@ -22,9 +22,9 @@ describe('tidyCandidates', () => {
   it('moves dated notes by the date rule, with the note revision and no reason', () => {
     const { dated } = tidyCandidates(
       [
-        note({ id: 'late', horizon: 'DIESE_WOCHE', dueDate: '2026-10-19' }),
-        note({ id: 'right', horizon: 'SPAETER', dueDate: '2026-10-19' }),
-        note({ id: 'overdue', horizon: 'SPAETER', dueDate: '2026-10-01', revision: 7 }),
+        note({ id: 'late', horizon: 'THIS_WEEK', dueDate: '2026-10-19' }),
+        note({ id: 'right', horizon: 'LATER', dueDate: '2026-10-19' }),
+        note({ id: 'overdue', horizon: 'LATER', dueDate: '2026-10-01', revision: 7 }),
       ],
       today,
       all,
@@ -33,16 +33,16 @@ describe('tidyCandidates', () => {
       {
         noteId: 'late',
         baseRevision: 2,
-        from: 'DIESE_WOCHE',
-        to: 'SPAETER',
+        from: 'THIS_WEEK',
+        to: 'LATER',
         reason: null,
         source: 'date',
       },
       {
         noteId: 'overdue',
         baseRevision: 7,
-        from: 'SPAETER',
-        to: 'HEUTE',
+        from: 'LATER',
+        to: 'TODAY',
         reason: null,
         source: 'date',
       },
@@ -71,7 +71,7 @@ describe('tidyCandidates', () => {
     const { undated } = tidyCandidates(
       [
         ...notes,
-        note({ id: 'placed', horizon: 'SPAETER' }),
+        note({ id: 'placed', horizon: 'LATER' }),
         note({ id: 'dated', dueDate: '2026-10-17' }),
       ],
       today,
@@ -87,11 +87,11 @@ describe('tidyCandidates', () => {
   it('leaves out done notes and notes the person may not move', () => {
     const { dated, undated } = tidyCandidates(
       [
-        note({ id: 'done', status: 'DONE', dueDate: '2026-10-01', horizon: 'SPAETER' }),
+        note({ id: 'done', status: 'DONE', dueDate: '2026-10-01', horizon: 'LATER' }),
         note({
           id: 'theirs',
           dueDate: '2026-10-01',
-          horizon: 'SPAETER',
+          horizon: 'LATER',
           createdBy: { ...me, id: 'other' },
         }),
         note({ id: 'mine' }),
@@ -127,10 +127,10 @@ describe('acceptModelMoves', () => {
     expect(
       acceptModelMoves(
         [
-          { noteId: 'a', horizon: 'SPAETER', confidence: 0.9, reason: 'next month' },
-          { noteId: 'a', horizon: 'DIESE_WOCHE', confidence: 0.8, reason: 'twice' },
-          { noteId: 'b', horizon: 'SPAETER', confidence: 0.3, reason: 'maybe' },
-          { noteId: 'zzz', horizon: 'SPAETER', confidence: 0.9, reason: 'not listed' },
+          { noteId: 'a', horizon: 'LATER', confidence: 0.9, reason: 'next month' },
+          { noteId: 'a', horizon: 'THIS_WEEK', confidence: 0.8, reason: 'twice' },
+          { noteId: 'b', horizon: 'LATER', confidence: 0.3, reason: 'maybe' },
+          { noteId: 'zzz', horizon: 'LATER', confidence: 0.9, reason: 'not listed' },
         ],
         undated,
         today,
@@ -139,8 +139,8 @@ describe('acceptModelMoves', () => {
       {
         noteId: 'a',
         baseRevision: 4,
-        from: 'HEUTE',
-        to: 'SPAETER',
+        from: 'TODAY',
+        to: 'LATER',
         reason: 'next month',
         source: 'words',
       },
@@ -151,7 +151,7 @@ describe('acceptModelMoves', () => {
     const sunday = '2026-10-18';
     expect(
       acceptModelMoves(
-        [{ noteId: 'a', horizon: 'DIESE_WOCHE', confidence: 0.9, reason: 'by Friday' }],
+        [{ noteId: 'a', horizon: 'THIS_WEEK', confidence: 0.9, reason: 'by Friday' }],
         undated,
         sunday,
       ),
@@ -159,18 +159,18 @@ describe('acceptModelMoves', () => {
       {
         noteId: 'a',
         baseRevision: 4,
-        from: 'HEUTE',
-        to: 'SPAETER',
+        from: 'TODAY',
+        to: 'LATER',
         reason: 'by Friday',
         source: 'words',
       },
     ]);
     expect(
       acceptModelMoves(
-        [{ noteId: 'a', horizon: 'DIESE_WOCHE', confidence: 0.9, reason: 'by Friday' }],
+        [{ noteId: 'a', horizon: 'THIS_WEEK', confidence: 0.9, reason: 'by Friday' }],
         undated,
         today,
       )[0]!.to,
-    ).toBe('DIESE_WOCHE');
+    ).toBe('THIS_WEEK');
   });
 });

@@ -48,7 +48,7 @@ describe('NoteRow with a pending change', () => {
   const renderRow = (p = pending(), onOpen = vi.fn()) => {
     render(
       <NoteRow
-        note={makeNote({ dueDate: null, priority: 'MITTEL', assignee: null })}
+        note={makeNote({ dueDate: null, priority: 'MEDIUM', assignee: null })}
         currentUserId="user-1"
         onOpen={onOpen}
         onToggleDone={vi.fn()}
@@ -244,7 +244,7 @@ describe('NoteRow just after a keep', () => {
   it('shows the kept date, without an ×, until the refetched note carries it', () => {
     const { rerender } = render(
       <NoteRow
-        note={makeNote({ revision: 1, dueDate: null, priority: 'MITTEL', assignee: null })}
+        note={makeNote({ revision: 1, dueDate: null, priority: 'MEDIUM', assignee: null })}
         currentUserId="user-1"
         onOpen={vi.fn()}
         onToggleDone={vi.fn()}
@@ -257,7 +257,7 @@ describe('NoteRow just after a keep', () => {
     // The refetch lands: the note's own date takes the place, in its own label.
     rerender(
       <NoteRow
-        note={makeNote({ revision: 2, dueDate: '2026-10-23', priority: 'MITTEL', assignee: null })}
+        note={makeNote({ revision: 2, dueDate: '2026-10-23', priority: 'MEDIUM', assignee: null })}
         currentUserId="user-1"
         onOpen={vi.fn()}
         onToggleDone={vi.fn()}

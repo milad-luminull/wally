@@ -30,7 +30,7 @@ export const modelTidyWireSchema = z.object({
     .array(
       z.object({
         noteId: z.string().describe('The id of a note from the list.'),
-        horizon: z.enum(['DIESE_WOCHE', 'SPAETER']),
+        horizon: z.enum(['THIS_WEEK', 'LATER']),
         confidence,
         reason: z.string(),
       }),
@@ -42,7 +42,7 @@ export const modelTidyWireSchema = z.object({
 export const TIDY_REASON_MAX = 120;
 const move = z.object({
   noteId: z.string().min(1),
-  horizon: z.enum(['DIESE_WOCHE', 'SPAETER']),
+  horizon: z.enum(['THIS_WEEK', 'LATER']),
   confidence,
   reason: z.string().transform((text) => text.slice(0, TIDY_REASON_MAX)),
 });

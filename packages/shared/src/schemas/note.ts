@@ -48,8 +48,8 @@ const descriptionSchema = z.string().max(NOTE_DESCRIPTION_MAX_LENGTH);
 export const noteCreateSchema = z.object({
   title: z.string().trim().max(NOTE_TITLE_MAX_LENGTH).default(''),
   description: descriptionSchema.default(''),
-  priority: notePrioritySchema.default('MITTEL'),
-  horizon: noteHorizonSchema.default('HEUTE'),
+  priority: notePrioritySchema.default('MEDIUM'),
+  horizon: noteHorizonSchema.default('TODAY'),
   freeX: z.number().finite().default(0),
   freeY: z.number().finite().default(0),
   dueDate: z.string().date().nullable().optional(),
@@ -57,7 +57,7 @@ export const noteCreateSchema = z.object({
   tags: tagsSchema,
   /** Bare, not `.optional()`, for the same reason as `tags` above. */
   customFields: customFieldsSchema,
-  colour: noteColourSchema.default('WEISS'),
+  colour: noteColourSchema.default('CHALK'),
   visibility: noteVisibilitySchema.default('SHARED'),
 });
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;

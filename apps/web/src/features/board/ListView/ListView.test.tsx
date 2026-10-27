@@ -32,22 +32,22 @@ const notes = [
   makeNote({
     id: 'n1',
     title: 'Today note',
-    horizon: 'HEUTE',
-    priority: 'HOCH',
+    horizon: 'TODAY',
+    priority: 'HIGH',
     dueDate: '2026-09-18',
   }),
   makeNote({
     id: 'n2',
     title: 'Week note',
-    horizon: 'DIESE_WOCHE',
-    priority: 'MITTEL',
+    horizon: 'THIS_WEEK',
+    priority: 'MEDIUM',
     dueDate: '2026-09-22',
   }),
   makeNote({
     id: 'n3',
     title: 'Another today note',
-    horizon: 'HEUTE',
-    priority: 'NIEDRIG',
+    horizon: 'TODAY',
+    priority: 'LOW',
     dueDate: '2026-09-17',
   }),
 ];
@@ -306,13 +306,13 @@ describe('ListView', () => {
 
     it('can only tick off their own private notes', () => {
       renderViewerList([
-        makeNote({ id: 'shared', title: 'Shared note', visibility: 'SHARED', horizon: 'HEUTE' }),
+        makeNote({ id: 'shared', title: 'Shared note', visibility: 'SHARED', horizon: 'TODAY' }),
         makeNote({
           id: 'mine',
           title: 'My private note',
           visibility: 'PRIVATE',
           createdBy: { id: 'me', displayName: 'Me', email: 'me@example.com' },
-          horizon: 'HEUTE',
+          horizon: 'TODAY',
         }),
       ]);
 

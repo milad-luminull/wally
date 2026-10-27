@@ -20,7 +20,7 @@ export const DemoInput = forwardRef<
     if (match.index > start) segments.push({ text: value.slice(start, match.index) });
     segments.push({
       text: match[0],
-      colour: match[1] ? 'butter' : match[2] ? 'himmel' : match[3] ? 'minze' : 'rose',
+      colour: match[1] ? 'oat' : match[2] ? 'sky' : match[3] ? 'mint' : 'rose',
     });
     start = match.index + match[0].length;
   }

@@ -43,20 +43,21 @@ const GERMAN_BY_DESIGN = new Set([
 /** The German words a name may not be built from, compared whole and case-insensitively. */
 const BANNED_WORDS = new Set(['wand', 'frei', 'liste', 'horizont', 'alle']);
 
-/**
- * Lowercase `wand` is the persisted board-view value (`boardViewValues`), the string 'wand' in
- * Firestore documents, URLs (`?view=wand`) and profiles. It cannot change until the expand
- * release (ADR-0014 step 4: legacy map, read normalisation, migration), so these literals are
- * allowed until then. When that release lands, delete this list and the guard bans them too.
- */
+/** Strings that may name `wand` anyway. */
 const ALLOWED_WAND_LITERALS: ReadonlyArray<(text: string) => boolean> = [
-  // The persisted value itself, as a literal: `'wand'`.
-  (text) => text === 'wand',
-  // The same value inside a URL query, as the web app reads it (`?view=wand`).
-  (text) => /[?&]view=wand\b/.test(text),
   // English prose about the banned magic-wand icon (brandGuards.test.ts's test title).
   (text) => text === 'imports no sparkle, wand, robot or brain icon from lucide-react',
 ];
+
+/**
+ * Tests that spell the board view's old value `'wand'` to show it is refused (ADR-0024), by
+ * repo-relative path. englishValues.test.ts checks that each spells it only in its `OLD`
+ * constant, so here the bare literal is allowed in these files and nowhere else.
+ */
+const REFUSES_OLD_VIEW = new Set([
+  'apps/api/src/lib/sharedValues.test.ts',
+  'apps/web/src/features/board/hooks/useBoardViewState.test.tsx',
+]);
 
 /** lucide icon specifiers the brand guard bans by name; they are not German. */
 const LUCIDE_ICON_NAMES = new Set(['Wand', 'Wand2', 'WandSparkles']);
@@ -113,6 +114,7 @@ function scan(file: string, label: string): Offence[] {
     if (LUCIDE_ICON_NAMES.has(value)) return;
     const match = STRING_PATTERN.exec(value);
     if (match) offences.push({ where: at(node.getStart(source)), what: `string: ${match[0]}` });
+    if (value === 'wand' && REFUSES_OLD_VIEW.has(label)) return;
     if (/\bwand\b/.test(value) && !ALLOWED_WAND_LITERALS.some((allowed) => allowed(value))) {
       offences.push({ where: at(node.getStart(source)), what: `string: wand in "${value}"` });
     }
@@ -165,10 +167,8 @@ describe('code is English', () => {
     expect(offencesIn(root).map((o) => `${o.where}  ${o.what}`)).toEqual([]);
   });
 
-  it('keeps the persisted board-view value `wand` until the expand release (ADR-0014 step 4)', async () => {
-    // The guard's allow-list is only honest while the value still exists; when the enum
-    // moves, this fails and the allow-list above goes with it.
+  it('stores the board view as wall (ADR-0014, ADR-0024)', async () => {
     const { boardViewValues } = await import('@wally/shared');
-    expect(boardViewValues).toContain('wand');
+    expect(boardViewValues).toEqual(['wall', 'list']);
   });
 });

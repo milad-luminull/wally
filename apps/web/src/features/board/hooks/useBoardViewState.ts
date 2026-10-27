@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   boardAxisValues,
+  boardViewValues,
   boardVisibilityFilterValues,
   notePriorityValues,
   type BoardAxis,
@@ -31,7 +32,7 @@ export interface BoardViewState {
 }
 
 export const DEFAULT_BOARD_PREFERENCES: BoardPreferences = {
-  view: 'wand',
+  view: 'wall',
   axis: 'horizon',
   done: true,
   mine: false,
@@ -71,7 +72,11 @@ export function useBoardViewState(boardId: string) {
     const doneParam = searchParams.get('done');
     const visibilityParam = searchParams.get('visibility');
     return {
-      view: viewParam === 'list' || viewParam === 'wand' ? viewParam : base.view,
+      // A value that is not a board view (a stale link from before ADR-0024, or a typo)
+      // is ignored, like every other param below.
+      view: (boardViewValues as readonly string[]).includes(viewParam ?? '')
+        ? (viewParam as BoardView)
+        : base.view,
       axis: (boardAxisValues as readonly string[]).includes(axisParam ?? '')
         ? (axisParam as BoardAxis)
         : base.axis,

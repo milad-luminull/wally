@@ -21,8 +21,8 @@ export type ProposalRow = {
   | { kind: 'title'; value: string }
   | { kind: 'text'; value: string }
   | { kind: 'date'; iso: string }
-  | { kind: 'horizon'; value: 'DIESE_WOCHE' | 'SPAETER' }
-  | { kind: 'priority'; value: 'HOCH' | 'NIEDRIG' }
+  | { kind: 'horizon'; value: 'THIS_WEEK' | 'LATER' }
+  | { kind: 'priority'; value: 'HIGH' | 'LOW' }
   | { kind: 'person'; user: UserSummary }
   | { kind: 'private' }
   | { kind: 'property'; key: string; value: string }
@@ -100,7 +100,7 @@ export function proposalRows(note: NoteDto, mark: SuggestionMark): ProposalRow[]
       kind: 'priority',
       value: fields.priority.value,
     });
-  else if (wasTyped('priority') && note.priority !== 'MITTEL')
+  else if (wasTyped('priority') && note.priority !== 'MEDIUM')
     rows.push({
       id: 'priority',
       field: 'priority',

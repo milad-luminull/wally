@@ -62,7 +62,7 @@ describe('InlineNoteEditor', () => {
       .mockImplementation(async (_id, input) => note({ ...(input as object) } as Partial<NoteDto>));
     vi.mocked(notesApi.move)
       .mockReset()
-      .mockResolvedValue(note({ priority: 'HOCH' }));
+      .mockResolvedValue(note({ priority: 'HIGH' }));
     vi.mocked(notesApi.assign).mockReset().mockResolvedValue(note());
     vi.mocked(membersApi.list)
       .mockReset()
@@ -141,7 +141,7 @@ describe('InlineNoteEditor', () => {
     );
     expect(notesApi.move).toHaveBeenCalledWith(
       'n1',
-      { mode: 'PRIORITY', priority: 'HOCH' },
+      { mode: 'PRIORITY', priority: 'HIGH' },
       expect.anything(),
     );
   });

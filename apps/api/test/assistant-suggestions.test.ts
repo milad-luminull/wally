@@ -84,7 +84,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
     const memberId = title.slice('all '.length).split(' ')[0] || 'nobody';
     return settle({
       dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
-      priority: { value: 'HOCH', confidence: 0.8, reason: 'urgent' },
+      priority: { value: 'HIGH', confidence: 0.8, reason: 'urgent' },
       assignee: { memberId, confidence: 0.95, reason: 'Anna' },
       ...noProposal,
     });
@@ -173,7 +173,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       assignee: null,
       title: { value: 'Smart note', confidence: 0.9, reason: 'shorter' },
       description: { value: 'The detail.', confidence: 0.9, reason: 'moved out' },
-      horizon: { value: 'DIESE_WOCHE', confidence: 0.9, reason: '"this week"' },
+      horizon: { value: 'THIS_WEEK', confidence: 0.9, reason: '"this week"' },
       tags: { items: ['ops', 'sales', 'travel'], confidence: 0.9, reason: 'board tags' },
       properties: {
         items: [
@@ -194,7 +194,7 @@ const fakeRunner: SuggestionRunner = async (input): Promise<SuggestionOutput> =>
       visibility: { value: 'PRIVATE', confidence: 0.9, reason: 'personal' },
       ...(title.startsWith('privtags')
         ? { tags: { items: ['ops'], confidence: 0.9, reason: 'board tag' } }
-        : { horizon: { value: 'DIESE_WOCHE', confidence: 0.9, reason: 'this week' } }),
+        : { horizon: { value: 'THIS_WEEK', confidence: 0.9, reason: 'this week' } }),
     });
   // A personal matter: Private (opt-in) beside a date, and a person that Private drops.
   if (title.startsWith('private'))
@@ -594,7 +594,7 @@ describe('capture suggestions', () => {
       baseRevision: n.revision,
       fields: {
         dueDate: { value: '2026-10-23', reason: 'Friday' },
-        priority: { value: 'HOCH', reason: 'urgent' },
+        priority: { value: 'HIGH', reason: 'urgent' },
         assignee: { value: { id: 'fx-editor', displayName: 'Editor' }, reason: 'Anna' },
         title: null,
         reference: null,
@@ -620,10 +620,10 @@ describe('capture suggestions', () => {
       await createNote(fx.ownerToken, fx.boardId, {
         title: 'all fx-editor',
         dueDate: '2026-10-20',
-        priority: 'HOCH',
+        priority: 'HIGH',
         assigneeId: 'fx-editor',
         customFields: { Project: 'X' },
-        horizon: 'DIESE_WOCHE',
+        horizon: 'THIS_WEEK',
         tags: ['ops'],
         description: 'Written already.',
       })
@@ -659,7 +659,7 @@ describe('capture suggestions', () => {
       'priority',
     ]);
     const filled = (
-      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor', priority: 'NIEDRIG' })
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor', priority: 'LOW' })
     ).json();
     const b = await suggest(fx.ownerToken, fx.boardId, filled.id);
     expect(b.json().suggestion.fields.priority).toBeNull();
@@ -670,7 +670,7 @@ describe('capture suggestions', () => {
     expect(c.statusCode).toBe(200);
     expect(c.json().suggestion.fields).toMatchObject({
       dueDate: { value: '2026-10-23' },
-      priority: { value: 'HOCH' },
+      priority: { value: 'HIGH' },
       assignee: null,
     });
   });
@@ -873,7 +873,7 @@ describe('capture suggestions', () => {
     const after = await note(n.id);
     expect(after).toMatchObject({
       dueDate: '2026-10-23',
-      priority: 'HOCH',
+      priority: 'HIGH',
       assigneeId: 'fx-editor',
     });
     expect(after.revision).toBe(kept.kept.revision);
@@ -892,7 +892,7 @@ describe('capture suggestions', () => {
     ).data()!;
     expect(stored.applied?.before).toEqual({
       dueDate: null,
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
       assigneeId: null,
       title: 'all fx-editor',
       reference: null,
@@ -958,7 +958,7 @@ describe('capture suggestions', () => {
     expect(res.json().suggestion.kept.fields).toEqual(['dueDate']);
     expect(await note(n.id)).toMatchObject({
       dueDate: '2026-10-23',
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
       assigneeId: null,
     });
   });
@@ -1010,7 +1010,7 @@ describe('capture suggestions', () => {
     expect(await note(n.id)).toMatchObject({
       title: 'Changed',
       dueDate: null,
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
     });
     const stored = (
       await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
@@ -1027,7 +1027,7 @@ describe('capture suggestions', () => {
   it('undoes a keep by restoring the previous values, once', async () => {
     const fx = await createBoardFixture(ctx);
     const n = (
-      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor', priority: 'MITTEL' })
+      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor', priority: 'MEDIUM' })
     ).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     await decide(fx.ownerToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' });
@@ -1048,7 +1048,7 @@ describe('capture suggestions', () => {
     const after = await note(n.id);
     expect(after).toMatchObject({
       dueDate: null,
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
       assigneeId: null,
       title: 'all fx-editor',
     });
@@ -1263,7 +1263,7 @@ describe('capture suggestions', () => {
     const [shown] = (await pending(fx.ownerToken, fx.boardId)).json().suggestions;
     expect(shown.fields).toMatchObject({
       dueDate: { value: '2026-10-23' },
-      priority: { value: 'HOCH' },
+      priority: { value: 'HIGH' },
       assignee: null,
     });
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
@@ -1281,7 +1281,7 @@ describe('capture suggestions', () => {
     });
     expect(await note(n.id)).toMatchObject({
       dueDate: '2026-10-23',
-      priority: 'HOCH',
+      priority: 'HIGH',
       assigneeId: null,
     });
   });
@@ -1314,7 +1314,7 @@ describe('capture suggestions', () => {
     expect(after).toMatchObject({
       title: 'Changed',
       dueDate: null,
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
       assigneeId: null,
     });
     expect(after.revision).toBe(n.revision + 3);
@@ -1368,7 +1368,7 @@ describe('capture suggestions', () => {
     });
     expect(await note(n.id)).toMatchObject({
       dueDate: '2026-10-23',
-      priority: 'HOCH',
+      priority: 'HIGH',
       assigneeId: 'fx-editor',
     });
     expect((await note(n.id)).revision).toBe(n.revision + 3);
@@ -1376,7 +1376,7 @@ describe('capture suggestions', () => {
     expect(audits.size).toBe(3);
     expect((await stored(fx.ownerId, suggestion.id)).applied?.before).toEqual({
       dueDate: null,
-      priority: 'MITTEL',
+      priority: 'MEDIUM',
       assigneeId: null,
       title: 'all fx-editor',
       reference: null,
@@ -1401,7 +1401,7 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion.status).toBe('UNDONE');
     const after = await note(n.id);
-    expect(after).toMatchObject({ dueDate: null, priority: 'MITTEL', assigneeId: null });
+    expect(after).toMatchObject({ dueDate: null, priority: 'MEDIUM', assigneeId: null });
     expect(after.revision).toBe(n.revision + 2);
   });
 
@@ -1435,7 +1435,7 @@ describe('capture suggestions', () => {
     expect(await note(n.id)).toMatchObject({
       title: 'Afterwards',
       dueDate: '2026-10-23',
-      priority: 'HOCH',
+      priority: 'HIGH',
       assigneeId: 'fx-editor',
     });
     expect((await stored(fx.ownerId, suggestion.id)).status).toBe('KEPT');
@@ -2067,18 +2067,18 @@ describe('capture suggestions', () => {
     const fx = await smartBoard();
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'smart' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
-    expect(suggestion.fields.horizon).toEqual({ value: 'DIESE_WOCHE', reason: '"this week"' });
+    expect(suggestion.fields.horizon).toEqual({ value: 'THIS_WEEK', reason: '"this week"' });
     const kept = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       fields: ['horizon'],
       source: 'click',
     });
     expect(kept.statusCode).toBe(200);
-    expect((await note(n.id)).horizon).toBe('DIESE_WOCHE');
+    expect((await note(n.id)).horizon).toBe('THIS_WEEK');
     const types = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
     expect(types.docs.map((d) => d.data().commandType)).toEqual(['note.move']);
     await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'undo', source: 'esc' });
-    expect((await note(n.id)).horizon).toBe('HEUTE');
+    expect((await note(n.id)).horizon).toBe('TODAY');
   });
 
   it("keeps Private on the author's note, and the undo leaves it shared and unassigned", async () => {
@@ -2277,7 +2277,7 @@ describe('capture suggestions', () => {
     expect(await note(n.id)).toMatchObject({
       visibility: 'PRIVATE',
       assigneeId: fx.editorId,
-      horizon: 'DIESE_WOCHE',
+      horizon: 'THIS_WEEK',
       dueDate: '2026-11-02',
     });
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
@@ -2295,7 +2295,7 @@ describe('capture suggestions', () => {
         boardId: fx.boardId,
         noteId: n.id,
         expectedRevision: n.revision,
-        input: { mode: 'HORIZON', horizon: 'DIESE_WOCHE' },
+        input: { mode: 'HORIZON', horizon: 'THIS_WEEK' },
       },
       operationId: record.operationIds.horizon!.apply,
     });
@@ -2312,7 +2312,7 @@ describe('capture suggestions', () => {
     });
     expect(res.statusCode).toBe(409);
     const after = await note(n.id);
-    expect(after).toMatchObject({ horizon: 'HEUTE', dueDate: '2026-11-02' });
+    expect(after).toMatchObject({ horizon: 'TODAY', dueDate: '2026-11-02' });
     expect(after.tags).toEqual([]);
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('DISCARDED');
   });
@@ -2563,7 +2563,7 @@ describe('capture suggestions', () => {
     const res = await suggest(fx.viewToken, fx.boardId, n.id, ['title', 'dueDate', 'dueDate']);
     expect(res.statusCode).toBe(200);
     const { suggestion } = res.json();
-    expect(suggestion.fields).toMatchObject({ dueDate: null, priority: { value: 'HOCH' } });
+    expect(suggestion.fields).toMatchObject({ dueDate: null, priority: { value: 'HIGH' } });
     expect(suggestion.typed).toEqual(['dueDate']);
     expect((await stored(fx.viewerId, suggestion.id)).typed).toEqual(['dueDate']);
   });

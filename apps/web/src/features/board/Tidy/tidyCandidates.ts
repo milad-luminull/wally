@@ -18,7 +18,7 @@ export function tidyCandidateIds(
     if (
       note.dueDate
         ? horizonForDueDate(note.dueDate, today) !== note.horizon
-        : note.horizon === 'HEUTE'
+        : note.horizon === 'TODAY'
     )
       out.push(note.id);
   }

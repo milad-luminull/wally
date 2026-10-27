@@ -36,7 +36,7 @@ export function LandingVoice({
         {([0, 1, 2] as const)
           .filter((i) => progress >= transcript.length * [0.35, 0.62, 0.92][i]!)
           .map((i) => (
-            <div key={i} data-colour={['butter', 'minze', 'himmel'][i]}>
+            <div key={i} data-colour={['oat', 'mint', 'sky'][i]}>
               <span className="landing-check" />
               <span>{t(`landing.voiceCards.${i}.title`)}</span>
               <small>{t(`landing.voiceCards.${i}.meta`)}</small>

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTestUser, getTestDb, resetDatabase } from '../../../test/helpers.js';
 import { notesCol, now, whiteboardsCol } from '../db/collections.js';
@@ -41,6 +42,17 @@ describe('MCP operations', () => {
     ).toEqual(['get_board', 'get_note', 'list_boards', 'list_members', 'list_notes']);
     expect(availableMcpTools(context.scopes)).toHaveLength(13);
     expect(availableMcpTools([])).toEqual([]);
+  });
+  it('publishes only the English values in its tool schemas', () => {
+    const schemaOf = (name: string) => {
+      const tool = availableMcpTools(context.scopes).find((t) => t.name === name);
+      if (!tool) throw new Error(`no tool ${name}`);
+      return JSON.stringify(toJsonSchemaCompat(tool.inputSchema));
+    };
+    expect(schemaOf('move_note')).toContain('THIS_WEEK');
+    expect(schemaOf('move_note')).toContain('HIGH');
+    expect(schemaOf('create_note')).toContain('SEA_GREEN');
+    expect(schemaOf('list_notes')).toContain('LATER');
   });
   it('discovers empty boards and filters revoked board grants', async () => {
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
@@ -187,7 +199,7 @@ describe('MCP operations', () => {
       code: 'STALE_REVISION',
     });
     await write('update_note', 1, { input: { title: 'Updated' } });
-    await write('move_note', 2, { input: { mode: 'PRIORITY', priority: 'HOCH' } });
+    await write('move_note', 2, { input: { mode: 'PRIORITY', priority: 'HIGH' } });
     await write('complete_note', 3);
     await write('reopen_note', 4);
     const task = await write('add_subtask', 5, { input: { text: 'Step' } });

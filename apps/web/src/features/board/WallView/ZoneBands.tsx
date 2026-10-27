@@ -93,7 +93,7 @@ function ZoneBand({
         <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-fg-1">{group.label}</h2>
         {axis === 'priority' && (
           <span className="paper-zone-subtitle">
-            {t(`board.zone.priorityHints.${group.key as 'HOCH' | 'MITTEL' | 'NIEDRIG'}`)}
+            {t(`board.zone.priorityHints.${group.key as 'HIGH' | 'MEDIUM' | 'LOW'}`)}
           </span>
         )}
         <span className="flex-1" />

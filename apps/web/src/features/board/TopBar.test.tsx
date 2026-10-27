@@ -48,7 +48,7 @@ function renderTopBar(overrides: Partial<Parameters<typeof TopBar>[0]> = {}) {
       board={makeBoard()}
       boardId="board-1"
       notes={[]}
-      view="wand"
+      view="wall"
       axis="horizon"
       isDesktop
       isBelowTablet={false}
@@ -158,7 +158,7 @@ describe('independent board layout toggle', () => {
       onSetAxis,
       filters: {
         view: {
-          view: 'wand',
+          view: 'wall',
           axis: 'priority',
           q: '',
           priority: [],

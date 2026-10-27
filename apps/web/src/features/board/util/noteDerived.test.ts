@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { noteColourValues } from '@wally/shared';
 import { makeNote } from '@/test/fixtures';
 import type { BoardViewState } from '../hooks/useBoardViewState';
 import {
@@ -6,13 +8,14 @@ import {
   collectFieldValues,
   filterNotes,
   initialsOf,
+  noteColourFillClass,
   relatedCounts,
   relatedNotes,
   showsVisibilityFilter,
 } from './noteDerived';
 
 const view: BoardViewState = {
-  view: 'wand',
+  view: 'wall',
   axis: 'horizon',
   q: '',
   priority: [],
@@ -23,6 +26,27 @@ const view: BoardViewState = {
   fieldValue: null,
   noteId: null,
 };
+
+describe('noteColourFillClass', () => {
+  // vitest runs with cwd at the package root (see vitest.config.ts).
+  const stylesheets = ['src/styles/globals.css', 'src/styles/palettes.css'].map((path) =>
+    readFileSync(path, 'utf8'),
+  );
+  const definitions = (css: string, variable: string) => css.split(`${variable}:`).length - 1;
+
+  it('fills every colour from its own variable, in every palette', () => {
+    for (const colour of noteColourValues) {
+      const variable = `--note-${colour.toLowerCase().replace('_', '-')}`;
+      expect(noteColourFillClass[colour]).toBe(`bg-[color:var(${variable})]`);
+      for (const css of stylesheets) {
+        expect(definitions(css, '--note-chalk')).toBeGreaterThan(0);
+        expect(definitions(css, variable), `${variable} in every block`).toBe(
+          definitions(css, '--note-chalk'),
+        );
+      }
+    }
+  });
+});
 
 describe('filterNotes', () => {
   it('filters by visibility', () => {

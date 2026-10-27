@@ -22,6 +22,8 @@ import { consumeMcpWriteBudget } from '../src/lib/mcp/rate.js';
 import { notesCol, now, whiteboardsCol } from '../src/lib/db/collections.js';
 import { MCP_METADATA_PATH, MCP_RESOURCE, type McpRouteOptions } from '../src/routes/mcp.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
+/** The horizon's spelling from before ADR-0024, refused like any unknown value. */
+const OLD = { horizon: 'SPAETER' } as const;
 const projectId = 'wally-mcp-http';
 const db = getTestDb(projectId);
 let apps: FastifyInstance[];
@@ -253,7 +255,7 @@ describe('stateless MCP HTTP boundary', () => {
         return result;
       };
       await write('update_note', { input: { title: 'Updated' } });
-      await write('move_note', { input: { mode: 'HORIZON', horizon: 'SPAETER' } });
+      await write('move_note', { input: { mode: 'HORIZON', horizon: 'LATER' } });
       await write('complete_note');
       await write('reopen_note');
       await write('assign_note', { input: { assigneeId: null } });
@@ -317,6 +319,35 @@ describe('stateless MCP HTTP boundary', () => {
     expect(note).toMatchObject({ title: 'Edited', revision: 2 });
     await revokeConnection(db, actor.id, grantId);
     expect((await call(app, 'update_note', update)).statusCode).toBe(403);
+  });
+
+  it('refuses move_note with a horizon that is not one of the English ones', async () => {
+    const app = await makeApp();
+    const created = CallToolResultSchema.parse(
+      (
+        await call(app, 'create_note', {
+          boardId: 'board',
+          operationId: randomUUID(),
+          input: { title: 'Stays put' },
+        })
+      ).json().result,
+    );
+    const noteId = (created.structuredContent as { data: { id: string } }).data.id;
+    const response = await call(app, 'move_note', {
+      boardId: 'board',
+      noteId,
+      expectedRevision: 1,
+      operationId: randomUUID(),
+      input: { mode: 'HORIZON', horizon: OLD.horizon },
+    });
+    expect(response.statusCode).toBe(200);
+    const result = CallToolResultSchema.parse(response.json().result);
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toMatch(/invalid/i);
+    expect((await notesCol(db).doc(noteId).get()).data()).toMatchObject({
+      horizon: 'TODAY',
+      revision: 1,
+    });
   });
 
   it('acknowledges notifications without a body and rejects malformed JSON without effects', async () => {

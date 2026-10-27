@@ -14,6 +14,10 @@ describe('tidy prompt', () => {
     expect(text).toContain('Write reasons in German.');
   });
 
+  it('names the horizon values in English', () => {
+    expect(TIDY_INSTRUCTIONS_PREFIX).toContain('THIS_WEEK for This week or LATER for Later');
+  });
+
   it('lists each note on its own lines, the text cut and flattened', () => {
     const prompt = buildTidyPrompt([
       { id: 'n1', title: 'Call Müller', text: 'about the\ncontract\n' },
@@ -46,7 +50,7 @@ describe('tidy prompt', () => {
       language: 'en',
     });
     expect(sunday).toContain(
-      'Today is Sunday: the week ends today, so every later date is Later (SPAETER).',
+      'Today is Sunday: the week ends today, so every later date is Later (LATER).',
     );
     expect(
       buildTidyInstructions({ today: '2026-10-17', timeZone: 'Europe/Berlin', language: 'en' }),

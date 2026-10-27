@@ -103,13 +103,13 @@ export function captureCandidates(
   const free = (key: SuggestionFieldKey) => !locked.includes(key);
   const open: SuggestionFieldKey[] = [];
   if (note.dueDate === null && free('dueDate')) open.push('dueDate');
-  if (note.priority === 'MITTEL' && free('priority')) open.push('priority');
+  if (note.priority === 'MEDIUM' && free('priority')) open.push('priority');
   if (note.assignee === null && note.visibility !== 'PRIVATE' && free('assignee'))
     open.push('assignee');
   if (note.title.trim() && free('title')) open.push('title');
   if (note.subtaskSummary.total === 0 && free('subtasks')) open.push('subtasks');
   if ((note.links ?? []).length === 0 && free('links')) open.push('links');
-  if (note.horizon === 'HEUTE' && free('horizon')) open.push('horizon');
+  if (note.horizon === 'TODAY' && free('horizon')) open.push('horizon');
   if (
     note.visibility === 'SHARED' &&
     note.createdBy?.id === ctx.actorId &&

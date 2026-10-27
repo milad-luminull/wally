@@ -11,14 +11,14 @@ import { PendingReview } from './PendingReview';
 const note = makeNote({
   title: 'Call Müller',
   dueDate: '2026-10-23',
-  priority: 'MITTEL',
+  priority: 'MEDIUM',
   customFields: {},
   subtaskSummary: { done: 0, total: 0 },
 });
 
 const proposal: SuggestionFields = {
   dueDate: null,
-  priority: { value: 'HOCH', reason: 'urgent' },
+  priority: { value: 'HIGH', reason: 'urgent' },
   assignee: null,
   title: { value: 'Call Müller GmbH back', reason: 'clearer' },
   reference: { key: 'Customer', value: 'Müller GmbH', reason: 'Müller' },

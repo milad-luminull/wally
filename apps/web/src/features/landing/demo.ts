@@ -144,7 +144,7 @@ export function demoNote(raw: string, t: TFunction) {
             : /\b(book|buchen)\b/.test(text)
               ? 'book'
               : 'other';
-  const colour = isIdea ? 'rose' : isMeeting ? 'himmel' : verb === 'book' ? 'minze' : 'butter';
+  const colour = isIdea ? 'rose' : isMeeting ? 'sky' : verb === 'book' ? 'mint' : 'oat';
   const tray: Tray = isIdea
     ? 'ideas'
     : isMeeting

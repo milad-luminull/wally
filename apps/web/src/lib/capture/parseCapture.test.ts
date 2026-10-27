@@ -81,14 +81,14 @@ describe('parseCapture people', () => {
 describe('parseCapture urgency', () => {
   it('maps urgency words to a priority', () => {
     expect(de('dringend Müller anrufen').priority).toMatchObject({
-      value: 'HOCH',
+      value: 'HIGH',
       text: 'dringend',
     });
-    expect(en('urgent: call back').priority?.value).toBe('HOCH');
-    expect(de('irgendwann Keller aufräumen').priority?.value).toBe('NIEDRIG');
-    expect(en('someday read that book').priority?.value).toBe('NIEDRIG');
+    expect(en('urgent: call back').priority?.value).toBe('HIGH');
+    expect(de('irgendwann Keller aufräumen').priority?.value).toBe('LOW');
+    expect(en('someday read that book').priority?.value).toBe('LOW');
     expect(de('Hochzeit planen').priority).toBeNull();
-    expect(de('irgendwann, nicht dringend').priority?.value).toBe('NIEDRIG');
+    expect(de('irgendwann, nicht dringend').priority?.value).toBe('LOW');
   });
 });
 
@@ -97,7 +97,7 @@ describe('parseCapture together', () => {
     const p = de('Müller anrufen Freitag @anna dringend');
     expect(p.dueDate?.iso).toBe('2026-10-16');
     expect(p.assignee?.memberId).toBe('u-anna');
-    expect(p.priority?.value).toBe('HOCH');
+    expect(p.priority?.value).toBe('HIGH');
     expect(de('Blumen gießen')).toEqual({ dueDate: null, assignee: null, priority: null });
     expect(de('')).toEqual({ dueDate: null, assignee: null, priority: null });
   });

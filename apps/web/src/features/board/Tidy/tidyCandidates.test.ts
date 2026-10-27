@@ -9,12 +9,12 @@ const all = () => true;
 describe('tidyCandidateIds', () => {
   it('counts dated notes in the wrong zone and undated notes in Today, open and movable only', () => {
     const notes = [
-      makeNote({ id: 'late', horizon: 'DIESE_WOCHE', dueDate: '2026-10-19' }),
-      makeNote({ id: 'right', horizon: 'SPAETER', dueDate: '2026-10-19' }),
-      makeNote({ id: 'jotted', horizon: 'HEUTE', dueDate: null }),
-      makeNote({ id: 'placed', horizon: 'SPAETER', dueDate: null }),
-      makeNote({ id: 'done', horizon: 'SPAETER', dueDate: '2026-10-01', status: 'DONE' }),
-      makeNote({ id: 'theirs', horizon: 'SPAETER', dueDate: '2026-10-01' }),
+      makeNote({ id: 'late', horizon: 'THIS_WEEK', dueDate: '2026-10-19' }),
+      makeNote({ id: 'right', horizon: 'LATER', dueDate: '2026-10-19' }),
+      makeNote({ id: 'jotted', horizon: 'TODAY', dueDate: null }),
+      makeNote({ id: 'placed', horizon: 'LATER', dueDate: null }),
+      makeNote({ id: 'done', horizon: 'LATER', dueDate: '2026-10-01', status: 'DONE' }),
+      makeNote({ id: 'theirs', horizon: 'LATER', dueDate: '2026-10-01' }),
     ];
     expect(tidyCandidateIds(notes, today, (n) => n.id !== 'theirs', new Set())).toEqual([
       'late',
@@ -23,7 +23,7 @@ describe('tidyCandidateIds', () => {
   });
 
   it('leaves out a note with a pending Wallybot change', () => {
-    const notes = [makeNote({ id: 'jotted', horizon: 'HEUTE', dueDate: null })];
+    const notes = [makeNote({ id: 'jotted', horizon: 'TODAY', dueDate: null })];
     expect(tidyCandidateIds(notes, today, all, new Set(['jotted']))).toEqual([]);
   });
 });

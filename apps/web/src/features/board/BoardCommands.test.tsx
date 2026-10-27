@@ -59,7 +59,7 @@ function renderCommands(
       <BoardCommands
         boardId="board-1"
         notes={[]}
-        view="wand"
+        view="wall"
         axis="horizon"
         done={false}
         mine={false}

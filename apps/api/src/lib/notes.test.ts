@@ -7,24 +7,24 @@ import { assertValidAssignee, computeMoveUpdate } from './notes.js';
 import { AppError } from './errors.js';
 
 describe('computeMoveUpdate', () => {
-  const base = { horizon: 'HEUTE' as const, priority: 'MITTEL' as const, freeX: 10, freeY: 20 };
+  const base = { horizon: 'TODAY' as const, priority: 'MEDIUM' as const, freeX: 10, freeY: 20 };
 
   it('HORIZON mode writes only horizon, leaving priority/freeX/freeY untouched', () => {
-    const { data, metadata } = computeMoveUpdate(base, { mode: 'HORIZON', horizon: 'SPAETER' });
-    expect(data).toEqual({ horizon: 'SPAETER' });
+    const { data, metadata } = computeMoveUpdate(base, { mode: 'HORIZON', horizon: 'LATER' });
+    expect(data).toEqual({ horizon: 'LATER' });
     expect(data).not.toHaveProperty('priority');
     expect(data).not.toHaveProperty('freeX');
     expect(data).not.toHaveProperty('freeY');
-    expect(metadata).toEqual({ mode: 'HORIZON', from: 'HEUTE', to: 'SPAETER' });
+    expect(metadata).toEqual({ mode: 'HORIZON', from: 'TODAY', to: 'LATER' });
   });
 
   it('PRIORITY mode writes only priority, leaving horizon/freeX/freeY untouched', () => {
-    const { data, metadata } = computeMoveUpdate(base, { mode: 'PRIORITY', priority: 'HOCH' });
-    expect(data).toEqual({ priority: 'HOCH' });
+    const { data, metadata } = computeMoveUpdate(base, { mode: 'PRIORITY', priority: 'HIGH' });
+    expect(data).toEqual({ priority: 'HIGH' });
     expect(data).not.toHaveProperty('horizon');
     expect(data).not.toHaveProperty('freeX');
     expect(data).not.toHaveProperty('freeY');
-    expect(metadata).toEqual({ mode: 'PRIORITY', from: 'MITTEL', to: 'HOCH' });
+    expect(metadata).toEqual({ mode: 'PRIORITY', from: 'MEDIUM', to: 'HIGH' });
   });
 
   it('FREE mode writes only freeX/freeY, leaving horizon/priority untouched', () => {

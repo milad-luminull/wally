@@ -45,7 +45,7 @@ export function CaptureChips({
     chips.push({
       kind: 'priority',
       label: t(
-        parse.priority.value === 'HOCH'
+        parse.priority.value === 'HIGH'
           ? 'capture.chips.priorityHigh'
           : 'capture.chips.priorityLow',
       ),

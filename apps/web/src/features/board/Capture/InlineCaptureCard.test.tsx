@@ -94,7 +94,7 @@ describe('InlineCaptureCard', () => {
       );
     vi.mocked(notesApi.move)
       .mockReset()
-      .mockResolvedValue(created({ priority: 'HOCH' }));
+      .mockResolvedValue(created({ priority: 'HIGH' }));
     vi.mocked(notesApi.assign).mockReset().mockResolvedValue(created());
     vi.mocked(notesApi.remove).mockReset().mockResolvedValue(undefined);
     vi.mocked(membersApi.list)
@@ -159,7 +159,7 @@ describe('InlineCaptureCard', () => {
     expect(update[1]).not.toHaveProperty('priority');
     expect(notesApi.move).toHaveBeenCalledWith(
       'n-new',
-      { mode: 'PRIORITY', priority: 'HOCH' },
+      { mode: 'PRIORITY', priority: 'HIGH' },
       expect.anything(),
     );
     expect(notesApi.assign).toHaveBeenCalledWith('n-new', 'u-anna', expect.anything());
@@ -289,7 +289,7 @@ describe('InlineCaptureCard', () => {
     const priorityZone: CapturePlacement = {
       kind: 'zone',
       axis: 'priority',
-      key: 'MITTEL',
+      key: 'MEDIUM',
       at: { freeX: 0, freeY: 0 },
     };
 
@@ -325,7 +325,7 @@ describe('InlineCaptureCard', () => {
       await waitFor(() => expect(onDone).toHaveBeenCalledWith('n-new', false, ['priority']));
       expect(notesApi.move).toHaveBeenCalledWith(
         'n-new',
-        { mode: 'PRIORITY', priority: 'HOCH' },
+        { mode: 'PRIORITY', priority: 'HIGH' },
         expect.anything(),
       );
     });
@@ -348,7 +348,7 @@ describe('InlineCaptureCard', () => {
     const horizonZone = (picked: boolean): CapturePlacement => ({
       kind: 'zone',
       axis: 'horizon',
-      key: 'HEUTE',
+      key: 'TODAY',
       at: { freeX: 0, freeY: 0 },
       picked,
     });
@@ -384,7 +384,7 @@ describe('InlineCaptureCard', () => {
     const { onDone } = renderCard('card', 'SHARED', {
       kind: 'zone',
       axis: 'horizon',
-      key: 'HEUTE',
+      key: 'TODAY',
       at: { freeX: 0, freeY: 0 },
     });
     const user = userEvent.setup();
@@ -457,7 +457,7 @@ describe('InlineCaptureCard', () => {
     ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(notesApi.move).toHaveBeenCalledWith(
       'n-new',
-      { mode: 'PRIORITY', priority: 'HOCH' },
+      { mode: 'PRIORITY', priority: 'HIGH' },
       expect.anything(),
     );
     expect(notesApi.assign).not.toHaveBeenCalled();

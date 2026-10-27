@@ -12,8 +12,8 @@ import type { CaptureBoardNote, CaptureContext, CaptureNote } from '../capturePr
  */
 export interface FixtureExpect {
   dueDate?: string | null;
-  horizon?: 'DIESE_WOCHE' | 'SPAETER' | null;
-  priority?: 'HOCH' | 'NIEDRIG' | null;
+  horizon?: 'THIS_WEEK' | 'LATER' | null;
+  priority?: 'HIGH' | 'LOW' | null;
   assignee?: string | null;
   visibility?: 'PRIVATE' | null;
   title?: 'any' | null;
@@ -101,7 +101,7 @@ export const CAPTURE_FIXTURES: CaptureFixture[] = [
   {
     id: 'date-eod',
     note: { title: 'Approve the Q3 invoice run EOD' },
-    expect: { dueDate: '2026-10-19', priority: 'HOCH' },
+    expect: { dueDate: '2026-10-19', priority: 'HIGH' },
   },
   {
     id: 'date-the-3rd',
@@ -112,43 +112,43 @@ export const CAPTURE_FIXTURES: CaptureFixture[] = [
   {
     id: 'span-this-week',
     note: { title: 'Clean up the shared drive this week' },
-    expect: { horizon: 'DIESE_WOCHE', dueDate: null },
+    expect: { horizon: 'THIS_WEEK', dueDate: null },
   },
   {
     id: 'span-next-week',
     note: { title: 'Plan the team offsite next week' },
-    expect: { horizon: 'SPAETER', dueDate: null },
+    expect: { horizon: 'LATER', dueDate: null },
   },
   {
     id: 'span-soon',
     note: { title: 'Look into a new CRM soon' },
-    expect: { horizon: 'SPAETER', dueDate: null },
+    expect: { horizon: 'LATER', dueDate: null },
   },
   {
     id: 'span-sometime',
     note: { title: 'Sometime: reorganise the wiki' },
-    expect: { horizon: 'SPAETER', priority: 'NIEDRIG', dueDate: null },
+    expect: { horizon: 'LATER', priority: 'LOW', dueDate: null },
   },
   // Priority judged from stakes and timing.
   {
     id: 'prio-escalation',
     note: { title: 'Acme escalated the outage, call them back today' },
-    expect: { priority: 'HOCH', properties: { Customer: 'Acme Corp' } },
+    expect: { priority: 'HIGH', properties: { Customer: 'Acme Corp' } },
   },
   {
     id: 'prio-blocker',
     note: { title: 'Fix the login bug blocking the release tomorrow' },
-    expect: { priority: 'HOCH', dueDate: '2026-10-20' },
+    expect: { priority: 'HIGH', dueDate: '2026-10-20' },
   },
   {
     id: 'prio-nice-to-have',
     note: { title: 'Nice to have: dark mode for the dashboard' },
-    expect: { priority: 'NIEDRIG' },
+    expect: { priority: 'LOW' },
   },
   {
     id: 'prio-when-time',
     note: { title: 'Tidy the old branches when there is time' },
-    expect: { priority: 'NIEDRIG' },
+    expect: { priority: 'LOW' },
   },
   // People.
   {
@@ -326,10 +326,10 @@ export function fixtureNote(fixture: CaptureFixture): CaptureNote {
     id: `n-${fixture.id}`,
     description: '',
     dueDate: null,
-    priority: 'MITTEL',
+    priority: 'MEDIUM',
     assignee: null,
     visibility: 'SHARED',
-    horizon: 'HEUTE',
+    horizon: 'TODAY',
     tags: [],
     customFields: {},
     subtaskSummary: { total: 0, done: 0 },
@@ -346,8 +346,8 @@ export function fixtureBoard(fixture: CaptureFixture): CaptureBoardNote[] {
     status: 'OPEN',
     createdAt: new Date(Date.UTC(2026, 9, 1 + i)).toISOString(),
     visibility: 'SHARED',
-    horizon: 'HEUTE',
-    priority: 'MITTEL',
+    horizon: 'TODAY',
+    priority: 'MEDIUM',
     tags: [],
     customFields: {},
     createdBy: ME,

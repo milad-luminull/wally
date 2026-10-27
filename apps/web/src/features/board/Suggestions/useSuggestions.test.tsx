@@ -36,7 +36,7 @@ const dto = (over: Partial<SuggestionDto> = {}): SuggestionDto => ({
   baseRevision: 3,
   fields: {
     dueDate: { value: '2026-10-23', reason: 'Friday' },
-    priority: { value: 'HOCH', reason: 'urgent' },
+    priority: { value: 'HIGH', reason: 'urgent' },
     assignee: null,
     title: null,
     reference: null,
@@ -318,7 +318,7 @@ describe('useSuggestions', () => {
       reference: null,
       subtasks: null,
       links: null,
-      horizon: { value: 'DIESE_WOCHE', reason: 'this week' },
+      horizon: { value: 'THIS_WEEK', reason: 'this week' },
       visibility: { value: 'PRIVATE', reason: 'personal' },
       tags: { items: ['ops', 'sales', 'travel'], reason: 'board tags' },
       properties: {

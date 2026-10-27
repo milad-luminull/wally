@@ -12,29 +12,29 @@ describe('horizonForDueDate', () => {
   });
 
   it('today or earlier is Today', () => {
-    expect(horizonForDueDate('2026-10-17', today)).toBe('HEUTE');
-    expect(horizonForDueDate('2026-10-01', today)).toBe('HEUTE');
+    expect(horizonForDueDate('2026-10-17', today)).toBe('TODAY');
+    expect(horizonForDueDate('2026-10-01', today)).toBe('TODAY');
   });
 
   it('by Sunday is This week, after it is Later', () => {
-    expect(horizonForDueDate('2026-10-18', today)).toBe('DIESE_WOCHE');
-    expect(horizonForDueDate('2026-10-19', today)).toBe('SPAETER');
-    expect(horizonForDueDate('2026-10-23', '2026-10-19')).toBe('DIESE_WOCHE');
+    expect(horizonForDueDate('2026-10-18', today)).toBe('THIS_WEEK');
+    expect(horizonForDueDate('2026-10-19', today)).toBe('LATER');
+    expect(horizonForDueDate('2026-10-23', '2026-10-19')).toBe('THIS_WEEK');
   });
 
   it('on a Sunday the week ends today: tomorrow is Later', () => {
     const sunday = '2026-10-18';
     expect(endOfWeek(sunday)).toBe(sunday);
-    expect(horizonForDueDate('2026-10-18', sunday)).toBe('HEUTE');
-    expect(horizonForDueDate('2026-10-19', sunday)).toBe('SPAETER');
+    expect(horizonForDueDate('2026-10-18', sunday)).toBe('TODAY');
+    expect(horizonForDueDate('2026-10-19', sunday)).toBe('LATER');
   });
 
   it('a week that crosses the new year ends on its Sunday in January', () => {
     // 2026-12-30 is a Wednesday; its week ends on Sunday 2027-01-03.
     expect(endOfWeek('2026-12-30')).toBe('2027-01-03');
-    expect(horizonForDueDate('2027-01-02', '2026-12-30')).toBe('DIESE_WOCHE');
-    expect(horizonForDueDate('2027-01-03', '2026-12-30')).toBe('DIESE_WOCHE');
-    expect(horizonForDueDate('2027-01-04', '2026-12-30')).toBe('SPAETER');
-    expect(horizonForDueDate('2026-12-31', '2026-12-31')).toBe('HEUTE');
+    expect(horizonForDueDate('2027-01-02', '2026-12-30')).toBe('THIS_WEEK');
+    expect(horizonForDueDate('2027-01-03', '2026-12-30')).toBe('THIS_WEEK');
+    expect(horizonForDueDate('2027-01-04', '2026-12-30')).toBe('LATER');
+    expect(horizonForDueDate('2026-12-31', '2026-12-31')).toBe('TODAY');
   });
 });

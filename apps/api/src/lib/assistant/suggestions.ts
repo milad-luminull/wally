@@ -546,7 +546,7 @@ type Applied = NonNullable<AssistantSuggestionDoc['applied']>;
  * What a proposed date, priority or person held at `baseRevision`. One is proposed only when
  * the note has nothing there (plan R3), so these are exact for every such field a keep writes.
  */
-const EMPTY = { dueDate: null, priority: 'MITTEL', assigneeId: null } as const satisfies Pick<
+const EMPTY = { dueDate: null, priority: 'MEDIUM', assigneeId: null } as const satisfies Pick<
   FieldValues,
   'dueDate' | 'priority' | 'assigneeId'
 >;
@@ -567,7 +567,7 @@ function proposedValues(doc: AssistantSuggestionDoc, actorId: string): FieldValu
       : null,
     subtasks: new Map((fields.subtasks?.items ?? []).map((text, index) => [index, { add: text }])),
     links: { add: (fields.links?.items ?? []).map((item) => item.noteId) },
-    horizon: fields.horizon?.value ?? 'HEUTE',
+    horizon: fields.horizon?.value ?? 'TODAY',
     visibility: 'PRIVATE',
     // Making a note private assigns its author (the command does it); the chain checks that.
     privateAssigneeId: actorId,
@@ -648,7 +648,7 @@ function restoredValues(
     links: { remove: linkIds },
     // A horizon, Private, tags, properties and a description are proposed only on a note
     // that had none (Today, shared and unassigned, no tags, no properties, no description).
-    horizon: 'HEUTE',
+    horizon: 'TODAY',
     visibility: 'SHARED',
     privateAssigneeId: null,
     tags: { remove: 'add' in written.tags ? written.tags.add : [] },

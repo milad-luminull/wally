@@ -131,7 +131,7 @@ export function BoardCommands(props: BoardCommandsProps) {
     },
     {
       keys: 'v',
-      handler: () => isDesktop && props.onSetView(props.view === 'wand' ? 'list' : 'wand'),
+      handler: () => isDesktop && props.onSetView(props.view === 'wall' ? 'list' : 'wall'),
     },
     { keys: 'g h', handler: () => props.onSetAxis('horizon') },
     { keys: 'g p', handler: () => props.onSetAxis('priority') },
@@ -315,11 +315,11 @@ function CommandPalette({
               {isDesktop && (
                 <CommandItem
                   value="toggle view wall list"
-                  onSelect={() => run(() => onSetView(view === 'wand' ? 'list' : 'wand'))}
+                  onSelect={() => run(() => onSetView(view === 'wall' ? 'list' : 'wall'))}
                 >
-                  {view === 'wand' ? <List strokeWidth={1.75} /> : <Columns3 strokeWidth={1.75} />}
+                  {view === 'wall' ? <List strokeWidth={1.75} /> : <Columns3 strokeWidth={1.75} />}
                   <span className="flex-1">
-                    {view === 'wand' ? t('palette.viewList') : t('palette.viewWall')}
+                    {view === 'wall' ? t('palette.viewList') : t('palette.viewWall')}
                   </span>
                   <Kbd>V</Kbd>
                 </CommandItem>
