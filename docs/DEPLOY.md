@@ -704,10 +704,18 @@ migration: every Firestore document is deleted instead. The owner runs every com
 
 **Production**
 
-1. Merge, push the `v*` tag, approve the `production` environment, and wait for the release
-   workflow to finish. Delete after the deploy, not before: an old API on an empty database
-   would write German values again on the next sign-in or new note.
-2. Right away, delete every document in the production database:
+1. Before tagging, confirm that `AUTH0_SIGNUP_ENABLED` is `true`: `gh variable list --env
+production` and `gh variable list` (an environment variable overrides the repository one).
+   After the delete no account has an identity mapping, so every sign-in goes through
+   `resolveOrCreateIdentity` (`apps/api/src/plugins/auth.ts`); with the flag `false` every
+   sign-in gets 403 `IDENTITY_NOT_LINKED`, and the import tooling that once linked accounts
+   was removed in #76. The release reads the variable when it runs, so a change after the
+   deploy needs another release.
+2. Merge, push the `v*` tag, approve the `production` environment, and wait for the release
+   workflow to finish. Delete after the deploy, not before: the old API on an emptied database
+   would write German values again on the next new note, move or saved view (sign-in itself
+   writes none of these fields).
+3. Right away, delete every document in the production database:
 
    ```bash
    npx --yes firebase-tools@15.30.2 firestore:delete --all-collections --database wally --project luminull-wally
@@ -720,22 +728,24 @@ migration: every Firestore document is deleted instead. The owner runs every com
    against `firestore:delete --help` of that version. Composite indexes, TTL policies and
    rules are configuration, not documents, and stay.
 
-3. In the Firebase console (**Firestore Database**, database `wally`), check that no
+4. In the Firebase console (**Firestore Database**, database `wally`), check that no
    collection remains.
-4. Sign in at `wally.luminull.com`: a new user and a first board are provisioned. Reconnect
+5. Sign in at `wally.luminull.com`: a new user and a first board are provisioned. Reconnect
    any MCP app.
-5. Rolling back to a release before this one is not possible once English data exists; fix
+6. Rolling back to a release before this one is not possible once English data exists; fix
    forward.
 
 Between the deploy and the delete, which should be a few minutes, an existing board answers
 500, because its German values fail the response schema. The release smoke tests read no
 board data (`/health`, a 401 on `/whiteboards`, the CORS preflight and static pages), so this
 window does not trigger the automatic rollback. An open tab still sending an old value gets
-400 until it reloads.
+400 until it reloads. Such a tab cannot read the new data either: the old bundle validates
+every response against its own German schemas (`apps/web/src/lib/apiClient.ts`), so each
+read fails until the tab reloads.
 
 Not verified: which of the owner's accounts holds the permission to run the delete, and
 whether `--all-collections` also removes documents under parent documents that do not exist
-(step 3 catches that).
+(step 4 catches that).
 
 **Local emulator**
 

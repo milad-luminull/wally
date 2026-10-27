@@ -41,12 +41,14 @@ are in [`DEPLOY.md`](../DEPLOY.md#release-with-a-data-reset-adr-0024).
 - Good: one release; no legacy map, migration code or contract step; the code and the data
   hold one spelling from the first write.
 - Bad: everyone starts from an empty board.
-- Bad: accounts are re-provisioned on the next sign-in with new Wally user ids; the Auth0
-  identities themselves are untouched.
+- Bad: accounts are re-provisioned on the next sign-in with new Wally user ids, which needs
+  `AUTH0_SIGNUP_ENABLED=true` at release time; the Auth0 identities themselves are untouched.
 - Bad: connected MCP apps must reconnect.
 - Bad: this month's assistant spend and usage counters restart from zero.
 - Bad: an open tab or any other client still sending an old value gets 400 until it reloads,
   and a stale link with `?view=wand&priority=HOCH` opens the board without that filter.
+- Bad: an open tab on the old bundle cannot read English data either, since it validates
+  every response against its own German schemas, so each read fails until it reloads.
 - Bad: between the deploy and the delete, an existing board answers 500, because its
   German-valued documents fail the response schema.
 - Bad: once English data is written, rolling back to a release with German values is not
@@ -55,8 +57,8 @@ are in [`DEPLOY.md`](../DEPLOY.md#release-with-a-data-reset-adr-0024).
 
 ### Confirmation
 
-`apps/web/src/englishValues.test.ts` fails on any old spelling in the code, except the
-German catalogue, the capture parser's word list and the refusal tests that must spell one.
+`apps/web/src/englishValues.test.ts` fails on any old spelling in the code, scripts,
+workflows and Firestore configuration, except in the refusal tests that must spell one.
 
 ## More information
 
