@@ -1,5 +1,4 @@
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
-import { initializeApp } from 'firebase-admin/app';
 import { getFirebaseApp } from '../firebase-app.js';
 import { loadEnv } from '../../env.js';
 
@@ -25,18 +24,5 @@ export function getDb(): Firestore {
   const db = FIRESTORE_DATABASE_ID ? getFirestore(app, FIRESTORE_DATABASE_ID) : getFirestore(app);
   db.settings({ ignoreUndefinedProperties: true });
   cached = db;
-  return db;
-}
-
-/**
- * A Firestore instance on its own named app and project id, for tests.
- *
- * The emulator namespaces data by project id, so giving each test file its own project
- * keeps concurrently-running files from colliding over the same fixture ids.
- */
-export function createNamedDb(projectId: string): Firestore {
-  const app = initializeApp({ projectId }, `wally-${projectId}`);
-  const db = getFirestore(app);
-  db.settings({ ignoreUndefinedProperties: true });
   return db;
 }
