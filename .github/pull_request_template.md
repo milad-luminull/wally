@@ -13,6 +13,7 @@ From `docs/SETUP.md` — CI enforces the first three; the rest are yours to conf
 - [ ] No console errors in the browser
 - [ ] Verified in the running app, not just in tests
 - [ ] Docs updated, or not needed. A decision that is hard to reverse has an ADR under `docs/adr/` (see `docs/adr/README.md`)
+- [ ] Any RFC or ADR this builds, changes or removes has its **In production** cell updated in `docs/rfcs/README.md` or `docs/adr/README.md`
 
 ## Anything reviewers should know
 

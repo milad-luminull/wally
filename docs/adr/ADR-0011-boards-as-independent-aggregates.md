@@ -1,6 +1,6 @@
 # ADR-0011: Boards as independent aggregates: several per owner, deletable, with a tombstone
 
-- **Status:** proposed
+- **Status:** accepted (recorded on 2026-10-27: built and live since v0.4.0; the status had not been updated)
 - **Date:** 2026-10-14
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** ADR-0004, in part: the rule that the board's document id is the owner's uid, so "one whiteboard per owner" is a property of the key space

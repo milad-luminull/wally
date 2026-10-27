@@ -1,6 +1,6 @@
 # Wally assistant
 
-**Status:** core implemented; remaining requirements are in §6.
+**Status:** accepted; the core is live in production since v0.5.0, and the remaining requirements are in §6. MCP (§1) is live since v0.8.3 under [RFC-0004](RFC-0004-wally-mcp.md).
 **Last checked:** 2026-10-19, against the local code and running app.
 
 The assistant helps people capture, understand and organize notes on the current board.

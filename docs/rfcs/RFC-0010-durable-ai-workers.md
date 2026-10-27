@@ -1,6 +1,6 @@
 # Durable AI workers
 
-- **Status:** proposed; not implemented. Revised 2026-10-26 for the new platform.
+- **Status:** accepted on 2026-10-26 as workstream 5 of [RFC-0011](RFC-0011-platform-migration.md); not built. Revised 2026-10-26 for the new platform.
 - **Date:** 2026-10-19
 - **Context:** [Platform migration](RFC-0011-platform-migration.md), workstream 5
 
