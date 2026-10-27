@@ -24,9 +24,9 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   meApi: { get: vi.fn(), update: vi.fn() },
   membersApi: { list: vi.fn() },
 }));
-vi.mock('@/i18n/LanguageProvider', async () => {
+vi.mock('@/i18n/languageContext', async () => {
   const actual =
-    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+    await vi.importActual<typeof import('@/i18n/languageContext')>('@/i18n/languageContext');
   return {
     ...actual,
     useLanguage: () => ({

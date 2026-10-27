@@ -7,8 +7,8 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   membersApi: { list: vi.fn().mockResolvedValue([]) },
 }));
 // No LanguageProvider here (it would fetch /me): the cards and the editor read English.
-vi.mock('@/i18n/LanguageProvider', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/i18n/LanguageProvider')>()),
+vi.mock('@/i18n/languageContext', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/i18n/languageContext')>()),
   useLanguage: () => ({ language: 'en', setLanguage: vi.fn(), isSaving: false, saveFailed: false }),
 }));
 

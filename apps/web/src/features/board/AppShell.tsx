@@ -2,7 +2,7 @@ import { BoardRail } from './BoardRail';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
 import { useBreakpoint } from '@/lib/useBreakpoint';
 import { BoardSkeleton } from '@/components/AppSkeleton';

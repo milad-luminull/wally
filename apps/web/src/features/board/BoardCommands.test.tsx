@@ -10,9 +10,9 @@ vi.mock('@/features/auth/AuthProvider', async () => {
   return { ...actual, useAuth: () => ({ user: null, signOut: vi.fn() }) };
 });
 
-vi.mock('@/i18n/LanguageProvider', async () => {
+vi.mock('@/i18n/languageContext', async () => {
   const actual =
-    await vi.importActual<typeof import('@/i18n/LanguageProvider')>('@/i18n/LanguageProvider');
+    await vi.importActual<typeof import('@/i18n/languageContext')>('@/i18n/languageContext');
   return {
     ...actual,
     useLanguage: () => ({

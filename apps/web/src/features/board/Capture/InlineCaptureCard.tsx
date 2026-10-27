@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility, SuggestionFieldKey } from '@wally/shared';
 import { NOTE_TITLE_MAX_LENGTH, suggestionFieldKeys } from '@wally/shared';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { parseIsoDate } from '@/i18n/dates';
 import { cn } from '@/lib/cn';
 import { parseCapture } from '@/lib/capture/parseCapture';

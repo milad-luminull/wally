@@ -31,7 +31,7 @@ import {
   type UserSummary,
 } from '@wally/shared';
 import { useEnumLabels } from '@/i18n/enumLabels';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {

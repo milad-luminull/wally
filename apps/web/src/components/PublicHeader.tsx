@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/i18n/LanguageProvider';
+import { useLanguage } from '@/i18n/languageContext';
 import type { AppLocale } from '@/i18n/locales';
 import { AppearanceControls } from './AppearanceControls';
 import { BrandMark } from './BrandMark';

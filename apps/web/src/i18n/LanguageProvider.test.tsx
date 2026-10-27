@@ -17,7 +17,8 @@ vi.mock('@/features/auth/AuthProvider', async () => {
 import { DEFAULT_PREFERENCES, type MeDto } from '@wally/shared';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { i18n } from './index';
-import { LanguageProvider, useLanguage } from './LanguageProvider';
+import { LanguageProvider } from './LanguageProvider';
+import { useLanguage } from './languageContext';
 import { writeStoredLocale } from './storage';
 
 /** Exercises the provider through a consumer, the way the account menu uses it. */
