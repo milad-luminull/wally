@@ -234,7 +234,8 @@ describe('TopBar overdue count', () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    process.env.TZ = originalTz;
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
   });
 
   it('counts a note due yesterday in local time while UTC is still on that day', () => {

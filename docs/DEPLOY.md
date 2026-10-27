@@ -327,15 +327,15 @@ defines: `FIREBASE_PROJECT_ID`, `NODE_ENV`, `CORS_ORIGIN`, `FIRESTORE_DATABASE_I
 `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`.
 A hand-typed list drops one easily, and a dropped `AUTH0_ENABLED` turns production sign-in
 off. So build the flag with `apiConfig` and `runEnvFlag`, the functions the release uses.
-Take each value from the repository variables (`gh variable list`, and `gh variable list
---env production`, which overrides it); where one is absent, use the release's default shown
-in `<…>`:
+The values below are what production ran on 2026-10-27 (release v0.11.0). Compare them with
+`gh variable list` and `gh variable list --env production` (which overrides it) before you
+deploy, and change any that differ:
 
 ```bash
 export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
-  ASSISTANT_ENABLED='<false>' ASSISTANT_MODEL='<vertex:gemini-3.8-flash>' \
-  ASSISTANT_VERTEX_LOCATION='<eu>' AUTH0_ENABLED='<false>' AUTH0_SIGNUP_ENABLED='<false>' \
-  MCP_ENABLED='<false>' MCP_WRITES_ENABLED='<false>' MCP_CLIENT_ID='<unset>'
+  ASSISTANT_ENABLED=true ASSISTANT_MODEL=vertex:gemini-3.8-flash ASSISTANT_VERTEX_LOCATION=eu \
+  AUTH0_ENABLED=true AUTH0_SIGNUP_ENABLED=true MCP_ENABLED=true MCP_WRITES_ENABLED=true \
+  MCP_CLIENT_ID="$(gh variable get MCP_CLIENT_ID --env production)"
 RUN_ENV=$(node --input-type=module -e "
   const { apiConfig, runEnvFlag } = await import('./scripts/resolve-release-image.mjs');
   console.log(runEnvFlag(apiConfig(process.env)));")
@@ -348,10 +348,9 @@ gcloud run deploy wally-api \
   --set-env-vars="$RUN_ENV"
 ```
 
-Leave `MCP_CLIENT_ID` out of the export entirely when it is unset. Production today runs with
-`AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED` and `MCP_WRITES_ENABLED` all `true`
-(section 17). `apiConfig` refuses a missing value, so a forgotten variable stops here rather
-than in production.
+If `MCP_CLIENT_ID` is ever unset, leave it out of the export entirely rather than exporting an
+empty or placeholder value. `apiConfig` refuses a missing value, so a forgotten variable stops
+here rather than in production.
 
 Three things worth understanding:
 
@@ -919,7 +918,7 @@ deployment and reads the exact API flags and client ID back after deployment. Mi
 MCP client IDs are omitted from Cloud Run rather than deployed as empty strings.
 
 The issuer `https://login.luminull.com/` and REST audience
-`https://api.wally.luminull.com` are fixed in application configuration and the release.
+`https://api.wally.luminull.com` are fixed in the API (`apps/api/src/lib/auth/constants.ts`), not set by the release.
 The web bundle receives the provider and SPA client ID at build time; changing repository
 variables does not change a deployed bundle. The Firebase build variables are still
 required: the release checks them, and the bundle keeps the Firebase sign-in that local
