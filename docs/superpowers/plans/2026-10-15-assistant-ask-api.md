@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript, Fastify + firebase-admin Firestore, Zod contract in `packages/shared`, Vitest; the model boundary from `feat/assistant-config` (`createConfiguredTurnRunner`, `TurnRunner`, `TurnTool`).
 
-**Spec:** `docs/rfcs/0003-wally-agent.md` at commit `38afd3cb` (read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/0003-wally-agent.md`), §3.1 "Ask the board", §3.2 (runaway turns, spend, accounting, partial answers, chips, language), §3.4 (conversations), §3.5. Brand rules for the AI: `docs/BRAND.md` "## AI" on this branch (no name, no first person, plain text with the notes it read listed underneath). Previous slices: `docs/superpowers/plans/2026-10-15-assistant-operations.md` and `2026-10-15-assistant-config.md`.
+**Spec:** `docs/rfcs/RFC-0003-wally-agent.md` at commit `38afd3cb` (read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/RFC-0003-wally-agent.md`), §3.1 "Ask the board", §3.2 (runaway turns, spend, accounting, partial answers, chips, language), §3.4 (conversations), §3.5. Brand rules for the AI: `docs/BRAND.md` "## AI" on this branch (no name, no first person, plain text with the notes it read listed underneath). Previous slices: `docs/superpowers/plans/2026-10-15-assistant-operations.md` and `2026-10-15-assistant-config.md`.
 
 ## Context
 
@@ -562,7 +562,7 @@ function addDays(day: string, n: number): string {
 }
 
 /**
- * Reserve, then settle (0003-wally-agent.md §3.2). One transaction reads the user's day, the
+ * Reserve, then settle (RFC-0003-wally-agent.md §3.2). One transaction reads the user's day, the
  * deployment's month and the user's in-flight slots, refuses if any cap or the slot count
  * would be exceeded, and otherwise writes the worst case into all three. Nothing is
  * dispatched before this commits.
@@ -1210,7 +1210,7 @@ Create `apps/api/src/lib/assistant/prompt.ts`:
 import type { EffectiveRole, Language } from '@wally/shared';
 
 /**
- * Byte-stable so every provider can cache it (0003-wally-agent.md §3.5). Board content never
+ * Byte-stable so every provider can cache it (RFC-0003-wally-agent.md §3.5). Board content never
  * appears here; it arrives as tool results. The brand rules for the AI (BRAND.md) are in
  * the wording: no name, no first person, plain text, the notes read listed underneath by
  * the server from the markers.
@@ -1252,7 +1252,7 @@ export const NOTE_MARKER = /\[note:([^\]\s]+)\]/g;
 
 /**
  * Valid markers become the note's title in the text and one chip each; a marker for a note
- * the caller cannot currently see is removed (0003-wally-agent.md §3.2 "Chips are what the
+ * the caller cannot currently see is removed (RFC-0003-wally-agent.md §3.2 "Chips are what the
  * caller may see").
  */
 export function resolveChips(
@@ -1939,7 +1939,7 @@ export interface AssistantRouteOptions {
 
 /**
  * The assistant panel's routes. Every route answers 404 unless the caller is a member and
- * the effective switch is on, so a switched-off assistant is invisible (0003-wally-agent.md §3.2).
+ * the effective switch is on, so a switched-off assistant is invisible (RFC-0003-wally-agent.md §3.2).
  */
 export default async function assistantRoutes(
   fastify: FastifyInstance,

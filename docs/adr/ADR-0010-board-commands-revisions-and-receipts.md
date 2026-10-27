@@ -1,6 +1,6 @@
 # ADR-0010: Board commands use transactional permissions, revisions and receipts
 
-- **Status:** proposed
+- **Status:** accepted (recorded on 2026-10-27: built and live since v0.3.3; the status had not been updated)
 - **Date:** 2026-10-12
 - **Deciders:** pending review
 

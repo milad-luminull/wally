@@ -2,8 +2,8 @@
 
 > **2026-10-26 provider change:** the owner decided to decommission Auth0 and move web
 > login and MCP authorization to Supabase Auth
-> ([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md),
-> [Supabase Auth RFC](0012-supabase-auth-and-mcp.md)). The Auth0 provider choice and its setup
+> ([ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
+> [Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md)). The Auth0 provider choice and its setup
 > in this RFC are superseded. Its MCP requirements, boundaries and acceptance checks still
 > apply to the replacement. Auth0 keeps serving production until that cutover and its
 > rollback window are complete.
@@ -14,9 +14,9 @@
 > model has been removed, with no migration or upgrade flow. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-- **Status:** first released to production in v0.8.3 (2026-10-25); superseded on 2026-10-26 by [RFC-0012](0012-supabase-auth-and-mcp.md) and [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md).
+- **Status:** first released to production in v0.8.3 (2026-10-25); superseded on 2026-10-26 by [RFC-0012](RFC-0012-supabase-auth-and-mcp.md) and [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md).
 - **Date:** 2026-10-19
-- **Decision:** [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md), superseded by [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)
+- **Decision:** [ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md), superseded by [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md)
 
 ## Status and goal
 
@@ -27,7 +27,7 @@ v0.9.2; current configuration is in [AUTH0.md](../AUTH0.md) and the
 design.
 
 The goal is Google sign-in through Auth0 with existing Wally accounts preserved, then
-remote MCP access to authorized boards. The [existing MCP RFC](0004-wally-mcp.md) remains the
+remote MCP access to authorized boards. The [existing MCP RFC](RFC-0004-wally-mcp.md) remains the
 source for tool coverage, safety requirements and gaps; this proposal sets the provider,
 boundaries and delivery order. Its parity gaps are not all required for the first release.
 

@@ -16,7 +16,7 @@ type OutcomeRetry =
   | { kind: 'decide'; body: DecideBody; phase: 'pending' | 'kept' };
 
 /**
- * The ring: how long a proposal waits before it is kept (0005-wallybot-inline.md §3.3), long
+ * The ring: how long a proposal waits before it is kept (RFC-0005-wallybot-inline.md §3.3), long
  * enough to read a list of fields (the smarter-capture spec, owner's decision 2).
  */
 export const COUNTDOWN_MS = 15_000;
@@ -171,7 +171,7 @@ interface Clock {
 type MarkFrom = 'capture' | 'restored';
 
 /**
- * The board's pending changes (0005-wallybot-inline.md §3.3, §4). One controller per board holds
+ * The board's pending changes (RFC-0005-wallybot-inline.md §3.3, §4). One controller per board holds
  * every note's mark, its countdown and its undo window; the cards only draw and report. Every
  * outcome the server can give (nothing, refused, failed, stale) ends as "no dot", and nothing
  * is said (§3.3, BRAND rule 5). The notes are refetched after a keep or an undo, so the card
@@ -179,7 +179,7 @@ type MarkFrom = 'capture' | 'restored';
  *
  * The countdown runs only for a proposal made just now, for the person themselves: a record
  * shown again after a reload waits for Enter (the ruling amending plan R5), and so does a
- * proposal that names someone else as the assignee, which needs a named yes (0003-wally-agent.md
+ * proposal that names someone else as the assignee, which needs a named yes (RFC-0003-wally-agent.md
  * §3.2). `currentUserId` is the signed-in person.
  */
 export function useSuggestions(

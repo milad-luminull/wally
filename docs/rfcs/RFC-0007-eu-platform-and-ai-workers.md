@@ -1,6 +1,6 @@
 # EU platform and durable AI workers
 
-- **Status:** superseded on 2026-10-26 by [Platform migration](0011-platform-migration.md).
+- **Status:** superseded on 2026-10-26 by [Platform migration](RFC-0011-platform-migration.md).
 - **Date:** 2026-10-19
 - **Research:** [Provider comparison and costs](../researches/2026-10-19-provider-strategy.md)
 
@@ -17,8 +17,8 @@ those choices:
 
 The workstream RFCs it linked are still current, with their identity references updated:
 
-- [Firestore → Supabase](0008-firestore-to-supabase.md): persistence migration and cutover.
-- [Identity and MCP on Supabase Auth](0012-supabase-auth-and-mcp.md): replaces the provider
-  choice in [Auth0 login and MCP](0006-auth0-mcp-rollout.md).
-- [Private uploads and retrieval](0009-uploads-and-retrieval.md): files and document search.
-- [Durable AI workers](0010-durable-ai-workers.md): background agents, queues and jobs.
+- [Firestore → Supabase](RFC-0008-firestore-to-supabase.md): persistence migration and cutover.
+- [Identity and MCP on Supabase Auth](RFC-0012-supabase-auth-and-mcp.md): replaces the provider
+  choice in [Auth0 login and MCP](RFC-0006-auth0-mcp-rollout.md).
+- [Private uploads and retrieval](RFC-0009-uploads-and-retrieval.md): files and document search.
+- [Durable AI workers](RFC-0010-durable-ai-workers.md): background agents, queues and jobs.

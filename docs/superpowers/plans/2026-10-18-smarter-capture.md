@@ -240,7 +240,7 @@
 **Files:**
 
 - Create: `apps/web/src/features/board/Suggestions/ProposalList.tsx`, `Suggestions/ReviewFooter.tsx`, `Suggestions/CountdownRing.tsx` (extracted from `PendingDot.tsx`), tests beside each
-- Modify: `Suggestions/PendingDot.tsx` (uses `CountdownRing`), `WallView/NoteCard.tsx`, `ListView/NoteRow.tsx`, `NoteDetail/PendingReview.tsx`, `apps/web/src/styles/board-shell.css` (row reveal keyframes), `apps/web/src/i18n/de.ts`, `en.ts`, `docs/BRAND.md` ("## AI" rule 3), `docs/rfcs/0005-wallybot-inline.md` (§3.3)
+- Modify: `Suggestions/PendingDot.tsx` (uses `CountdownRing`), `WallView/NoteCard.tsx`, `ListView/NoteRow.tsx`, `NoteDetail/PendingReview.tsx`, `apps/web/src/styles/board-shell.css` (row reveal keyframes), `apps/web/src/i18n/de.ts`, `en.ts`, `docs/BRAND.md` ("## AI" rule 3), `docs/rfcs/RFC-0005-wallybot-inline.md` (§3.3)
 
 **Interfaces:**
 

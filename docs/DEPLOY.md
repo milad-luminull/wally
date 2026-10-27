@@ -20,7 +20,7 @@ Wally is three separate things, and they go to three different places:
 Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
 see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (kept only as a rollback path) and
 your **Firestore security rules and indexes**. The planned move to Supabase and Cloudflare
-is in [RFC-0011](rfcs/0011-platform-migration.md); this guide describes production until
+is in [RFC-0011](rfcs/RFC-0011-platform-migration.md); this guide describes production until
 then.
 
 The flow once deployed:
@@ -841,7 +841,7 @@ When every file a pull request changes is a `*.md` file or sits under `docs/`, t
 skipped and `E2E gate` passes, saying why. Everything else still runs, so Markdown is still
 format-checked. Pushes to `main` always run E2E, because the release workflow requires `main`'s
 full CI run before it deploys. The reasoning is in
-[ADR-0012](adr/0012-skip-e2e-on-documentation-only-pull-requests.md).
+[ADR-0012](adr/ADR-0012-skip-e2e-on-documentation-only-pull-requests.md).
 
 ### Pull requests from forks
 

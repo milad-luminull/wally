@@ -247,7 +247,7 @@ privacy@luminull.com are handled by hand. The Account and data page says so.
 
 **Plan.** Rebuild `DELETE /me`, plus an admin-invocable equivalent for someone who has
 already lost their login, on PostgreSQL after the platform migration, against the new
-schema ([RFC-0008](rfcs/0008-firestore-to-supabase.md)). The erasure-vs-anonymisation
+schema ([RFC-0008](rfcs/RFC-0008-firestore-to-supabase.md)). The erasure-vs-anonymisation
 decision in §6 applies, and the routine must also remove the identity at the sign-in
 provider.
 

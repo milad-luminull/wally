@@ -57,7 +57,7 @@ Users can switch between organization modes without losing notes.
 
 Users can create a new note from the whiteboard.
 
-A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/0005-wallybot-inline.md` §3.1). After Enter, Wallybot may propose a due date, a priority or a person as a pending change on the card: a dashed edge and a marigold dot with a six-second countdown, each field removable, Enter keeps, Esc discards, Undo for thirty seconds; the server holds the record and every write is reversible (`rfcs/0005-wallybot-inline.md` §3.3, §4). 'Always ask me' in the account menu turns the countdown off. The note panel shows the same change as a review in two groups, what the person typed (checked, read-only) and what Wallybot added (a checkbox per row), and may also propose subtasks, a reference as one property, and a cleaner title offered as a second line beside the person's own and kept only when ticked or tapped.
+A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/RFC-0005-wallybot-inline.md` §3.1). After Enter, Wallybot may propose a due date, a priority or a person as a pending change on the card: a dashed edge and a marigold dot with a six-second countdown, each field removable, Enter keeps, Esc discards, Undo for thirty seconds; the server holds the record and every write is reversible (`rfcs/RFC-0005-wallybot-inline.md` §3.3, §4). 'Always ask me' in the account menu turns the countdown off. The note panel shows the same change as a review in two groups, what the person typed (checked, read-only) and what Wallybot added (a checkbox per row), and may also propose subtasks, a reference as one property, and a cleaner title offered as a second line beside the person's own and kept only when ticked or tapped.
 
 ---
 
@@ -159,7 +159,7 @@ record anything outside those three categories.
 
 A private note is a normal note that only its creator can see. It sits on the same wall, in the
 same columns, with the same subtasks, properties and filters; only the audience differs. The
-reasoning and the decisions behind it are in [`rfcs/0001-private-notes.md`](rfcs/0001-private-notes.md).
+reasoning and the decisions behind it are in [`rfcs/RFC-0001-private-notes.md`](rfcs/RFC-0001-private-notes.md).
 
 **Who sees a private note.** Its creator, and nobody else: not other members, not the board
 owner. Search, the tag list, the property filter and subtask counts never include another
@@ -338,7 +338,7 @@ product.
 Users sign in through Auth0 (email/password and Google), which also authorizes MCP clients
 such as ChatGPT ([`AUTH0.md`](AUTH0.md)); Firebase Authentication remains only as a rollback
 path. The move to Supabase Auth is decided
-([ADR-0021](adr/0021-supabase-auth-for-web-and-mcp.md)). Permissions are Wally's own: a whiteboard role per member, enforced by the API. There is no
+([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md)). Permissions are Wally's own: a whiteboard role per member, enforced by the API. There is no
 external directory to synchronise against and no single sign-on requirement.
 
 ---

@@ -4,7 +4,7 @@
 **Last checked:** 2026-10-19, against the current implementation.
 
 This is the interaction reference for the assistant in
-[0003-wally-agent.md](0003-wally-agent.md). It replaces the earlier question-panel and capture-preview
+[RFC-0003-wally-agent.md](RFC-0003-wally-agent.md). It replaces the earlier question-panel and capture-preview
 approach. Keep the existing minimal board design; follow [BRAND.md](../BRAND.md).
 
 ## 1. Intent
@@ -96,7 +96,7 @@ from the original proposal are not implemented; do not imply they are available.
 - Retries preserve action ids. Reject stale decisions, filter inaccessible related notes,
   record provenance and audit, and make undo conditional on the state it would reverse.
 - Timers, selection and field reveals are presentation behavior; the server owns the decision
-  and writes. See [0003-wally-agent.md §3](0003-wally-agent.md#3-shared-contract).
+  and writes. See [RFC-0003-wally-agent.md §3](RFC-0003-wally-agent.md#3-shared-contract).
 
 ## 5. Verification
 

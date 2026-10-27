@@ -11,7 +11,7 @@ export function endOfWeek(today: string): string {
 }
 
 /**
- * Where a dated note belongs on the horizon wall (0005-wallybot-inline.md §3.5, plan R3): due
+ * Where a dated note belongs on the horizon wall (RFC-0005-wallybot-inline.md §3.5, plan R3): due
  * today or earlier is Today, due by the Sunday of this week is This week, anything after
  * is Later. Both strings are YYYY-MM-DD, so the string order is the calendar order.
  */

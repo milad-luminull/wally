@@ -4,13 +4,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A question typed into the capture card, ending in `?`, is answered where it was written: an ephemeral card on the wall in the note's own type with a dashed edge, the notes it relied on as rows underneath, fading after it is read unless pinned; the question panel, its button, its palette entry, its shortcut and its URL state are retired (0005-wallybot-inline.md §3.6).
+**Goal:** A question typed into the capture card, ending in `?`, is answered where it was written: an ephemeral card on the wall in the note's own type with a dashed edge, the notes it relied on as rows underneath, fading after it is read unless pinned; the question panel, its button, its palette entry, its shortcut and its URL state are retired (RFC-0005-wallybot-inline.md §3.6).
 
 **Architecture:** Web and docs only. The API's turn route, ledger and conversation storage serve the card unchanged (§3.6); only the system prompt stops calling the surface a panel. On the web, the capture card recognises a question on Enter and hands it to the shell instead of committing a note (the draft note it created on the first keystroke is deleted, as a discarded capture's is); a new `useAskSession` hook owns one question at a time, its outcome, its reading clock, pin and pause; a new `AskCard` draws it, and the three views place it exactly where they place the capture card (free canvas at the point, zone at its top, list as the top row). `features/board/Assistant` becomes `features/board/Ask`, keeping only what the card needs (`useAskAssistant`, `AnswerNotes`).
 
 **Tech Stack:** React 19 + TanStack Query 5 + Tailwind tokens + lucide-react (Pin, PinOff, X). No new dependency. No API schema change.
 
-**Spec:** `docs/rfcs/0005-wallybot-inline.md` §3.1 (the capture card), §3.6 (questions), §5 slice 4, §7; `docs/rfcs/0003-wally-agent.md` §3.2 (chips checked at render time, the cap refusal says when it resets, it speaks the user's language) and §3.4; `docs/BRAND.md` "## AI" (rules 1–5 and 8, amended by this plan), "Marigold has four jobs", "Shape, depth and motion". Slices 1–3 (`docs/superpowers/plans/2026-10-16-capture-inline.md`, `2026-10-17-capture-suggest.md`, `2026-10-17-capture-review.md`) are the record of the capture flow this builds on.
+**Spec:** `docs/rfcs/RFC-0005-wallybot-inline.md` §3.1 (the capture card), §3.6 (questions), §5 slice 4, §7; `docs/rfcs/RFC-0003-wally-agent.md` §3.2 (chips checked at render time, the cap refusal says when it resets, it speaks the user's language) and §3.4; `docs/BRAND.md` "## AI" (rules 1–5 and 8, amended by this plan), "Marigold has four jobs", "Shape, depth and motion". Slices 1–3 (`docs/superpowers/plans/2026-10-16-capture-inline.md`, `2026-10-17-capture-suggest.md`, `2026-10-17-capture-review.md`) are the record of the capture flow this builds on.
 
 ## Context
 
@@ -107,7 +107,7 @@ Expected: FAIL, module not found.
 ```ts
 /**
  * A line that ends in a question mark is a question for the wall, not a note
- * (0005-wallybot-inline.md §3.6, plan R1). The check is on the title line alone; the text typed
+ * (RFC-0005-wallybot-inline.md §3.6, plan R1). The check is on the title line alone; the text typed
  * under it travels with the question, after a blank line.
  */
 export function isQuestion(title: string): boolean {
@@ -225,7 +225,7 @@ Props: after `onNoteId?`, add
 ```tsx
   /**
    * Set when the board's assistant is on: a title ending in `?` is a question for the wall
-   * (0005-wallybot-inline.md §3.6, plan R1). The card hands the question over, deletes the draft
+   * (RFC-0005-wallybot-inline.md §3.6, plan R1). The card hands the question over, deletes the draft
    * note and ends the capture with no note (R2). Without it a `?` is a plain title.
    */
   onAsk?: (question: string) => void;
@@ -714,7 +714,7 @@ export function readingTimeMs(text: string): number {
 
 export type AskPhase = 'asking' | 'answered' | 'refused' | 'failed' | 'fading';
 
-/** One question on the wall, from Enter until its card has faded (0005-wallybot-inline.md §3.6). */
+/** One question on the wall, from Enter until its card has faded (RFC-0005-wallybot-inline.md §3.6). */
 export interface AskSession {
   /** Tells this question's card and its late callbacks apart from the next one's. */
   id: number;
@@ -741,7 +741,7 @@ export interface AskController {
 }
 
 /**
- * The shell's side of a question (0005-wallybot-inline.md §3.6): one card at a time, its outcome,
+ * The shell's side of a question (RFC-0005-wallybot-inline.md §3.6): one card at a time, its outcome,
  * and the reading clock that fades it. Follow-ups continue the conversation the current card
  * came from; once the card is gone, the next question starts a new one (R4).
  */
@@ -912,7 +912,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 In `apps/web/src/i18n/de.ts`, before `capture: {` (the `assistant` block stays until Task 5):
 
 ```ts
-  /** The answer card on the wall (0005-wallybot-inline.md §3.6). No name, no first person. */
+  /** The answer card on the wall (RFC-0005-wallybot-inline.md §3.6). No name, no first person. */
   ask: {
     cardAria: 'Antwort der Wand',
     asking: 'Die Wand wird gelesen',
@@ -1252,7 +1252,7 @@ function formatWhen(iso: string, locale: string, withTime: boolean): string | nu
 
 /**
  * The answer to a question typed into the capture card, drawn where the question was written
- * (0005-wallybot-inline.md §3.6): the note's type, the pending look's dashed edge and nothing else,
+ * (RFC-0005-wallybot-inline.md §3.6): the note's type, the pending look's dashed edge and nothing else,
  * the notes it relied on as rows underneath. Its own component, as the capture card is: it is
  * never a note, never dragged, and it fades. No dot and no ring: nothing is written (R3).
  */
@@ -1465,7 +1465,7 @@ import type { CapturePlacement } from '../Capture/useCapture';
 
 /**
  * The answer card, built by the shell, and the place a view draws it: where the question was
- * written (0005-wallybot-inline.md §3.6, plan R3). The views place it as they place the capture
+ * written (RFC-0005-wallybot-inline.md §3.6, plan R3). The views place it as they place the capture
  * card and know nothing else about it.
  */
 export interface AskSlot {
@@ -1623,7 +1623,7 @@ Imports: `import { useAskSession } from './Ask/useAskSession'; import { AskCard 
 After the suggestions block and before `useCaptureSession`:
 
 ```tsx
-// A question typed into the capture card (0005-wallybot-inline.md §3.6): the shell asks the board
+// A question typed into the capture card (RFC-0005-wallybot-inline.md §3.6): the shell asks the board
 // and draws the answer where the question was written. Off means a `?` is a plain title.
 const askController = useAskSession(boardId);
 const { ask: askQuestion } = askController;
@@ -1761,9 +1761,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 
-- Modify: `docs/rfcs/0005-wallybot-inline.md` (status line)
+- Modify: `docs/rfcs/RFC-0005-wallybot-inline.md` (status line)
 - Modify: `docs/BRAND.md` ("## AI" paragraph and rule 8)
-- Modify: `docs/rfcs/0003-wally-agent.md` (lines naming the panel: the scope line, §2, §3.1 "Ask the board", §3.2 "Spend has a hard cap")
+- Modify: `docs/rfcs/RFC-0003-wally-agent.md` (lines naming the panel: the scope line, §2, §3.1 "Ask the board", §3.2 "Spend has a hard cap")
 - Modify: `apps/api/src/lib/assistant/prompt.ts`, `apps/api/src/lib/assistant/prompt.test.ts`
 - Modify: `apps/web/e2e/note-create.spec.ts`
 
@@ -1782,7 +1782,7 @@ Run: `cd apps/api && pnpm vitest run src/lib/assistant/prompt.test.ts`. Expected
 
 - [ ] **Step 2: Docs**
 
-`docs/rfcs/0005-wallybot-inline.md` status line: append `; slice 4 started 2026-10-17 (questions answered as a card where they were written, the question panel retired).` before the final period of the **Status** line, and set **Last revised** to 2026-10-17 (it is already).
+`docs/rfcs/RFC-0005-wallybot-inline.md` status line: append `; slice 4 started 2026-10-17 (questions answered as a card where they were written, the question panel retired).` before the final period of the **Status** line, and set **Last revised** to 2026-10-17 (it is already).
 
 `docs/BRAND.md`, the "## AI" paragraph: replace its first sentence so it reads
 
@@ -1792,7 +1792,7 @@ Run: `cd apps/api && pnpm vitest run src/lib/assistant/prompt.test.ts`. Expected
 
 > 8. Questions about the wall are answered on the wall, as a card where the question was written, in plain text, with the notes it read listed underneath. The card has the dashed edge and nothing else: no dot, no ring, because nothing is written.
 
-`docs/rfcs/0003-wally-agent.md`: line 12 "a panel beside the board where a person captures, asks and" → "the board itself, where a person captures, asks and"; the §2 sentence (line 45) "from a panel beside the board" → "from the board itself"; §3.1 "Ask the board" done-when: "every note it relied on is a clickable chip. A chip is rendered only for a note id that exists on the board." → "every note it relied on is a clickable row under the answer. A row is rendered only for a note id that exists on the board."; §3.2 "Spend has a hard cap": "the panel says when it resets" → "the answer says when it resets". Run `pnpm format:check` (the tables are Prettier-formatted; run `pnpm format` if a column moved).
+`docs/rfcs/RFC-0003-wally-agent.md`: line 12 "a panel beside the board where a person captures, asks and" → "the board itself, where a person captures, asks and"; the §2 sentence (line 45) "from a panel beside the board" → "from the board itself"; §3.1 "Ask the board" done-when: "every note it relied on is a clickable chip. A chip is rendered only for a note id that exists on the board." → "every note it relied on is a clickable row under the answer. A row is rendered only for a note id that exists on the board."; §3.2 "Spend has a hard cap": "the panel says when it resets" → "the answer says when it resets". Run `pnpm format:check` (the tables are Prettier-formatted; run `pnpm format` if a column moved).
 
 - [ ] **Step 3: The E2E guard**
 
@@ -1828,7 +1828,7 @@ The vacuous-run guard in `ci.yml` (`MIN_EXECUTED`) counts executed tests; raise 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/rfcs/0005-wallybot-inline.md docs/BRAND.md docs/rfcs/0003-wally-agent.md apps/api/src/lib/assistant/prompt.ts apps/api/src/lib/assistant/prompt.test.ts apps/web/e2e/note-create.spec.ts .github/workflows/ci.yml
+git add docs/rfcs/RFC-0005-wallybot-inline.md docs/BRAND.md docs/rfcs/RFC-0003-wally-agent.md apps/api/src/lib/assistant/prompt.ts apps/api/src/lib/assistant/prompt.test.ts apps/web/e2e/note-create.spec.ts .github/workflows/ci.yml
 git -c core.hooksPath=/dev/null commit -m "docs: questions are answered on the wall; the prompt and the E2E guard say so
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"

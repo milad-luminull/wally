@@ -1,6 +1,6 @@
 # ADR-0012: Skip E2E on documentation-only pull requests
 
-- **Status:** proposed
+- **Status:** accepted (recorded on 2026-10-27: built and live since v0.4.0; the status had not been updated)
 - **Date:** 2026-10-14
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** ADR-0009, in part: its Confirmation, "CI runs every suite on every pull request"

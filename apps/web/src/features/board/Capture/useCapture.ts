@@ -32,7 +32,7 @@ export interface AskOptions {
   takeFocus: boolean;
 }
 
-/** Hears a question typed into the capture card (0005-wallybot-inline.md §3.6). */
+/** Hears a question typed into the capture card (RFC-0005-wallybot-inline.md §3.6). */
 export type CaptureAsk = (question: string, options: AskOptions) => void;
 
 export interface CaptureFields {
@@ -61,7 +61,7 @@ export interface CaptureController {
   cancel: () => Promise<void>;
   /**
    * Saves the words typed so far to the note, debounced, so a reload or a crash mid-capture
-   * keeps the line (0005-wallybot-inline.md §3.1). Title and text only: kept chips still apply on
+   * keeps the line (RFC-0005-wallybot-inline.md §3.1). Title and text only: kept chips still apply on
    * commit alone. Does nothing until the first keystroke has started the create, nor for two
    * fields erased to nothing.
    */
@@ -118,7 +118,7 @@ function useRemoveCapturedNote(boardId: string) {
 }
 
 /**
- * The state machine behind the capture card (0005-wallybot-inline.md §3.1): the note exists from
+ * The state machine behind the capture card (RFC-0005-wallybot-inline.md §3.1): the note exists from
  * the first keystroke, so nothing typed is lost; the commit is one update plus, for each kept
  * chip the update cannot carry, its own call (a priority is a PRIORITY move, a person an
  * assignment); cancelling after typing deletes the note the person chose to abandon. Every

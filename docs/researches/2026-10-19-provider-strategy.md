@@ -3,12 +3,12 @@
 > **2026-10-26:** the owner's [tech stack brief](2026-10-26-tech-stack-and-architecture.md)
 > reverses the identity choice below. Supabase Auth replaces Auth0, Cloudflare Pages
 > replaces Firebase Hosting, and the budget becomes a target of $0 in development and
-> under $50/month at release. See [Platform migration](../rfcs/0011-platform-migration.md).
+> under $50/month at release. See [Platform migration](../rfcs/RFC-0011-platform-migration.md).
 > The comparison below is kept as dated research.
 
 - **Research date:** 2026-10-19
-- **Purpose:** support the [Firestore-to-Supabase migration](../rfcs/0008-firestore-to-supabase.md)
-  and [EU platform and AI workers RFC](../rfcs/0007-eu-platform-and-ai-workers.md).
+- **Purpose:** support the [Firestore-to-Supabase migration](../rfcs/RFC-0008-firestore-to-supabase.md)
+  and [EU platform and AI workers RFC](../rfcs/RFC-0007-eu-platform-and-ai-workers.md).
 - **Original interactive analysis:** [offline HTML snapshot](2026-10-19-provider-strategy.html).
 - **Status:** dated comparison and recommendation, not an accepted architecture decision,
   benchmark, live billing audit or implemented migration.
@@ -18,7 +18,7 @@ calculators and official references. Its Supabase Auth recommendation predates t
 repository's explicit Auth0 direction. The owner accepted **Supabase for data and files
 and Auth0 for identity** on 2026-10-19. Supabase Auth will not be used; Neon remains a
 historical competitor, not an open selection. The snapshot does not override
-[ADR-0016](../adr/0016-auth0-for-web-and-mcp.md). Local source-file links inside the snapshot
+[ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md). Local source-file links inside the snapshot
 are machine-specific; repository-relative links in this document and the RFC are canonical.
 
 ## Scope and recommendation

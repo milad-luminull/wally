@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript, Fastify + firebase-admin Firestore (API), React 19 + react-router 8 + TanStack Query + Radix (web), Zod contract in `packages/shared`, Vitest, Playwright, Docker Compose with the Firestore emulator.
 
-**Spec:** `docs/rfcs/0002-board-home.md` (approved 2026-10-14). Section numbers below (§5, §12.2 …) refer to it.
+**Spec:** `docs/rfcs/RFC-0002-board-home.md` (approved 2026-10-14). Section numbers below (§5, §12.2 …) refer to it.
 
 ## Context
 
@@ -61,7 +61,7 @@ User A signs out while on their board; the protected route stores that board pat
 | web    | `features/board/TopBar.tsx`, `BoardSwitcher.tsx`, `AccountMenu.tsx`                                                                                  | in-board navigation                                                                  |
 | web    | `i18n/de.ts`, `i18n/en.ts`                                                                                                                           | copy                                                                                 |
 | web    | `e2e/support.ts`, `e2e/boards.spec.ts` (new), `e2e/README.md`, `.github/workflows/ci.yml`                                                            | E2E                                                                                  |
-| docs   | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/0002-board-home.md`, `adr/0011-…` (new)     | documentation                                                                        |
+| docs   | `SPEC.md`, `architecture/overview.md`, `architecture/board-operations.md`, `GDPR.md`, `README.md`, `rfcs/RFC-0002-board-home.md`, `adr/0011-…` (new) | documentation                                                                        |
 
 Note on plan location: this file lives in the plan directory the host chose. Task 0 copies it into the repo at `docs/superpowers/plans/2026-10-14-board-home.md` so it travels with the branch.
 
@@ -1393,8 +1393,8 @@ git commit -m "test(e2e): create, land on and delete a second board"
 - Modify: `docs/architecture/overview.md` (person description; `whiteboards/{id}` row)
 - Modify: `docs/architecture/board-operations.md` (table rows; `board.delete` cleanup kind)
 - Modify: `docs/GDPR.md` (inventory row for `whiteboards/{id}`; GAP-01 text; checklist)
-- Modify: `docs/README.md` (proposals row), `docs/rfcs/0002-board-home.md` (status line)
-- Create: `docs/adr/0011-boards-as-independent-aggregates.md` (template `0000-template.md`)
+- Modify: `docs/README.md` (proposals row), `docs/rfcs/RFC-0002-board-home.md` (status line)
+- Create: `docs/adr/ADR-0011-boards-as-independent-aggregates.md` (template `ADR-0000-template.md`)
 
 - [ ] **Step 1: SPEC.md**
   - §2: "The whiteboard is owned by one user." → "Each whiteboard is owned by one user. A user may own several and be a member of others."
@@ -1406,7 +1406,7 @@ git commit -m "test(e2e): create, land on and delete a second board"
 - [ ] **Step 3: board-operations.md**: add rows `New board | board.create | any user | None`, `Board | board.delete | OWNER | Board`, `Membership | board.leave | ACTIVE EDIT/VIEW | None`; mention the `board.delete` cleanup kind next to `member.remove`; note that `board.create` is bounded by `MAX_OWN_BOARDS` and the global rate limit and has no per-route limit (a deviation from RFC §12.1, recorded here and in the RFC's status line).
 - [ ] **Step 4: GDPR.md**: add a `whiteboards/{id}` row (name, ownerId, memberRoles, deletedAt; "Deleted when: the owner deletes the board; cleanup removes notes, members and the share link"); GAP-01 first paragraph: "No `DELETE /me`. Boards can be deleted by their owner (`board.delete`), so the gap is now account erasure…"; keep the plan steps.
 - [ ] **Step 5: ADR-0011** "Boards are independent aggregates": context (uid-keyed single board), decision (generated ids for later boards, tombstone + cleanup, leave, provisioning only with the user record), consequences (no migration; `liveWhiteboard` is the one read path; replay after deletion is 404 by design). Status accepted, date 2026-10-14. Add to `docs/adr/README.md` index.
-- [ ] **Step 6: README.md / RFC**: README proposals row drops BOARD_HOME; RFC status becomes "**Status:** accepted 2026-10-14; §5 to §12 live in [`SPEC.md` §4b](../../SPEC.md) and [ADR-0011](../../adr/0011-boards-as-independent-aggregates.md). Kept for the reasoning and the alternatives considered."
+- [ ] **Step 6: README.md / RFC**: README proposals row drops BOARD_HOME; RFC status becomes "**Status:** accepted 2026-10-14; §5 to §12 live in [`SPEC.md` §4b](../../SPEC.md) and [ADR-0011](../../adr/ADR-0011-boards-as-independent-aggregates.md). Kept for the reasoning and the alternatives considered."
 - [ ] **Step 7: `pnpm format:check`, then commit**
 
 ```bash

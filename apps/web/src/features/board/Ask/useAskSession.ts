@@ -18,7 +18,7 @@ export function readingTimeMs(text: string): number {
 
 export type AskPhase = 'asking' | 'answered' | 'refused' | 'failed' | 'fading';
 
-/** One question on the wall, from Enter until its card has faded (0005-wallybot-inline.md §3.6). */
+/** One question on the wall, from Enter until its card has faded (RFC-0005-wallybot-inline.md §3.6). */
 export interface AskSession {
   /** Tells this question's card and its late callbacks apart from the next one's. */
   id: number;
@@ -48,7 +48,7 @@ export interface AskController {
 }
 
 /**
- * The shell's side of a question (0005-wallybot-inline.md §3.6): one card at a time, its outcome,
+ * The shell's side of a question (RFC-0005-wallybot-inline.md §3.6): one card at a time, its outcome,
  * and the reading clock that fades it. Follow-ups continue the conversation the current card
  * came from; once the card is gone, the next question starts a new one (R4).
  */

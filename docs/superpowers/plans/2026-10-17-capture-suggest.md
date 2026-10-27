@@ -6,11 +6,11 @@
 
 **Goal:** When a person commits a note written in place, Wallybot proposes what the parser could not read (a due date, a priority, a person) as a pending change on that note: a dashed edge and a marigold dot with a countdown, each field in its place with an ×, kept by Enter or by the countdown's expiry, undone by Esc or ⌘Z, with a server record that is the approval and makes every write replayable and reversible.
 
-**Architecture:** A `Suggestion` record stored by the server (`users/{uid}/assistantSuggestions/{id}`) is the approval record `0003-wally-agent.md` §3.2 requires: bound to the user, the board, the note's revision and one operation id per write, minted at creation. One model call per capture, structured output through the model boundary, reserved and settled on the existing ledger. The server applies kept fields through `runOperation` (`update_note`, `move_note`, `assign_note`) chained on revisions and refuses with `409 STALE_REVISION` when the note changed. Undo is the inverse of the same three operations under their own stored operation ids. The web keeps one board-level controller (`useSuggestions`) with the countdown and the undo window; `NoteCard` and `NoteRow` draw the pending state; the capture card hands over which fields the person typed.
+**Architecture:** A `Suggestion` record stored by the server (`users/{uid}/assistantSuggestions/{id}`) is the approval record `RFC-0003-wally-agent.md` §3.2 requires: bound to the user, the board, the note's revision and one operation id per write, minted at creation. One model call per capture, structured output through the model boundary, reserved and settled on the existing ledger. The server applies kept fields through `runOperation` (`update_note`, `move_note`, `assign_note`) chained on revisions and refuses with `409 STALE_REVISION` when the note changed. Undo is the inverse of the same three operations under their own stored operation ids. The web keeps one board-level controller (`useSuggestions`) with the countdown and the undo window; `NoteCard` and `NoteRow` draw the pending state; the capture card hands over which fields the person typed.
 
 **Tech Stack:** Fastify + Zod + firebase-admin (API), Vercel AI SDK `ai@7.0.141` behind `apps/api/src/lib/assistant/model/` (`generateText` with `Output.object`, per the installed package's own docs at `node_modules/ai/docs/03-ai-sdk-core/10-generating-structured-data.mdx`), React 19 + TanStack Query 5 + Tailwind tokens (web). No new dependency.
 
-**Spec:** `docs/rfcs/0005-wallybot-inline.md` §3.3, §4, §6 (accepted 2026-10-16) and §7; `docs/rfcs/0003-wally-agent.md` §3.2 ("Writes wait for a yes" with the countdown exception, "The approval is the server's record", "An approved write runs at most once", "Writes are attributed", "Spend has a hard cap"), §3.3 (operations); `docs/BRAND.md` "## AI" (rules 2–7) and "Marigold has four jobs" (job 4).
+**Spec:** `docs/rfcs/RFC-0005-wallybot-inline.md` §3.3, §4, §6 (accepted 2026-10-16) and §7; `docs/rfcs/RFC-0003-wally-agent.md` §3.2 ("Writes wait for a yes" with the countdown exception, "The approval is the server's record", "An approved write runs at most once", "Writes are attributed", "Spend has a hard cap"), §3.3 (operations); `docs/BRAND.md` "## AI" (rules 2–7) and "Marigold has four jobs" (job 4).
 
 ## Context
 
@@ -20,7 +20,7 @@ Slice 1 (PR #44) writes the note in place and applies the parser's chips on Ente
 - **R2. A capture turn is not a conversation.** It writes no `assistantConversations` document; its provenance is `{ via: 'assistant', conversationId: <suggestion id>, approvalId: <suggestion id> }`, so the audit record links to the suggestion. Cost if wrong: an audit reader has to know the id is a suggestion id; a comment says so.
 - **R3. Never propose what the person decided.** A field is a candidate only when the note has nothing there (no due date; priority `MITTEL`; no assignee), the client did not mark it as typed (a kept chip), and, for the priority, the capture was not placed on the priority wall (spec §7: a placed note never moves). A private note never gets an assignee (always its creator). With no candidate, no model call and no record. Cost if wrong: a wrong proposal is one × away; a missing one is silence.
 - **R4. Countdown 6 s, hover or focus pauses, Undo for 30 s.** Both windows are the client's; the server allows `undo` while the note's revision is the one the keep produced, and refuses `409 STALE_REVISION` otherwise (§4: undo is the inverse with the kept revision as `expectedRevision`). Cost if wrong: a person who edited the note after a keep cannot undo in one step; they edit by hand.
-- **R5. Pending suggestions survive a reload (amended by the ruling on the final review, 2026-10-17).** The board loads its pending records on open and shows their dots again, waiting for Enter with no countdown (`countdownEndsAt` null, not paused): decision 1 covers enrichment of a fresh note only, and nothing may change on a reload without being seen (`0003-wally-agent.md` §3.2: after a reload the pending change is still shown and nothing has changed). The server's pending list leaves out, and marks DISCARDED in one batched write, every record whose note is gone, is not at `baseRevision`, or is older than 24 hours. The 30 s Undo affordance does not survive a reload; deferred. Cost if wrong: an old proposal needs one Enter instead of none.
+- **R5. Pending suggestions survive a reload (amended by the ruling on the final review, 2026-10-17).** The board loads its pending records on open and shows their dots again, waiting for Enter with no countdown (`countdownEndsAt` null, not paused): decision 1 covers enrichment of a fresh note only, and nothing may change on a reload without being seen (`RFC-0003-wally-agent.md` §3.2: after a reload the pending change is still shown and nothing has changed). The server's pending list leaves out, and marks DISCARDED in one batched write, every record whose note is gone, is not at `baseRevision`, or is older than 24 hours. The 30 s Undo affordance does not survive a reload; deferred. Cost if wrong: an old proposal needs one Enter instead of none.
 - **R6. One setting: "always ask me".** `preferences.wallybot.autoApply` (default `true`), a switch in the account menu. Off means no countdown: the dot waits for Enter or Esc. The delay, hover setting and per-field opt-outs of §3.7 are deferred. Cost if wrong: two more preference keys later.
 - **R7. Silence on failure.** A provider error, a budget refusal, a validation failure or nothing worth proposing all end the same way: no record, no dot, nothing said (§3.3). The ledger keeps the reservation when usage is unknown, as for questions.
 - **R8. The prompt carries the note's words, the members and the date.** No nearby notes, tags or fields in this slice; links and references come with slice 3. Cost if wrong: a slightly worse date guess; a cheaper call.
@@ -35,7 +35,7 @@ Slice 1 (PR #44) writes the note in place and applies the parser's chips on Ente
 - Checks from the worktree root: `pnpm --filter @wally/api typecheck`, `pnpm --filter @wally/api lint`, `pnpm --filter @wally/web typecheck`, `pnpm --filter @wally/web lint`, `pnpm --filter @wally/shared build` (the shared package is consumed built), `pnpm format:check` (fix with `pnpm format`). Guard tests stay green: `apps/api/src/lib/assistant/model/boundary.test.ts`, `apps/web/src/brandGuards.test.ts`, `apps/web/src/i18n/noHardcodedCopy.test.ts`, `apps/web/src/i18n/resources.test.ts`, `apps/web/src/i18n/englishSurface.test.tsx`, `apps/web/src/features/board/WandView/NoteCard.test.tsx` (no mount animation on the card wrapper).
 - No new dependency. The model library and the provider are imported only under `apps/api/src/lib/assistant/model/` (ADR-0013, lint-enforced).
 - Every visible or screen-reader string comes from the catalogues (`de.ts` is the key authority, `en.ts` mirrors every key). German words inside TS source outside the catalogues are written as `\u` escapes where `noHardcodedCopy` requires.
-- BRAND.md: marigold only as the dot and its ring (`stroke-accent` / `fill-accent` on the SVG), never a fill or edge; the pending edge is `border-dashed border-[color:var(--note-border)]`; status colour only as text; motion 120–180 ms on transform and opacity, the ring's sweep is the one exception the spec names, and under reduced motion it advances in six steps; controls at least 40 px on a coarse pointer; no toasts, no modals, no badges counting suggestions; the AI has no name and no first person in copy ("Wallybot" is the feature's name in the account menu only, as `0005-wallybot-inline.md` uses it).
+- BRAND.md: marigold only as the dot and its ring (`stroke-accent` / `fill-accent` on the SVG), never a fill or edge; the pending edge is `border-dashed border-[color:var(--note-border)]`; status colour only as text; motion 120–180 ms on transform and opacity, the ring's sweep is the one exception the spec names, and under reduced motion it advances in six steps; controls at least 40 px on a coarse pointer; no toasts, no modals, no badges counting suggestions; the AI has no name and no first person in copy ("Wallybot" is the feature's name in the account menu only, as `RFC-0005-wallybot-inline.md` uses it).
 - Keyboard: Enter on a focused card with a pending change keeps it; Esc discards it (pending) or undoes it (kept); `⌘Z` / `Ctrl+Z` undoes the last keep within its window; none of these fire while typing in a field.
 - Budget: every model call reserves before and settles after on the existing ledger with the existing caps; `maxRetries: 0`; unknown usage keeps the reservation.
 - Conventional Commits; never commit to `main`. Commit with `git -c core.hooksPath=/dev/null commit`. Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -72,7 +72,7 @@ Slice 1 (PR #44) writes the note in place and applies the parser's chips on Ente
 Append after `assistantTurnResponseSchema`:
 
 ```ts
-/** The fields Wallybot may fill in on a note written in place (0005-wallybot-inline.md §3.3, R1). */
+/** The fields Wallybot may fill in on a note written in place (RFC-0005-wallybot-inline.md §3.3, R1). */
 export const suggestionFieldKeys = ['dueDate', 'priority', 'assignee'] as const;
 export const suggestionFieldKeySchema = z.enum(suggestionFieldKeys);
 export type SuggestionFieldKey = z.infer<typeof suggestionFieldKeySchema>;
@@ -130,7 +130,7 @@ export type CaptureSuggestResponse = z.infer<typeof captureSuggestResponseSchema
 export const suggestionListSchema = z.object({ suggestions: z.array(suggestionDtoSchema) });
 export type SuggestionList = z.infer<typeof suggestionListSchema>;
 
-/** How the decision reached the server, stored with it (0005-wallybot-inline.md §4). */
+/** How the decision reached the server, stored with it (RFC-0005-wallybot-inline.md §4). */
 export const suggestionDecisionSourceSchema = z.enum([
   'enter',
   'countdown',
@@ -158,7 +158,7 @@ Add `import { userSummarySchema } from './user.js';` at the top of the file.
 Before `preferencesSchema`:
 
 ```ts
-/** Wallybot (0005-wallybot-inline.md §3.7, decision 1): off means every proposal waits for Enter. */
+/** Wallybot (RFC-0005-wallybot-inline.md §3.7, decision 1): off means every proposal waits for Enter. */
 export const wallybotPreferencesSchema = z.object({ autoApply: z.boolean() });
 export type WallybotPreferences = z.infer<typeof wallybotPreferencesSchema>;
 export const DEFAULT_WALLYBOT_PREFERENCES: WallybotPreferences = { autoApply: true };
@@ -193,7 +193,7 @@ export type SuggestionOperationIds = Record<
 
 /**
  * users/{uid}/assistantSuggestions/{id}: the approval record for one capture
- * (0003-wally-agent.md §3.2, 0005-wallybot-inline.md §4). The id doubles as the provenance's
+ * (RFC-0003-wally-agent.md §3.2, RFC-0005-wallybot-inline.md §4). The id doubles as the provenance's
  * conversation and approval id, since a capture turn has no conversation (plan R2).
  */
 export type AssistantSuggestionDoc = {
@@ -353,7 +353,7 @@ In `runTurn.ts` delete the local `isCount` and `toUsage` and import `toUsage` fr
 Append to `types.ts`:
 
 ```ts
-/** One structured call for a capture (0005-wallybot-inline.md §4: one model call, strict JSON). */
+/** One structured call for a capture (RFC-0005-wallybot-inline.md §4: one model call, strict JSON). */
 export interface SuggestionInput {
   instructions: string;
   prompt: string;
@@ -511,7 +511,7 @@ export const modelSuggestionSchema = z.object({
 });
 
 /**
- * One structured call (0005-wallybot-inline.md §4). The attempt is announced first and settled with
+ * One structured call (RFC-0005-wallybot-inline.md §4). The attempt is announced first and settled with
  * the reported usage afterwards; the library's own retries are off. A reply that does not
  * validate is "nothing proposed", not an error: the person just sees no dot (§3.3). Anything
  * else the library throws is the provider's and passes through.
@@ -644,7 +644,7 @@ describe('the capture prompt', () => {
 import type { Language } from '@wally/shared';
 
 /**
- * Byte-stable so the provider can cache it (0003-wally-agent.md §3.5). Board content never appears
+ * Byte-stable so the provider can cache it (RFC-0003-wally-agent.md §3.5). Board content never appears
  * here; the note and the members arrive in the prompt as data. No name, no first person
  * (BRAND.md, AI rules 2 and 6): the model fills in, it does not write.
  */
@@ -1232,7 +1232,7 @@ export const SUGGESTION_MAX_OUTPUT_TOKENS = 256;
 export const SUGGESTION_DEADLINE_MS = 20_000;
 /** Below this the model's guess is dropped (the brief: low-confidence fields dropped). */
 export const SUGGESTION_MIN_CONFIDENCE = 0.6;
-/** As long as the receipts the keep and the undo rely on (0003-wally-agent.md §3.2). */
+/** As long as the receipts the keep and the undo rely on (RFC-0003-wally-agent.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 
 export interface SuggestionDeps {
@@ -1332,7 +1332,7 @@ async function toDto(db: Firestore, doc: WithId<AssistantSuggestionDoc>): Promis
 }
 
 /**
- * One capture turn (0005-wallybot-inline.md §3.3, §4): read the note, decide what may be proposed,
+ * One capture turn (RFC-0005-wallybot-inline.md §3.3, §4): read the note, decide what may be proposed,
  * reserve, call, settle, filter, and store the record only when something survived. Throws
  * BudgetError and AppError only; the provider's own error becomes 502 without its wording.
  */
@@ -1452,7 +1452,7 @@ export async function suggestForCapture(
   return toDto(db, { ...doc, id: ref.id });
 }
 
-/** The caller's own record on this board, or 404 (the access recheck of 0003-wally-agent.md §3.4). */
+/** The caller's own record on this board, or 404 (the access recheck of RFC-0003-wally-agent.md §3.4). */
 async function loadSuggestion(
   db: Firestore,
   actor: Actor,
@@ -1557,7 +1557,7 @@ async function applyFields(
 }
 
 /**
- * Keep, discard or undo (0005-wallybot-inline.md §4). A keep applies the kept fields through the
+ * Keep, discard or undo (RFC-0005-wallybot-inline.md §4). A keep applies the kept fields through the
  * command layer under the record's own operation ids, so a repeat replays receipts and the
  * note changes once; it is refused with 409 STALE_REVISION, and the record discarded, when
  * the note changed since the proposal. An undo is the inverse on the kept revision.
@@ -1920,7 +1920,7 @@ Run both files: FAIL.
 `apps/web/src/lib/preferences.ts`: in `applyPreferencesUpdate` keep `wallybot: update.wallybot ?? current.wallybot,` (added in Task 1) and add:
 
 ```ts
-/** Wallybot's one setting so far (0005-wallybot-inline.md §3.7): off means every proposal waits. */
+/** Wallybot's one setting so far (RFC-0005-wallybot-inline.md §3.7): off means every proposal waits. */
 export function useWallybotPreferences() {
   const wallybot = usePreferences().wallybot;
   const save = useSavePreferences();
@@ -2326,7 +2326,7 @@ import { assistantApi } from '@/lib/resources';
 import { settleNoteCaches } from '../hooks/mutations/shared';
 import { useQueryKeys } from '../hooks/queryKeys';
 
-/** The dot's ring: how long a proposal waits before it is kept (0005-wallybot-inline.md §3.3). */
+/** The dot's ring: how long a proposal waits before it is kept (RFC-0005-wallybot-inline.md §3.3). */
 export const COUNTDOWN_MS = 6000;
 /** How long "Undo" stays where the dot was after a keep (§3.3). */
 export const UNDO_WINDOW_MS = 30_000;
@@ -2366,7 +2366,7 @@ interface Clock {
 }
 
 /**
- * The board's pending changes (0005-wallybot-inline.md §3.3, §4). One controller per board holds
+ * The board's pending changes (RFC-0005-wallybot-inline.md §3.3, §4). One controller per board holds
  * every note's mark, its countdown and its undo window; the cards only draw and report. Every
  * outcome the server can give (nothing, refused, failed, stale) ends as "no dot", and nothing
  * is said (§3.3, BRAND rule 5). The notes are refetched after a keep or an undo, so the card
@@ -2676,7 +2676,7 @@ export function pendingKeys(event: KeyboardEvent, pending: PendingProps | undefi
 `de.ts`, a new top-level block after `capture`:
 
 ```ts
-  /** The dashed card after Enter (0005-wallybot-inline.md §3.3). No name, no first person. */
+  /** The dashed card after Enter (RFC-0005-wallybot-inline.md §3.3). No name, no first person. */
   suggest: {
     dotAria: 'Vorgeschlagene Änderungen, werden gleich übernommen',
     dotAriaWaiting: 'Vorgeschlagene Änderungen, warten auf Enter',
@@ -2809,7 +2809,7 @@ const LENGTH = 2 * Math.PI * R;
  * Marigold's fourth job (BRAND.md): the dot and its countdown ring on a note whose changes are
  * still pending, and nothing else. The ring is the one animation the spec names; under
  * reduced motion it advances in six steps instead of sweeping. Once kept, a faint Undo sits
- * where the dot was for a while (0005-wallybot-inline.md §3.3). No toast.
+ * where the dot was for a while (RFC-0005-wallybot-inline.md §3.3). No toast.
  */
 export function PendingDot({
   mark,
@@ -3133,7 +3133,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `apps/web/src/features/board/ListView/ListView.tsx`
 - Modify: `apps/web/src/features/board/BoardCommands.tsx`, `BoardCommands.test.tsx`
 - Modify: `apps/web/e2e/note-create.spec.ts`
-- Modify: `docs/BRAND.md`, `docs/SPEC.md`, `docs/rfcs/0005-wallybot-inline.md` (status line)
+- Modify: `docs/BRAND.md`, `docs/SPEC.md`, `docs/rfcs/RFC-0005-wallybot-inline.md` (status line)
 
 **Interfaces:**
 
@@ -3223,9 +3223,9 @@ Pass `onCommitted` into `useCaptureSession`, `pendingFor` into `WandView` and `L
 
 `docs/BRAND.md` "## AI" first paragraph: "Wally's AI is the question panel beside the board … and nothing else yet." becomes a sentence that names both surfaces: the question panel, and the fill-in on a note written in place (`features/board/Suggestions`), where it proposes a due date, a priority or a person as a pending change.
 
-`docs/SPEC.md` line 60, after the capture sentence: "After Enter, Wallybot may propose a due date, a priority or a person as a pending change on the card: a dashed edge and a marigold dot with a six-second countdown, each field removable, Enter keeps, Esc discards, Undo for thirty seconds; the server holds the record and every write is reversible (`rfcs/0005-wallybot-inline.md` §3.3, §4). 'Always ask me' in the account menu turns the countdown off."
+`docs/SPEC.md` line 60, after the capture sentence: "After Enter, Wallybot may propose a due date, a priority or a person as a pending change on the card: a dashed edge and a marigold dot with a six-second countdown, each field removable, Enter keeps, Esc discards, Undo for thirty seconds; the server holds the record and every write is reversible (`rfcs/RFC-0005-wallybot-inline.md` §3.3, §4). 'Always ask me' in the account menu turns the countdown off."
 
-`docs/rfcs/0005-wallybot-inline.md` status line: add "slice 2 (§3.3, §4) started 2026-10-17; subtasks, the reference and the title line moved to slice 3 (plan R1)".
+`docs/rfcs/RFC-0005-wallybot-inline.md` status line: add "slice 2 (§3.3, §4) started 2026-10-17; subtasks, the reference and the title line moved to slice 3 (plan R1)".
 
 - [ ] **Step 5: Run everything that moved, then the whole web suite, then commit**
 
@@ -3233,7 +3233,7 @@ Run from `apps/web`, one at a time: `pnpm vitest run src/features/board/Capture/
 Expected: PASS.
 
 ```bash
-git add apps/web/src/features/board/Capture apps/web/src/features/board/AppShell.tsx apps/web/src/features/board/WandView apps/web/src/features/board/ListView apps/web/src/features/board/BoardCommands.tsx apps/web/src/features/board/BoardCommands.test.tsx apps/web/e2e/note-create.spec.ts docs/BRAND.md docs/SPEC.md docs/rfcs/0005-wallybot-inline.md
+git add apps/web/src/features/board/Capture apps/web/src/features/board/AppShell.tsx apps/web/src/features/board/WandView apps/web/src/features/board/ListView apps/web/src/features/board/BoardCommands.tsx apps/web/src/features/board/BoardCommands.test.tsx apps/web/e2e/note-create.spec.ts docs/BRAND.md docs/SPEC.md docs/rfcs/RFC-0005-wallybot-inline.md
 git -c core.hooksPath=/dev/null commit -m "feat(web): the board fills in after Enter: the capture hands over, the card counts down, Z undoes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"

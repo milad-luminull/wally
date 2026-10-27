@@ -1,13 +1,13 @@
 # ADR-0011: Boards as independent aggregates: several per owner, deletable, with a tombstone
 
-- **Status:** proposed
+- **Status:** accepted (recorded on 2026-10-27: built and live since v0.4.0; the status had not been updated)
 - **Date:** 2026-10-14
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** ADR-0004, in part: the rule that the board's document id is the owner's uid, so "one whiteboard per owner" is a property of the key space
 
 ## Context and problem statement
 
-ADR-0004 made "one whiteboard per owner" a property of the key space: the board's document id was the owner's uid, and the auth hook recreated that board whenever it was missing. The board home ([RFC BOARD_HOME](../rfcs/0002-board-home.md), approved 2026-10-14) needs a user to own several boards, delete one, and leave a shared one. How are boards created, identified and deleted once there can be more than one per owner?
+ADR-0004 made "one whiteboard per owner" a property of the key space: the board's document id was the owner's uid, and the auth hook recreated that board whenever it was missing. The board home ([RFC BOARD_HOME](../rfcs/RFC-0002-board-home.md), approved 2026-10-14) needs a user to own several boards, delete one, and leave a shared one. How are boards created, identified and deleted once there can be more than one per owner?
 
 ## Considered options
 

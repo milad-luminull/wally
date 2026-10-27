@@ -105,7 +105,7 @@ export interface TurnOutput {
 
 export type TurnRunner = (input: TurnInput) => Promise<TurnOutput>;
 
-/** One structured call for a capture (0005-wallybot-inline.md §4: one model call, strict JSON). */
+/** One structured call for a capture (RFC-0005-wallybot-inline.md §4: one model call, strict JSON). */
 export interface SuggestionInput {
   instructions: string;
   prompt: string;
@@ -143,7 +143,7 @@ export interface SuggestionOutput {
 }
 export type SuggestionRunner = (input: SuggestionInput) => Promise<SuggestionOutput>;
 
-/** One structured call for a Tidy of the horizon wall (0005-wallybot-inline.md §3.5, plan R3). */
+/** One structured call for a Tidy of the horizon wall (RFC-0005-wallybot-inline.md §3.5, plan R3). */
 export interface TidyInput {
   instructions: string;
   prompt: string;

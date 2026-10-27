@@ -1,12 +1,12 @@
 # Wally assistant
 
-**Status:** core implemented; remaining requirements are in §6.
+**Status:** accepted; the core is live in production since v0.5.0, and the remaining requirements are in §6. MCP (§1) is live since v0.8.3 under [RFC-0004](RFC-0004-wally-mcp.md).
 **Last checked:** 2026-10-19, against the local code and running app.
 
 The assistant helps people capture, understand and organize notes on the current board.
 The user stays in control. The interaction is defined in
-[0005-wallybot-inline.md](0005-wallybot-inline.md); external access is a separate, unimplemented
-[MCP extension](0004-wally-mcp.md).
+[RFC-0005-wallybot-inline.md](RFC-0005-wallybot-inline.md); external access is a separate, unimplemented
+[MCP extension](RFC-0004-wally-mcp.md).
 
 ## 1. Current implementation
 
@@ -15,9 +15,10 @@ The user stays in control. The interaction is defined in
 - Questions are read-only. The operation registry supports writes, but this does not mean
   a question can execute them or that every operation has a user-facing assistant flow.
 - The model runs inside the existing API through the boundary accepted in
-  [ADR-0013](../adr/0013-model-library-behind-an-owned-boundary.md). The implemented
+  [ADR-0013](../adr/ADR-0013-model-library-behind-an-owned-boundary.md). The implemented
   providers are Google Vertex and Anthropic through Vertex, using deployment configuration.
-- User-supplied provider keys, user model selection, and MCP connections are not implemented.
+- User-supplied provider keys and user model selection are not implemented. MCP connections
+  are live since v0.8.3 under [RFC-0004](RFC-0004-wally-mcp.md).
 
 ## 2. Product requirements
 
@@ -35,7 +36,7 @@ The user stays in control. The interaction is defined in
 ### 3.1 User flows
 
 Capture, inline editing, field-by-field review, board questions and Tidy use the same board
-permissions and command layer. See [0005-wallybot-inline.md](0005-wallybot-inline.md) for their behavior.
+permissions and command layer. See [RFC-0005-wallybot-inline.md](RFC-0005-wallybot-inline.md) for their behavior.
 
 ### 3.2 Safety and trust
 
@@ -87,7 +88,7 @@ The authoritative schemas and annotations are in
 - Writes use transactional permission checks, revisions and idempotency receipts.
   Assignment is a separate operation. Visibility must be clear in a proposal.
 - This registry does not yet cover the full app: board discovery/management, duplication
-  and subtask text editing are among the [MCP coverage gaps](0004-wally-mcp.md#3-tool-coverage).
+  and subtask text editing are among the [MCP coverage gaps](RFC-0004-wally-mcp.md#3-tool-coverage).
   Adding an operation or exposing it through a new surface requires an explicit scope decision.
 
 ### 3.4 Conversations and data

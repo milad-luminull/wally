@@ -10,7 +10,7 @@
 
 **Tech Stack:** React 19, react-router 8, TanStack Query 5, Radix (Sheet), Tailwind with the Graphite + Marigold tokens, react-i18next, Vitest + Testing Library. The API contract is `assistantTurnRequestSchema`, `assistantConversationDtoSchema` and `assistantTurnResponseSchema` from `@wally/shared` (previous plan, `2026-10-15-assistant-ask-api.md`).
 
-**Spec:** `docs/rfcs/0003-wally-agent.md` at commit `38afd3cb` (read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/0003-wally-agent.md`), §3.1 "Ask the board" and §3.2. Design authority: `docs/BRAND.md` on this branch, especially "## AI", "Components", "Keyboard", "Voice". The project owner asked for a minimal, modern design, not a traditional chatbot.
+**Spec:** `docs/rfcs/RFC-0003-wally-agent.md` at commit `38afd3cb` (read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/RFC-0003-wally-agent.md`), §3.1 "Ask the board" and §3.2. Design authority: `docs/BRAND.md` on this branch, especially "## AI", "Components", "Keyboard", "Voice". The project owner asked for a minimal, modern design, not a traditional chatbot.
 
 ## Design
 

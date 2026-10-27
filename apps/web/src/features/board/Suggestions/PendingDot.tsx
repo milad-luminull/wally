@@ -14,7 +14,7 @@ const R = (SIZE - STROKE) / 2;
  * Marigold's fourth job (BRAND.md): the dot and its countdown ring on a note whose changes are
  * still pending, and nothing else. The ring is the one animation the spec names; under
  * reduced motion it advances in six steps instead of sweeping. Once kept, a faint Undo sits
- * where the dot was for a while (0005-wallybot-inline.md §3.3). No toast.
+ * where the dot was for a while (RFC-0005-wallybot-inline.md §3.3). No toast.
  */
 export function PendingDot({
   mark,

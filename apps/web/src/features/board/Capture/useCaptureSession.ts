@@ -52,7 +52,7 @@ function focusCommitted(noteId: string) {
 }
 
 /**
- * The shell's side of writing a note in place (0005-wallybot-inline.md §3.1): which capture is
+ * The shell's side of writing a note in place (RFC-0005-wallybot-inline.md §3.1): which capture is
  * open, which note it is writing, and who hears that it is done.
  *
  * - The note exists from the first keystroke, so the board's notes hold it while the card is

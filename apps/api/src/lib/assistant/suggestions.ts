@@ -65,7 +65,7 @@ export const SUGGESTION_MAX_OUTPUT_TOKENS = 1024;
 export const SUGGESTION_DEADLINE_MS = 40_000;
 /** A retry starts only when at least this much of the deadline is left for it. */
 export const MIN_ATTEMPT_MS = 4_000;
-/** As long as the receipts the keep and the undo rely on (0003-wally-agent.md §3.2). */
+/** As long as the receipts the keep and the undo rely on (RFC-0003-wally-agent.md §3.2). */
 export const SUGGESTION_RETENTION_DAYS = 7;
 /**
  * A pending record older than this is not shown again (the ruling amending plan R5): the
@@ -223,7 +223,7 @@ async function toDto(
 }
 
 /**
- * One capture turn (0005-wallybot-inline.md §3.3, §4): read the note, decide what may be proposed,
+ * One capture turn (RFC-0005-wallybot-inline.md §3.3, §4): read the note, decide what may be proposed,
  * reserve, call, settle, filter, and store the record only when something survived. Throws
  * BudgetError and AppError only; the provider's own error becomes 502 without its wording.
  */
@@ -411,7 +411,7 @@ export async function suggestForCapture(
   return toDto(db, board, actor.id, { ...doc, id: ref.id });
 }
 
-/** The caller's own record on this board, or 404 (the access recheck of 0003-wally-agent.md §3.4). */
+/** The caller's own record on this board, or 404 (the access recheck of RFC-0003-wally-agent.md §3.4). */
 async function loadSuggestion(
   db: Firestore,
   actor: Actor,
@@ -1026,7 +1026,7 @@ async function completeKeep(
 }
 
 /**
- * Keep, discard or undo (0005-wallybot-inline.md §4). A keep applies the kept fields, each kept
+ * Keep, discard or undo (RFC-0005-wallybot-inline.md §4). A keep applies the kept fields, each kept
  * step, and the kept links in one write, through the command layer under the record's own
  * operation ids, so a repeat replays receipts and the note changes once; it is refused with
  * 409 STALE_REVISION, and the record discarded, when the note changed since the proposal. An undo is the inverse on

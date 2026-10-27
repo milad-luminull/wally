@@ -79,7 +79,7 @@ function addDays(day: string, n: number): string {
 }
 
 /**
- * Reserve, then settle (0003-wally-agent.md §3.2). One transaction reads the user's day, the
+ * Reserve, then settle (RFC-0003-wally-agent.md §3.2). One transaction reads the user's day, the
  * deployment's month and the user's in-flight slots, refuses if any cap or the slot count
  * would be exceeded, and otherwise writes the worst case into all three. Nothing is
  * dispatched before this commits.
@@ -164,7 +164,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
  * released attempt still settles: usage that arrives after all replaces its worst case.
  *
  * Usage that is not a finite, non-negative count is refused before anything is read: the
- * reservation stays as it is (0003-wally-agent.md §3.2, missing usage keeps the charge), and NaN
+ * reservation stays as it is (RFC-0003-wally-agent.md §3.2, missing usage keeps the charge), and NaN
  * can never reach the counters.
  */
 export async function settleAttempt(
@@ -217,7 +217,7 @@ export async function settleAttempt(
 
 /**
  * Ends an attempt whose usage will not be known (the call failed, ran past its deadline or
- * reported none): its slot is free at once, its worst case stays charged (0003-wally-agent.md
+ * reported none): its slot is free at once, its worst case stays charged (RFC-0003-wally-agent.md
  * §3.2, missing usage keeps the charge). Only a reserved attempt is released; a settled or
  * already released one is left as it is.
  */

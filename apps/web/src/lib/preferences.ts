@@ -77,7 +77,7 @@ export function useCanvasPattern() {
   return [pattern, setPattern] as const;
 }
 
-/** Wallybot's one setting so far (0005-wallybot-inline.md §3.7): off means every proposal waits. */
+/** Wallybot's one setting so far (RFC-0005-wallybot-inline.md §3.7): off means every proposal waits. */
 export function useWallybotPreferences() {
   const wallybot = usePreferences().wallybot;
   const save = useSavePreferences();

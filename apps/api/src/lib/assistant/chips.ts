@@ -3,7 +3,7 @@ export const NOTE_MARKER = /\[note:([^\]\s]+)\]/g;
 
 /**
  * Valid markers become the note's title in the text and one chip each; a marker for a note
- * the caller cannot currently see is removed (0003-wally-agent.md §3.2 "Chips are what the
+ * the caller cannot currently see is removed (RFC-0003-wally-agent.md §3.2 "Chips are what the
  * caller may see").
  */
 export function resolveChips(

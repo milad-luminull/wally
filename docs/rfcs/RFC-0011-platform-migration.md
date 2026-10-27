@@ -3,12 +3,12 @@
 - **Status:** accepted by the owner on 2026-10-26; planning, nothing migrated yet.
 - **Date:** 2026-10-26
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
-- **Decisions:** [ADR-0020](../adr/0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
-  [ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
-  [ADR-0022](../adr/0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
-  [ADR-0023](../adr/0023-supabase-realtime-for-notification-events.md) (notification events)
+- **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
+  [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
+  [ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
+  [ADR-0023](../adr/ADR-0023-supabase-realtime-for-notification-events.md) (notification events)
 
-This RFC replaces the [EU platform overview](0007-eu-platform-and-ai-workers.md) of 2026-10-19.
+This RFC replaces the [EU platform overview](RFC-0007-eu-platform-and-ai-workers.md) of 2026-10-19.
 
 ## 1. Outcome
 
@@ -80,15 +80,15 @@ The brief's table is authoritative for the choice of provider. In short:
 Each workstream is one or more slices, each with its own plan, its own PR from `main`,
 and its own E2E specs. Plans are not stacked.
 
-| #   | Workstream                                                                      | Depends on                    | Detail                                        |
-| --- | ------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------- |
-| 0   | **Proofs on a free project** (no production change)                             | none                          | Section 5                                     |
-| 1   | **Postgres foundation:** schema, migrations, local stack, test harness, backups | 0                             | [Data RFC](0008-firestore-to-supabase.md)     |
-| 2   | **Persistence switch and data cutover**                                         | 1                             | [Data RFC](0008-firestore-to-supabase.md)     |
-| 3   | **Identity and MCP on Supabase Auth**, then retire Auth0                        | 2                             | [Identity RFC](0012-supabase-auth-and-mcp.md) |
-| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting               | none (smallest; can go first) | ADR-0022                                      |
-| 5   | **Background service, Realtime notifications, Resend**                          | 2, 3                          | [Durable workers](0010-durable-ai-workers.md) |
-| 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0           | all, plus rollback windows    | Section 6                                     |
+| #   | Workstream                                                                      | Depends on                    | Detail                                            |
+| --- | ------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| 0   | **Proofs on a free project** (no production change)                             | none                          | Section 5                                         |
+| 1   | **Postgres foundation:** schema, migrations, local stack, test harness, backups | 0                             | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 2   | **Persistence switch and data cutover**                                         | 1                             | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 3   | **Identity and MCP on Supabase Auth**, then retire Auth0                        | 2                             | [Identity RFC](RFC-0012-supabase-auth-and-mcp.md) |
+| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting               | none (smallest; can go first) | ADR-0022                                          |
+| 5   | **Background service, Realtime notifications, Resend**                          | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
+| 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0           | all, plus rollback windows    | Section 6                                         |
 
 **Data goes before identity.** Supabase Auth's users then sit in the same database as
 Wally's tables, the identity mapping moves once, and the auth cutover does not also have
@@ -244,7 +244,7 @@ Still open:
   Firestore export.
 - **Infrastructure tooling:** OpenTofu or Terraform, and which resources it manages first.
 - **Storage:** Supabase Storage or Google Cloud Storage for uploads (open in the brief;
-  [uploads RFC](0009-uploads-and-retrieval.md)).
+  [uploads RFC](RFC-0009-uploads-and-retrieval.md)).
 - **AI spend:** does the assistant's monthly spend cap count inside the $50 ceiling? The
   brief lists AI calls as a separate, usage-dependent cost.
 - **Pro upgrade:** when production data moves, stay on Free with our own backups, or

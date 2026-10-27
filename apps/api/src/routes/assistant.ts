@@ -70,7 +70,7 @@ export interface AssistantRouteOptions {
 
 /**
  * The assistant panel's routes. Every route answers 404 unless the caller is a member and
- * the effective switch is on, so a switched-off assistant is invisible (0003-wally-agent.md §3.2).
+ * the effective switch is on, so a switched-off assistant is invisible (RFC-0003-wally-agent.md §3.2).
  */
 export default async function assistantRoutes(
   fastify: FastifyInstance,

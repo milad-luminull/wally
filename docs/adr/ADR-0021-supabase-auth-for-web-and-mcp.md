@@ -1,13 +1,13 @@
 # ADR-0021: Supabase Auth for web login and MCP authorization
 
 - **Status:** accepted. The MCP part is gated on the proof in the
-  [identity RFC](../rfcs/0012-supabase-auth-and-mcp.md), section 6.
+  [identity RFC](../rfcs/RFC-0012-supabase-auth-and-mcp.md), section 6.
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:**
-  - [ADR-0016](0016-auth0-for-web-and-mcp.md). It was never formally accepted, but it
+  - [ADR-0016](ADR-0016-auth0-for-web-and-mcp.md). It was never formally accepted, but it
     has served production since v0.8.3 (2026-10-25).
-  - The identity source in [ADR-0004](0004-firebase-auth-with-lazy-provisioning.md). Its
+  - The identity source in [ADR-0004](ADR-0004-firebase-auth-with-lazy-provisioning.md). Its
     lazy provisioning stays.
 
 ## Context and problem statement
@@ -106,6 +106,6 @@ Chosen option: **option 1**.
 
 ## More information
 
-- [Identity RFC](../rfcs/0012-supabase-auth-and-mcp.md), [platform migration](../rfcs/0011-platform-migration.md).
+- [Identity RFC](../rfcs/RFC-0012-supabase-auth-and-mcp.md), [platform migration](../rfcs/RFC-0011-platform-migration.md).
 - Behavior to preserve: [connection model](../MCP_CONNECTION_MODEL.md),
-  [Wally over MCP](../rfcs/0004-wally-mcp.md).
+  [Wally over MCP](../rfcs/RFC-0004-wally-mcp.md).

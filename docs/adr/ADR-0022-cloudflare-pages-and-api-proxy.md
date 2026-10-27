@@ -4,9 +4,9 @@
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:**
-  - [ADR-0015](0015-cloudflare-dns-and-wally-custom-domains.md).
+  - [ADR-0015](ADR-0015-cloudflare-dns-and-wally-custom-domains.md).
   - The Firebase Hosting target in
-    [ADR-0008](0008-tag-triggered-release-to-hosting-and-cloud-run.md). Its approved,
+    [ADR-0008](ADR-0008-tag-triggered-release-to-hosting-and-cloud-run.md). Its approved,
     smoke-tested Cloud Run release stays in force.
 
 ## Context and problem statement
@@ -73,7 +73,7 @@ other needs no new ADR.
     10 ms of CPU per request (owner brief, citing
     [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)).
   - Whether a 55 s assistant request fits inside that is _unverified_ until the
-    [platform migration](../rfcs/0011-platform-migration.md) proof, section 5.
+    [platform migration](../rfcs/RFC-0011-platform-migration.md) proof, section 5.
 - Neutral: Pages rollback has to be checked and scripted in the hosting slice.
 
 ### Confirmation
@@ -86,5 +86,5 @@ The release fails if:
 
 ## More information
 
-- [Platform migration](../rfcs/0011-platform-migration.md), workstream 4.
+- [Platform migration](../rfcs/RFC-0011-platform-migration.md), workstream 4.
 - Deployment steps: [DEPLOY.md](../DEPLOY.md), updated in the hosting slice.

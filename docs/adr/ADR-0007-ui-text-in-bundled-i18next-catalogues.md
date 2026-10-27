@@ -3,7 +3,7 @@
 - **Status:** accepted
 - **Date:** 2026-09-20
 - **Deciders:** Milad Rezazadeh
-- **Superseded in part:** the context sentence "Wally's domain language is German …" by [ADR-0014](0014-english-identifiers-and-persisted-values.md) (2026-10-17); the catalogue decision stands. `englishSurface.test.tsx`, named under Confirmation, is now `germanSurface.test.tsx` (ADR-0014 step 3)
+- **Superseded in part:** the context sentence "Wally's domain language is German …" by [ADR-0014](ADR-0014-english-identifiers-and-persisted-values.md) (2026-10-17); the catalogue decision stands. `englishSurface.test.tsx`, named under Confirmation, is now `germanSurface.test.tsx` (ADR-0014 step 3)
 
 ## Context and problem statement
 

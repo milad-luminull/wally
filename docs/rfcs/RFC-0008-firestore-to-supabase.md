@@ -2,8 +2,8 @@
 
 - **Status:** Supabase selected for data and identity; migration pending. Revised 2026-10-26.
 - **Date:** 2026-10-19, revised 2026-10-26
-- **Decision:** [ADR-0020](../adr/0020-supabase-postgres-through-the-api-with-drizzle.md)
-- **Context:** [platform migration](0011-platform-migration.md), workstreams 1 and 2.
+- **Decision:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)
+- **Context:** [platform migration](RFC-0011-platform-migration.md), workstreams 1 and 2.
 - **Reference:** [provider research](../researches/2026-10-19-provider-strategy.md)
 
 ## Decision and scope
@@ -23,7 +23,7 @@ with Drizzle as the schema and query layer.
 - The Data API is disabled.
 - The browser reaches Supabase only for Auth and Realtime (ADR-0021, ADR-0023).
 
-**Identity:** Supabase Auth replaces Auth0 in the [identity RFC](0012-supabase-auth-and-mcp.md),
+**Identity:** Supabase Auth replaces Auth0 in the [identity RFC](RFC-0012-supabase-auth-and-mcp.md),
 after this cutover. This migration carries the existing `authIdentities` mappings
 unchanged.
 
@@ -31,7 +31,7 @@ unchanged.
 initial release stays under $50/month.
 
 **Out of scope:** uploads, vector search and background workers. See
-[uploads and retrieval](0009-uploads-and-retrieval.md) and [durable workers](0010-durable-ai-workers.md).
+[uploads and retrieval](RFC-0009-uploads-and-retrieval.md) and [durable workers](RFC-0010-durable-ai-workers.md).
 
 ## What has to move
 
