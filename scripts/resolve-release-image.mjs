@@ -20,8 +20,6 @@ export function apiConfig(env) {
     ASSISTANT_VERTEX_LOCATION: env.ASSISTANT_VERTEX_LOCATION,
     AUTH0_ENABLED: env.AUTH0_ENABLED,
     AUTH0_SIGNUP_ENABLED: env.AUTH0_SIGNUP_ENABLED,
-    AUTH0_ISSUER: 'https://login.luminull.com/',
-    AUTH0_AUDIENCE: 'https://api.wally.luminull.com',
     MCP_ENABLED: env.MCP_ENABLED,
     MCP_WRITES_ENABLED: env.MCP_WRITES_ENABLED,
   };

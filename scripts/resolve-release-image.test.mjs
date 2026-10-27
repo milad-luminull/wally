@@ -83,6 +83,24 @@ test('the deploy flag carries exactly the configuration the checks expect', () =
   assert.ok(parsed.some((e) => e.name === 'FIRESTORE_DATABASE_ID' && e.value === 'wally'));
   assert.ok(!parsed.some((e) => e.name === 'MCP_CLIENT_ID'));
 });
+test('the configuration sets exactly the variables the API reads in production', () =>
+  assert.deepEqual(
+    apiConfig({ ...releaseEnv, MCP_CLIENT_ID: 'client' }).env.map(({ name }) => name),
+    [
+      'ASSISTANT_ENABLED',
+      'ASSISTANT_MODEL',
+      'ASSISTANT_VERTEX_LOCATION',
+      'AUTH0_ENABLED',
+      'AUTH0_SIGNUP_ENABLED',
+      'CORS_ORIGIN',
+      'FIREBASE_PROJECT_ID',
+      'FIRESTORE_DATABASE_ID',
+      'MCP_CLIENT_ID',
+      'MCP_ENABLED',
+      'MCP_WRITES_ENABLED',
+      'NODE_ENV',
+    ],
+  ));
 test('configuration rejects a value that would split the deploy flag', () =>
   assert.throws(() => apiConfig({ ...releaseEnv, WEB_ORIGIN: 'https://a@b' }), /delimiter/));
 test('configuration rejects a malformed assistant model', () =>
