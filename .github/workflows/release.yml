@@ -1,7 +1,6 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
     tags: ['v*']
 
@@ -11,8 +10,7 @@ permissions:
 concurrency:
   # NEVER cancel a release in progress: a half-cancelled run can leave the API deployed and
   # Hosting stale. Releases queue instead.
-  # Read-only preflight must not queue behind a release awaiting approval.
-  group: ${{ github.event_name == 'workflow_dispatch' && 'release-preflight-production' || 'release-production' }}
+  group: release-production
   cancel-in-progress: false
 
 env:
@@ -85,33 +83,7 @@ jobs:
             sleep 20
           done
 
-  preflight:
-    if: github.event_name == 'workflow_dispatch'
-    needs: [verify]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: production
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
-        with:
-          node-version: '22'
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
-        with:
-          install_components: beta
-      - run: node scripts/check-api-domain.mjs
-      - run: node scripts/check-release-prerequisites.mjs
-
   deploy:
-    if: github.event_name == 'push'
     needs: [verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -165,9 +137,6 @@ jobs:
 
       # status.url is Cloud Run's native hostname even when a custom domain is mapped.
       # Validate the mapping and canonical public endpoint before making any changes.
-      - name: Test the API domain release guard
-        run: node --test scripts/check-api-domain.test.mjs
-
       - name: Verify the canonical API domain and CORS
         run: node scripts/check-api-domain.mjs
 
@@ -206,12 +175,18 @@ jobs:
             esac
           done
 
-      - name: Resolve existing candidate image for retries
+      # Also emits the API runtime configuration (run_env, service_account) that the deploy
+      # uses and the post-deploy check asserts, so it is defined once.
+      - name: Resolve the candidate configuration and any image to reuse
         id: existing
         run: node scripts/resolve-release-image.mjs
 
-      - name: Verify prepared release prerequisites
-        run: node scripts/check-release-prerequisites.mjs release-state.json
+      # Record what to go back to. Captured BEFORE anything changes: at failure time the
+      # release list has already shifted and index [1] would be the wrong one. Refuses when
+      # production already serves this release's candidate (a rerun after failed recovery).
+      - name: Capture the current production state
+        id: prev
+        run: node scripts/release-state.mjs snapshot release-state.json
 
       - name: Preserve recovery state before mutations
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -220,20 +195,6 @@ jobs:
           path: release-state.json
           if-no-files-found: error
           retention-days: 30
-
-      # Record what to go back to. Captured BEFORE anything changes: at failure time the
-      # release list has already shifted and index [1] would be the wrong one.
-      - name: Capture the current production state
-        id: prev
-        run: |
-          set -euo pipefail
-          REV=$(jq -er '.revision' release-state.json)
-          HV=$(jq -er '.hostingVersion' release-state.json)
-          [ -n "$HV" ] || { echo "::error::missing Hosting rollback version"; exit 1; }
-          echo "revision=${REV}" >> "$GITHUB_OUTPUT"
-          echo "hosting_version=${HV}" >> "$GITHUB_OUTPUT"
-          echo "Cloud Run revision: ${REV}"
-          echo "Hosting version:    ${HV:-<none>}"
 
       # ---------------------------------------------------------------------------------
       # 1. Firestore rules + indexes. First, because they are additive and backward
@@ -306,60 +267,45 @@ jobs:
       # ---------------------------------------------------------------------------------
       - name: Deploy the API (no traffic yet)
         id: run_deploy
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          RUN_ENV: ${{ steps.existing.outputs.run_env }}
+          SERVICE_ACCOUNT: ${{ steps.existing.outputs.service_account }}
+          SHORT: ${{ steps.ver.outputs.short }}
         run: |
           set -euo pipefail
-          IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${{ steps.image.outputs.digest }}"
-          # ^@^ picks @ as the delimiter so a value containing a comma cannot silently split
-          # into two variables. --set-env-vars REPLACES the whole set, which is deliberate:
-          # the workflow, not deploy history, is the source of truth. All settings are listed,
-          # and the next step asserts them back. The three ASSISTANT_* values come from the
-          # repository variables of the same names and fall back to the API's own defaults
-          # (apps/api/src/env.ts) when a variable is absent.
-          RUN_ENV="^@^FIREBASE_PROJECT_ID=${GCP_PROJECT_ID}@NODE_ENV=production@CORS_ORIGIN=${WEB_ORIGIN}@FIRESTORE_DATABASE_ID=wally@ASSISTANT_ENABLED=${ASSISTANT_ENABLED}@ASSISTANT_MODEL=${ASSISTANT_MODEL}@ASSISTANT_VERTEX_LOCATION=${ASSISTANT_VERTEX_LOCATION}@AUTH0_ENABLED=${AUTH0_ENABLED}@AUTH0_SIGNUP_ENABLED=${AUTH0_SIGNUP_ENABLED}@AUTH0_ISSUER=https://login.luminull.com/@AUTH0_AUDIENCE=https://api.wally.luminull.com@MCP_ENABLED=${MCP_ENABLED}@MCP_WRITES_ENABLED=${MCP_WRITES_ENABLED}"
-          if [ -n "$MCP_CLIENT_ID" ]; then RUN_ENV="${RUN_ENV}@MCP_CLIENT_ID=${MCP_CLIENT_ID}"; fi
-          if [ -z '${{ steps.existing.outputs.digest }}' ]; then
+          # RUN_ENV comes from apiConfig in scripts/resolve-release-image.mjs. The three
+          # ASSISTANT_* values come from the repository variables of the same names and fall
+          # back to the API's own defaults (apps/api/src/env.ts) when a variable is absent.
+          if [ -z "$EXISTING_DIGEST" ]; then
           gcloud run deploy wally-api \
-            --image="${IMAGE}" \
+            --image="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${DIGEST}" \
             --region="${GCP_REGION}" \
-            --service-account="wally-api@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --service-account="${SERVICE_ACCOUNT}" \
             --set-env-vars="$RUN_ENV" \
-            --tag="rel-${{ steps.ver.outputs.short }}" \
-            --revision-suffix="rel-${{ steps.ver.outputs.short }}" \
+            --tag="rel-${SHORT}" \
+            --revision-suffix="rel-${SHORT}" \
             --labels="wally-commit=${GITHUB_SHA}" \
             --no-traffic
           fi
           # jq, not a gcloud value() projection: that prints a list repr like ['https://…'],
           # and the quotes left inside made curl reject the URL.
           URL=$(gcloud run services describe wally-api --region="${GCP_REGION}" --format=json \
-                | jq -r --arg tag "rel-${{ steps.ver.outputs.short }}" \
+                | jq -r --arg tag "rel-${SHORT}" \
                     '[.status.traffic[] | select(.tag == $tag) | .url][0] // empty')
           [[ "$URL" == https://* ]] || { echo "::error::no URL for the candidate tag; got '${URL}'"; exit 1; }
           echo "candidate_url=${URL}" >> "$GITHUB_OUTPUT"
           echo "candidate: ${URL}"
 
       - name: Assert the Cloud Run environment is correct
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           set -euo pipefail
-          gcloud run revisions describe "wally-api-rel-${{ steps.ver.outputs.short }}" --region="${GCP_REGION}" --format=json \
-          | jq -e --arg auth0 "$AUTH0_ENABLED" --arg signup "$AUTH0_SIGNUP_ENABLED" --arg mcp "$MCP_ENABLED" \
-              --arg writes "$MCP_WRITES_ENABLED" --arg client "$MCP_CLIENT_ID" '
-              ([.spec.containers[0].env[]? | {key:.name, value:.value}] | from_entries) as $e
-              | ($e.FIRESTORE_DATABASE_ID == "wally")
-                and ($e.FIREBASE_PROJECT_ID != null)
-                and ($e.NODE_ENV == "production")
-                and ($e | has("FIRESTORE_EMULATOR_HOST") | not)
-                and ($e | has("PORT") | not)
-                and ($e.ASSISTANT_ENABLED == "true" or $e.ASSISTANT_ENABLED == "false")
-                and ($e.ASSISTANT_MODEL | test("^[a-z-]+:[^:]+$"))
-                and ($e.AUTH0_ENABLED == $auth0)
-                and ($e.AUTH0_SIGNUP_ENABLED == $signup)
-                and ($e.AUTH0_ISSUER == "https://login.luminull.com/")
-                and ($e.AUTH0_AUDIENCE == "https://api.wally.luminull.com")
-                and ($e.MCP_ENABLED == $mcp)
-                and ($e.MCP_WRITES_ENABLED == $writes)
-                and (($e.MCP_CLIENT_ID // "") == $client)
-            ' > /dev/null \
-          || { echo "::error title=Bad Cloud Run environment::Check named database, production mode, assistant settings, exact Auth0/MCP rollout settings, and absence of FIRESTORE_EMULATOR_HOST and PORT."; exit 1; }
+          # The candidate must run the selected image with exactly apiConfig's variables and
+          # service account: nothing extra (FIRESTORE_EMULATOR_HOST, PORT), nothing missing.
+          node scripts/resolve-release-image.mjs verify
 
           # docs/DEPLOY.md section 9c: the invoker IAM check is disabled on this service
           # because the org policy forbids an allUsers binding. It is a service-level
@@ -466,7 +412,7 @@ jobs:
       # ---------------------------------------------------------------------------------
       - name: Restore captured release state after partial failure
         if: (failure() || cancelled()) && steps.shift.outcome != 'skipped'
-        run: node scripts/recover-release.mjs --apply release-state.json
+        run: node scripts/release-state.mjs apply release-state.json ${{ steps.hosting.outcome != 'skipped' && '--hosting' || '' }}
 
       - name: Summary
         if: always()
