@@ -464,9 +464,9 @@ export const de = {
     hosted: {
       description: 'Melde dich sicher mit Google oder deiner E-Mail auf unserer Anmeldeseite an.',
       passwordReset:
-        'Du nutzt bereits E-Mail und Passwort? Wähle auf der nächsten Seite „Passwort vergessen“, um dein Passwort für die neue Anmeldung zurückzusetzen.',
+        'Passwort vergessen? Wähle auf der nächsten Seite „Passwort vergessen“, um es zurückzusetzen.',
       migration:
-        'Dein Konto ist noch nicht für die neue Anmeldung bereit. Deine Boards sind sicher. Wende dich an den Wally-Betreiber oder nutze ein anderes Konto.',
+        'Diese Anmeldung ist mit keinem Wally-Konto verknüpft. Wende dich an den Wally-Betreiber oder nutze ein anderes Konto.',
       unavailable: 'Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
       pending: 'Verbindung wird hergestellt…',
       login: 'Weiter zur Anmeldung',

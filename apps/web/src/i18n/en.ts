@@ -447,10 +447,9 @@ export const en = {
   auth: {
     hosted: {
       description: 'Sign in securely with Google or your email on our login page.',
-      passwordReset:
-        'Already using an email and password? Select “Forgot password” on the next page to reset your password for the new sign-in.',
+      passwordReset: 'Forgot your password? Select “Forgot password” on the next page to reset it.',
       migration:
-        'Your account is not ready for the new sign-in yet. Your boards are safe. Please contact the Wally owner or use another account.',
+        'This sign-in is not linked to a Wally account. Please contact the Wally owner or use another account.',
       unavailable: 'We could not finish signing you in. Please try again.',
       pending: 'Connecting…',
       login: 'Continue to sign in',
