@@ -991,10 +991,8 @@ were deleted:
   and `wally-account-scheduler@`, their project bindings and the custom role
   `wallyAccountIdentityDeletion`;
 - the production environment variables `AUTH0_MANAGEMENT_DOMAIN`,
-  `AUTH0_CLEANUP_CLIENT_ID` and `AUTH0_CLEANUP_SECRET_VERSION`.
-
-Still to delete in the Auth0 dashboard: the Management API client used for cleanup
-(`delete:users`, client ID `WGRHW4m65HZ8WNTgRH3tBDWanxkR49oH`).
+  `AUTH0_CLEANUP_CLIENT_ID` and `AUTH0_CLEANUP_SECRET_VERSION`;
+- the Auth0 Management API client "Wally account cleanup" (`delete:users`).
 
 The `accountDeletionJobs` and `accountDenials` collections are no longer read. They go
 when Firestore is retired.
