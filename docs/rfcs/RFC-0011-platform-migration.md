@@ -1,7 +1,8 @@
 # Platform migration: Supabase, Supabase Auth and Cloudflare
 
-- **Status:** accepted by the owner on 2026-10-26; planning, nothing migrated yet.
-- **Date:** 2026-10-26
+- **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
+  (section 8); planning, nothing migrated yet.
+- **Date:** 2026-10-26, updated 2026-10-27
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
@@ -21,8 +22,11 @@ and Auth0 are decommissioned.** Every existing capability keeps working, in part
 - MCP for ChatGPT, including reads, writes, conflicts, replay safety, private-note
   isolation, Disconnect and Reconnect, and the request and write budgets
   ([connection model](../MCP_CONNECTION_MODEL.md)).
-- Existing accounts keep their Wally user ID and data. Accounts are never merged by
-  email alone.
+- **Nothing carries over from Firestore.** Production starts empty on PostgreSQL: no
+  Firestore data is exported or imported (owner, 2026-10-27), so every user starts with a
+  new, empty account there. Whether accounts created on PostgreSQL before the identity
+  switch move to Supabase Auth is open (section 8). Accounts are never merged by email
+  alone.
 
 The **Google Cloud project `luminull-wally` stays**. It also hosts Cloud Run, Artifact
 Registry, Workload Identity Federation and Secret Manager. Decommissioning Firebase means
@@ -40,20 +44,28 @@ The brief's table is authoritative for the choice of provider. In short:
 - Cloud Run `wally-api`, plus a private `wally-background` service fed by Cloud Tasks
   and Cloud Scheduler.
 - Resend for all email: Supabase Auth's custom SMTP and notification email.
+- Supabase Storage for uploads ([uploads RFC](RFC-0009-uploads-and-retrieval.md)).
 - GitHub Actions to Artifact Registry to Cloud Run.
-- OpenTofu or Terraform for infrastructure. Which one is open.
+- Terraform for infrastructure.
 
 **Budget (replaces the €30/month ceiling of 2026-10-19):**
 
 - Target $0/month during development.
 - Under $50/month for the initial low-usage release, excluding tax and domains.
-- Upgrade one component at a time when a measured trigger in the brief's section 4 is met.
+- AI spend at most $30/month, inside the $50 (owner, 2026-10-27).
+- **Nothing is spent without the owner's manual approval:** no paid plan, add-on, or
+  usage beyond a free allowance (owner, 2026-10-27).
+- Supabase stays on Free. The owner decides when to move to Pro.
+- Upgrade one component at a time, when a measured trigger in the brief's section 4 is met
+  and the owner approves it.
 
 ## 3. Where Wally is today (checked 2026-10-26)
 
 - **Data:** Firestore, named database `wally` (europe-west3), reached only through the
   API (ADR-0003). About 40 source files and 30 test files use the Admin SDK directly.
-  There is no repository layer.
+  There is no repository layer. Nothing in it is kept: the v0.11.0 release deleted all
+  production data (ADR-0024), and the owner confirmed on 2026-10-27 that nothing is
+  exported or carried over.
 - **Identity:**
   - The production environment's release variables enable Auth0 login, open signup, and
     MCP with writes (`AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
@@ -81,20 +93,27 @@ The brief's table is authoritative for the choice of provider. In short:
 Each workstream is one or more slices, each with its own plan, its own PR from `main`,
 and its own E2E specs. Plans are not stacked.
 
-| #   | Workstream                                                                      | Depends on                    | Detail                                            |
-| --- | ------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- |
-| 0   | **Proofs on a free project** (no production change)                             | none                          | Section 5                                         |
-| 1   | **Postgres foundation:** schema, migrations, local stack, test harness, backups | 0                             | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
-| 2   | **Persistence switch and data cutover**                                         | 1                             | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
-| 3   | **Identity and MCP on Supabase Auth**, then retire Auth0                        | 2                             | [Identity RFC](RFC-0012-supabase-auth-and-mcp.md) |
-| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting               | none (smallest; can go first) | ADR-0022                                          |
-| 5   | **Background service, Realtime notifications, Resend**                          | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
-| 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0           | all, plus rollback windows    | Section 6                                         |
+| #   | Workstream                                                                | Depends on                    | Detail                                            |
+| --- | ------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| 0   | **Proofs on a free project** (no production change), including backups    | none                          | Section 5                                         |
+| 1   | **Postgres foundation:** schema, migrations, local database, test harness | none (built first)            | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 2   | **Persistence switch** (no data to carry over)                            | 0, 1                          | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 3   | **Identity and MCP on Supabase Auth**, then retire Auth0                  | 2                             | [Identity RFC](RFC-0012-supabase-auth-and-mcp.md) |
+| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting         | none (smallest; can go first) | ADR-0022                                          |
+| 5   | **Background service, Realtime notifications, Resend**                    | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
+| 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0     | all, plus rollback windows    | Section 6                                         |
+
+**The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
+production and needs no Supabase account, so it is built before the proofs. Each proof
+still gates the slice that depends on it: database connectivity, the Data API switch and
+backups gate workstream 2; the MCP proof gates workstream 3; the Worker proof gates
+workstream 4. The foundation's design is in
+[the slice 1 design](../superpowers/specs/2026-10-27-postgres-foundation-design.md).
 
 **Data goes before identity.** Supabase Auth's users then sit in the same database as
-Wally's tables, the identity mapping moves once, and the auth cutover does not also have
-to carry a data cutover. Running both cutovers in one window is ruled out: if something
-fails, nobody can tell which change caused it.
+Wally's tables, and the identity mapping is created there once. No data is copied, but
+the switch to PostgreSQL and the switch to Supabase Auth are still released separately:
+if something fails, nobody can tell which change caused it.
 
 ## 5. Proofs before any production change (workstream 0)
 
@@ -138,11 +157,13 @@ Each has to be proven on a free project before the slice that depends on it.
   - Nothing is deleted at a provider until that window has closed and a restore drill on
     the new side has passed.
   - Permanent dual writes are not allowed.
-- **Firestore:** export a final snapshot, keep it encrypted for the agreed retention, then
-  delete the `wally` database, the rules and indexes deploy, and the TTL policies.
+- **Firestore:** no final export, since nothing is kept (owner, 2026-10-27). After the
+  rollback window, delete the `wally` database, the rules and indexes deploy, and the TTL
+  policies.
 - **Firebase Authentication and Auth0:**
-  - Retire Firebase Authentication and Auth0 only after every active account has been
-    shown to sign in through Supabase Auth.
+  - Retire Firebase Authentication and Auth0 only after the identity cutover's rollback
+    window, and after every account that moved has been shown to sign in through
+    Supabase Auth.
   - Retire Auth0's custom domain `login.luminull.com` and its tenant.
   - Disconnect the ChatGPT client registered in Auth0.
 - **Firebase Hosting:** retire it after the Cloudflare release has served for its window.
@@ -157,12 +178,10 @@ Each has to be proven on a free project before the slice that depends on it.
 The brief was checked against the repository and vendor documentation on 2026-10-26.
 Points marked _unverified_ must be confirmed in the slice that relies on them.
 
-1. **Two identity migrations in a few weeks.**
-   - Auth0 has only just gone live, so every Auth0 login moves again.
+1. **A second identity change in a few weeks.**
+   - Auth0 has only just gone live, and every Auth0 login changes again.
    - Every MCP connection has to be re-authorized, because tokens issued by Auth0 cannot
      be verified once Auth0 is gone.
-   - Wally's own `(issuer, subject)` mapping makes the moves safe, but users will notice
-     them.
 2. **The MCP authorization server is in beta**, and its documented gaps are exactly what
    Wally's MCP relies on today:
    - separate REST and MCP audiences;
@@ -179,15 +198,15 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
      ([identity linking](https://supabase.com/docs/guides/auth/auth-identity-linking)).
    - The page does not say this can be turned off.
    - Wally's mapping therefore has to treat the Supabase user, not the email, as the
-     identity, and the import must create that user explicitly for each existing account.
+     identity.
 4. **Email must be set up before auth cutover:**
    - Without custom SMTP, Supabase Auth sends 2 emails per hour, and only to the
      project's team ([custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)).
    - So Resend must be configured before any real sign-up or password reset.
 5. **Password accounts:**
    - Moving password hashes out of Auth0 is _unverified_ on the Free plan.
-   - Plan for a password reset for the few password accounts, as the Auth0 move already
-     did.
+   - If accounts move (section 8), plan for a password reset for password accounts, as
+     the Auth0 move already did.
 6. **Browser access to Supabase is new:**
    - The browser will talk to Supabase Auth and Realtime directly. ADR-0003's "no
      database client in the web app" and ADR-0006's "no real-time channel" no longer hold
@@ -213,7 +232,7 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
    - Cloudflare, Supabase and Resend become processors, and Google and Auth0 drop out
      for identity. GDPR.md changes in each cutover slice.
 10. **Free plan risk:**
-    - Production data is real today.
+    - Production data is real from the first signup on Supabase.
     - The brief rightly states that Free has no managed backups and can pause.
     - The backup routine and restore drill (section 5, item 4) are therefore cutover gates,
       not follow-ups.
@@ -236,25 +255,31 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
       (owner brief). Until the background service queries PostgreSQL regularly, a
       keepalive needs a decision.
 
-## 8. Open owner decisions
+## 8. Owner decisions
 
-Decided on 2026-10-27: Resend sends all email, and the owner brief is the target stack.
+Decided on 2026-10-27:
+
+- **Email:** Resend sends all email.
+- **Target stack:** the owner brief.
+- **Data:** Firestore data is deleted. Nothing is exported or carried over.
+- **Infrastructure tooling:** Terraform.
+- **Storage:** Supabase Storage for uploads.
+- **AI spend:** at most $30/month, inside the $50 ceiling.
+- **Spending:** nothing is spent without the owner's manual approval.
+- **Pro upgrade:** stay on Free; the owner decides when to move to Pro.
+
 Still open:
 
-- **Rollback windows** for the data and identity cutovers, and the retention of the final
-  Firestore export.
-- **Infrastructure tooling:** OpenTofu or Terraform, and which resources it manages first.
-- **Storage:** Supabase Storage or Google Cloud Storage for uploads (open in the brief;
-  [uploads RFC](RFC-0009-uploads-and-retrieval.md)).
-- **AI spend:** does the assistant's monthly spend cap count inside the $50 ceiling? The
-  brief lists AI calls as a separate, usage-dependent cost.
-- **Pro upgrade:** when production data moves, stay on Free with our own backups, or
-  move to Pro. The brief says stay on Free until a trigger is met. The restore drill
-  decides whether our own backups are enough.
+- **Accounts at the identity switch:** accounts and boards created on PostgreSQL while
+  Auth0 still signs people in either move to Supabase Auth, bound to their Wally user
+  ([identity RFC](RFC-0012-supabase-auth-and-mcp.md) section 3), or are deleted and
+  everyone starts again.
+- **Rollback windows** for the persistence and identity switches.
+- **Terraform scope:** which resources it manages first.
 
 ## 9. Operations the brief expects from day one
 
-- **Before production data moves:**
+- **Before production switches to PostgreSQL:**
   - Billing alerts on Google Cloud, Supabase and Cloudflare. Alerts are not caps.
   - Supabase project-owner emails switched on, so pause warnings reach the owner.
 - **Dashboards:**

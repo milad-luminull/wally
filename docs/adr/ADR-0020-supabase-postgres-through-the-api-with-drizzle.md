@@ -11,7 +11,7 @@ Wally keeps all data in Cloud Firestore, reached only by the API (ADR-0003). Fir
 chosen because nothing bills while idle. It has no schema, no joins and no aggregates, and
 every invariant depends on its transaction semantics.
 
-On 2026-10-26 the owner moved data and identity to one provider, Supabase, starting on the
+On 2026-10-26 the owner chose one provider for data and identity, Supabase, starting on the
 Free plan ([tech stack brief](../researches/2026-10-26-tech-stack-and-architecture.md)).
 
 The question: which database and data-access layer should Wally use, and who may talk to
@@ -23,7 +23,9 @@ the database?
 - Data stays in the EU.
 - Authorization is still enforced in one place, the API.
 - Relational integrity, migrations and SQL reporting.
-- Existing IDs, revisions, receipts and invariants carry over unchanged.
+- The API behaves exactly as today: revisions, command receipts and every other
+  invariant hold. No data moves; production starts on an empty database (owner,
+  2026-10-27).
 
 ## Considered options
 
@@ -31,7 +33,7 @@ the database?
    - Good: schema, joins and integrity, with the same provider as identity.
    - Bad: a rewrite of the persistence layer.
 2. **Stay on Firestore:**
-   - Good: nothing to migrate.
+   - Good: no persistence rewrite.
    - Bad: no relational queries, and it keeps Firebase, which is being decommissioned.
 3. **Neon with a separate identity provider:**
    - Good: built for idle databases.
@@ -57,7 +59,7 @@ Chosen option: **option 1**.
   off. On Free that is the IPv4 path
   ([connecting](https://supabase.com/docs/guides/database/connecting-to-postgres)).
 - **Data shape:**
-  - IDs stay opaque text, and timestamps become `timestamptz`.
+  - IDs are text, and timestamps are `timestamptz`.
   - TTL policies become `expires_at` columns with a scheduled purge.
   - One isolation strategy, proven by concurrency tests, keeps the invariants that
     relied on Firestore's serializable transactions.
@@ -65,7 +67,7 @@ Chosen option: **option 1**.
   because Free has no managed backups
   ([backups](https://supabase.com/docs/guides/platform/backups)).
 
-The scope, data inventory, backup routine and cutover are in the
+The scope, data inventory, backup routine and switch are in the
 [data RFC](../rfcs/RFC-0008-firestore-to-supabase.md).
 
 ### Consequences
