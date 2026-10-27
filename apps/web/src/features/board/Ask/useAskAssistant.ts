@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { AssistantConversationDto } from '@wally/shared';
 import { ApiError } from '@/lib/apiClient';
+import { localDate } from '@/lib/localDate';
 import { assistantApi } from '@/lib/resources';
 
 export type RefusalCode = 'ASSISTANT_DAILY_CAP' | 'ASSISTANT_MONTHLY_CAP' | 'ASSISTANT_BUSY';
@@ -18,12 +19,6 @@ const REFUSALS: Record<string, RefusalCode> = {
   RATE_LIMITED: 'ASSISTANT_BUSY',
 };
 
-/** Today in the browser's calendar, as the API expects it; not UTC, which is a day off at night. */
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 /**
  * One question to the board. The API's three outcomes come back as data, never thrown, so
  * the card renders each in the answer's place. A conversation that closed underneath is
@@ -35,7 +30,7 @@ export function useAskAssistant(boardId: string) {
       const base = {
         message,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        today: localToday(),
+        today: localDate(),
       };
       try {
         let response;
