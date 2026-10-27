@@ -15,7 +15,7 @@ function cardCentre(note: Pick<NoteDto, 'freeX' | 'freeY'>) {
 const pairKey = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`);
 
 /**
- * The hairlines between related cards on the free canvas (WALLYBOT_INLINE.md §3.4, plan L5):
+ * The hairlines between related cards on the free canvas (0005-wallybot-inline.md §3.4, plan L5):
  * solid for a kept link, dashed for a link a pending proposal still offers; the note border
  * colour, 1 px, each pair once, under the cards. Positions come from the notes, so a drop
  * moves the line with the card. Zone bands and the list draw none.

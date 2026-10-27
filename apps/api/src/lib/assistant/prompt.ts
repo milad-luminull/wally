@@ -1,7 +1,7 @@
 import type { EffectiveRole, Language } from '@wally/shared';
 
 /**
- * Byte-stable so every provider can cache it (WALLY_AGENT.md §3.5). Board content never
+ * Byte-stable so every provider can cache it (0003-wally-agent.md §3.5). Board content never
  * appears here; it arrives as tool results. The brand rules for the AI (BRAND.md) are in
  * the wording: no name, no first person, plain text, the notes read listed underneath by
  * the server from the markers.

@@ -10,7 +10,7 @@
 
 **Tech Stack:** Fastify, TypeScript, jose, current Firestore store, Vitest/emulator.
 
-**Spec:** [Auth0 and MCP rollout](../../rfcs/AUTH0_MCP_ROLLOUT.md).
+**Spec:** [Auth0 and MCP rollout](../../rfcs/0006-auth0-mcp-rollout.md).
 
 ## Constraints and review focus
 

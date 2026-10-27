@@ -67,7 +67,7 @@ interface WallViewProps {
   /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
   onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
   access: BoardAccess;
-  /** The note being written in place, if any (WALLYBOT_INLINE.md §3.1). */
+  /** The note being written in place, if any (0005-wallybot-inline.md §3.1). */
   capture: CapturePlacement | null;
   /** Changes with every capture, so each one gets a fresh card. */
   captureKey?: number;
@@ -84,14 +84,14 @@ interface WallViewProps {
   visibility: NoteVisibility;
   /** The board's filter chose that visibility ("Shared"). */
   visibilityChosen?: boolean;
-  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  /** The pending Wallybot change each note shows, if any (0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
   editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
   /**
-   * The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). Drawn on the horizon
+   * The note's part in a Tidy batch, if any (0005-wallybot-inline.md §3.5). Drawn on the horizon
    * wall only (plan R10); the shell passes it only while the board's assistant is on.
    */
   tidyFor?: (noteId: string) => TidyProps | undefined;

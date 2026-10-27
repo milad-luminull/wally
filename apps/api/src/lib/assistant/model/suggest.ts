@@ -265,7 +265,7 @@ const replySchema = jsonSchema<z.output<typeof modelSuggestionSchema>>(
 );
 
 /**
- * One structured call (WALLYBOT_INLINE.md §4). The attempt is announced first and settled with
+ * One structured call (0005-wallybot-inline.md §4). The attempt is announced first and settled with
  * the reported usage afterwards; the library's own retries are off. The call may produce the
  * answer's allowance plus the model's thinking room (`thinkingTokens`), and that total is
  * what it announces, so the ledger reserves what can actually be billed. A reply that does

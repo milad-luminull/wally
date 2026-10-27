@@ -22,7 +22,7 @@ const BOARD_SURFACE = '[data-board-surface]';
  *  monthly one. Null when the API sent something that does not parse, so the busy line shows. */
 /**
  * The answer to a question typed into the capture card, drawn where the question was written
- * (WALLYBOT_INLINE.md §3.6): the note's type, the pending look's dashed edge and nothing else,
+ * (0005-wallybot-inline.md §3.6): the note's type, the pending look's dashed edge and nothing else,
  * the notes it relied on as rows underneath. Its own component, as the capture card is: it is
  * never a note, never dragged, and it fades. No dot and no ring: nothing is written (R3).
  */

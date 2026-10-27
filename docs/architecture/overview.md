@@ -96,4 +96,4 @@ Notes are top-level rather than nested under their board because routes address 
 - [ADR index](../adr/README.md)
 - [Setup and conventions](../SETUP.md), [Deploying](../DEPLOY.md), [GDPR](../GDPR.md)
 - [Product spec](../SPEC.md)
-- [Wally assistant proposal](../rfcs/WALLY_AGENT.md) and [Wally over MCP](../rfcs/WALLY_MCP.md), not yet decided
+- [Wally assistant proposal](../rfcs/0003-wally-agent.md) and [Wally over MCP](../rfcs/0004-wally-mcp.md), not yet decided

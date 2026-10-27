@@ -41,7 +41,7 @@ export function rolesFromMembers(
 
 /**
  * board.create has no board to authorize against: any signed-in user may create one, up to
- * MAX_OWN_BOARDS live boards (RFC BOARD_HOME §8, §12.4). The owned-board query runs inside the
+ * MAX_OWN_BOARDS live boards (RFC 0002 §8, §12.4). The owned-board query runs inside the
  * command transaction so the count and the write commit together. New boards get generated
  * ids; only the first board, provisioned with the user record, shares the user's uid.
  */
@@ -122,7 +122,7 @@ export async function executeAdminCommand(
 
   // Tombstone, withdraw the share link and enqueue the physical deletion, all in this commit.
   // From here the board reads as absent for everyone (liveWhiteboard); the cleanup job removes
-  // its notes, members and document and can be resumed by maintenance (RFC BOARD_HOME §12.2).
+  // its notes, members and document and can be resumed by maintenance (RFC 0002 §12.2).
   if (command.type === 'board.delete') {
     const cleanupId = `${actor.id}_${ctx.operationId}`;
     if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));

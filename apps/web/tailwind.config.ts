@@ -162,7 +162,7 @@ export default {
         },
         /* Skeletons sweep instead of pulsing — reads as loading, not as a broken element. */
         shimmer: { from: { backgroundPosition: '200% 0' }, to: { backgroundPosition: '-200% 0' } },
-        /** The pending dot's ring (WALLYBOT_INLINE.md §3.3). An SVG inside the card, never the
+        /** The pending dot's ring (0005-wallybot-inline.md §3.3). An SVG inside the card, never the
          * card's wrapper, so the no-mount-animation rule (NoteCard.test.tsx) still holds. */
         countdown: {
           from: { strokeDashoffset: '0' },

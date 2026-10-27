@@ -389,7 +389,7 @@ describe('whiteboard routes', () => {
       expect(membered.currentUserRole).toBe('EDIT');
     });
   });
-  // RFC BOARD_HOME §12.2: from the moment board.delete commits, the board reads as absent for
+  // RFC 0002 §12.2: from the moment board.delete commits, the board reads as absent for
   // everyone, exactly like a board the caller was never a member of.
   describe('a tombstoned board', () => {
     async function tombstoned() {

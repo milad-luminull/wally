@@ -49,7 +49,7 @@ const asTyped = (text: string) => (text.trim() ? text : '');
 
 /**
  * The card the person writes in, on the wall (or as a list row) where the note will live
- * (WALLYBOT_INLINE.md §3.1). Its own component, never a mode of NoteCard: it may animate in
+ * (0005-wallybot-inline.md §3.1). Its own component, never a mode of NoteCard: it may animate in
  * because the real card replaces it on commit and it is never dragged.
  */
 export function InlineCaptureCard({
@@ -80,7 +80,7 @@ export function InlineCaptureCard({
   onNoteId?: (id: string) => void;
   /**
    * Set when the board's assistant is on: a title ending in `?` is a question for the wall
-   * (WALLYBOT_INLINE.md §3.6, plan R1). The card hands the question over, deletes the draft
+   * (0005-wallybot-inline.md §3.6, plan R1). The card hands the question over, deletes the draft
    * note and ends the capture with no note (R2). Without it a `?` is a plain title. The
    * answer takes the focus only for a question asked with Enter (R8).
    */

@@ -120,7 +120,7 @@ export function createTurnRunner(
           maxOutputTokens: input.maxOutputTokens,
         });
         // A question reads the board before it is answered: left to choose, the model can
-        // answer without reading (WALLY_AGENT.md §3.4). The first step of a turn that carries
+        // answer without reading (0003-wally-agent.md §3.4). The first step of a turn that carries
         // a user message must call a tool; prepareStep's `toolChoice` applies to that step only
         // (ai docs/03-ai-sdk-core/15-tools-and-tool-calling.mdx, "prepareStep callback" and
         // "Tool Choice"), so later steps stay automatic and can answer. A response without a
@@ -131,7 +131,7 @@ export function createTurnRunner(
       },
       onStepEnd: async (step) => {
         const usage = toUsage(step.usage);
-        // Usage the provider did not report keeps the reservation (WALLY_AGENT.md §3.2):
+        // Usage the provider did not report keeps the reservation (0003-wally-agent.md §3.2):
         // the step may have been billed, so its worst case stays charged; its slot is freed
         // before the next step reserves one.
         if (usage) {
@@ -214,7 +214,7 @@ export async function toolDefinitionsJson(tools: TurnTool[]): Promise<string> {
 export const ELIDED_TOOL_RESULT = '[earlier result omitted; read the board again]';
 
 /**
- * Board content from an earlier turn is not reused as context (WALLY_AGENT.md §3.4): the
+ * Board content from an earlier turn is not reused as context (0003-wally-agent.md §3.4): the
  * caller may no longer see it, and re-sending it would spend the caps on every turn. Every
  * tool result already in the history is replaced by a short placeholder, per call; the tool
  * calls and the assistant's text stay, so the model still sees what it did. A denied write

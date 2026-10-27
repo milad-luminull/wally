@@ -1,6 +1,6 @@
 /**
  * Trusted execution context for a write the assistant made. The server supplies it; it is
- * never read from a model-controlled argument (WALLY_AGENT.md §3.3). The command layer
+ * never read from a model-controlled argument (0003-wally-agent.md §3.3). The command layer
  * stores it on the receipt, folds it into the idempotency fingerprint, marks note history
  * with `via`, and writes one contents-free audit record per committed command.
  */

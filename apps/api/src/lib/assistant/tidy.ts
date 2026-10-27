@@ -59,7 +59,7 @@ export function toTidyDto(doc: WithId<AssistantTidyDoc>): TidyDto {
   };
 }
 
-/** The caller's own record on this board, or 404 (the access recheck of WALLY_AGENT.md §3.4). */
+/** The caller's own record on this board, or 404 (the access recheck of 0003-wally-agent.md §3.4). */
 export async function loadTidy(
   db: Firestore,
   actor: Actor,
@@ -143,7 +143,7 @@ async function notesWithPendingSuggestion(
 }
 
 /**
- * One Tidy (WALLYBOT_INLINE.md §3.5, plan R3): read the open notes (those the request names,
+ * One Tidy (0005-wallybot-inline.md §3.5, plan R3): read the open notes (those the request names,
  * when it names any), move the dated ones by the rule, ask the model about the undated ones in
  * Today (reserve, call, settle), and store the batch only when there is something to move. Throws BudgetError and AppError only; the
  * provider's own error becomes 502 without its wording.
@@ -421,7 +421,7 @@ async function completeKeep(
 }
 
 /**
- * Keep, discard or undo the batch (WALLYBOT_INLINE.md §3.5, plan R5, R7). A keep moves the
+ * Keep, discard or undo the batch (0005-wallybot-inline.md §3.5, plan R5, R7). A keep moves the
  * chosen notes through the command layer under the record's own operation ids; a note changed
  * since the proposal is skipped and the rest moves. An undo moves each applied note back on
  * the revision its move produced, under the undo ids, skipping a note changed since.

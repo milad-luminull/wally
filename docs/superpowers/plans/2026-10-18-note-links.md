@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A note can be related to other notes on its board: Wallybot proposes links to related notes after Enter (slice 3's deferred half of WALLYBOT_INLINE.md §3.4), the person keeps them one by one or adds and removes them in the note panel, the panel lists what a note is related to in both directions, and on the free canvas a hairline joins related cards, dashed while a proposal is pending and solid once kept.
+**Goal:** A note can be related to other notes on its board: Wallybot proposes links to related notes after Enter (slice 3's deferred half of 0005-wallybot-inline.md §3.4), the person keeps them one by one or adds and removes them in the note panel, the panel lists what a note is related to in both directions, and on the free canvas a hairline joins related cards, dashed while a proposal is pending and solid once kept.
 
 **Architecture:** One new stored field, `links: string[]` on the note (one direction, at most ten), written through `note.update` with a `linkChanges { add, remove }` set applied to the note's current list inside the command transaction, which checks every target (same board, alive, visible to the caller, not the note itself); no new operation, so WALLY_AGENT §3.3 is unchanged. The suggestion record grows a `links` field with per-item ticks exactly as `subtasks` has, kept by one `update_note` write and undone by its inverse. On the web the controller, the card and the review learn the field in the same places `subtasks` taught them; the panel gets a "Related" section with a picker; the free canvas gets an SVG layer under the cards.
 
 **Tech Stack:** Fastify + Zod + firebase-admin; Vercel AI SDK behind `apps/api/src/lib/assistant/model/`; React 19 + TanStack Query 5 + Radix Popover + cmdk (both already in the app). No new dependency.
 
-**Spec:** `docs/rfcs/WALLYBOT_INLINE.md` §3.4 (links, the hairline), §4, §7; `docs/rfcs/WALLY_AGENT.md` §3.2 and §3.3 (`update_note` covers the write); `docs/BRAND.md` "## AI" rules 3–7, "Shape, depth and motion". Slice 3's plan `docs/superpowers/plans/2026-10-17-capture-review.md` (its R1 deferred this; its subtasks pattern is what links copy) is the record of the code this builds on.
+**Spec:** `docs/rfcs/0005-wallybot-inline.md` §3.4 (links, the hairline), §4, §7; `docs/rfcs/0003-wally-agent.md` §3.2 and §3.3 (`update_note` covers the write); `docs/BRAND.md` "## AI" rules 3–7, "Shape, depth and motion". Slice 3's plan `docs/superpowers/plans/2026-10-17-capture-review.md` (its R1 deferred this; its subtasks pattern is what links copy) is the record of the code this builds on.
 
 ## Context
 
@@ -23,7 +23,7 @@ Slice 3 deferred links because they need a stored relation, the model reading th
 - **L1. The relation is a list of note ids on the note that links**, `links: string[]`, at most `MAX_LINKS_PER_NOTE = 10`, one direction stored. Both sides show it: a note's panel lists the notes it links to and the notes that link to it (derived from the board's notes the client already holds). No separate collection: a link is a property of the note that was written, like a tag. Cost if wrong: a migration to an edge collection later.
 - **L2. `note.update` carries `linkChanges { add?: id[], remove?: id[] }`**, applied to the note's current list on the server (as `fieldChanges` and `tagChanges` are), so two people linking at once both keep theirs. Inside the transaction each added id is read: it must be a live note of the same board the caller can see, and not the note itself; otherwise 422 `LINK_TARGET_INVALID`. Removing an id that is not there is a no-op. The target note is not written: its revision does not move. Cost if wrong: a looser rule.
 - **L3. Wallybot proposes one to three links**, a `links` field on the suggestion with per-item ticks like steps: `{ items: [{ noteId, reason }], reason }`, offered only on a note with no links yet, when the board has other open notes the person can see. The prompt gets those notes as data, `id: title`, newest first, at most 40. A reply's link is accepted when its id is among the rows, not the note itself, confident, each once, at most three. The DTO resolves each item's title at read time from the board's notes; an item whose note is gone drops out. Cost if wrong: a cap and a prompt line.
-- **L4. One write keeps every ticked link**: `update_note { linkChanges: { add: ids } }` under the field's apply id; undo is `{ remove: ids }` under the undo id. The note had no links at `baseRevision` (L3), so undo removes exactly what the keep added; `stillWritten` checks the ids are still on the note. The undo runs on the kept revision like every other field (WALLYBOT_INLINE.md §4), so a link added or removed by hand after the keep refuses it with 409 `STALE_REVISION` and every link stays, as a step deleted by hand does (amended after the Task 4 review: the first draft expected the undo to succeed around a hand link, which §4 does not allow). `decision.links` names the ticked items by index, as `subtasks` does. Cost if wrong: nothing to migrate; records written before this have no `links` and read as proposing none.
+- **L4. One write keeps every ticked link**: `update_note { linkChanges: { add: ids } }` under the field's apply id; undo is `{ remove: ids }` under the undo id. The note had no links at `baseRevision` (L3), so undo removes exactly what the keep added; `stillWritten` checks the ids are still on the note. The undo runs on the kept revision like every other field (0005-wallybot-inline.md §4), so a link added or removed by hand after the keep refuses it with 409 `STALE_REVISION` and every link stays, as a step deleted by hand does (amended after the Task 4 review: the first draft expected the undo to succeed around a hand link, which §4 does not allow). `decision.links` names the ticked items by index, as `subtasks` does. Cost if wrong: nothing to migrate; records written before this have no `links` and read as proposing none.
 - **L5. Hairlines on the free canvas only.** An SVG layer under the cards draws a 1 px line in the note border colour between the centres of related cards (card centres from `freeX`/`freeY` and the card constants, so the lines follow a drop as the data does): dashed for a proposed link still ticked while the proposal is pending, solid for a kept link; each pair once. Zone bands and the list draw no lines (nested scroll containers, the risk slice 3 named); there the relation is read in the panel, and the card's meta row shows the count of related notes beside the subtask count. Cost if wrong: a layer to extend.
 - **L6. The panel's "Related" section** lists the related notes as rows (priority icon, title, due date, as the answer card's rows do), with an × on the note's own links; a note that links here is listed read-only with its direction said in the row's tooltip. "Link a note…" opens a searchable list of the board's other notes (the palette's components in a popover); picking one adds it. A viewer on a note they may not edit sees the rows and no controls. Cost if wrong: a picker to restyle.
 - **L7. A deleted or private-made note leaves a dangling id** on the notes that linked it; readers drop ids they cannot resolve (the web filters against the board's notes; the DTO's `links` is the raw list). No cleanup on delete in this slice. Cost if wrong: a maintenance pass later.
@@ -71,7 +71,7 @@ Slice 3 deferred links because they need a stored relation, the model reading th
 `packages/shared/src/constants.ts`, after `MAX_FIELDS_PER_NOTE`:
 
 ```ts
-/** Related notes one note may link to (WALLYBOT_INLINE.md §3.4; the plan's L1). */
+/** Related notes one note may link to (0005-wallybot-inline.md §3.4; the plan's L1). */
 export const MAX_LINKS_PER_NOTE = 10;
 ```
 
@@ -741,7 +741,7 @@ it('a link added by hand after the keep moves the revision, so the undo is refus
 });
 ```
 
-The undo runs on the kept revision (WALLYBOT_INLINE.md §4, L4), as the subtask undo does ("a kept step deleted by hand moves the revision, so the undo is refused and adds nothing"); the hand link refuses it. These tests may run as the editor where the owner's captures in the file reach the capture route's limit of 30 a minute.
+The undo runs on the kept revision (0005-wallybot-inline.md §4, L4), as the subtask undo does ("a kept step deleted by hand moves the revision, so the undo is refused and adds nothing"); the hand link refuses it. These tests may run as the editor where the owner's captures in the file reach the capture route's limit of 30 a minute.
 
 The fake runner gains a `threelinks` branch that names the first three ids of the "Other notes" block (newest first, so `c, b, a`) with confidence 0.9. Add an `audits` helper counting `assistantAuditCol(ctx.db)` rows if the file has none. Run: FAIL (the links are not written).
 
@@ -1006,7 +1006,7 @@ import { dueInfo, dueToneClass, relatedNotes } from '../util/noteDerived';
 import { FieldLabel } from './Field';
 
 /**
- * The notes this one is related to, both ways (WALLYBOT_INLINE.md §3.4, plan L6): a row per
+ * The notes this one is related to, both ways (0005-wallybot-inline.md §3.4, plan L6): a row per
  * note as the answer card lists them, an × on the note's own links, the direction in the
  * row's tooltip, and a picker to link another note of the board. No colour, no badge.
  */
@@ -1243,7 +1243,7 @@ export function cardCentre(note: Pick<NoteDto, 'freeX' | 'freeY'>) {
 const pairKey = (a: string, b: string) => (a < b ? `${a}:${b}` : `${b}:${a}`);
 
 /**
- * The hairlines between related cards on the free canvas (WALLYBOT_INLINE.md §3.4, plan L5):
+ * The hairlines between related cards on the free canvas (0005-wallybot-inline.md §3.4, plan L5):
  * solid for a kept link, dashed for a link a pending proposal still offers; the note border
  * colour, 1 px, each pair once, under the cards. Positions come from the notes, so a drop
  * moves the line with the card. Zone bands and the list draw none.
@@ -1333,19 +1333,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 
-- Modify: `docs/rfcs/WALLYBOT_INLINE.md` (status line; §3.4 names the free canvas)
+- Modify: `docs/rfcs/0005-wallybot-inline.md` (status line; §3.4 names the free canvas)
 - Modify: `docs/BRAND.md` ("## AI" paragraph names links among what the fill-in proposes)
-- Modify: `docs/rfcs/WALLY_AGENT.md` (§3.3 `update_note` row: "(fields, tags, links)")
+- Modify: `docs/rfcs/0003-wally-agent.md` (§3.3 `update_note` row: "(fields, tags, links)")
 - Create: `apps/web/e2e/note-links.spec.ts`
 - Modify: `.github/workflows/ci.yml` (`MIN_EXECUTED` + 1 if the new spec runs on the desktop project)
 
 - [ ] **Step 1: Docs**
 
-`WALLYBOT_INLINE.md` **Status**: append `; links between notes (slice 3's R1) started 2026-10-18: a stored relation, proposed by Wallybot and kept one by one, drawn as a hairline on the free canvas.` In §3.4's last bullet, "drawn on the wall as a hairline" becomes "drawn on the free canvas as a hairline (the zone bands and the list show the relation in the note panel)".
+`0005-wallybot-inline.md` **Status**: append `; links between notes (slice 3's R1) started 2026-10-18: a stored relation, proposed by Wallybot and kept one by one, drawn as a hairline on the free canvas.` In §3.4's last bullet, "drawn on the wall as a hairline" becomes "drawn on the free canvas as a hairline (the zone bands and the list show the relation in the note panel)".
 
 `BRAND.md` "## AI" paragraph: "proposes a due date, a priority, a person, subtasks or a reference" becomes "proposes a due date, a priority, a person, subtasks, a reference or links to related notes".
 
-`WALLY_AGENT.md` §3.3 `update_note` row, "Command or query" cell: `note.update`, without assignment (fields, tags, links). Run `pnpm format:check`; `pnpm format` if the table moved.
+`0003-wally-agent.md` §3.3 `update_note` row, "Command or query" cell: `note.update`, without assignment (fields, tags, links). Run `pnpm format:check`; `pnpm format` if the table moved.
 
 - [ ] **Step 2: E2E**
 
@@ -1390,7 +1390,7 @@ test('a note is linked to another from the panel and the other lists it back', a
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/rfcs/WALLYBOT_INLINE.md docs/BRAND.md docs/rfcs/WALLY_AGENT.md apps/web/e2e/note-links.spec.ts .github/workflows/ci.yml
+git add docs/rfcs/0005-wallybot-inline.md docs/BRAND.md docs/rfcs/0003-wally-agent.md apps/web/e2e/note-links.spec.ts .github/workflows/ci.yml
 git -c core.hooksPath=/dev/null commit -m "docs: links between notes; an E2E flow links two notes from the panel
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"

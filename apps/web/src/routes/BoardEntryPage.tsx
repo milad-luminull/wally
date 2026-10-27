@@ -11,7 +11,7 @@ import { AppSkeleton } from '@/components/AppSkeleton';
  * `/app` resolves the destination after authentication. It waits for the caller's board
  * list, then follows the return path if it is a share link or a board on that list, else by
  * count — straight into the only board, or to the board home with none or several
- * (RFC BOARD_HOME §5, §6).
+ * (RFC 0002 §5, §6).
  *
  * Checking the return path against the list is what keeps a board from the previous account
  * from becoming a 404 straight after signing in.

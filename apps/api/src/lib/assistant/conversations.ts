@@ -176,7 +176,7 @@ export function toConversationDto(doc: WithId<AssistantConversationDoc>): Assist
 }
 
 /**
- * The DTO with every stored chip checked against what the caller can see now (WALLY_AGENT.md
+ * The DTO with every stored chip checked against what the caller can see now (0003-wally-agent.md
  * §3.2: chips are checked at render time). A chip for a note since made private, deleted or
  * otherwise out of the caller's sight is dropped; the entry's text stays as it was answered.
  */

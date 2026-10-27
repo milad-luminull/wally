@@ -4,7 +4,7 @@ import { endOfWeek, type Language } from '@wally/shared';
 export const TIDY_TEXT_MAX = 200;
 
 /**
- * Byte-stable so the provider can cache it (WALLY_AGENT.md §3.5). The notes arrive in the
+ * Byte-stable so the provider can cache it (0003-wally-agent.md §3.5). The notes arrive in the
  * prompt as data. No name, no first person (BRAND.md rules 2 and 6): the model files, it does
  * not write. German trigger words stay beside the English ones, because people write German too.
  */

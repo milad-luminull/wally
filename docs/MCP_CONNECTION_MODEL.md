@@ -1,5 +1,14 @@
 # MCP connection model
 
+> **2026-10-26:** Supabase Auth replaces Auth0 as the MCP authorization server
+> ([ADR-0021](adr/0021-supabase-auth-for-web-and-mcp.md),
+> [Supabase Auth RFC](rfcs/0012-supabase-auth-and-mcp.md)). The behavior here still applies.
+> What changes:
+>
+> - Sign-in happens through Supabase.
+> - Supabase documents no custom OAuth scopes, so "OAuth token scopes" in the permission
+>   intersection below becomes Wally's own read/write setting on the connection record.
+
 Approved 2026-10-22. Supersedes the per-board owner-policy and selected-board consent
 model for new connections. Live in production since the v0.8.x releases.
 

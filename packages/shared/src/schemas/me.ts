@@ -38,7 +38,7 @@ export const boardPreferencesSchema = z.object({
 });
 export type BoardPreferences = z.infer<typeof boardPreferencesSchema>;
 
-/** Wallybot (WALLYBOT_INLINE.md §3.7, decision 1): off means every proposal waits for Enter. */
+/** Wallybot (0005-wallybot-inline.md §3.7, decision 1): off means every proposal waits for Enter. */
 export const wallybotPreferencesSchema = z.object({ autoApply: z.boolean() });
 export type WallybotPreferences = z.infer<typeof wallybotPreferencesSchema>;
 export const DEFAULT_WALLYBOT_PREFERENCES: WallybotPreferences = { autoApply: true };

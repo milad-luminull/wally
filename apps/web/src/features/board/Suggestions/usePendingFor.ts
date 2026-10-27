@@ -4,7 +4,7 @@ import type { SuggestionsController } from './useSuggestions';
 
 /**
  * Builds what a card, a row or the note panel needs for a note's pending change, from the
- * board's one controller, so every surface reads the same mark (WALLYBOT_INLINE.md §3.4: "the
+ * board's one controller, so every surface reads the same mark (0005-wallybot-inline.md §3.4: "the
  * card updating as rows are ticked"). It also holds the countdown of the note the panel shows
  * (plan R3): reading the review takes time.
  *

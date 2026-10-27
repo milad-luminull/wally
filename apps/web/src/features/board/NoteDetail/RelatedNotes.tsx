@@ -19,7 +19,7 @@ import { dueInfo, dueToneClass, relatedNotes } from '../util/noteDerived';
 import { FieldLabel } from './Field';
 
 /**
- * The notes this one is related to, both ways (WALLYBOT_INLINE.md §3.4, plan L6): a row per
+ * The notes this one is related to, both ways (0005-wallybot-inline.md §3.4, plan L6): a row per
  * note as the answer card lists them, an × on the note's own links, the direction in the
  * row's tooltip, and a picker to link another note of the board. No colour, no badge.
  */

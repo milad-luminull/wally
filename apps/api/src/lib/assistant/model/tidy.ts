@@ -78,7 +78,7 @@ const replySchema = jsonSchema<z.output<typeof modelTidySchema>>(
 );
 
 /**
- * One structured call (WALLYBOT_INLINE.md §4), shaped like a capture's: announced and settled
+ * One structured call (0005-wallybot-inline.md §4), shaped like a capture's: announced and settled
  * through the lease, the library's retries off, thinking room added to the allowance so the
  * ledger reserves what can be billed. A reply that does not validate is "nothing to move".
  */

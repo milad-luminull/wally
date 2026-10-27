@@ -237,7 +237,7 @@ describe('/me', () => {
     expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
   });
 
-  // Deleting your last board is allowed (RFC BOARD_HOME §3); the next request must not quietly
+  // Deleting your last board is allowed (RFC 0002 §3); the next request must not quietly
   // hand you a fresh "Meine Wand".
   it('does not recreate a board that was deleted', async () => {
     const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');

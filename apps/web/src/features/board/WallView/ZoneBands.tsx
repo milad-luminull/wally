@@ -46,13 +46,13 @@ interface ZoneBandProps {
   activeDragId: string | null;
   /** Every note on the board is hidden by the filters — say so, rather than "empty". */
   filteredOut: boolean;
-  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  /** The pending Wallybot change each note shows, if any (0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
   editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
-  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  /** The note's part in a Tidy batch, if any (0005-wallybot-inline.md §3.5). */
   tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 
@@ -210,13 +210,13 @@ interface ZoneBandsProps {
   onCreateInZone: (key: string) => void;
   activeDragId: string | null;
   filteredOut: boolean;
-  /** The pending Wallybot change each note shows, if any (WALLYBOT_INLINE.md §3.3). */
+  /** The pending Wallybot change each note shows, if any (0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
   editFor?: (note: NoteDto) => InlineEditProps | undefined;
   /** How many notes each note is related to, from the whole board (`relatedCounts`). */
   relatedCounts?: ReadonlyMap<string, number>;
-  /** The note's part in a Tidy batch, if any (WALLYBOT_INLINE.md §3.5). */
+  /** The note's part in a Tidy batch, if any (0005-wallybot-inline.md §3.5). */
   tidyFor?: (noteId: string) => TidyProps | undefined;
 }
 

@@ -9,8 +9,10 @@
 **Status:** the first MCP surface is implemented locally; production remains disabled pending release validation.
 **Last checked:** 2026-10-20. The API includes MCP routes, OAuth resource discovery and authorization checks.
 
-Provider and delivery proposal: [Auth0 login and first MCP release](AUTH0_MCP_ROLLOUT.md)
-and [ADR-0016](../adr/0016-auth0-for-web-and-mcp.md). These define the first release; the coverage
+Provider and delivery: the first release used [Auth0](0006-auth0-mcp-rollout.md)
+([ADR-0016](../adr/0016-auth0-for-web-and-mcp.md)). Supabase Auth replaces it
+([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md),
+[Supabase Auth RFC](0012-supabase-auth-and-mcp.md)). These define the first release; the coverage
 findings below do not imply full app parity in the first release.
 
 The planned production endpoint is `https://api.wally.luminull.com/mcp`, hosted in the
@@ -20,7 +22,7 @@ for discovery and deployment configuration. This endpoint is implemented behind 
 ## 1. Outcome
 
 Let a user work with an authorized Wally board from an external AI host such as Claude or
-ChatGPT. Reuse the [assistant operations](WALLY_AGENT.md#33-operations), permissions,
+ChatGPT. Reuse the [assistant operations](0003-wally-agent.md#33-operations), permissions,
 revisions, receipts and audit rules. The host runs the model; Wally serves board operations.
 
 ## 2. Requirements
@@ -146,8 +148,8 @@ against CSRF, and disable development-only authentication behavior in production
 
 ## 6. Decisions and remaining validation
 
-Auth0 is the selected provider; the integration and web-login migration follow
-[ADR-0016](../adr/0016-auth0-for-web-and-mcp.md). ChatGPT is the first target host.
+Supabase Auth's OAuth 2.1 server replaces Auth0 as the authorization server
+([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)). ChatGPT is the first target host.
 A board owner must enable external AI access before a member can grant a client access;
 each member then selects boards and explicitly allows any writes. Production host validation
 and privacy-notice review remain release gates.

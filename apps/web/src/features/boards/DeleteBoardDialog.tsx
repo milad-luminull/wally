@@ -16,7 +16,7 @@ import { useNotes } from '@/features/board/hooks/useNotes';
 import { useDeleteBoard } from '@/features/board/hooks/mutations/useDeleteBoard';
 
 /**
- * The one confirmation in the app (RFC BOARD_HOME §9): deleting a board takes every note and
+ * The one confirmation in the app (RFC 0002 §9): deleting a board takes every note and
  * every member's access with it, so it names the board and how many notes go. Undo, as notes
  * have, is not possible here — members lose access at once.
  */

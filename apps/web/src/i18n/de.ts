@@ -865,7 +865,7 @@ export const de = {
       count_other: '{{count}} verwandt',
     },
   },
-  /** The answer card on the wall (WALLYBOT_INLINE.md §3.6). No name, no first person. */
+  /** The answer card on the wall (0005-wallybot-inline.md §3.6). No name, no first person. */
   ask: {
     cardAria: 'Antwort der Wand',
     asking: 'Die Wand wird gelesen',
@@ -910,7 +910,7 @@ export const de = {
       dropNamed: 'Vorschlag entfernen: {{label}}',
     },
   },
-  /** The dashed card after Enter (WALLYBOT_INLINE.md §3.3). No name, no first person. */
+  /** The dashed card after Enter (0005-wallybot-inline.md §3.3). No name, no first person. */
   suggest: {
     dotAria: 'Vorgeschlagene Änderungen, werden gleich übernommen',
     dotAriaWaiting: 'Vorgeschlagene Änderungen, warten auf Enter',
@@ -991,7 +991,7 @@ export const de = {
       rowTag: 'Tag: {{tag}}',
     },
   },
-  /** Tidy on the horizon wall (WALLYBOT_INLINE.md §3.5). No name, no first person. */
+  /** Tidy on the horizon wall (0005-wallybot-inline.md §3.5). No name, no first person. */
   tidy: {
     failed: {
       saveFailed: 'Konnte die Notizen nicht verschieben',
@@ -1017,7 +1017,7 @@ export const de = {
     remove: 'Nicht verschieben',
     dotAria: 'Soll verschoben werden, wartet auf Enter',
   },
-  /** The board home at /boards (RFC BOARD_HOME §7–§10). */
+  /** The board home at /boards (RFC 0002 §7–§10). */
   home: {
     title: 'Deine Boards',
     shared: 'Mit dir geteilt',

@@ -5,7 +5,7 @@ import { useQueryKeys } from '../queryKeys';
 import { forgetBoard, hideBoardInList, restoreBoardInList } from './shared';
 
 /**
- * Leaves a board the caller was invited to (RFC BOARD_HOME §10). No revision: leaving states a
+ * Leaves a board the caller was invited to (RFC 0002 §10). No revision: leaving states a
  * fact about the caller. A 404 means the membership is already gone, which the API client
  * turns into success, so the row simply disappears.
  */

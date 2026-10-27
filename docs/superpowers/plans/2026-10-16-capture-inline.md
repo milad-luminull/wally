@@ -8,7 +8,7 @@
 
 **Tech Stack:** React 19, react-router 8, TanStack Query 5, Tailwind with the Graphite + Marigold tokens, react-i18next, Vitest + Testing Library. No new dependency.
 
-**Spec:** `docs/rfcs/WALLYBOT_INLINE.md` §3.1, §3.2 and §7 (accepted 2026-10-16; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/WALLYBOT_INLINE.md`). Design authority: `docs/BRAND.md` ("Components", "Keyboard", "Voice", "Shape, depth and motion"). Product requirements: `docs/SPEC.md` §2 (notes), the private-notes rules (a VIEW member creates private notes).
+**Spec:** `docs/rfcs/0005-wallybot-inline.md` §3.1, §3.2 and §7 (accepted 2026-10-16; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/0005-wallybot-inline.md`). Design authority: `docs/BRAND.md` ("Components", "Keyboard", "Voice", "Shape, depth and motion"). Product requirements: `docs/SPEC.md` §2 (notes), the private-notes rules (a VIEW member creates private notes).
 
 ## Context
 
@@ -191,7 +191,7 @@ Create `apps/web/src/lib/capture/parseCapture.ts`:
 import type { Language } from '@wally/shared';
 
 /**
- * The instant, local layer of capture (WALLYBOT_INLINE.md §3.2): dates, people and urgency
+ * The instant, local layer of capture (0005-wallybot-inline.md §3.2): dates, people and urgency
  * words found while typing, with no network. Pure and synchronous so it can run on every
  * keystroke. The first match of each kind wins; the title is never rewritten.
  */
@@ -751,7 +751,7 @@ function placementInput(placement: CapturePlacement): Partial<NoteCreateInput> {
 }
 
 /**
- * The state machine behind the capture card (WALLYBOT_INLINE.md §3.1): the note exists from
+ * The state machine behind the capture card (0005-wallybot-inline.md §3.1): the note exists from
  * the first keystroke, so nothing typed is lost; the commit is one update plus, when a person
  * chip was kept, one assignment; cancelling after typing deletes the note the person chose to
  * abandon. Creation and update go through the existing optimistic hooks and the mutation lane.
@@ -1339,7 +1339,7 @@ In `ZoneBands.tsx`, render the same card (layout `card`) at the top of the zone 
 
 - [ ] **Step 5: The list, the top bar, the palette, the spec**
 
-In `ListView.tsx`: accept `capture: boolean`, `boardId`, `visibility`, `onCaptureDone`; when `capture` is true render `<InlineCaptureCard layout="row" placement={{ kind: 'list' }} … />` inside a `rounded-lg border border-border bg-surface shadow-e1` box as the first child of the column, and, when the board is empty, render that box alone instead of the empty state. `TopBar` and `BoardCommands` keep calling `onNewNote`; nothing changes there except that the capture now opens instead of the sidebar. In `docs/SPEC.md`, under the notes section that says "Users can create a new note from the whiteboard", add: "A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/WALLYBOT_INLINE.md` §3.1)."
+In `ListView.tsx`: accept `capture: boolean`, `boardId`, `visibility`, `onCaptureDone`; when `capture` is true render `<InlineCaptureCard layout="row" placement={{ kind: 'list' }} … />` inside a `rounded-lg border border-border bg-surface shadow-e1` box as the first child of the column, and, when the board is empty, render that box alone instead of the empty state. `TopBar` and `BoardCommands` keep calling `onNewNote`; nothing changes there except that the capture now opens instead of the sidebar. In `docs/SPEC.md`, under the notes section that says "Users can create a new note from the whiteboard", add: "A note is written where it will live: title and text directly on the wall or at the top of the list, created on the first keystroke; the note panel is the optional detail layer (`rfcs/0005-wallybot-inline.md` §3.1)."
 
 - [ ] **Step 6: Run the tests**
 

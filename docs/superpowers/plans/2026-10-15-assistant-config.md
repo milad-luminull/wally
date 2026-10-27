@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Fastify + firebase-admin Firestore (API), Zod contract in `packages/shared`, Vitest; `ai@7.0.141` and `@ai-sdk/google-vertex@5.0.112` (already added to `apps/api` on this branch, exact versions, per ADR-0013 accepted 2026-10-15).
 
-**Spec:** `docs/rfcs/WALLY_AGENT.md` at commit `38afd3cb` on PR milad-luminull/wally#38; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/WALLY_AGENT.md`. The library decision is `docs/adr/0013-model-library-behind-an-owned-boundary.md` in the same checkout. The previous slice (operations, provenance, audit) is on this branch's parent `feat/assistant-operations`; its plan is `docs/superpowers/plans/2026-10-15-assistant-operations.md`.
+**Spec:** `docs/rfcs/0003-wally-agent.md` at commit `38afd3cb` on PR milad-luminull/wally#38; read it at `/Users/mr_user/development/apps/wally-docs-rfc-agent/docs/rfcs/0003-wally-agent.md`. The library decision is `docs/adr/0013-model-library-behind-an-owned-boundary.md` in the same checkout. The previous slice (operations, provenance, audit) is on this branch's parent `feat/assistant-operations`; its plan is `docs/superpowers/plans/2026-10-15-assistant-operations.md`.
 
 ## Context
 

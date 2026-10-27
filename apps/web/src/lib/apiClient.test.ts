@@ -153,7 +153,7 @@ const failure = (status: number, error: string) =>
 const headersOf = (fetcher: ReturnType<typeof vi.fn>, call = -1) =>
   fetcher.mock.calls.at(call)![1].headers as Record<string, string>;
 
-// RFC BOARD_HOME §8: the create dialog shows its own errors. A failed create must not leave an
+// RFC 0002 §8: the create dialog shows its own errors. A failed create must not leave an
 // "unsaved change" behind, and it never carries a revision.
 it('creates a board with an operation id, no expected revision and no recovery on failure', async () => {
   const fetcher = vi.fn().mockResolvedValueOnce(failure(422, 'BOARD_LIMIT_REACHED'));

@@ -44,7 +44,7 @@ export interface FlipOptions {
 }
 
 /**
- * Moves the tracked cards from where they were to where they are (WALLYBOT_INLINE.md §3.5:
+ * Moves the tracked cards from where they were to where they are (0005-wallybot-inline.md §3.5:
  * "a 180 ms transform each, staggered"). A card that changes zone is re-parented and remounted,
  * so no CSS transition can carry it; the Web Animations API on the new element can, the way
  * `settleCard` lands a drop. Transform only, nothing under reduced motion (BRAND.md). Measures

@@ -2,7 +2,7 @@
 
 > **Status:** executed. Merged in PR #66 and first released in v0.8.1. This was a working ledger, so later entries supersede earlier ones.
 
-**Spec:** [rollout](../../rfcs/AUTH0_MCP_ROLLOUT.md), [MCP contract](../../rfcs/WALLY_MCP.md).
+**Spec:** [rollout](../../rfcs/0006-auth0-mcp-rollout.md), [MCP contract](../../rfcs/0004-wally-mcp.md).
 
 The owner authorized implementation and asked to continue through the rollout rather than
 stop after a foundation. Work now stays in the isolated `wally-auth0-mcp` worktree, preserving the original checkout.
