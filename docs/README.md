@@ -21,8 +21,8 @@ The root [`README.md`](../README.md) covers how to run, test and deploy the app.
 
 ## What production runs today
 
-Checked against the code on 2026-10-27. Production runs **v0.9.2** (deployed 2026-10-26).
-The v0.10.0 release failed to deploy, so `main` is ahead of production by #76 to #79.
+Checked against the code on 2026-10-27. Production runs **v0.10.1** (deployed 2026-10-27), which
+is everything on `main` up to #81. The v0.10.0 release failed to deploy and never served traffic.
 
 | Part                | Today                                                                        | Decided by                                                                                                                                                 | Planned replacement                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
