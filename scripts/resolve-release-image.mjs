@@ -1,8 +1,10 @@
 // The API candidate: its one runtime configuration, and the image a retry may reuse.
 //   node scripts/resolve-release-image.mjs          before deploying: digest, run_env, service_account
 //   node scripts/resolve-release-image.mjs verify   after deploying: the candidate matches (needs DIGEST)
+//   node scripts/resolve-release-image.mjs platform after building: the linux/amd64 digest of the
+//                                                   image index on stdin
 import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 // The only definition of the API's runtime environment. The deploy flag is built from it,
@@ -80,6 +82,22 @@ export function existingDigest(revisions, name, repository, expected) {
   return image.split('@')[1];
 }
 
+// The build pushes an image index (the image plus its provenance and SBOM attestations), and
+// build-push-action reports the index digest. Cloud Run resolves an index to its linux/amd64
+// image and records that image's digest on the revision, so the release deploys and verifies
+// that digest, never the index's.
+export function platformDigest(index) {
+  if (!Array.isArray(index?.manifests)) throw new Error('Built image is not an image index');
+  const images = index.manifests.filter(
+    (m) => m.platform?.os === 'linux' && m.platform?.architecture === 'amd64',
+  );
+  if (images.length !== 1)
+    throw new Error(`Expected one linux/amd64 image, found ${images.length}`);
+  const { digest } = images[0];
+  if (!/^sha256:[a-f0-9]{64}$/.test(digest ?? '')) throw new Error('Invalid linux/amd64 digest');
+  return digest;
+}
+
 export function verifyCandidate(revisions, name, repository, expected, digest) {
   const actual = existingDigest(revisions, name, repository, expected);
   if (!actual) throw new Error(`Candidate revision ${name} not found`);
@@ -88,6 +106,10 @@ export function verifyCandidate(revisions, name, repository, expected, digest) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    if (process.argv[2] === 'platform') {
+      console.log(platformDigest(JSON.parse(readFileSync(0, 'utf8'))));
+      process.exit();
+    }
     const { GCP_PROJECT_ID: p, GCP_REGION: r, GITHUB_SHA: sha, GITHUB_OUTPUT: out } = process.env;
     if (!p || !r || !sha || !out) throw new Error('Missing release identity');
     const command = process.argv[2] ?? 'resolve';
