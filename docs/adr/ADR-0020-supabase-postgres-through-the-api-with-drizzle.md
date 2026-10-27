@@ -23,7 +23,8 @@ the database?
 - Data stays in the EU.
 - Authorization is still enforced in one place, the API.
 - Relational integrity, migrations and SQL reporting.
-- Existing IDs, revisions, receipts and invariants carry over unchanged.
+- Wally's ID formats, revisions, receipts and invariants keep working unchanged. No
+  Firestore data is carried over (owner, 2026-10-27).
 
 ## Considered options
 
@@ -65,7 +66,7 @@ Chosen option: **option 1**.
   because Free has no managed backups
   ([backups](https://supabase.com/docs/guides/platform/backups)).
 
-The scope, data inventory, backup routine and cutover are in the
+The scope, data inventory, backup routine and switch are in the
 [data RFC](../rfcs/RFC-0008-firestore-to-supabase.md).
 
 ### Consequences
