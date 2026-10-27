@@ -207,23 +207,37 @@ Done. Still to do by hand:
   1. Add required reviewers to the '${GH_ENV}' environment (needs user ids; UI is easier):
        https://github.com/${GH_REPO}/settings/environments
 
-  2. Set the repository VARIABLES the web build bakes in (public identifiers, not secrets) —
-     copy them out of apps/web/.env.production:
-       gh variable set FIREBASE_PROJECT_ID      --repo ${GH_REPO} --body '${PROJECT_ID}'
-       gh variable set API_BASE_URL             --repo ${GH_REPO} --body '<Cloud Run URL, no trailing slash>'
-       gh variable set WEB_ORIGIN               --repo ${GH_REPO} --body 'https://${PROJECT_ID}.web.app'
+  2. Set the remaining repository VARIABLES (public identifiers, not secrets). The domains
+     are exact: scripts/check-api-domain.mjs stops a release on any other value.
+       gh variable set API_BASE_URL              --repo ${GH_REPO} --body 'https://api.wally.luminull.com'
+       gh variable set WEB_ORIGIN                --repo ${GH_REPO} --body 'https://wally.luminull.com'
+       gh variable set FIREBASE_PROJECT_ID       --repo ${GH_REPO} --body '${PROJECT_ID}'
        gh variable set VITE_FIREBASE_API_KEY     --repo ${GH_REPO} --body '...'
        gh variable set VITE_FIREBASE_AUTH_DOMAIN --repo ${GH_REPO} --body '${PROJECT_ID}.firebaseapp.com'
        gh variable set VITE_FIREBASE_PROJECT_ID  --repo ${GH_REPO} --body '${PROJECT_ID}'
        gh variable set VITE_FIREBASE_APP_ID      --repo ${GH_REPO} --body '...'
+     The production sign-in and MCP settings (unset, each defaults to false or firebase):
+       gh variable set AUTH0_ENABLED             --repo ${GH_REPO} --body 'true'
+       gh variable set AUTH0_SIGNUP_ENABLED      --repo ${GH_REPO} --body 'true'
+       gh variable set VITE_AUTH_PROVIDER        --repo ${GH_REPO} --body 'auth0'
+       gh variable set VITE_AUTH0_CLIENT_ID      --repo ${GH_REPO} --body '<public SPA client id>'
+       gh variable set MCP_ENABLED               --repo ${GH_REPO} --body 'true'
+       gh variable set MCP_WRITES_ENABLED        --repo ${GH_REPO} --body 'true'
+       gh variable set MCP_CLIENT_ID             --repo ${GH_REPO} --body '<public MCP client id>'
+     Optional, with the release's defaults: ASSISTANT_ENABLED (false), ASSISTANT_MODEL
+     (vertex:gemini-3.8-flash), ASSISTANT_VERTEX_LOCATION (eu), E2E_AUTH_PROVIDER (firebase).
+     For the opt-in Auth0 E2E path also set E2E_AUTH0_SUBJECT, E2E_AUTH0_EMAIL, E2E_AUTH0_DEPENDABOT_SUBJECT and
+     E2E_AUTH0_DEPENDABOT_EMAIL (see apps/web/e2e/README.md).
 
-  3. Set the only two real SECRETS, for a throwaway Firebase Auth account that owns no data
-     you care about:
-       gh secret set E2E_USER_EMAIL    --repo ${GH_REPO}
-       gh secret set E2E_USER_PASSWORD --repo ${GH_REPO}
-     Mirror both into Dependabot secrets too, or Dependabot PRs trip the E2E guard:
-       gh secret set E2E_USER_EMAIL    --repo ${GH_REPO} --app dependabot
-       gh secret set E2E_USER_PASSWORD --repo ${GH_REPO} --app dependabot
+  3. Set the three SECRETS, for throwaway test accounts that own no data you care about:
+       gh secret set E2E_USER_EMAIL          --repo ${GH_REPO}   # Firebase CI account
+       gh secret set E2E_USER_PASSWORD       --repo ${GH_REPO}
+       gh secret set E2E_AUTH0_USER_PASSWORD --repo ${GH_REPO}   # Auth0 CI account
+     Mirror each into Dependabot secrets too (the Auth0 one holds the Dependabot account's
+     password), or Dependabot PRs trip the E2E guard:
+       gh secret set E2E_USER_EMAIL          --repo ${GH_REPO} --app dependabot
+       gh secret set E2E_USER_PASSWORD       --repo ${GH_REPO} --app dependabot
+       gh secret set E2E_AUTH0_USER_PASSWORD --repo ${GH_REPO} --app dependabot
 
   4. Branch protection on main requiring: "Lint & format", "Typecheck & build",
      "Unit & integration tests", and "E2E gate" (the gate, NOT "E2E (full stack)" — a
