@@ -15,3 +15,8 @@ test-results/
 .firebase/
 *.tsbuildinfo
 .pnpm-store/
+# Third-party agent skills, installed locally; not part of the repo.
+.agents/
+skills-lock.json
+# SDD orchestration scratch used by local agents.
+.superpowers/

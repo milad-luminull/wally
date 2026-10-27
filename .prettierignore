@@ -3,9 +3,9 @@
 # forever. Never format it.
 pnpm-lock.yaml
 
-# Generated, vendored or machine-owned — not ours to format.
+# Generated, vendored or machine-owned — not ours to format. Prettier 3 also skips
+# everything in .gitignore (.agents/, .superpowers/, skills-lock.json).
 .pnpm-store/
-skills-lock.json
 .firebase/
 .turbo/
 **/dist/
@@ -13,9 +13,3 @@ skills-lock.json
 coverage/
 playwright-report/
 test-results/
-# SDD orchestration scratch; git-ignored by its own .gitignore, which Prettier does not read.
-.superpowers/
-
-# Vendored agent skills — third-party content that happens to live in this repo. Not ours
-# to restyle, and reformatting them produces noisy diffs against upstream.
-.agents/
