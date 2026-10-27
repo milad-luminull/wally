@@ -102,15 +102,12 @@ describe('assistant budget ledger', () => {
     expect((await assistantAttemptsCol(ctx.db, 'u1').get()).size).toBe(1);
   });
 
-  it('refuses the monthly money cap on the deployment key only', async () => {
+  it('refuses the monthly money cap across users', async () => {
     const tight = { dailyTokens: 1_000_000, monthlyMicroUsd: 20_000 };
     await reserve('u1', { caps: tight });
     await expect(reserve('u2', { caps: tight })).rejects.toMatchObject({
       code: 'ASSISTANT_MONTHLY_CAP',
     });
-    // A user's own key counts tokens only; money is not reserved.
-    const own = await reserve('u3', { caps: tight, price: null });
-    expect(own.reservedMicroUsd).toBe(0);
     expect((await assistantSpendCol(ctx.db).doc('2026-10').get()).data()).toMatchObject({
       microUsd: 10500,
     });

@@ -216,7 +216,7 @@ export type AssistantAttemptDoc = {
   month: string;
   reservedTokens: number;
   reservedMicroUsd: number;
-  /** The price at reservation, used again at settlement; both 0 on the user's own key. */
+  /** The price at reservation, used again at settlement. */
   inputMicroUsdPerToken: number;
   outputMicroUsdPerToken: number;
   state: 'RESERVED' | 'SETTLED' | 'ABANDONED';

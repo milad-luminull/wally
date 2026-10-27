@@ -1,9 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { APICallError } from 'ai';
 import { MockLanguageModelV3 } from 'ai/test';
 import { createGoogleVertex } from '@ai-sdk/google-vertex';
-import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
-import { suggestionCallSettings } from './config.js';
+import { GEMINI_3_SUGGESTION_THINKING_TOKENS, suggestionCallSettings } from './config.js';
 import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } from './suggest.js';
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { ModelRef, SuggestionInput } from './types.js';
@@ -387,13 +386,6 @@ interface GeminiBody {
     responseJsonSchema: unknown;
   };
 }
-/** The parts of an Anthropic Messages request body these tests read. */
-interface ClaudeBody {
-  max_tokens: number;
-  thinking?: unknown;
-  tools: { name: string }[];
-  tool_choice: unknown;
-}
 
 describe('modelSuggestionSchema', () => {
   /** A reply that proposes nothing at all. */
@@ -566,24 +558,16 @@ describe('a suggestion call as it reaches Vertex', () => {
   }
 
   it('keeps thinking inside the allowance it announces, leaving the answer its 256', async () => {
-    for (const [model, thinking, total] of [
-      ['gemini-2.5-flash', { thinkingBudget: 0 }, 256],
-      ['gemini-2.5-flash-lite', { thinkingBudget: 0 }, 256],
-      ['gemini-2.5-pro', { thinkingBudget: 128 }, 384],
-      ['gemini-3.8-flash', { thinkingLevel: 'low' }, 1024],
-    ] as const) {
-      const { body, announced } = await send({ provider: 'vertex', model });
-      const config = body.generationConfig;
-      expect(config.thinkingConfig, model).toEqual(thinking);
-      expect(config.maxOutputTokens, model).toBe(total);
-      expect(announced, model).toBe(total);
-      if ('thinkingBudget' in thinking)
-        expect(config.maxOutputTokens - thinking.thinkingBudget, model).toBe(256);
-    }
+    const { body, announced } = await send({ provider: 'vertex', model: 'gemini-3.8-flash' });
+    const config = body.generationConfig;
+    expect(config.thinkingConfig).toEqual({ thinkingLevel: 'low' });
+    expect(config.maxOutputTokens).toBe(1024);
+    expect(announced).toBe(1024);
+    expect(config.maxOutputTokens - GEMINI_3_SUGGESTION_THINKING_TOKENS).toBe(256);
   });
 
   it('sends only schema keywords Gemini documents for structured output, and the library header', async () => {
-    const { body } = await send({ provider: 'vertex', model: 'gemini-2.5-flash' });
+    const { body } = await send({ provider: 'vertex', model: 'gemini-3.8-flash' });
     const schema = body.generationConfig.responseJsonSchema;
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     const keywords = new Set<string>();
@@ -620,61 +604,5 @@ describe('a suggestion call as it reaches Vertex', () => {
     const subtasks = (schema as Node).properties!.subtasks!;
     const branch = subtasks.anyOf?.find((n) => n.type === 'object') ?? subtasks;
     expect(branch.properties!.items).toMatchObject({ type: 'array', maxItems: 5 });
-  });
-});
-
-/** Claude on Vertex, with fetch and the sign-in stubbed: how the same call reaches Anthropic's API. */
-describe('a suggestion call as it reaches Claude on Vertex', () => {
-  const g = globalThis as { AI_SDK_LOG_WARNINGS?: boolean };
-  beforeAll(() => void (g.AI_SDK_LOG_WARNINGS = false));
-  afterAll(() => void delete g.AI_SDK_LOG_WARNINGS);
-  it('asks for the schema through a JSON tool within the allowance, and reads its input back', async () => {
-    const bodies: ClaudeBody[] = [];
-    const fields = {
-      dueDate: { value: '2026-10-23', confidence: 0.9, reason: 'Friday' },
-      priority: null,
-      assignee: null,
-      ...none,
-    };
-    const fetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)) as never);
-      return new Response(
-        JSON.stringify({
-          id: 'msg_1',
-          type: 'message',
-          role: 'assistant',
-          model: 'claude-sonnet-5-5',
-          content: [{ type: 'tool_use', id: 'toolu_1', name: 'json', input: fields }],
-          stop_reason: 'tool_use',
-          stop_sequence: null,
-          usage: { input_tokens: 40, output_tokens: 30 },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      );
-    });
-    const ref: ModelRef = { provider: 'vertex-anthropic', model: 'claude-sonnet-5-5' };
-    const model = createVertexAnthropic({
-      project: 'wally-test',
-      location: 'europe-west1',
-      generateAuthToken: async () => 'test-token',
-      fetch,
-    })(ref.model);
-    const a = attempts();
-    const out = await createSuggestionRunner(
-      model,
-      suggestionCallSettings(ref),
-    )(input(a.onAttempt));
-    expect(out.fields).toEqual(fields);
-    expect(a.seen[0]!.maxOutputTokens).toBe(256);
-    expect(bodies).toHaveLength(1);
-    expect(bodies[0]!.max_tokens).toBe(256);
-    expect(bodies[0]!.thinking).toBeUndefined();
-    expect(bodies[0]!.tools.map((t) => t.name)).toEqual(['json']);
-    // Vertex has no native output format here, and this model refuses a forced tool, so the
-    // library offers the JSON tool without forcing it (and warns): a prose reply is "nothing".
-    expect(bodies[0]!.tool_choice).toMatchObject({ type: 'auto' });
-    expect(a.settled).toEqual([
-      { inputTokens: 40, cachedInputTokens: 0, outputTokens: 30, reasoningTokens: 0 },
-    ]);
   });
 });

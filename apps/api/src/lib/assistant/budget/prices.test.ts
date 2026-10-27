@@ -4,7 +4,7 @@ import { microUsdFor, priceFor, PRICE_TABLE_VERSION } from './prices.js';
 describe('price table', () => {
   it('is versioned and prices the default model conservatively', () => {
     expect(PRICE_TABLE_VERSION).toBe('2026-10-15');
-    const price = priceFor('vertex:gemini-2.5-flash');
+    const price = priceFor('vertex:gemini-3.8-flash');
     expect(price.inputMicroUsdPerToken).toBeGreaterThanOrEqual(1.5);
     expect(price.outputMicroUsdPerToken).toBeGreaterThanOrEqual(7.5);
   });
@@ -14,8 +14,8 @@ describe('price table', () => {
       outputMicroUsdPerToken: 8.25,
     });
   });
-  it('prices the default model with the 3.8 Flash upper bound', () => {
-    expect(priceFor('vertex:gemini-2.5-flash')).toEqual(priceFor('vertex:gemini-3.8-flash'));
+  it('no longer prices the retired Gemini 2.5 Flash', () => {
+    expect(() => priceFor('vertex:gemini-2.5-flash')).toThrow(/price/i);
   });
   it('refuses a model without a price', () => {
     expect(() => priceFor('vertex:unknown-model')).toThrow(/price/i);

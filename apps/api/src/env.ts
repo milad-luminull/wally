@@ -42,7 +42,7 @@ const envSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   // The deployment's model as `provider:model`; parsed by lib/assistant/model/config.ts.
-  // Providers in this slice: `vertex` (Gemini on Vertex) and `vertex-anthropic`.
+  // The only provider is `vertex` (Gemini on Vertex); any other fails at boot.
   // The default is Gemini 3.8 Flash on the EU multi-region endpoint (location `eu`, below),
   // which keeps processing in the EU (D4). Gemini 2.5 Flash, the earlier default, is retired
   // by Google on 2026-10-20. Verified 2026-10-19 with free countTokens probes: 3.8/3.7/3.6
@@ -54,7 +54,7 @@ const envSchema = z.object({
   // roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('eu'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
-  // Per-user daily cap, in tokens, on every key; and the deployment key's monthly cap in
+  // Per-user daily cap, in tokens; and the deployment's monthly cap in
   // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.
   ASSISTANT_DAILY_CAP_TOKENS: z.coerce.number().int().positive().default(300_000),
   ASSISTANT_MONTHLY_CAP_MICRO_USD: z.coerce.number().int().positive().default(15_000_000),

@@ -9,8 +9,7 @@ import { AppError } from '../../errors.js';
  *   - from 2027-01-01 (standard): global 1.50 in / 7.50 out; non-global 1.65 / 8.25
  * The deployment calls the EU multi-region endpoint (ASSISTANT_VERTEX_LOCATION, `eu` by
  * default), which is non-global, so the table carries the highest row, the non-global
- * standard price, and a reservation can only overshoot. A user's own key is never priced
- * here; it counts tokens only.
+ * standard price, and a reservation can only overshoot.
  */
 export const PRICE_TABLE_VERSION = '2026-10-15';
 
@@ -21,9 +20,6 @@ export interface ModelPrice {
 
 const PRICES: Record<string, ModelPrice> = {
   'vertex:gemini-3.8-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
-  // The earlier default, retired by Google on 2026-10-20; kept so a deployment pinned to it
-  // still prices its calls. An upper bound carried over from the 3.8 Flash row above.
-  'vertex:gemini-2.5-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
 };
 
 export function priceFor(modelRef: string): ModelPrice {
