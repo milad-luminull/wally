@@ -1,5 +1,7 @@
 # Smarter Capture Implementation Plan
 
+> **Status:** executed in PR #63.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wallybot's fill-in on a fresh note infers what a person means (horizon, privacy, tags, several properties, description, real priorities, natural steps) and shows the proposal as a labelled list with a visible 15 s countdown and Undo / Keep, on the wall and in the list.

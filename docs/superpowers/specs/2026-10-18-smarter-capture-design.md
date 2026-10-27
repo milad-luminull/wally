@@ -1,6 +1,8 @@
 # Smarter capture: Wallybot fills in what a person means
 
-Date: 2026-10-18. Status: draft for the owner's approval. Branch `feat/smarter-capture`.
+> **Status:** executed in PR #63.
+
+Date: 2026-10-18. Branch `feat/smarter-capture`.
 
 ## Why
 

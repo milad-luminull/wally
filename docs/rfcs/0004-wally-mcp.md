@@ -6,8 +6,8 @@
 > model has been removed, with no migration or upgrade flow. See [the current connection model](../MCP_CONNECTION_MODEL.md). Older selected-board validation below
 > records historical behavior and is not the setup procedure for new connections.
 
-**Status:** the first MCP surface is implemented locally; production remains disabled pending release validation.
-**Last checked:** 2026-10-20. The API includes MCP routes, OAuth resource discovery and authorization checks.
+**Status:** live in production with reads and writes since v0.8.3 (2026-10-25), with account-wide
+connections ([connection model](../MCP_CONNECTION_MODEL.md)).
 
 Provider and delivery: the first release used [Auth0](0006-auth0-mcp-rollout.md)
 ([ADR-0016](../adr/0016-auth0-for-web-and-mcp.md)). Supabase Auth replaces it
@@ -15,9 +15,9 @@ Provider and delivery: the first release used [Auth0](0006-auth0-mcp-rollout.md)
 [Supabase Auth RFC](0012-supabase-auth-and-mcp.md)). These define the first release; the coverage
 findings below do not imply full app parity in the first release.
 
-The planned production endpoint is `https://api.wally.luminull.com/mcp`, hosted in the
+The production endpoint is `https://api.wally.luminull.com/mcp`, hosted in the
 existing API. Its OAuth resource/audience is the same exact URL; see the rollout RFC
-for discovery and deployment configuration. This endpoint is implemented behind the MCP deployment switch.
+for discovery and deployment configuration. It is behind the MCP deployment switch.
 
 ## 1. Outcome
 
@@ -150,9 +150,10 @@ against CSRF, and disable development-only authentication behavior in production
 
 Supabase Auth's OAuth 2.1 server replaces Auth0 as the authorization server
 ([ADR-0021](../adr/0021-supabase-auth-for-web-and-mcp.md)). ChatGPT is the first target host.
-A board owner must enable external AI access before a member can grant a client access;
-each member then selects boards and explicitly allows any writes. Production host validation
-and privacy-notice review remain release gates.
+A connection is account-wide: it follows the user's current Wally membership and roles,
+with no board selection or owner approval. Disconnect blocks the next call, and a
+disconnected app needs an explicit Reconnect in Wally
+([connection model](../MCP_CONNECTION_MODEL.md)).
 
 Do not add search/fetch, destructive tools or another transport until a concrete use case
 requires them. Protocol and host compatibility should be checked against the

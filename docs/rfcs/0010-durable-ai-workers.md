@@ -14,6 +14,8 @@ Run longer AI work and other background work in a private Cloud Run service,
 - Its durable state (runs, outbox, checkpoints, idempotency keys) lives in Supabase
   PostgreSQL (ADR-0020).
 - Separate queues for notifications and AI.
+- Notification email is sent through Resend, the same provider as Supabase Auth's
+  email; both count against one daily allowance ([platform migration](0011-platform-migration.md), section 9).
 
 Preserve the existing [assistant controls](0003-wally-agent.md). Identity and external MCP
 access are covered by the [Supabase Auth RFC](0012-supabase-auth-and-mcp.md).

@@ -31,10 +31,6 @@ export function FieldLabel({
   );
 }
 
-export function Field({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>{children}</div>;
-}
-
 /**
  * One row of the panel's properties grid: a quiet label on the left, the control on the
  * right. The label column is fixed so every control starts on the same vertical line.

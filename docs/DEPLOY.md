@@ -17,15 +17,18 @@ Wally is three separate things, and they go to three different places:
 | `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                       |
 | Your data  | Notes, boards, members                                     | **Cloud Firestore** (already the database, nothing to install) |
 
-Plus two things that are configuration rather than code: **Firebase Authentication**
-(already used for sign-in) and your **Firestore security rules and indexes**.
+Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
+see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (kept only as a rollback path) and
+your **Firestore security rules and indexes**. The planned move to Supabase and Cloudflare
+is in [RFC-0011](rfcs/0011-platform-migration.md); this guide describes production until
+then.
 
 The flow once deployed:
 
 ```
 Browser ──▶ Firebase Hosting          (serves the React app)
    │
-   └──────▶ Cloud Run                  (the API; verifies the user's Firebase token)
+   └──────▶ Cloud Run                  (the API; verifies the user's Auth0 access token)
                  │
                  └──▶ Cloud Firestore  (reads and writes the data)
 ```
@@ -281,13 +284,12 @@ gcloud builds submit --config cloudbuild.yaml .
 First build takes 3–6 minutes. If it fails, the log URL printed at the end is the place to
 look.
 
-### Two things that bit us the first time
+### If the build fails
 
-- **The Cloud Build service account had no permissions.** On newer Google Cloud projects,
-  the default Cloud Build service account (`128432325938-compute@developer.gserviceaccount.com`
-  — that number is the project number) no longer gets Editor automatically. If
-  `gcloud builds submit` fails immediately with `storage.objects.get` denied on the
-  `luminull-wally_cloudbuild` bucket, grant it the build role once:
+- **`storage.objects.get` denied on the `luminull-wally_cloudbuild` bucket:** the default
+  Cloud Build service account (`128432325938-compute@developer.gserviceaccount.com`) has no
+  build role. Grant `roles/cloudbuild.builds.builder` to it once, wait about a minute for IAM
+  to propagate, and re-run the build. Already granted on this project.
 
   ```bash
   gcloud projects add-iam-policy-binding luminull-wally \
@@ -295,30 +297,8 @@ look.
     --role="roles/cloudbuild.builds.builder"
   ```
 
-  Wait about a minute for IAM to propagate, then re-run the build. This is already done for
-  this project — it is recorded here because the symptom looks like a broken build config
-  rather than a permissions problem.
-
-- **The production build failed on a `rootDir` TypeScript error.** `apps/api/tsconfig.build.json`
-  only lists `"include": ["src"]`, but `src/**/*.test.ts` files import helpers from
-  `test/helpers.ts`, which lives outside `src` — that trips `rootDir` under `tsc -p
-tsconfig.build.json` even though `pnpm typecheck` (a different tsconfig, no `rootDir`)
-  was clean. Fixed by excluding test files from the production build, since they were never
-  meant to ship anyway:
-
-  ```json
-  {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-      "rootDir": "src"
-    },
-    "include": ["src"],
-    "exclude": ["**/*.test.ts"]
-  }
-  ```
-
-  This is already fixed in the repo — noted here in case it resurfaces after future changes
-  to `src/`.
+- **A `rootDir` TypeScript error:** `apps/api/tsconfig.build.json` sets `rootDir: "src"` and
+  excludes `**/*.test.ts`, because test files import helpers from `test/`. Keep that exclude.
 
 ---
 
@@ -368,8 +348,8 @@ Three things worth understanding:
 `--update-env-vars` to change one without touching the others.
 
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
-(`provider:model`, default `vertex:gemini-2.5-flash`), `ASSISTANT_VERTEX_LOCATION`
-(default `europe-west1`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
+(`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
+(default `eu`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
 and the Cloud Run service account needs `roles/aiplatform.user`:
 
 ```bash
@@ -382,11 +362,11 @@ variables of the same names (`gh variable set ASSISTANT_ENABLED --body true`), w
 API's defaults when a variable is absent; a value set by hand on the service is replaced at
 the next release.
 
-The default is Gemini 2.5 Flash because the EU regions serve it. As of 2026-10-16,
-Gemini 3.8 Flash is served only on the `global` endpoint for this project: it answers 404
-in `europe-west1` and `europe-west4`. Using it means setting
-`ASSISTANT_MODEL=vertex:gemini-3.8-flash` together with `ASSISTANT_VERTEX_LOCATION=global`,
-which moves processing outside the EU and needs the owner's decision under D4.
+The default is Gemini 3.8 Flash on the EU multi-region endpoint (location `eu`, served
+at `aiplatform.eu.rep.googleapis.com`), which keeps processing in the EU (D4). For this
+project the model answers 404 in `europe-west1`, `europe-west3` and `europe-west4`
+(checked 2026-10-19). Gemini 2.5 Flash, the earlier default, was retired by Google on
+2026-10-20.
 
 Two caps bound spend: `ASSISTANT_DAILY_CAP_TOKENS` (default `300000`) is each user's daily
 token allowance on any key, and `ASSISTANT_MONTHLY_CAP_MICRO_USD` (default `15000000`, that
@@ -416,7 +396,8 @@ Cloud Run puts **two independent gates** in front of the container:
    `--allow-unauthenticated` is just shorthand for granting that role to the special
    `allUsers` principal.
 2. **Wally's own authentication** — every route goes through the auth preHandler, which
-   verifies a Firebase ID token and 401s without one.
+   verifies an Auth0 access token (or, on the rollback path, a Firebase ID token) and 401s
+   without one.
 
 Wally deliberately relies on gate 2. Gate 1 exists for service-to-service auth and is
 redundant here — which is why making the service "public" does _not_ mean "no security".
@@ -633,16 +614,8 @@ The run pauses on the `production` GitHub Environment until someone approves it.
 authenticates with Workload Identity Federation, so there is no key to manage — which is
 just as well, since the organization blocks service-account key creation entirely.
 
-Before releasing the domain migration, set repository variables `API_BASE_URL` to
-`https://api.wally.luminull.com` and `WEB_ORIGIN` to `https://wally.luminull.com`.
-Confirm DNS and the managed certificate are ready, the API mapping targets `wally-api`,
-and the currently serving revision already allows the canonical web origin. The preflight
-checks run before deployment and intentionally refuse an incomplete migration. The deploy
-identity needs `run.domainmappings.get` in the configured project. No configuration or
-DNS changes are made by the check.
-
-[The release guard](../scripts/check-api-domain.mjs) verifies mapping readiness, HTTPS
-health, unauthenticated 401, and a successful CORS preflight allowing authorization and
+[The release guard](../scripts/check-api-domain.mjs) verifies that the `api.wally.luminull.com` mapping targets
+`wally-api` and is ready, HTTPS health, unauthenticated 401, and a successful CORS preflight allowing authorization and
 content-type from the canonical web origin. It runs before deployment and again after
 promotion; a failure after traffic shifts follows the existing rollback path. Run its
 isolated regression suite locally with:
@@ -823,8 +796,6 @@ it needs the same treatment.
 
 Deliberately out of scope, in rough order of when you will want them:
 
-- **A custom domain.** Firebase console → Hosting → Add custom domain. Remember to update
-  `CORS_ORIGIN` and Auth authorized domains afterwards.
 - ~~**Automated deploys from GitHub.**~~ Done — see section 13 and
   [`.github/workflows/`](../.github/workflows/). Everything above remains valid as the
   manual break-glass path.
@@ -840,7 +811,7 @@ Deliberately out of scope, in rough order of when you will want them:
 ## 17. Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on
-pushes to `main`, in four parallel jobs:
+pushes to `main`, in six jobs:
 
 | Job                          | What it proves                                                                                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -849,6 +820,7 @@ pushes to `main`, in four parallel jobs:
 | **Unit & integration tests** | The Vitest suites, with a Firestore emulator started by `firebase emulators:exec` so CI reads this repo's own `firebase.json`.                                     |
 | **E2E (full stack)**         | Playwright against a real `docker compose` stack.                                                                                                                  |
 | **Detect docs-only changes** | Whether a pull request changes anything besides `*.md` files and `docs/`. Only the E2E job reads it.                                                               |
+| **E2E gate**                 | The required check: passes when E2E passed or was skipped for a docs-only change, fails otherwise. See below.                                                      |
 
 ### Two things about the E2E job that are easy to get wrong
 
@@ -892,12 +864,10 @@ that anyone can download, so hiding them would buy nothing:
 `WEB_ORIGIN`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
 `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`.
 
-**Opt-in Auth0/MCP rollout variables:** `AUTH0_ENABLED`, `MCP_ENABLED` and
-`MCP_WRITES_ENABLED` default to `false`; `VITE_AUTH_PROVIDER` defaults to `firebase`.
-For Auth0 browser login, explicitly set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0`
-and `VITE_AUTH0_CLIENT_ID` to the public SPA client ID. For MCP, also set
-`MCP_ENABLED=true` and `MCP_CLIENT_ID` to the approved MCP client ID. Set
-`MCP_WRITES_ENABLED=true` only after the write rollout gates pass. Both client IDs are
+**Auth0/MCP variables:** production runs with `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`,
+`MCP_ENABLED` and `MCP_WRITES_ENABLED` set to `true`, `VITE_AUTH_PROVIDER=auth0`, and
+`VITE_AUTH0_CLIENT_ID` and `MCP_CLIENT_ID` set to the public SPA and MCP client IDs.
+Unset, the switches default to `false` and the provider to `firebase`. Both client IDs are
 public identifiers, never client secrets. The release validates combinations before any
 deployment and reads the exact API flags and client ID back after deployment. Missing
 MCP client IDs are omitted from Cloud Run rather than deployed as empty strings.
@@ -906,9 +876,8 @@ The issuer `https://login.luminull.com/` and REST audience
 `https://api.wally.luminull.com` are fixed in application configuration and the release.
 The web bundle receives the provider and SPA client ID at build time; changing repository
 variables does not change a deployed bundle. Existing Firebase build variables remain
-required for the rollback path. These switches do not provision Auth0 tenant settings,
-import accounts, or grant connector access. Complete the [Auth0 activation checks](AUTH0.md)
-before opting in. Keep all switches off and provider `firebase` for the default release.
+required for the Firebase Auth rollback path. These switches do not provision Auth0 tenant
+settings or grant connector access; see [AUTH0.md](AUTH0.md).
 
 **Repository secrets:** retain `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for Firebase
 rollback tests. Auth0 validation uses `E2E_AUTH0_USER_PASSWORD` with the account email
@@ -940,12 +909,13 @@ The release remains subject to the existing CI and production environment approv
 
 Before promotion:
 
-1. Deploy `firestore.indexes.json`, including all five TTL policies, `boardOperations.expiresAt`,
+1. Deploy `firestore.indexes.json`, including all six TTL policies, `boardOperations.expiresAt`,
    `assistantAudit.expiresAt`, `assistantConversations.expiresAt`,
-   `assistantAttempts.expiresAt` and `assistantSuggestions.expiresAt`, to the configured named
-   database. Confirm all five TTL policies are active in Firestore. TTL removal is
+   `assistantAttempts.expiresAt`, `assistantSuggestions.expiresAt` and
+   `assistantTidies.expiresAt`, to the configured named database. Confirm all six TTL
+   policies are active in Firestore. TTL removal is
    asynchronous, usually within 24 hours after expiry; seven days (receipts, assistant
-   attempts and assistant suggestions, whose receipts expire with them) and 30 days (assistant
+   attempts, and assistant suggestions and tidies, whose receipts expire with them) and 30 days (assistant
    audit records, and assistant conversations after their last turn) are retention targets,
    not exact erasure times. Do not enable TTL on `boardCleanup`.
 2. Run the reconciliation command below against the intended database in dry-run mode.
@@ -982,17 +952,7 @@ once writes have resumed.
 
 ## Account-cleanup worker (retired)
 
-Self-service account export and deletion were removed on 2026-10-26 (see GDPR.md, GAP-01
-and GAP-02). No deletion was pending, and on 2026-10-27 the worker and everything it used
-were deleted:
-
-- the Cloud Scheduler job and the Cloud Run job, both `wally-account-cleanup`;
-- the secret `wally-auth0-account-cleanup`, the service accounts `wally-account-cleanup@`
-  and `wally-account-scheduler@`, their project bindings and the custom role
-  `wallyAccountIdentityDeletion`;
-- the production environment variables `AUTH0_MANAGEMENT_DOMAIN`,
-  `AUTH0_CLEANUP_CLIENT_ID` and `AUTH0_CLEANUP_SECRET_VERSION`;
-- the Auth0 Management API client "Wally account cleanup" (`delete:users`).
-
-The `accountDeletionJobs` and `accountDenials` collections are no longer read. They go
-when Firestore is retired.
+Self-service account export and deletion, and the `wally-account-cleanup` worker, were
+removed in PR #76; the worker's cloud resources were deleted on 2026-10-27. The
+`accountDeletionJobs` and `accountDenials` collections are no longer read and go when
+Firestore is retired.

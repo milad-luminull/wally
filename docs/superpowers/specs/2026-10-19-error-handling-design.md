@@ -1,6 +1,8 @@
 # Error handling, technically and for the person — design
 
-Date: 2026-10-19. Status: approved by the owner 2026-10-19; built on `fix/ai-reliability`.
+> **Status:** executed in PR #64.
+
+Date: 2026-10-19. Approved by the owner 2026-10-19; built on `fix/ai-reliability`.
 
 ## Intent
 

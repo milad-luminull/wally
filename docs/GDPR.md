@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                               | Basis                                       |
-| ------------- | ----------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                          | Decides why and how to-do data is processed |
-| Processor     | Google (Firebase Auth, Cloud Firestore, Cloud Run, Cloud Logging) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email               |                                             |
+| Role          | Who                                                                                                                                                            | Basis                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                       | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Firestore, Cloud Run, Firebase Hosting, Cloud Logging, Vertex AI; Firebase Auth as rollback only) and Auth0 (production sign-in for web and MCP) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                            |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -109,9 +109,11 @@ change. Command outcome logs omit note contents and share tokens; redemption URL
 
 ### Elsewhere
 
-- **Firebase Authentication** holds the credential record, and Google's own sign-in metadata
-  (last login, provider) that Wally never reads. Deleting a Firestore user document does not
-  touch it — erasure has to address both stores (GAP-01).
+- **Auth0** holds the production login identity (see [Auth0 and MCP data](#auth0-and-mcp-data)).
+- **Firebase Authentication**, kept as a rollback path, holds the credential record of
+  accounts created before Auth0, and Google's own sign-in metadata (last login, provider)
+  that Wally never reads. Deleting a Firestore user document touches neither identity
+  store — erasure has to address all three (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
@@ -162,11 +164,11 @@ Paths and command lines do carry resource IDs, and a user's first board has thei
 as its ID — a pseudonymous identifier, accepted because it identifies no one without the
 `users` collection. _(Art. 5(1)(c))_
 
-### No third-party processors beyond Google
+### No processors beyond Google and Auth0
 
 [`apps/web/package.json`](../apps/web/package.json) carries no analytics, tag manager, error
-reporter or session recorder. Google is the sole processor, which keeps Art. 28 to a single
-relationship. _(Art. 28)_
+reporter or session recorder. Google and Auth0 are the only processors, which keeps Art. 28
+to two relationships. _(Art. 28)_
 
 ### No consent banner is required
 
@@ -239,29 +241,21 @@ employee's `users/{uid}` document, any board they did not delete, their `created
 references and their `history.actorId` entries persist forever. Firebase Auth and Auth0 each
 hold a further copy of the identity, independent of Firestore.
 
-**Status (2026-10-26):** a self-service deletion flow was built, then removed because it
-was too complex to maintain. Until it is rebuilt, deletion requests to
+**Status:** a self-service deletion flow was built, then removed in PR #76 because it was
+too complex to maintain. Until it is rebuilt, deletion requests to
 privacy@luminull.com are handled by hand. The Account and data page says so.
 
-**Plan.** `DELETE /me`, plus an admin-invocable equivalent for someone who has already lost
-their login.
-
-1. Decide erasure vs. anonymisation per reference (see §6 — this is a decision, not a
-   detail). Recommended: hard-delete `users/{uid}`, the user's own board and its notes;
-   **anonymise** `createdById` / `assigneeId` / `actorId` to `null` on boards belonging to
-   other people, so a colleague's board does not lose its content.
-2. Delete every `members` row for the user across all boards, and the matching
-   `memberRoles` key — one transaction per board, per the existing invariant.
-3. Call `admin.auth().deleteUser(uid)` so the Firebase Auth record goes too.
-4. Do it in a single idempotent, resumable routine; `recursiveDelete` for subtrees,
-   `BulkWriter` for the unbounded cross-board sweep, as `members.ts` already does.
-5. Integration test against the emulator asserting **no** collection still references the uid.
+**Plan.** Rebuild `DELETE /me`, plus an admin-invocable equivalent for someone who has
+already lost their login, on PostgreSQL after the platform migration, against the new
+schema ([RFC-0008](rfcs/0008-firestore-to-supabase.md)). The erasure-vs-anonymisation
+decision in §6 applies, and the routine must also remove the identity at the sign-in
+provider.
 
 ### GAP-02 — No data export · **High** · Art. 15, 20
 
 No export endpoint. A subject access request can only be answered today by someone reading
 the Firestore console by hand, which does not scale and is error-prone. A first export
-endpoint was removed on 2026-10-26, to be rebuilt with deletion. Until then, requests to
+endpoint was removed in PR #76, to be rebuilt with deletion. Until then, requests to
 privacy@luminull.com are answered by hand.
 
 **Plan.** `GET /me/export` returning JSON: the profile, every board the user owns or belongs
@@ -286,8 +280,11 @@ member-visibility disclosure from §2.
 
 ### GAP-04 — No retention policy anywhere · **High** · Art. 5(1)(e)
 
-Nothing in Wally ever expires. Completed notes, history events, membership rows and user
-profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
+No user content expires. The six Firestore TTL policies in
+[`firestore.indexes.json`](../firestore.indexes.json) cover only command receipts (§2) and
+assistant records, kept seven or 30 days
+([`DEPLOY.md`](DEPLOY.md#board-safety-rollout)). Completed notes, history events,
+membership rows and user profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
 is the clearest possible failure of it.
 
 **Plan.** Agree a retention period per category with the controller (§8), then enforce it in
@@ -435,7 +432,7 @@ field's placeholder in both message catalogues read `name@<that company>.de`.
 **Closed.** All four seeded people were replaced with invented names, and every address in
 the repository now sits on `@example.com`, which RFC 2606 reserves so it can never route.
 Git history still contains the originals; rewriting it was judged disproportionate, and
-this sentence is the record of that decision. See §9.
+this sentence is the record of that decision.
 
 ---
 
@@ -466,8 +463,8 @@ job needs a scheduler that does not exist yet.
 | ----- | ----------------------------------------------------- | -------------- | ----------------- |
 | 1     | Answer the four decisions                             | —              | §6                |
 | 2     | Platform request log and EU log bucket — **deferred** | GAP-05         | —                 |
-| 3     | Data export endpoint                                  | GAP-02         | —                 |
-| 4     | Account deletion                                      | GAP-01         | 1                 |
+| 3     | Data export endpoint                                  | GAP-02         | RFC-0008          |
+| 4     | Account deletion                                      | GAP-01         | 1, RFC-0008       |
 | 5     | Share-link expiry                                     | GAP-06         | —                 |
 | 6     | Retention job + invite expiry                         | GAP-04, GAP-07 | 1, scheduler      |
 | 7     | Privacy notice route, DE + EN                         | GAP-03         | controller's text |
@@ -475,13 +472,9 @@ job needs a scheduler that does not exist yet.
 | ~~9~~ | ~~Seed data cleanup~~ — **done**                      | GAP-10         | —                 |
 | 10    | TOM register                                          | GAP-09         | —                 |
 
-Items 2, 3 and 5 have no external dependency. Items 3 and 5 can start immediately; item 2 is
-deferred (GAP-05) and, when picked up, is three `gcloud` commands with no code change and no
-extra cost. Item 9 is done.
-
-> The API integration tests run against the Firestore emulator and were not run for the §9
-> cleanup — the working tree currently also carries unrelated in-flight CI and tooling
-> changes, so a full `make test` should be run once that settles.
+Items 2 and 5 have no external dependency. Item 5 can start immediately; items 3 and 4 are
+rebuilt on PostgreSQL after the migration (RFC-0008); item 2 is deferred (GAP-05) and,
+when picked up, is three `gcloud` commands with no code change and no extra cost. Item 9 is done.
 
 ### Checklist
 
@@ -544,45 +537,16 @@ systematic monitoring of a public area. Write the _assessment_ down anyway — a
 
 ### ORG-06 — Breach procedure · Art. 33, 34
 
-72 hours to notify the supervisory authority. There is no CI pipeline and deployment is
-manual ([`README.md`](../README.md)), so it is worth writing down who notices an incident, who
-decides, and who reports.
+72 hours to notify the supervisory authority. Changes ship through CI
+([`ci.yml`](../.github/workflows/ci.yml)) and an approval-gated release workflow
+([`release.yml`](../.github/workflows/release.yml)), but neither detects or reports an
+incident, so it is worth writing down who notices one, who decides, and who reports.
 
 ### ORG-07 — Add Wally to the record of processing · Art. 30
 
 §2 is the inventory. It needs to land in the controller's central register, not only here.
+
 ---
-
-## 9. Unrelated-company references — removed
-
-Wally is a standalone project run by Luminull. It is **not** part of, and must not be
-presented as part of, any other company's product. The repository had inherited references
-to an unrelated company from the material this project was started from; **all 170 of them,
-across 25 files, have been removed.** This section is the record of what was touched, so
-the change is reviewable and the mistake is not repeated.
-
-What was changed:
-
-| Area                                                                                                                                                                                                                                                                       | What changed                                                                                                                                                                                                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`README.md`](../README.md), opening sentence                                                                                                                                                                                                                              | Dropped "built for …" from the opening sentence                                                                                                                                                                                                                             |
-| [`SPEC.md` §5](SPEC.md#5-notes)                                                                                                                                                                                                                                            | The superseded-design note now says "a surrounding host platform"                                                                                                                                                                                                           |
-| [`docs/SPEC.md`](SPEC.md) §13                                                                                                                                                                                                                                              | Was "Platform Integration", requiring integration with that company's platform. Rewritten as **§13 Identity**: Wally is standalone, users and authentication come from Firebase Authentication, permissions are Wally's own. The heading was kept so §14 does not renumber. |
-| [`packages/shared/src/enums.ts`](../packages/shared/src/enums.ts), [`ColorSwatchPicker.tsx`](../apps/web/src/features/board/NoteDetail/ColorSwatchPicker.tsx), [`tailwind.config.ts`](../apps/web/tailwind.config.ts), [`globals.css`](../apps/web/src/styles/globals.css) | Design-token attributions reworded to "the design system". The apricot rationale — functional accents only, never decoration — is preserved verbatim; only the company name went.                                                                                           |
-| [`apps/web/src/i18n/de.ts`](../apps/web/src/i18n/de.ts), [`en.ts`](../apps/web/src/i18n/en.ts)                                                                                                                                                                             | **User-visible.** The invite field's placeholder read `name@<company>.de` in both catalogues; now `name@example.com`.                                                                                                                                                       |
-| [`apps/api/src/seed.ts`](../apps/api/src/seed.ts)                                                                                                                                                                                                                          | Four seeded people replaced with invented names on `@example.com` — see GAP-10                                                                                                                                                                                              |
-| 14 test files across api and web                                                                                                                                                                                                                                           | Every fixture, mock and assertion address moved to `@example.com`, preserving the deliberate case variations that exercise email normalisation (`INVITEE@EXAMPLE.COM`, `INVITEE@Example.com`)                                                                               |
-| [`apps/web/e2e/README.md`](../apps/web/e2e/README.md), [`share.spec.ts`](../apps/web/e2e/share.spec.ts)                                                                                                                                                                    | E2E account placeholder and the generated invite address                                                                                                                                                                                                                    |
-
-Verified after the change: `grep -ri` over the working tree returns nothing, all 106 web
-unit tests pass, and all three packages typecheck clean. The API integration suite needs the
-Firestore emulator and has not been run — see the note under §7.
-
-**Two follow-ups this leaves open.** The e2e address in `README.md` is a placeholder for a
-real Firebase sign-in account; whoever holds that account has to reissue it under the new
-address before `make e2e` proves anything. And git history still contains every original
-reference — rewriting it was judged disproportionate (GAP-10), so the history is not clean
-even though the working tree is.
 
 ## Auth0 and MCP data
 
@@ -607,7 +571,7 @@ across all accessible boards. No selected-board list or board-level MCP policy i
 `mcpLimits/requests` counter bounds authenticated requests across API instances. Command audit entries
 identify the MCP connection. No access/refresh tokens are stored in these records.
 These records require inclusion in account/board erasure and export procedures; revoked
-connection retention still needs an operational policy before production rollout.
+connection retention still needs an operational policy; MCP is live in production.
 
 New external AI connections inherit the user's current board membership and role after
 OAuth approval; a separate board-owner approval is not required. Host-visible

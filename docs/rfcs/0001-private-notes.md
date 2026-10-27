@@ -127,7 +127,7 @@ Numbered so an implementation checklist and tests can cite them.
 
 UX is the first priority of this feature. Every state below exists in both languages, on
 desktop and mobile, and is reachable by keyboard and screen reader, as
-[`RULE.md`](../RULE.md) requires. Copy follows [`BRAND.md`](../BRAND.md): short, plain,
+the [working rules](../SETUP.md#working-rules) require. Copy follows [`BRAND.md`](../BRAND.md): short, plain,
 addressing the user as "du".
 
 ### 6.1 The mental model, in one sentence
@@ -363,7 +363,7 @@ stateDiagram-v2
 
 ## 11. Verification
 
-Per [`RULE.md`](../RULE.md): nothing in §5 is done until it is implemented, tested and
+Per the [working rules](../SETUP.md#working-rules): nothing in §5 is done until it is implemented, tested and
 checked in the running app.
 
 **API tests** (`apps/api`), with at least two actors on one shared board and one VIEW

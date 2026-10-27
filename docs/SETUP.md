@@ -19,7 +19,7 @@
 - Node 22, Fastify, Cloud Firestore (Firebase Admin SDK).
 - Zod schemas live in `packages/shared` and are reused for API validation.
 - Change trigger: use Python (FastAPI, SQLAlchemy, Pydantic) only if the app needs heavy data or ML libraries. Keep the same folder layout and share types via an OpenAPI spec.
-- Change trigger: move to a relational database only if the data outgrows what Firestore answers cheaply — cross-board reporting, aggregates over all notes, or joins that can't be a denormalized field. Firestore was chosen so the app has no idle database cost.
+- The move to a relational database is decided: Supabase PostgreSQL with Drizzle, reached only through the API ([ADR-0020](adr/0020-supabase-postgres-through-the-api-with-drizzle.md), plan in [RFC-0011](rfcs/0011-platform-migration.md)). Until that cutover, Firestore is the database.
 - Firestore has no schema and no migrations. Document shapes are declared in `apps/api/src/lib/db/types.ts`, and composite indexes in `firestore.indexes.json` at the repo root. Both are hand-maintained; nothing enforces them at write time.
 
 ## Frontend (React)

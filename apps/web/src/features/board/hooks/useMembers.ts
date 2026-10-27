@@ -21,13 +21,3 @@ export function useActiveMembers(boardId: string | undefined) {
   );
   return { ...query, activeMembers };
 }
-
-/** Derived from the same members query — see queryKeys.invites' doc comment. */
-export function usePendingInvites(boardId: string | undefined) {
-  const query = useMembers(boardId);
-  const pendingInvites = useMemo(
-    () => (query.data ?? []).filter((m) => m.status === 'PENDING'),
-    [query.data],
-  );
-  return { ...query, pendingInvites };
-}

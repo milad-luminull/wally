@@ -1,5 +1,7 @@
 # Expanded note details
 
+> **Status:** executed in PR #61.
+
 ## Goal
 
 Match the side-panel and expanded-note presentations in `../wally-design/Wally Paper Wall v3.dc.html` while keeping every current note field and action.

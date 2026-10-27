@@ -43,7 +43,7 @@ auth and MCP modules.
   - `authIdentities`;
   - per-user `mcpConnections` and `mcpLimits` (the MCP request and write budgets);
   - `accountDeletionJobs` and `accountDenials`, which nothing reads since self-service
-    export and deletion were removed on 2026-10-26. They are not migrated.
+    export and deletion were removed in PR #76. They are not migrated.
 - **Boards:**
   - `whiteboards` and its `members`, with the cached `memberRoles`;
   - `shareLinks`.
@@ -149,8 +149,6 @@ The invariants:
 4. **Cut over during a bounded write freeze:**
    - Snapshot Firestore, import and reconcile.
    - Switch the API to PostgreSQL, and verify before reopening writes.
-   - The job's release step must no longer depend on `AUTH0_ENABLED`. Whether the job
-     moves into `wally-background` is decided in workstream 2.
    - Define the rollback window and how writes made after cutover are recovered, before
      starting.
    - No permanent dual writes.

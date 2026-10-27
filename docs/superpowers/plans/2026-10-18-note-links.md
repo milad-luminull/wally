@@ -1,5 +1,7 @@
 # Links Between Notes Implementation Plan
 
+> **Status:** executed in PR #57.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A note can be related to other notes on its board: Wallybot proposes links to related notes after Enter (slice 3's deferred half of 0005-wallybot-inline.md §3.4), the person keeps them one by one or adds and removes them in the note panel, the panel lists what a note is related to in both directions, and on the free canvas a hairline joins related cards, dashed while a proposal is pending and solid once kept.

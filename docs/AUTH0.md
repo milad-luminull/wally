@@ -41,7 +41,8 @@ unset when unused rather than empty.
 
 - unknown providers or invalid booleans;
 - Auth0 web login without API Auth0 or a SPA client ID;
-- MCP without API Auth0, the assistant switch or a client ID;
+- signup without API Auth0;
+- MCP without API Auth0 or a client ID;
 - writes without MCP.
 
 The issuer and audiences are pinned in code, not supplied by variables. See
@@ -84,7 +85,7 @@ existing user.
 
 **Firebase-to-Auth0 import:** this one-off was completed on 2026-10-23. Every existing
 Wally user was mapped under their original Firebase UID. Password users reset their
-password through Auth0. The import tooling has since been removed; it is in git history.
+password through Auth0. The import tooling was removed in PR #76; it is in git history.
 
 ## Signup gate
 

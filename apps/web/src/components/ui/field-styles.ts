@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
 
 /**
- * The one field look, shared by Input, Textarea and SelectTrigger: 32px, a 1px border,
+ * The one field look, shared by Input and SelectTrigger: 32px, a 1px border,
  * 6px radius and the ink focus ring. Grows to 44 on a coarse pointer.
  */
 export const fieldClassName = cn(

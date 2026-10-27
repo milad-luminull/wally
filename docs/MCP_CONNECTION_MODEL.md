@@ -10,7 +10,7 @@
 >   intersection below becomes Wally's own read/write setting on the connection record.
 
 Approved 2026-10-22. Supersedes the per-board owner-policy and selected-board consent
-model for new connections. Live in production since the v0.8.x releases.
+model for new connections. First released to production in v0.8.3 (2026-10-25).
 
 ## User experience
 

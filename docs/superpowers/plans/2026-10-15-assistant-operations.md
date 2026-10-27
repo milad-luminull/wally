@@ -1,5 +1,7 @@
 # Assistant Operations Layer Implementation Plan
 
+> **Status:** executed in PR #39.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the first slice of the Wally assistant: the operation set over the existing command layer, the deployment switch, provenance on receipts and history, and the audit record, all tested against the emulator, with no model involved yet.

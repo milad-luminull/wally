@@ -1,5 +1,7 @@
 # Write in Place Implementation Plan
 
+> **Status:** executed in PR #44.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A person writes a note's title and text directly on the board, where the note will live, with no sidebar; dates, people and urgency words are recognised as they type and offered as chips; Enter commits, the sidebar stays the optional detail layer. No AI in this slice.

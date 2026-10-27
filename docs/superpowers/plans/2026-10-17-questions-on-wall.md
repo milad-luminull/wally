@@ -1,5 +1,7 @@
 # Questions on the Wall Implementation Plan
 
+> **Status:** executed in PR #54.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A question typed into the capture card, ending in `?`, is answered where it was written: an ephemeral card on the wall in the note's own type with a dashed edge, the notes it relied on as rows underneath, fading after it is read unless pinned; the question panel, its button, its palette entry, its shortcut and its URL state are retired (0005-wallybot-inline.md §3.6).

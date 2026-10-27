@@ -1,5 +1,7 @@
 # Ask the Board, API Half: Implementation Plan
 
+> **Status:** executed in PR #41, landed on `main` in PR #45.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A person can ask a question about their board and get an answer from the live board through the read operations, with every model call reserved against a hard cap first, the conversation stored per user and board, and the answer carrying the notes it relied on. No writes, no approvals yet.

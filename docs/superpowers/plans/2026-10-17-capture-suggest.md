@@ -1,5 +1,7 @@
 # Fill In on Enter Implementation Plan
 
+> **Status:** executed in PR #46.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** When a person commits a note written in place, Wallybot proposes what the parser could not read (a due date, a priority, a person) as a pending change on that note: a dashed edge and a marigold dot with a countdown, each field in its place with an ×, kept by Enter or by the countdown's expiry, undone by Esc or ⌘Z, with a server record that is the approval and makes every write replayable and reversible.
