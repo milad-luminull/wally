@@ -29,3 +29,23 @@ export async function purgeExpired(db: Database, now: Date = new Date()): Promis
   for (const row of rows) counts[TABLES[row.table_name]] = Number(row.deleted);
   return counts;
 }
+
+/**
+ * Throws unless the pg_cron job that runs purge_expired() hourly exists. The migration
+ * schedules it only in pg_cron's own database and skips it silently anywhere else, so the
+ * release checks it explicitly: without it, the retention periods docs/GDPR.md promises
+ * would never be enforced.
+ */
+export async function assertPurgeScheduled(db: Database): Promise<void> {
+  const [row] = await db.execute<{ scheduled: boolean }>(sql`
+    select exists (select 1 from pg_extension where extname = 'pg_cron') as scheduled`);
+  const scheduled =
+    row?.scheduled === true &&
+    (
+      await db.execute<{ count: number }>(
+        sql`select count(*)::int as count from cron.job where jobname = 'wally-purge-expired'`,
+      )
+    )[0]?.count === 1;
+  if (!scheduled)
+    throw new Error('The pg_cron job wally-purge-expired is not scheduled in this database');
+}

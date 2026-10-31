@@ -1,5 +1,6 @@
 import { RETRYABLE_ERROR_CODES, type ApiErrorBody } from '@wally/shared';
 import { AppError } from './errors.js';
+import { classifyDatabaseError } from './postgres/errors.js';
 
 /** The framework's own 4xx statuses, each with its own code rather than one catch-all. */
 const FRAMEWORK_CODES: Record<number, string> = {
@@ -16,8 +17,8 @@ const retryable = (status: number, code: string) =>
 
 /**
  * The status and body for any error a route throws (the error handling spec, 2026-10-19): an
- * AppError keeps its status and code, the framework's 4xx get their own codes, and anything
- * else is a 500 whose text is never sent.
+ * AppError keeps its status and code, text the database cannot store is a 400, the
+ * framework's 4xx get their own codes, and anything else is a 500 whose text is never sent.
  */
 export function errorReplyFor(error: unknown): { status: number; body: ApiErrorBody } {
   if (error instanceof AppError) {
@@ -35,6 +36,16 @@ export function errorReplyFor(error: unknown): { status: number; body: ApiErrorB
       },
     };
   }
+  // Asking again cannot help: the same text fails the same way.
+  if (classifyDatabaseError(error) === 'invalidText')
+    return {
+      status: 400,
+      body: {
+        error: 'BAD_REQUEST',
+        message: 'The text contains a character that cannot be stored',
+        retryable: false,
+      },
+    };
   const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
   const status = typeof statusCode === 'number' && statusCode >= 400 ? statusCode : 500;
   if (status >= 500)

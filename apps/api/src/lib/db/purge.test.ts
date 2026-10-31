@@ -10,7 +10,7 @@ import {
   boardOperations,
   users,
 } from '../postgres/schema/index.js';
-import { purgeExpired } from './purge.js';
+import { assertPurgeScheduled, purgeExpired } from './purge.js';
 
 const now = new Date('2026-10-31T12:00:00.000Z');
 const past = new Date(now.getTime() - 1);
@@ -178,5 +178,22 @@ describe('the purge_expired database function', () => {
              has_function_privilege('authenticated', 'purge_expired(timestamptz)', 'execute')
                as authenticated`;
     expect(row).toEqual({ anon: false, authenticated: false });
+  });
+});
+
+describe('assertPurgeScheduled', () => {
+  let handle: TestDatabase;
+
+  beforeAll(async () => {
+    handle = await createTestDatabase();
+  });
+
+  afterAll(async () => {
+    await handle?.drop();
+  });
+
+  it('refuses a database where pg_cron has no purge job, so retention is never left unenforced', async () => {
+    // A per-file test database is not pg_cron's database, so the migration scheduled nothing.
+    await expect(assertPurgeScheduled(handle.db)).rejects.toThrow(/wally-purge-expired/);
   });
 });

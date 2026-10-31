@@ -43,13 +43,21 @@ export function matchesFieldFilter(customFields: Record<string, string>, field: 
   );
 }
 
-function byDueDateThenCreated(a: Note, b: Note): number {
+/**
+ * Due date (undated last), then creation, then id. The id makes the order total: PostgreSQL
+ * returns rows in no fixed order, and an edit can move a row, so notes created in the same
+ * millisecond (every seeded note) must not trade places after one is edited.
+ */
+export function byDueDateThenCreated(
+  a: Pick<Note, 'id' | 'dueDate' | 'createdAt'>,
+  b: Pick<Note, 'id' | 'dueDate' | 'createdAt'>,
+): number {
   if (a.dueDate !== b.dueDate) {
     if (a.dueDate === null) return 1;
     if (b.dueDate === null) return -1;
     return a.dueDate < b.dueDate ? -1 : 1;
   }
-  return a.createdAt.getTime() - b.createdAt.getTime();
+  return a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
 export async function getBoard(db: Database, actor: Actor, boardId: string) {

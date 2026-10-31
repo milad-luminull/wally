@@ -3,7 +3,8 @@
  * (https://www.postgresql.org/docs/current/errcodes-appendix.html). Which Wally error each
  * kind becomes is decided where the call is made; this only names the kind.
  */
-export type DatabaseErrorKind = 'serialization' | 'deadlock' | 'unique' | 'foreignKey' | 'check';
+export type DatabaseErrorKind =
+  'serialization' | 'deadlock' | 'unique' | 'foreignKey' | 'check' | 'invalidText';
 
 const KINDS: Record<string, DatabaseErrorKind> = {
   '40001': 'serialization',
@@ -11,6 +12,10 @@ const KINDS: Record<string, DatabaseErrorKind> = {
   '23505': 'unique',
   '23503': 'foreignKey',
   '23514': 'check',
+  // Text PostgreSQL cannot store: a NUL character in a text column (22021) or a jsonb value
+  // (22P05). Firestore stored it; here the request has to be refused.
+  '22021': 'invalidText',
+  '22P05': 'invalidText',
 };
 
 /** Reads the SQLSTATE on the error itself or, as Drizzle wraps driver errors, its cause. */

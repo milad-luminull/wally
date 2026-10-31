@@ -42,6 +42,22 @@ describe('errorReplyFor: one body for every failure', () => {
       true,
     ],
     [
+      "text PostgreSQL cannot store (a NUL character) is the request's fault, not worth retrying",
+      Object.assign(new Error('query failed'), {
+        cause: Object.assign(new Error('invalid byte sequence'), { code: '22021' }),
+      }),
+      400,
+      'BAD_REQUEST',
+      false,
+    ],
+    [
+      'the same in a jsonb value',
+      Object.assign(new Error('unsupported Unicode escape sequence'), { code: '22P05' }),
+      400,
+      'BAD_REQUEST',
+      false,
+    ],
+    [
       'a numeric driver code is no status of its own',
       Object.assign(new Error('gone'), { code: 5 }),
       500,

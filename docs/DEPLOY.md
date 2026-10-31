@@ -266,14 +266,17 @@ gcloud secrets add-iam-policy-binding wally-database-url \
 
 The SQL migrations live in [`apps/api/drizzle/`](../apps/api/drizzle/) and ship in the API
 image at `/app/drizzle`. The server never migrates at boot. The release runs
-`node dist/migrate-cli.js` from the exact image it deploys, before the candidate revision
-exists (section 13). By hand, with the image you are about to deploy:
+`node dist/migrate-cli.js --require-purge-job` from the exact image it deploys, before the
+candidate revision exists (section 13). The flag then checks that the hourly pg_cron job
+`wally-purge-expired` exists and fails the release if it does not: the migration schedules it
+only in pg_cron's own database and skips it silently anywhere else. By hand, with the image
+you are about to deploy:
 
 ```bash
 read -rs DATABASE_URL && export DATABASE_URL
 docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID=luminull-wally \
   europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api@<digest> \
-  node dist/migrate-cli.js
+  node dist/migrate-cli.js --require-purge-job
 ```
 
 `FIREBASE_PROJECT_ID` is there only because `env.ts` requires it; migrating verifies no token.
@@ -540,7 +543,7 @@ The canonical web origin is **`https://wally.luminull.com`**.
 Sanity check it is alive:
 
 ```bash
-curl https://api.wally.luminull.com/health     # expect {"status":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
+curl https://api.wally.luminull.com/health     # expect {"status":"ok","database":"ok","assistant":{"enabled":…,"model":"vertex:…"}}
 curl -i https://api.wally.luminull.com/whiteboards | head -1   # expect HTTP/2 401
 ```
 
@@ -759,10 +762,11 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Length: 0" \
 schema a release applied stays when its revision is rolled back. That is why every migration
 must keep working with the revision before it (section 7).
 
-**None of the smoke checks reads the database.** `/health` and the unauthenticated 401 never
-query it, so a candidate that cannot reach Supabase passes them. A missing secret or grant
-does fail: the revision does not start. Connectivity from Cloud Run is a proof still to run
-(RFC-0011 section 5, item 1).
+**The smoke check reads the database.** `/health` runs one query and answers 503
+(`"database":"unreachable"`) when the candidate cannot reach Supabase, and the smoke check
+requires `"database":"ok"`, so such a candidate never takes traffic. A missing secret or grant
+fails earlier: the revision does not start. Connectivity from Cloud Run is a proof still to
+run (RFC-0011 section 5, item 1).
 
 **The first PostgreSQL release is different.** Rolling it back sends traffic to v0.11.0,
 which reads Firestore, so anything written to PostgreSQL in between is not visible there.

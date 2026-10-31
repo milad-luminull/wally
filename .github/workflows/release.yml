@@ -268,7 +268,7 @@ jobs:
           export DATABASE_URL
           docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID="${GCP_PROJECT_ID}" \
             "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${DIGEST}" \
-            node dist/migrate-cli.js
+            node dist/migrate-cli.js --require-purge-job
 
       # ---------------------------------------------------------------------------------
       # 3. Cloud Run, with NO traffic. The revision gets its own URL, production keeps

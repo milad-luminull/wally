@@ -43,6 +43,13 @@ describe('note routes', () => {
     return res;
   }
 
+  it('refuses a title PostgreSQL cannot store with a 400 that is not worth retrying', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await createNote(fx.boardId, fx.ownerToken, { title: 'a\u0000b' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'BAD_REQUEST', retryable: false });
+  });
+
   describe('GET /whiteboards/:id/notes', () => {
     it('preserves priority, horizon and assignment filters through HTTP and direct queries', async () => {
       const fx = await createBoardFixture(ctx);
