@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import {
   createTestBoard,
+  createTestDatabase,
   createTestUser,
-  getTestDb,
   resetDatabase,
   addTestMember,
+  type TestDatabase,
 } from './helpers.js';
 import {
   connectAccount,
@@ -12,17 +14,23 @@ import {
   requireConnection,
   authorizeConnectionBoard,
 } from '../src/lib/mcp/grants.js';
+import type { Database } from '../src/lib/postgres/client.js';
+import { boardMembers } from '../src/lib/postgres/schema/index.js';
 
-const project = 'wally-test-mcp-grants';
-const db = getTestDb(project);
+let handle: TestDatabase;
+let db: Database;
 const actor = { id: 'owner', email: 'owner@example.com', emailVerified: true };
+beforeAll(async () => {
+  handle = await createTestDatabase();
+  db = handle.db;
+});
 beforeEach(async () => {
-  await resetDatabase(project);
+  await resetDatabase(db);
   await createTestUser(db, actor.id, actor.email);
   await createTestBoard(db, actor.id);
 });
-afterEach(async () => {
-  await resetDatabase(project);
+afterAll(async () => {
+  await handle?.drop();
 });
 describe('account-wide OAuth connections', () => {
   const token = {
@@ -37,13 +45,17 @@ describe('account-wide OAuth connections', () => {
     ]);
     expect(grants[0].id).toBe(grants[1].id);
     await authorizeConnectionBoard(db, actor, grants[0].id, 'owner', true, true);
+    await createTestUser(db, 'second', 'second@example.com');
     await createTestBoard(db, 'second');
     await addTestMember(db, 'second', actor.id, 'VIEW');
     await authorizeConnectionBoard(db, actor, grants[0].id, 'second', false, true);
     await expect(
       authorizeConnectionBoard(db, actor, grants[0].id, 'second', true, true),
     ).rejects.toMatchObject({ statusCode: 403 });
-    await db.collection('whiteboards').doc('second').update({ memberRoles: {} });
+    // The membership ends: the connection inherits no role on the board any more.
+    await db
+      .delete(boardMembers)
+      .where(and(eq(boardMembers.boardId, 'second'), eq(boardMembers.userId, actor.id)));
     await expect(
       authorizeConnectionBoard(db, actor, grants[0].id, 'second', false, true),
     ).rejects.toMatchObject({ statusCode: 404 });

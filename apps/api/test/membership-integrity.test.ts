@@ -1,12 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import {
-  docsWithId,
-  membersCol,
-  notesCol,
-  whiteboardsCol,
-  withId,
-} from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { liveBoard } from '../src/lib/db/records.js';
 import { activatePendingInvitesForEmail } from '../src/lib/members.js';
+import { boardMembers, notes } from '../src/lib/postgres/schema/index.js';
 import {
   addTestMember,
   buildTestApp,
@@ -17,29 +13,25 @@ import {
   type TestContext,
 } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-membership-integrity';
-
 /**
- * A person must hold at most ONE membership row per board. Two rows desync the board's
- * `memberRoles` cache, which is the sole input to resolveRole: the board gets listed twice
- * with conflicting roles, and removing either row deletes the cache entry outright — cutting
- * off access that the surviving row still legitimately grants, while that row lives on
- * invisible to authorization.
+ * A person must hold at most ONE membership row per board. Two rows list the board twice
+ * with conflicting roles, and removing either row must not cut off access that the
+ * surviving row still legitimately grants.
  */
 describe('membership integrity', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -47,10 +39,12 @@ describe('membership integrity', () => {
     return ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
   }
 
-  const listMembers = async (boardId: string) =>
-    docsWithId(await membersCol(ctx.db, boardId).get());
-  const memberRoles = async (boardId: string) =>
-    withId(await whiteboardsCol(ctx.db).doc(boardId).get())?.memberRoles;
+  const listMembers = (boardId: string) =>
+    ctx.db.select().from(boardMembers).where(eq(boardMembers.boardId, boardId));
+  // The roles access checks read: one per user, from that board's ACTIVE member rows.
+  const memberRoles = async (boardId: string) => (await liveBoard(ctx.db, boardId))?.memberRoles;
+  const assigneeOf = async (noteId: string) =>
+    (await ctx.db.select().from(notes).where(eq(notes.id, noteId)))[0]?.assigneeId;
 
   it('produces a single membership when an invited user redeems a share link before verifying', async () => {
     const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
@@ -109,11 +103,10 @@ describe('membership integrity', () => {
     const res = await authenticate(aliceToken);
     const boards = res.json() as { id: string; currentUserRole: string }[];
 
-    // Her own board plus the shared one — not the shared one twice with conflicting roles,
-    // which is how the desync surfaced to the user.
+    // Her own board plus the shared one — not the shared one twice with conflicting roles.
     expect(boards.filter((b) => b.id === 'mi-owner')).toHaveLength(1);
-    // Read DTOs match live authorization until the inconsistent cache is reconciled.
-    expect(boards.find((b) => b.id === 'mi-owner')?.currentUserRole).toBe('VIEW');
+    // Read DTOs match live authorization, where the strongest ACTIVE row wins.
+    expect(boards.find((b) => b.id === 'mi-owner')?.currentUserRole).toBe('EDIT');
   });
 
   it('keeps access when one of two membership rows is removed', async () => {
@@ -136,8 +129,7 @@ describe('membership integrity', () => {
     });
     expect(removal.statusCode).toBe(204);
 
-    // The unconditional FieldValue.delete() stripped the cache entry outright here, revoking
-    // all access while the EDIT row survived, invisible to authorization.
+    // Removing one row must not revoke the access the surviving EDIT row still grants.
     expect(await memberRoles('mi-owner')).toEqual({ 'mi-alice': 'EDIT' });
     const res = await ctx.inject({
       method: 'GET',
@@ -206,7 +198,7 @@ describe('membership integrity', () => {
     });
 
     // Unassigning is the consequence of losing the board, not of losing one row of several.
-    expect(withId(await notesCol(ctx.db).doc(noteId).get())?.assigneeId).toBe('mi-alice');
+    expect(await assigneeOf(noteId)).toBe('mi-alice');
   });
 
   it('unassigns the member notes once their last row is gone', async () => {
@@ -238,10 +230,10 @@ describe('membership integrity', () => {
       headers: ctx.authHeader(ownerToken),
     });
 
-    expect(withId(await notesCol(ctx.db).doc(noteId).get())?.assigneeId).toBeNull();
+    expect(await assigneeOf(noteId)).toBeNull();
   });
 
-  it('does not promote a pending membership into the role cache when its role is edited', async () => {
+  it('does not promote a pending membership to live access when its role is edited', async () => {
     const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
 
@@ -262,8 +254,8 @@ describe('membership integrity', () => {
     });
     expect(res.statusCode).toBe(200);
 
-    // memberRoles mirrors ACTIVE members only. Editing a role must not become a back door
-    // to live access for an address nobody has confirmed.
+    // Only ACTIVE members hold a role. Editing a role must not become a back door to live
+    // access for an address nobody has confirmed.
     expect(await memberRoles('mi-owner')).toEqual({});
   });
 
@@ -273,10 +265,10 @@ describe('membership integrity', () => {
    * sign-in can produce between the route's pre-read and its transaction.
    */
   function activateBeforeNextTransaction(userId: string, email: string) {
-    const original = ctx.db.runTransaction.bind(ctx.db);
-    vi.spyOn(ctx.db, 'runTransaction').mockImplementationOnce(async (fn, options) => {
+    const original = ctx.db.transaction.bind(ctx.db);
+    vi.spyOn(ctx.db, 'transaction').mockImplementationOnce(async (fn, config) => {
       await activatePendingInvitesForEmail(ctx.db, userId, email);
-      return original(fn, options);
+      return original(fn, config);
     });
   }
 
@@ -318,7 +310,7 @@ describe('membership integrity', () => {
     expect(board.statusCode).toBe(404);
   });
 
-  it('applies a role edit to the cache when the invite activates mid-request', async () => {
+  it('applies a role edit when the invite activates mid-request', async () => {
     const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
     const aliceToken = registerTestUser(ctx, 'mi-alice', 'alice@example.com');

@@ -4,19 +4,22 @@ import type {
   SuggestionOutput,
   SuggestionRunner,
 } from '../src/lib/assistant/model/index.js';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { loadNote } from '../src/lib/db/records.js';
+import type { SuggestionFields } from '../src/lib/db/types.js';
+import type { Database } from '../src/lib/postgres/client.js';
 import {
-  assistantAttemptsCol,
-  assistantAuditCol,
-  assistantSuggestionsCol,
-  assistantUsageCol,
-  notesCol,
-} from '../src/lib/db/collections.js';
+  assistantAttempts,
+  assistantAudit,
+  assistantSuggestions,
+  assistantUsage,
+  notes as notesTable,
+} from '../src/lib/postgres/schema/index.js';
 import { dayKey, reserveAttempt } from '../src/lib/assistant/budget/ledger.js';
 import { priceFor } from '../src/lib/assistant/budget/prices.js';
 import { estimateTokens } from '../src/lib/assistant/budget/estimate.js';
 import { suggestionSchemaJson } from '../src/lib/assistant/model/index.js';
 import { modelSuggestionSchema } from '../src/lib/assistant/model/suggest.js';
-import { FieldValue, Timestamp, Transaction } from 'firebase-admin/firestore';
 import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import {
   addTestMember,
@@ -27,8 +30,29 @@ import {
   type TestContext,
 } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-suggestions';
 const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
+
+/** A user's assistant usage row for today, if any. */
+const usageToday = async (db: Database, userId: string) =>
+  (
+    await db
+      .select()
+      .from(assistantUsage)
+      .where(and(eq(assistantUsage.userId, userId), eq(assistantUsage.day, dayKey(new Date()))))
+  )[0];
+/** The states of a user's reserved model calls. */
+const attemptStates = async (db: Database, userId: string) =>
+  (
+    await db
+      .select({ state: assistantAttempts.state })
+      .from(assistantAttempts)
+      .where(eq(assistantAttempts.userId, userId))
+  ).map((attempt) => attempt.state);
+/** The audit rows a suggestion's keep or undo wrote. */
+const auditsOf = (db: Database, approvalId: string) =>
+  db.select().from(assistantAudit).where(eq(assistantAudit.approvalId, approvalId));
+const suggestionCount = (db: Database, userId: string) =>
+  db.$count(assistantSuggestions, eq(assistantSuggestions.userId, userId));
 
 /** The prompts that already failed once with "busy" (the `flaky` titles). */
 const flakySeen = new Set<string>();
@@ -293,7 +317,7 @@ describe('the capture log line', () => {
   let ctx: TestContext;
   const lines: string[] = [];
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID, {
+    ctx = await buildTestApp({
       suggestionRunner: fakeRunner,
       assistantEnabled: true,
       logLines: lines,
@@ -301,10 +325,10 @@ describe('the capture log line', () => {
   });
   afterEach(async () => {
     lines.length = 0;
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
   const captureLog = () =>
@@ -388,14 +412,14 @@ describe('the capture log line', () => {
 describe('a capture whose model is busy or slow', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID, { suggestionRunner: fakeRunner, assistantEnabled: true });
+    ctx = await buildTestApp({ suggestionRunner: fakeRunner, assistantEnabled: true });
   });
   afterEach(async () => {
     flakySeen.clear();
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
   const captureOf = async (title: string, app: TestContext = ctx) => {
@@ -423,9 +447,7 @@ describe('a capture whose model is busy or slow', () => {
     expect(res.json().suggestion.fields.dueDate).toEqual({ value: '2026-10-23', reason: 'Friday' });
     // Each attempt reserved on its own: the busy one (which this fake reports without usage)
     // keeps its charge but not its slot, and the answer's was settled.
-    const usageDoc = (
-      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
-    ).data();
+    const usageDoc = await usageToday(ctx.db, fx.ownerId);
     expect(usageDoc?.inFlight).toEqual({});
     expect(usageDoc?.tokens).toBeGreaterThan(usage.inputTokens + usage.outputTokens);
   });
@@ -467,7 +489,7 @@ describe('a capture whose model is busy or slow', () => {
         ),
       );
     };
-    const app = await buildTestApp(PROJECT_ID, {
+    const app = await buildTestApp({
       suggestionRunner: slow,
       assistantEnabled: true,
       assistantDeadlineMs: 50,
@@ -477,13 +499,10 @@ describe('a capture whose model is busy or slow', () => {
       expect(res.statusCode).toBe(504);
       expect(res.json()).toMatchObject({ error: 'ASSISTANT_TIMEOUT', retryable: true });
       // The call never reported usage: its worst case stays charged, its slot is free at once.
-      const usageDoc = (
-        await assistantUsageCol(app.db, fx.ownerId).doc(dayKey(new Date())).get()
-      ).data();
+      const usageDoc = await usageToday(app.db, fx.ownerId);
       expect(usageDoc?.inFlight).toEqual({});
       expect(usageDoc?.tokens).toBeGreaterThan(256);
-      const attempts = await assistantAttemptsCol(app.db, fx.ownerId).get();
-      expect(attempts.docs.map((d) => d.data().state)).toEqual(['ABANDONED']);
+      expect(await attemptStates(app.db, fx.ownerId)).toEqual(['ABANDONED']);
     } finally {
       await app.app.close();
     }
@@ -493,14 +512,14 @@ describe('a capture whose model is busy or slow', () => {
 describe('capture suggestions', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID, { suggestionRunner: fakeRunner, assistantEnabled: true });
+    ctx = await buildTestApp({ suggestionRunner: fakeRunner, assistantEnabled: true });
   });
   afterEach(async () => {
     lastInput = null;
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -531,19 +550,29 @@ describe('capture suggestions', () => {
       url: `/whiteboards/${boardId}/assistant/suggestions/pending`,
       headers: ctx.authHeader(token),
     });
-  const note = async (id: string) => (await notesCol(ctx.db).doc(id).get()).data()!;
+  const note = async (id: string) => (await loadNote(ctx.db, id))!;
   /** The note as the panel reads it, with its subtasks in order. */
   const noteDetail = async (token: string, id: string) =>
     (
       await ctx.inject({ method: 'GET', url: `/notes/${id}`, headers: ctx.authHeader(token) })
     ).json() as { subtasks: { id: string; text: string }[] };
   const stored = async (userId: string, id: string) =>
-    (await assistantSuggestionsCol(ctx.db, userId).doc(id).get()).data()!;
+    (
+      await ctx.db
+        .select()
+        .from(assistantSuggestions)
+        .where(and(eq(assistantSuggestions.userId, userId), eq(assistantSuggestions.id, id)))
+    )[0]!;
+  /** Writes a record directly: the state a keep or undo cut short, or an older record. */
+  const patchSuggestion = (id: string, values: Partial<typeof assistantSuggestions.$inferInsert>) =>
+    ctx.db.update(assistantSuggestions).set(values).where(eq(assistantSuggestions.id, id));
+  const patchNoteRow = (id: string, values: Partial<typeof notesTable.$inferInsert>) =>
+    ctx.db.update(notesTable).set(values).where(eq(notesTable.id, id));
+  /** Replaces the links a stored record proposes, as if the model had named them. */
+  const setLinks = async (userId: string, id: string, links: SuggestionFields['links']) =>
+    patchSuggestion(id, { fields: { ...(await stored(userId, id)).fields, links } });
   const inFlight = async (userId: string) =>
-    Object.keys(
-      (await assistantUsageCol(ctx.db, userId).doc(dayKey(new Date())).get()).data()?.inFlight ??
-        {},
-    ).length;
+    Object.keys((await usageToday(ctx.db, userId))?.inFlight ?? {}).length;
   const patchNote = (token: string, noteId: string, body: Record<string, unknown>) =>
     ctx.inject({
       method: 'PATCH',
@@ -555,7 +584,7 @@ describe('capture suggestions', () => {
     patchNote(token, noteId, { title });
   /** The audit rows the caller's assistant writes left: one per committed write. */
   const audits = async (actorId: string) =>
-    (await assistantAuditCol(ctx.db).where('actorId', '==', actorId).get()).size;
+    ctx.db.$count(assistantAudit, eq(assistantAudit.actorId, actorId));
   /**
    * The command layer exactly as a keep or an undo calls it, so a test can commit one write
    * of a suggestion's chain on its own: the state a keep or undo cut short leaves behind.
@@ -603,9 +632,7 @@ describe('capture suggestions', () => {
       typed: [],
       kept: null,
     });
-    const usageDoc = (
-      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
-    ).data();
+    const usageDoc = await usageToday(ctx.db, fx.ownerId);
     expect(usageDoc?.tokens).toBe(70);
     expect(usageDoc?.inFlight).toEqual({});
     // The prompt carries the words and the members by id; the note was not changed.
@@ -640,7 +667,7 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion).toBeNull();
     expect(lastInput).toBeNull();
-    expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect(await suggestionCount(ctx.db, fx.ownerId)).toBe(0);
   });
 
   it('never proposes a locked field, a filled field, or a person on a private note', async () => {
@@ -675,41 +702,6 @@ describe('capture suggestions', () => {
     });
   });
 
-  it('reads a record from slice 2, with no title, reference or subtasks, as proposing nothing there', async () => {
-    const fx = await createBoardFixture(ctx);
-    const n = (
-      await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor urgent' })
-    ).json();
-    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
-    await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).update({
-      typed: FieldValue.delete(),
-      'fields.title': FieldValue.delete(),
-      'fields.reference': FieldValue.delete(),
-      'fields.subtasks': FieldValue.delete(),
-      'operationIds.title': FieldValue.delete(),
-      'operationIds.reference': FieldValue.delete(),
-      'operationIds.subtasks': FieldValue.delete(),
-    });
-    const res = await pending(fx.ownerToken, fx.boardId);
-    expect(res.statusCode).toBe(200);
-    expect(res.json().suggestions[0]).toMatchObject({
-      typed: [],
-      fields: { title: null, reference: null, subtasks: null },
-    });
-    const kept = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
-      decision: 'keep',
-      source: 'enter',
-    });
-    expect(kept.json().suggestion.kept).toEqual({
-      fields: ['dueDate', 'priority', 'assignee'],
-      subtasks: [],
-      links: [],
-      tags: [],
-      properties: [],
-      revision: n.revision + 3,
-    });
-  });
-
   it('reads a proposed link with its target current title, and drops a target gone from the board', async () => {
     const fx = await createBoardFixture(ctx);
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
@@ -719,21 +711,17 @@ describe('capture suggestions', () => {
       await createNote(fx.editToken, 'fx-editor', { title: 'Other board' })
     ).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
-    await assistantSuggestionsCol(ctx.db, fx.ownerId)
-      .doc(suggestion.id)
-      .update({
-        'fields.links': {
-          items: [
-            { noteId: renamed.id, reason: 'same customer' },
-            { noteId: deleted.id, reason: 'same topic' },
-            { noteId: elsewhere.id, reason: 'same words' },
-            { noteId: 'no-such-note', reason: 'never existed' },
-          ],
-          reason: 'related',
-        },
-      });
+    await setLinks(fx.ownerId, suggestion.id, {
+      items: [
+        { noteId: renamed.id, reason: 'same customer' },
+        { noteId: deleted.id, reason: 'same topic' },
+        { noteId: elsewhere.id, reason: 'same words' },
+        { noteId: 'no-such-note', reason: 'never existed' },
+      ],
+      reason: 'related',
+    });
     await patchTitle(fx.ownerToken, renamed.id, 'Quote for Müller');
-    await notesCol(ctx.db).doc(deleted.id).update({ deletedAt: Timestamp.now() });
+    await patchNoteRow(deleted.id, { deletedAt: new Date() });
     const read = await pending(fx.ownerToken, fx.boardId);
     expect(read.statusCode).toBe(200);
     expect(read.json().suggestions[0].fields.links).toEqual({
@@ -741,7 +729,7 @@ describe('capture suggestions', () => {
       reason: 'related',
     });
     // With every target gone the field reads as nothing proposed.
-    await notesCol(ctx.db).doc(renamed.id).update({ deletedAt: Timestamp.now() });
+    await patchNoteRow(renamed.id, { deletedAt: new Date() });
     const empty = await pending(fx.ownerToken, fx.boardId);
     expect(empty.json().suggestions[0].fields.links).toBeNull();
   });
@@ -754,20 +742,16 @@ describe('capture suggestions', () => {
     const c = (await createNote(fx.ownerToken, fx.boardId, { title: 'C' })).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     const proposeLinks = (...ids: string[]) =>
-      assistantSuggestionsCol(ctx.db, fx.ownerId)
-        .doc(suggestion.id)
-        .update({
-          'fields.links': {
-            items: ids.map((noteId) => ({ noteId, reason: `why ${noteId}` })),
-            reason: 'related',
-          },
-        });
+      setLinks(fx.ownerId, suggestion.id, {
+        items: ids.map((noteId) => ({ noteId, reason: `why ${noteId}` })),
+        reason: 'related',
+      });
     const readLinks = async () =>
       (await pending(fx.ownerToken, fx.boardId)).json().suggestions[0].fields.links;
 
     // The first target is gone: B and C keep stored indexes 1 and 2, not 0 and 1.
     await proposeLinks(a.id, b.id, c.id);
-    await notesCol(ctx.db).doc(a.id).update({ deletedAt: Timestamp.now() });
+    await patchNoteRow(a.id, { deletedAt: new Date() });
     expect((await readLinks()).items).toEqual([
       { index: 1, noteId: b.id, title: 'B', reason: `why ${b.id}` },
       { index: 2, noteId: c.id, title: 'C', reason: `why ${c.id}` },
@@ -778,9 +762,7 @@ describe('capture suggestions', () => {
     const theirs = (await createNote(fx.editToken, fx.boardId, { title: 'Secret plans' })).json();
     await proposeLinks(b.id, theirs.id, c.id);
     expect((await readLinks()).items.map((i: { index: number }) => i.index)).toEqual([0, 1, 2]);
-    await notesCol(ctx.db)
-      .doc(theirs.id)
-      .update({ visibility: 'PRIVATE', assigneeId: fx.editorId });
+    await patchNoteRow(theirs.id, { visibility: 'PRIVATE', assigneeId: fx.editorId });
     const hidden = await readLinks();
     expect(hidden.items).toEqual([
       { index: 0, noteId: b.id, title: 'B', reason: `why ${b.id}` },
@@ -791,7 +773,7 @@ describe('capture suggestions', () => {
     // A note the owner made private is still theirs to see.
     const mine = (await createNote(fx.ownerToken, fx.boardId, { title: 'Mine' })).json();
     await proposeLinks(mine.id);
-    await notesCol(ctx.db).doc(mine.id).update({ visibility: 'PRIVATE', assigneeId: fx.ownerId });
+    await patchNoteRow(mine.id, { visibility: 'PRIVATE', assigneeId: fx.ownerId });
     expect((await readLinks()).items).toEqual([
       { index: 0, noteId: mine.id, title: 'Mine', reason: `why ${mine.id}` },
     ]);
@@ -813,7 +795,7 @@ describe('capture suggestions', () => {
     expect(s.fields.dueDate).not.toBeNull();
     const nothing = (await createNote(fx.ownerToken, fx.boardId, { title: 'nothing' })).json();
     expect((await suggest(fx.ownerToken, fx.boardId, nothing.id)).json().suggestion).toBeNull();
-    expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(1);
+    expect(await suggestionCount(ctx.db, fx.ownerId)).toBe(1);
   });
 
   it('answers a provider failure with its own error and no record', async () => {
@@ -827,12 +809,11 @@ describe('capture suggestions', () => {
       retryable: true,
     });
     expect(JSON.stringify(res.json())).not.toContain('secret-project');
-    expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect(await suggestionCount(ctx.db, fx.ownerId)).toBe(0);
     // This fake fails without usage, as a dropped connection does: the call and its one retry
     // each stay charged (R7), but neither holds a slot once the capture has answered.
     expect(await inFlight(fx.ownerId)).toBe(0);
-    const attempts = await assistantAttemptsCol(ctx.db, fx.ownerId).get();
-    expect(attempts.docs.map((d) => d.data().state)).toEqual(['ABANDONED', 'ABANDONED']);
+    expect(await attemptStates(ctx.db, fx.ownerId)).toEqual(['ABANDONED', 'ABANDONED']);
   });
 
   it('keeps the charge but frees the slot when the provider reports no usage', async () => {
@@ -844,9 +825,7 @@ describe('capture suggestions', () => {
     expect(await inFlight(fx.ownerId)).toBe(0);
     // Unsettled, the reservation is what stays charged: the instructions, the prompt and the
     // response schema the library sends with them, plus the output allowance.
-    const charged = (
-      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
-    ).data()?.tokens;
+    const charged = (await usageToday(ctx.db, fx.ownerId))?.tokens;
     expect(charged).toBe(
       estimateTokens([lastInput!.instructions, lastInput!.prompt, await suggestionSchemaJson()]) +
         16 +
@@ -878,26 +857,22 @@ describe('capture suggestions', () => {
     });
     expect(after.revision).toBe(kept.kept.revision);
     expect(after.revision).toBe(n.revision + 3);
-    const audits = (
-      await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get()
-    ).docs.map((d) => d.data());
+    const audits = await auditsOf(ctx.db, suggestion.id);
     expect(audits.map((a) => a.commandType).sort()).toEqual([
       'note.assign',
       'note.move',
       'note.update',
     ]);
     expect(audits.every((a) => a.actorId === fx.ownerId && a.targetId === n.id)).toBe(true);
-    const stored = (
-      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
-    ).data()!;
-    expect(stored.applied?.before).toEqual({
+    const record = await stored(fx.ownerId, suggestion.id);
+    expect(record.applied?.before).toEqual({
       dueDate: null,
       priority: 'MEDIUM',
       assigneeId: null,
       title: 'all fx-editor',
       reference: null,
     });
-    expect(stored.decision?.source).toBe('countdown');
+    expect(record.decision?.source).toBe('countdown');
   });
 
   it("drops a due date before the person's today, so nothing is proposed", async () => {
@@ -906,7 +881,7 @@ describe('capture suggestions', () => {
     const res = await suggest(fx.ownerToken, fx.boardId, n.id);
     expect(res.statusCode).toBe(200);
     expect(res.json().suggestion).toBeNull();
-    expect((await assistantSuggestionsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect(await suggestionCount(ctx.db, fx.ownerId)).toBe(0);
   });
 
   it('proposes only on a note the caller wrote, before any model call', async () => {
@@ -916,10 +891,8 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toBe('NOT_FOUND');
     expect(lastInput).toBeNull();
-    expect(
-      (await assistantUsageCol(ctx.db, fx.editorId).doc(dayKey(new Date())).get()).exists,
-    ).toBe(false);
-    expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(0);
+    expect(await usageToday(ctx.db, fx.editorId)).toBeUndefined();
+    expect(await suggestionCount(ctx.db, fx.editorId)).toBe(0);
   });
 
   it('keeps each named field once, in the canonical order', async () => {
@@ -987,8 +960,8 @@ describe('capture suggestions', () => {
     const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, body);
     expect(again.json().suggestion.status).toBe('KEPT');
     expect((await note(n.id)).revision).toBe(n.revision + 3);
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.size).toBe(3);
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits).toHaveLength(3);
   });
 
   it('refuses a keep once the note changed, and discards the record', async () => {
@@ -1012,10 +985,8 @@ describe('capture suggestions', () => {
       dueDate: null,
       priority: 'MEDIUM',
     });
-    const stored = (
-      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
-    ).data()!;
-    expect(stored.status).toBe('DISCARDED');
+    const record = await stored(fx.ownerId, suggestion.id);
+    expect(record.status).toBe('DISCARDED');
     const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       source: 'enter',
@@ -1044,7 +1015,7 @@ describe('capture suggestions', () => {
       fields: ['dueDate', 'priority', 'assignee'],
     });
     expect(record.undone).toMatchObject({ source: 'shortcut' });
-    expect(record.undone?.at).toBeInstanceOf(Timestamp);
+    expect(new Date(record.undone!.at).toISOString()).toBe(record.undone!.at);
     const after = await note(n.id);
     expect(after).toMatchObject({
       dueDate: null,
@@ -1053,8 +1024,8 @@ describe('capture suggestions', () => {
       title: 'all fx-editor',
     });
     expect(after.revision).toBe(n.revision + 6);
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.size).toBe(6);
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits).toHaveLength(6);
     const again = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
@@ -1082,10 +1053,8 @@ describe('capture suggestions', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toBe('STALE_REVISION');
     expect(await note(n.id)).toMatchObject({ title: 'Afterwards', dueDate: '2026-10-23' });
-    const stored = (
-      await assistantSuggestionsCol(ctx.db, fx.ownerId).doc(suggestion.id).get()
-    ).data()!;
-    expect(stored.status).toBe('KEPT');
+    const record = await stored(fx.ownerId, suggestion.id);
+    expect(record.status).toBe('KEPT');
   });
 
   it('discards without touching the note, and a keep after that is refused', async () => {
@@ -1143,9 +1112,9 @@ describe('capture suggestions', () => {
       ).statusCode,
     ).toBeLessThan(300);
     expect((await patchTitle(fx.editToken, moved.note.id, 'Friday, changed')).statusCode).toBe(200);
-    await assistantSuggestionsCol(ctx.db, fx.editorId)
-      .doc(old.suggestion.id)
-      .update({ createdAt: Timestamp.fromMillis(Date.now() - 25 * 3_600_000) });
+    await patchSuggestion(old.suggestion.id, {
+      createdAt: new Date(Date.now() - 25 * 3_600_000),
+    });
 
     const res = await pending(fx.editToken, fx.boardId);
     expect(res.statusCode).toBe(200);
@@ -1172,24 +1141,33 @@ describe('capture suggestions', () => {
     expect(keep.statusCode).toBe(200);
     const kept = await stored(fx.editorId, suggestion.id);
     expect(kept.applied).toBeDefined();
-    const ref = assistantSuggestionsCol(ctx.db, fx.editorId).doc(suggestion.id);
     // A day old and still pending when the list queries it...
-    await ref.update({
+    await patchSuggestion(suggestion.id, {
       status: 'PENDING',
-      decision: FieldValue.delete(),
-      applied: FieldValue.delete(),
-      createdAt: Timestamp.fromMillis(Date.now() - 25 * 3_600_000),
+      decision: null,
+      applied: null,
+      createdAt: new Date(Date.now() - 25 * 3_600_000),
     });
-    // ...and kept by another tab between that query and the cleanup: the notes read is the
-    // one step in between.
-    const getAll = ctx.db.getAll.bind(ctx.db);
-    const spy = vi.spyOn(ctx.db, 'getAll').mockImplementation(async (...refs) => {
-      if (refs.some((r) => 'path' in r && r.path === `notes/${n.id}`)) {
-        spy.mockRestore();
-        await ref.update({ status: 'KEPT', decision: kept.decision, applied: kept.applied });
-      }
-      return getAll(...refs);
-    });
+    // ...and kept by another tab between that query and the cleanup: the read of the notes
+    // the records name is the one step in between.
+    const select = ctx.db.select.bind(ctx.db);
+    const spy = vi.spyOn(ctx.db, 'select').mockImplementation(((fields?: object) => {
+      if (!fields || !('visibility' in fields)) return select(fields as never);
+      spy.mockRestore();
+      const notesRead = select(fields as never);
+      return {
+        from: (table: typeof notesTable) => ({
+          where: async (condition: SQL | undefined) => {
+            await patchSuggestion(suggestion.id, {
+              status: 'KEPT',
+              decision: kept.decision,
+              applied: kept.applied,
+            });
+            return notesRead.from(table).where(condition);
+          },
+        }),
+      };
+    }) as never);
     try {
       const res = await pending(fx.editToken, fx.boardId);
       expect(res.statusCode).toBe(200);
@@ -1233,7 +1211,7 @@ describe('capture suggestions', () => {
     expect(elsewhere.statusCode).toBe(404);
     expect(elsewhere.json().error).toBe('NOT_FOUND');
     expect(lastInput).toBeNull();
-    expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(0);
+    expect(await suggestionCount(ctx.db, fx.editorId)).toBe(0);
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     expect(
       (await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'keep', source: 'enter' }))
@@ -1347,16 +1325,14 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.dueDate.apply,
     });
-    await assistantSuggestionsCol(ctx.db, fx.ownerId)
-      .doc(suggestion.id)
-      .update({
-        status: 'KEPT',
-        decision: {
-          source: 'enter',
-          fields: ['dueDate', 'priority', 'assignee'],
-          at: record.createdAt,
-        },
-      });
+    await patchSuggestion(suggestion.id, {
+      status: 'KEPT',
+      decision: {
+        source: 'enter',
+        fields: ['dueDate', 'priority', 'assignee'],
+        at: record.createdAt.toISOString(),
+      },
+    });
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'keep',
       source: 'enter',
@@ -1372,8 +1348,8 @@ describe('capture suggestions', () => {
       assigneeId: 'fx-editor',
     });
     expect((await note(n.id)).revision).toBe(n.revision + 3);
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.size).toBe(3);
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits).toHaveLength(3);
     expect((await stored(fx.ownerId, suggestion.id)).applied?.before).toEqual({
       dueDate: null,
       priority: 'MEDIUM',
@@ -1388,12 +1364,10 @@ describe('capture suggestions', () => {
     const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
     const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
     const record = await stored(fx.ownerId, suggestion.id);
-    await assistantSuggestionsCol(ctx.db, fx.ownerId)
-      .doc(suggestion.id)
-      .update({
-        status: 'KEPT',
-        decision: { source: 'enter', fields: ['dueDate'], at: record.createdAt },
-      });
+    await patchSuggestion(suggestion.id, {
+      status: 'KEPT',
+      decision: { source: 'enter', fields: ['dueDate'], at: record.createdAt.toISOString() },
+    });
     const res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
@@ -1494,7 +1468,7 @@ describe('capture suggestions', () => {
     const dup = (await createNote(fx.editToken, fx.boardId, { title: 'dupsteps' })).json();
     const s = (await suggest(fx.editToken, fx.boardId, dup.id)).json().suggestion;
     expect(s.fields.subtasks).toEqual({ items: ['a', 'b'], reason: expect.any(String) });
-    expect((await assistantSuggestionsCol(ctx.db, fx.editorId).get()).size).toBe(1);
+    expect(await suggestionCount(ctx.db, fx.editorId)).toBe(1);
   });
 
   it('the countdown keeps the cleaned title with the rest, and a title alone too', async () => {
@@ -1577,8 +1551,8 @@ describe('capture suggestions', () => {
     expect((await noteDetail(fx.editToken, n.id)).subtasks.map((t) => t.text)).toEqual([
       'Write the quote',
     ]);
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.docs.map((d) => d.data().commandType).sort()).toEqual([
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits.map((a) => a.commandType).sort()).toEqual([
       'note.update',
       'note.update',
       'subtask.create',
@@ -1680,8 +1654,8 @@ describe('capture suggestions', () => {
     expect(after.customFields).toEqual({});
     expect(after.subtaskSummary.total).toBe(0);
     expect(after.revision).toBe(n.revision + 12);
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.docs.filter((d) => d.data().commandType === 'subtask.delete')).toHaveLength(3);
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits.filter((a) => a.commandType === 'subtask.delete')).toHaveLength(3);
     const again = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
@@ -1695,20 +1669,18 @@ describe('capture suggestions', () => {
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
     const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
     // The second step's write fails once inside its transaction (a 5xx): the first step has
-    // committed, the second and third have not.
-    const create = Transaction.prototype.create;
-    let stepWrites = 0;
-    const spy = vi.spyOn(Transaction.prototype, 'create').mockImplementation(function (
-      this: Transaction,
-      ref,
-      data,
-    ) {
-      if (ref.path.includes('/subtasks/') && ++stepWrites === 2) {
-        spy.mockRestore();
-        throw new Error('cut short');
-      }
-      return create.call(this, ref, data);
-    } as typeof create);
+    // committed, the second and third have not. A trigger stands in for the failure; the
+    // sequence it counts with is not rolled back with the failed write.
+    await ctx.db.execute(sql`create sequence step_writes`);
+    await ctx.db.execute(sql`
+      create function cut_second_step() returns trigger language plpgsql as $$
+      begin
+        if nextval('step_writes') = 2 then raise exception 'cut short'; end if;
+        return new;
+      end $$`);
+    await ctx.db.execute(
+      sql`create trigger cut_second_step before insert on subtasks for each row execute function cut_second_step()`,
+    );
     let first;
     try {
       first = await decide(fx.editToken, fx.boardId, suggestion.id, {
@@ -1717,7 +1689,9 @@ describe('capture suggestions', () => {
         source: 'enter',
       });
     } finally {
-      spy.mockRestore();
+      await ctx.db.execute(sql`drop trigger cut_second_step on subtasks`);
+      await ctx.db.execute(sql`drop function cut_second_step`);
+      await ctx.db.execute(sql`drop sequence step_writes`);
     }
     expect(first.statusCode).toBe(500);
     expect((await note(n.id)).subtaskSummary.total).toBe(1);
@@ -1746,8 +1720,8 @@ describe('capture suggestions', () => {
     expect((await stored(fx.editorId, suggestion.id)).applied?.subtaskIds).toEqual(
       steps.map((t) => t.id),
     );
-    const audits = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(audits.docs.filter((d) => d.data().commandType === 'subtask.create')).toHaveLength(3);
+    const audits = await auditsOf(ctx.db, suggestion.id);
+    expect(audits.filter((a) => a.commandType === 'subtask.create')).toHaveLength(3);
     const undone = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'undo',
       source: 'esc',
@@ -1813,17 +1787,15 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.subtasks![0]!.apply,
     });
-    await assistantSuggestionsCol(ctx.db, fx.editorId)
-      .doc(suggestion.id)
-      .update({
-        status: 'KEPT',
-        decision: {
-          source: 'click',
-          fields: ['title', 'subtasks'],
-          subtasks: [0, 1, 2],
-          at: record.createdAt,
-        },
-      });
+    await patchSuggestion(suggestion.id, {
+      status: 'KEPT',
+      decision: {
+        source: 'click',
+        fields: ['title', 'subtasks'],
+        subtasks: [0, 1, 2],
+        at: record.createdAt.toISOString(),
+      },
+    });
     await ctx.inject({
       method: 'PATCH',
       url: `/notes/${n.id}`,
@@ -1841,23 +1813,6 @@ describe('capture suggestions', () => {
     expect(after).toMatchObject({ title: 'review', dueDate: '2026-11-02' });
     expect(after.subtaskSummary.total).toBe(0);
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('DISCARDED');
-  });
-
-  it('refuses a step keep on a record whose operation ids predate the steps', async () => {
-    const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.editToken, fx.boardId, { title: 'review' })).json();
-    const { suggestion } = (await suggest(fx.editToken, fx.boardId, n.id)).json();
-    await assistantSuggestionsCol(ctx.db, fx.editorId)
-      .doc(suggestion.id)
-      .update({ 'operationIds.subtasks': FieldValue.delete() });
-    const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
-      decision: 'keep',
-      fields: ['subtasks'],
-      source: 'click',
-    });
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
-    expect((await note(n.id)).subtaskSummary.total).toBe(0);
   });
 
   it('an undo refused part way puts a deleted step back once, however often the undo is repeated', async () => {
@@ -1945,124 +1900,6 @@ describe('capture suggestions', () => {
     expect((await stored(fx.editorId, suggestion.id)).status).toBe('KEPT');
   });
 
-  it('a pending record stored before this release (reference, no new fields) still reads, keeps its property and undoes it', async () => {
-    const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.editToken, fx.boardId, { title: 'legacy' })).json();
-    // Written as the release before smarter capture stored it: one reference, none of the
-    // new fields, and the operation ids of that release.
-    const now = Timestamp.now();
-    const ids = () => ({ apply: crypto.randomUUID(), undo: crypto.randomUUID() });
-    const ref = assistantSuggestionsCol(ctx.db, fx.editorId).doc();
-    await ref.set({
-      boardId: fx.boardId,
-      noteId: n.id,
-      baseRevision: n.revision,
-      fields: {
-        dueDate: null,
-        priority: null,
-        assignee: null,
-        title: null,
-        reference: { key: 'Customer', value: 'Acme', reason: 'named' },
-        subtasks: null,
-        links: null,
-      },
-      typed: [],
-      operationIds: {
-        dueDate: ids(),
-        priority: ids(),
-        assignee: ids(),
-        title: ids(),
-        reference: ids(),
-        subtasks: [ids(), ids(), ids(), ids(), ids()],
-        links: ids(),
-      },
-      status: 'PENDING',
-      decision: null,
-      undone: null,
-      applied: null,
-      model: 'vertex:gemini-2.5-flash',
-      usage: { inputTokens: 1, outputTokens: 1 },
-      createdAt: now,
-      updatedAt: now,
-      expiresAt: Timestamp.fromMillis(now.toMillis() + 86_400_000),
-    });
-    const listed = (await pending(fx.editToken, fx.boardId)).json().suggestions;
-    expect(listed).toHaveLength(1);
-    expect(listed[0].fields).toMatchObject({
-      reference: { key: 'Customer', value: 'Acme' },
-      horizon: null,
-      visibility: null,
-      tags: null,
-      properties: null,
-      description: null,
-    });
-    const kept = await decide(fx.editToken, fx.boardId, ref.id, {
-      decision: 'keep',
-      source: 'countdown',
-    });
-    expect(kept.statusCode).toBe(200);
-    expect(kept.json().suggestion.kept.fields).toEqual(['reference']);
-    expect((await note(n.id)).customFields).toEqual({ Customer: 'Acme' });
-    const undone = await decide(fx.editToken, fx.boardId, ref.id, {
-      decision: 'undo',
-      source: 'esc',
-    });
-    expect(undone.statusCode).toBe(200);
-    expect((await note(n.id)).customFields).toEqual({});
-  });
-
-  it("undo of a pre-release record's reference puts the key's previous value back when it held one", async () => {
-    const fx = await createBoardFixture(ctx);
-    const n = (await createNote(fx.editToken, fx.boardId, { title: 'legacy restore' })).json();
-    const now = Timestamp.now();
-    const ids = () => ({ apply: crypto.randomUUID(), undo: crypto.randomUUID() });
-    const ref = assistantSuggestionsCol(ctx.db, fx.editorId).doc();
-    await ref.set({
-      boardId: fx.boardId,
-      noteId: n.id,
-      baseRevision: n.revision,
-      fields: {
-        dueDate: null,
-        priority: null,
-        assignee: null,
-        title: null,
-        reference: { key: 'Customer', value: 'Acme', reason: 'named' },
-        subtasks: null,
-        links: null,
-      },
-      typed: [],
-      operationIds: {
-        dueDate: ids(),
-        priority: ids(),
-        assignee: ids(),
-        title: ids(),
-        reference: ids(),
-        subtasks: [ids(), ids(), ids(), ids(), ids()],
-        links: ids(),
-      },
-      status: 'PENDING',
-      decision: null,
-      undone: null,
-      applied: null,
-      model: 'vertex:gemini-2.5-flash',
-      usage: { inputTokens: 1, outputTokens: 1 },
-      createdAt: now,
-      updatedAt: now,
-      expiresAt: Timestamp.fromMillis(now.toMillis() + 86_400_000),
-    });
-    await decide(fx.editToken, fx.boardId, ref.id, { decision: 'keep', source: 'click' });
-    expect((await note(n.id)).customFields).toEqual({ Customer: 'Acme' });
-    // No route reaches this state (a reference is proposed only on a note with no property);
-    // the record is edited to hold a previous value, so the restore branch runs for real.
-    await ref.update({ 'applied.before.reference.previous': 'Old GmbH' });
-    const undone = await decide(fx.editToken, fx.boardId, ref.id, {
-      decision: 'undo',
-      source: 'esc',
-    });
-    expect(undone.statusCode).toBe(200);
-    expect((await note(n.id)).customFields).toEqual({ Customer: 'Old GmbH' });
-  });
-
   it('keeps a horizon through move_note and the undo moves the note back to Today', async () => {
     const fx = await smartBoard();
     const n = (await createNote(fx.editToken, fx.boardId, { title: 'smart' })).json();
@@ -2075,8 +1912,8 @@ describe('capture suggestions', () => {
     });
     expect(kept.statusCode).toBe(200);
     expect((await note(n.id)).horizon).toBe('THIS_WEEK');
-    const types = await assistantAuditCol(ctx.db).where('approvalId', '==', suggestion.id).get();
-    expect(types.docs.map((d) => d.data().commandType)).toEqual(['note.move']);
+    const types = await auditsOf(ctx.db, suggestion.id);
+    expect(types.map((a) => a.commandType)).toEqual(['note.move']);
     await decide(fx.editToken, fx.boardId, suggestion.id, { decision: 'undo', source: 'esc' });
     expect((await note(n.id)).horizon).toBe('TODAY');
   });
@@ -2210,17 +2047,15 @@ describe('capture suggestions', () => {
       operationId: record.operationIds.visibility!.apply,
     });
     expect(await note(n.id)).toMatchObject({ visibility: 'PRIVATE', assigneeId: fx.editorId });
-    await assistantSuggestionsCol(ctx.db, fx.editorId)
-      .doc(suggestion.id)
-      .update({
-        status: 'KEPT',
-        decision: {
-          source: 'click',
-          fields: ['visibility', 'tags'],
-          tags: [0],
-          at: record.createdAt,
-        },
-      });
+    await patchSuggestion(suggestion.id, {
+      status: 'KEPT',
+      decision: {
+        source: 'click',
+        fields: ['visibility', 'tags'],
+        tags: [0],
+        at: record.createdAt.toISOString(),
+      },
+    });
     await patchNote(fx.editToken, n.id, { dueDate: '2026-11-02' });
     const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',
@@ -2299,12 +2134,15 @@ describe('capture suggestions', () => {
       },
       operationId: record.operationIds.horizon!.apply,
     });
-    await assistantSuggestionsCol(ctx.db, fx.editorId)
-      .doc(suggestion.id)
-      .update({
-        status: 'KEPT',
-        decision: { source: 'click', fields: ['horizon', 'tags'], tags: [0], at: record.createdAt },
-      });
+    await patchSuggestion(suggestion.id, {
+      status: 'KEPT',
+      decision: {
+        source: 'click',
+        fields: ['horizon', 'tags'],
+        tags: [0],
+        at: record.createdAt.toISOString(),
+      },
+    });
     await patchNote(fx.editToken, n.id, { dueDate: '2026-11-02' });
     const res = await decide(fx.editToken, fx.boardId, suggestion.id, {
       decision: 'keep',

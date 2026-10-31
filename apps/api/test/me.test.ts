@@ -1,16 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Timestamp } from 'firebase-admin/firestore';
+import { eq } from 'drizzle-orm';
 import { INITIAL_BOARD_NAME, MAX_REMEMBERED_BOARDS } from '@wally/shared';
-import { notesCol, usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
-import {
-  buildTestApp,
-  createTestUser,
-  registerTestUser,
-  resetDatabase,
-  type TestContext,
-} from './helpers.js';
-
-const PROJECT_ID = 'wally-test-me';
+import type { StoredPreferences } from '../src/lib/db/types.js';
+import { users, whiteboards } from '../src/lib/postgres/schema/index.js';
+import { buildTestApp, registerTestUser, resetDatabase, type TestContext } from './helpers.js';
 
 /** The board view's spelling from before ADR-0024, refused like any unknown value. */
 const OLD = { view: 'wand' } as const;
@@ -23,17 +16,35 @@ describe('/me', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
+
+  async function storedUser(id: string) {
+    const [user] = await ctx.db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async function storedBoard(id: string) {
+    const [board] = await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, id));
+    return board;
+  }
+
+  async function storePreferences(id: string, preferences: Record<string, unknown>) {
+    // Written straight to the column, so values PATCH /me would refuse can be stored too.
+    await ctx.db
+      .update(users)
+      .set({ preferences: preferences as StoredPreferences })
+      .where(eq(users.id, id));
+  }
 
   it('saves a palette independently, defaults older profiles and rejects unknown names', async () => {
     const token = registerTestUser(ctx, 'palette-user', 'palette@example.com');
@@ -110,25 +121,7 @@ describe('/me', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().language).toBe('en');
-    const board = await whiteboardsCol(ctx.db).doc('me-en').get();
-    expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.en);
-  });
-
-  it('reads a profile written before the field existed as German, without writing to it', async () => {
-    // 'absent' writes no field at all, which is exactly the shape of a record created before
-    // `language` was introduced.
-    await createTestUser(ctx.db, 'me-legacy', 'legacy@example.com', 'Legacy', true, 'absent');
-    const token = registerTestUser(ctx, 'me-legacy', 'legacy@example.com', 'Legacy');
-
-    const response = await ctx.inject({
-      method: 'GET',
-      url: '/me',
-      headers: ctx.authHeader(token),
-    });
-
-    expect(response.json().language).toBe('de');
-    const stored = await usersCol(ctx.db).doc('me-legacy').get();
-    expect('language' in (stored.data() ?? {})).toBe(false);
+    expect((await storedBoard('me-en'))?.name).toBe(INITIAL_BOARD_NAME.en);
   });
 
   it('persists a language change', async () => {
@@ -143,8 +136,7 @@ describe('/me', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().language).toBe('en');
-    const stored = await usersCol(ctx.db).doc('me-patch').get();
-    expect(stored.data()?.language).toBe('en');
+    expect((await storedUser('me-patch'))?.language).toBe('en');
   });
 
   it('rejects a language outside the enum, leaving the stored value alone', async () => {
@@ -160,8 +152,7 @@ describe('/me', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toBe('BAD_REQUEST');
-    const stored = await usersCol(ctx.db).doc('me-bad').get();
-    expect(stored.data()?.language).toBe('de');
+    expect((await storedUser('me-bad'))?.language).toBe('de');
   });
 
   it('rejects an empty body', async () => {
@@ -196,8 +187,8 @@ describe('/me', () => {
     expect(response.json().language).toBe('en');
   });
 
-  // Regression guard for the sharpest edge in this change: provisionUser's tx.update names a
-  // fixed field list, so a Firebase profile change must not take `language` down with it.
+  // Regression guard for the sharpest edge in this change: provisionUser's update names a
+  // fixed column list, so a Firebase profile change must not take `language` down with it.
   it('preserves the language when the Firebase profile changes', async () => {
     const token = registerTestUser(ctx, 'me-rename', 'rename@example.com', 'Original');
     await ctx.inject({
@@ -221,8 +212,7 @@ describe('/me', () => {
     });
 
     expect(response.json()).toMatchObject({ displayName: 'Renamed', language: 'en' });
-    const stored = await usersCol(ctx.db).doc('me-rename').get();
-    expect(stored.data()).toMatchObject({ displayName: 'Renamed', language: 'en' });
+    expect(await storedUser('me-rename')).toMatchObject({ displayName: 'Renamed', language: 'en' });
   });
 
   it('leaves the board name alone when the language changes later', async () => {
@@ -236,8 +226,7 @@ describe('/me', () => {
       payload: { language: 'en' },
     });
 
-    const board = await whiteboardsCol(ctx.db).doc('me-board').get();
-    expect(board.data()?.name).toBe(INITIAL_BOARD_NAME.de);
+    expect((await storedBoard('me-board'))?.name).toBe(INITIAL_BOARD_NAME.de);
   });
 
   // Deleting your last board is allowed (RFC 0002 §3); the next request must not quietly
@@ -245,7 +234,7 @@ describe('/me', () => {
   it('does not recreate a board that was deleted', async () => {
     const token = registerTestUser(ctx, 'me-rebuild', 'rebuild@example.com');
     await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
-    await whiteboardsCol(ctx.db).doc('me-rebuild').delete();
+    await ctx.db.delete(whiteboards).where(eq(whiteboards.id, 'me-rebuild'));
 
     await ctx.inject({
       method: 'GET',
@@ -253,38 +242,7 @@ describe('/me', () => {
       headers: { ...ctx.authHeader(token), ...EN_HEADER },
     });
 
-    expect((await whiteboardsCol(ctx.db).doc('me-rebuild').get()).exists).toBe(false);
-    const list = await ctx.inject({
-      method: 'GET',
-      url: '/whiteboards',
-      headers: ctx.authHeader(token),
-    });
-    expect(list.json()).toEqual([]);
-  });
-
-  // A brand-new identity whose uid still names a board awaiting cleanup (its user record removed
-  // by hand) must not get a fresh board under that id: the deleted board's notes still point at
-  // it, and would reappear on the new one before cleanup reached them.
-  it('does not provision over a deleted board that is still being cleaned up', async () => {
-    const deletedAt = Timestamp.now();
-    await whiteboardsCol(ctx.db).doc('me-ghost').set({
-      name: 'Old',
-      ownerId: 'me-ghost',
-      revision: 2,
-      memberRoles: {},
-      shareLinkToken: null,
-      createdAt: deletedAt,
-      updatedAt: deletedAt,
-      deletedAt,
-    });
-    await notesCol(ctx.db)
-      .doc('ghost-note')
-      .set({ whiteboardId: 'me-ghost', title: 'Old' } as never);
-    const token = registerTestUser(ctx, 'me-ghost', 'ghost@example.com');
-
-    await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
-
-    expect((await whiteboardsCol(ctx.db).doc('me-ghost').get()).data()?.deletedAt).toBeTruthy();
+    expect(await storedBoard('me-rebuild')).toBeUndefined();
     const list = await ctx.inject({
       method: 'GET',
       url: '/whiteboards',
@@ -346,8 +304,8 @@ describe('/me', () => {
         language: 'en',
         preferences: { theme: 'dark', boards: { b1: LIST_BY_PRIORITY, b2: WALL_FREE } },
       });
-      const stored = await usersCol(ctx.db).doc('pref-merge').get();
-      expect(Object.keys(stored.data()?.preferences?.boards ?? {}).sort()).toEqual(['b1', 'b2']);
+      const stored = await storedUser('pref-merge');
+      expect(Object.keys(stored?.preferences.boards ?? {}).sort()).toEqual(['b1', 'b2']);
     });
 
     it('forgets a board when it is sent as null', async () => {
@@ -409,12 +367,13 @@ describe('/me', () => {
       const token = registerTestUser(ctx, 'pref-old', 'pref-old@example.com');
       await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
       // Preferences as an older client saved them: real values, no `wallybot` key at all.
-      await usersCol(ctx.db)
-        .doc('pref-old')
-        .update({
-          preferences: { theme: 'dark', canvas: 'grid', lastBoardId: null, boards: {} },
-        } as never);
-      const stored = (await usersCol(ctx.db).doc('pref-old').get()).data()?.preferences;
+      await storePreferences('pref-old', {
+        theme: 'dark',
+        canvas: 'grid',
+        lastBoardId: null,
+        boards: {},
+      });
+      const stored = (await storedUser('pref-old'))?.preferences;
       expect(stored).not.toHaveProperty('wallybot');
 
       const response = await ctx.inject({
@@ -440,7 +399,7 @@ describe('/me', () => {
         canvas: 'none',
         wallybot: { autoApply: true },
       });
-      const after = (await usersCol(ctx.db).doc('pref-old').get()).data()?.preferences;
+      const after = (await storedUser('pref-old'))?.preferences;
       expect(after).not.toHaveProperty('wallybot');
     });
 
@@ -482,7 +441,7 @@ describe('/me', () => {
           { ...WALL_FREE, touchedAt: i },
         ]),
       );
-      await usersCol(ctx.db).doc('pref-prune').update({ preferences: { boards } });
+      await storePreferences('pref-prune', { boards });
 
       const response = await patch(token, { preferences: { boards: { fresh: WALL_FREE } } });
 
@@ -517,16 +476,12 @@ describe('/me', () => {
     it('reads a malformed stored value as the default instead of failing', async () => {
       const token = registerTestUser(ctx, 'pref-junk', 'pref-junk@example.com');
       await ctx.inject({ method: 'GET', url: '/me', headers: ctx.authHeader(token) });
-      await usersCol(ctx.db)
-        .doc('pref-junk')
-        .update({
-          preferences: {
-            theme: 'sepia',
-            canvas: 'lines',
-            boards: { b1: { view: 'kanban' } },
-            wallybot: { autoApply: 'yes' },
-          },
-        } as never);
+      await storePreferences('pref-junk', {
+        theme: 'sepia',
+        canvas: 'lines',
+        boards: { b1: { view: 'kanban' } },
+        wallybot: { autoApply: 'yes' },
+      });
 
       const response = await ctx.inject({
         method: 'GET',

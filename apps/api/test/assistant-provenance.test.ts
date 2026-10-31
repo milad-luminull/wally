@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { executeBoardCommand, type Actor } from '../src/lib/commands/index.js';
-import { assistantAuditCol, docsWithId, historyCol } from '../src/lib/db/collections.js';
+import { and, eq } from 'drizzle-orm';
+import {
+  assistantAudit,
+  boardOperations,
+  noteHistory,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import {
   ASSISTANT_AUDIT_RETENTION_DAYS,
   type Provenance,
@@ -9,7 +15,6 @@ import {
 import { AppError } from '../src/lib/errors.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-provenance';
 const provenance: Provenance = { via: 'assistant', conversationId: 'conv-1', approvalId: 'appr-1' };
 
 describe('assistant provenance on the command layer', () => {
@@ -18,13 +23,13 @@ describe('assistant provenance on the command layer', () => {
   let owner: Actor;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -33,8 +38,21 @@ describe('assistant provenance on the command layer', () => {
     boardId = fx.boardId;
     owner = { id: fx.ownerId, email: 'owner@fixture.de', emailVerified: true };
   }
-  const receiptOf = (operationId: string) =>
-    ctx.db.collection('users').doc(owner.id).collection('boardOperations').doc(operationId).get();
+  const receiptOf = async (operationId: string) =>
+    (
+      await ctx.db
+        .select()
+        .from(boardOperations)
+        .where(
+          and(eq(boardOperations.userId, owner.id), eq(boardOperations.operationId, operationId)),
+        )
+    )[0];
+  const auditOf = async (operationId: string) =>
+    (
+      await ctx.db.select().from(assistantAudit).where(eq(assistantAudit.operationId, operationId))
+    )[0];
+  const historyOf = (noteId: string) =>
+    ctx.db.select().from(noteHistory).where(eq(noteHistory.noteId, noteId));
   const create = (operationId: string, p: Provenance | undefined, title = 'Call Müller') =>
     executeBoardCommand(
       ctx.db,
@@ -50,9 +68,9 @@ describe('assistant provenance on the command layer', () => {
     const result = await create(operationId, provenance);
     const noteId = (result.data as { id: string }).id;
 
-    expect((await receiptOf(operationId)).data()?.provenance).toEqual(provenance);
+    expect((await receiptOf(operationId))?.provenance).toEqual(provenance);
 
-    const audit = (await assistantAuditCol(ctx.db).doc(operationId).get()).data();
+    const audit = await auditOf(operationId);
     expect(audit).toMatchObject({
       operationId,
       actorId: owner.id,
@@ -64,15 +82,15 @@ describe('assistant provenance on the command layer', () => {
       revision: 1,
     });
     const retentionMs = ASSISTANT_AUDIT_RETENTION_DAYS * 86400000;
-    expect(audit!.expiresAt.toMillis() - audit!.occurredAt.toMillis()).toBeGreaterThan(
+    expect(audit!.expiresAt.getTime() - audit!.occurredAt.getTime()).toBeGreaterThan(
       retentionMs - 60000,
     );
-    expect(audit!.expiresAt.toMillis() - audit!.occurredAt.toMillis()).toBeLessThan(
+    expect(audit!.expiresAt.getTime() - audit!.occurredAt.getTime()).toBeLessThan(
       retentionMs + 60000,
     );
     expect(audit).not.toHaveProperty('title');
 
-    const history = docsWithId(await historyCol(ctx.db, noteId).get());
+    const history = await historyOf(noteId);
     expect(history).toHaveLength(1);
     expect(history[0]!.metadata).toEqual({ via: 'assistant' });
   });
@@ -83,7 +101,7 @@ describe('assistant provenance on the command layer', () => {
     const first = await create(operationId, provenance);
     const second = await create(operationId, provenance);
     expect(second.data).toEqual(first.data);
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(1);
+    expect(await ctx.db.$count(assistantAudit)).toBe(1);
   });
 
   it('the same operation id with a different provenance is a key reuse', async () => {
@@ -96,7 +114,7 @@ describe('assistant provenance on the command layer', () => {
       statusCode: 409,
       code: 'IDEMPOTENCY_KEY_REUSED',
     } satisfies Partial<AppError>);
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(1);
+    expect(await ctx.db.$count(assistantAudit)).toBe(1);
   });
 
   it('a command without provenance leaves receipt, history and audit untouched', async () => {
@@ -104,9 +122,9 @@ describe('assistant provenance on the command layer', () => {
     const operationId = randomUUID();
     const result = await create(operationId, undefined);
     const noteId = (result.data as { id: string }).id;
-    expect((await receiptOf(operationId)).data()).not.toHaveProperty('provenance');
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(0);
-    const history = docsWithId(await historyCol(ctx.db, noteId).get());
+    expect((await receiptOf(operationId))?.provenance).toBeNull();
+    expect(await ctx.db.$count(assistantAudit)).toBe(0);
+    const history = await historyOf(noteId);
     expect(history[0]!.metadata).toBeNull();
   });
 
@@ -121,7 +139,7 @@ describe('assistant provenance on the command layer', () => {
       { operationId: randomUUID(), expectedRevision: created.revision },
       { provenance },
     );
-    const history = docsWithId(await historyCol(ctx.db, noteId).get());
+    const history = await historyOf(noteId);
     const moved = history.find((h) => h.type === 'MOVED');
     expect(moved?.metadata).toEqual({
       mode: 'HORIZON',
@@ -129,14 +147,14 @@ describe('assistant provenance on the command layer', () => {
       to: 'LATER',
       via: 'assistant',
     });
-    const audits = docsWithId(await assistantAuditCol(ctx.db).get());
+    const audits = await ctx.db.select().from(assistantAudit);
     expect(audits.map((a) => a.commandType).sort()).toEqual(['note.create', 'note.move']);
     expect(audits.find((a) => a.commandType === 'note.move')?.targetId).toBe(noteId);
   });
 
   it('a board command records no target note', async () => {
     await fixture();
-    const board = (await ctx.db.collection('whiteboards').doc(boardId).get()).data();
+    const [board] = await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, boardId));
     const operationId = randomUUID();
     await executeBoardCommand(
       ctx.db,
@@ -145,7 +163,7 @@ describe('assistant provenance on the command layer', () => {
       { operationId, expectedRevision: board?.revision ?? 0 },
       { provenance },
     );
-    const audit = (await assistantAuditCol(ctx.db).doc(operationId).get()).data();
+    const audit = await auditOf(operationId);
     expect(audit).toMatchObject({ commandType: 'board.rename', boardId, targetId: null });
   });
 });

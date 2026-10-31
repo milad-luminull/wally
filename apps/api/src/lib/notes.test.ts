@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_BOARD_NAME } from '@wally/shared';
 import type { WhiteboardRole } from '@wally/shared';
-import type { WhiteboardDoc, WithId } from './db/types.js';
-import { now } from './db/collections.js';
+import type { Board } from './db/types.js';
 import { assertValidAssignee, computeMoveUpdate } from './notes.js';
 import { AppError } from './errors.js';
 
@@ -41,14 +40,17 @@ describe('computeMoveUpdate', () => {
 });
 
 describe('assertValidAssignee', () => {
-  // A plain document literal, no emulator: the check is now a pure function over the board
-  // that requireWhiteboardAccess has already loaded, rather than a second read of its own.
-  function makeBoard(memberRoles: Record<string, WhiteboardRole>): WithId<WhiteboardDoc> {
-    const timestamp = now();
+  // A plain board literal, no database: the check is a pure function over the board that
+  // requireWhiteboardAccess has already loaded, rather than a second read of its own.
+  function makeBoard(memberRoles: Record<string, WhiteboardRole>): Board {
+    const timestamp = new Date();
     return {
       id: 'board-1',
       name: INITIAL_BOARD_NAME.de,
       ownerId: 'u-owner',
+      revision: 1,
+      deletedAt: null,
+      assistantDisabled: false,
       memberRoles,
       shareLinkToken: null,
       createdAt: timestamp,
@@ -56,7 +58,7 @@ describe('assertValidAssignee', () => {
     };
   }
 
-  // memberRoles mirrors ACTIVE members only, so a PENDING invite simply is not in it.
+  // liveBoard computes memberRoles from ACTIVE members only, so a PENDING invite is not in it.
   const board = makeBoard({ 'u-editor': 'EDIT' });
 
   it('allows null (unassign)', () => {

@@ -91,12 +91,9 @@ export async function activatePendingInvitesForEmail(
           .where(eq(boardMembers.id, survivor.id));
         // Any further rows are pre-existing corruption; collapse them too rather than
         // leaving orphans the DELETE route would have to reason about.
-        await tx.delete(boardMembers).where(
-          inArray(
-            boardMembers.id,
-            [fresh.id, ...extra.map((other) => other.id)],
-          ),
-        );
+        await tx
+          .delete(boardMembers)
+          .where(inArray(boardMembers.id, [fresh.id, ...extra.map((other) => other.id)]));
       } else {
         // invitedEmail is cleared on activation, matching upsertInvite: a row linked to a
         // uid must not also stay claimable by anyone who later verifies that address.

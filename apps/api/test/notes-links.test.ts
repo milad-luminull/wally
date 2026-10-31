@@ -1,17 +1,16 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { notesCol } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { notes } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-notes-links';
 
 describe('note links', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
-  afterEach(() => resetDatabase(PROJECT_ID));
+  afterEach(() => resetDatabase(ctx.db));
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -31,7 +30,10 @@ describe('note links', () => {
       headers: ctx.authHeader(token),
       payload: body,
     });
-  const stored = async (id: string) => (await notesCol(ctx.db).doc(id).get()).data()!;
+  const stored = async (id: string) =>
+    (await ctx.db.select().from(notes).where(eq(notes.id, id)))[0]!;
+  const update = (id: string, values: Partial<typeof notes.$inferInsert>) =>
+    ctx.db.update(notes).set(values).where(eq(notes.id, id));
 
   it('adds and removes links on the note’s current list and leaves the target alone', async () => {
     const fx = await createBoardFixture(ctx);
@@ -53,11 +55,11 @@ describe('note links', () => {
     ).json();
     expect(list.find((n: { id: string }) => n.id === a.id).links).toEqual([c.id]);
     expect(list.find((n: { id: string }) => n.id === b.id).links).toEqual([]);
-    // Removing an id that is not there changes nothing, even on a note with no list yet.
+    // Removing an id that is not there changes nothing, even on a note with no links.
     res = await patch(fx.ownerToken, b.id, { linkChanges: { remove: ['nope'] } });
     expect(res.statusCode).toBe(200);
     expect((await stored(b.id)).revision).toBe(b.revision);
-    expect((await stored(b.id)).links).toBeUndefined();
+    expect((await stored(b.id)).links).toEqual([]);
   });
 
   it('refuses the note itself, a note elsewhere, a deleted note and another person’s private note', async () => {
@@ -94,12 +96,8 @@ describe('note links', () => {
       visibility: 'PRIVATE',
     });
     const gone = await create(fx.boardId, fx.ownerToken, { title: 'Gone' });
-    await notesCol(ctx.db)
-      .doc(gone.id)
-      .update({ deletedAt: (await stored(gone.id)).createdAt });
-    await notesCol(ctx.db)
-      .doc(a.id)
-      .update({ links: [visible.id, secret.id, gone.id, 'missing'] });
+    await update(gone.id, { deletedAt: (await stored(gone.id)).createdAt });
+    await update(a.id, { links: [visible.id, secret.id, gone.id, 'missing'] });
     for (const token of [fx.editToken, fx.viewToken, fx.ownerToken]) {
       const expected = token === fx.ownerToken ? [visible.id, secret.id] : [visible.id];
       const list = await ctx.inject({
@@ -152,12 +150,10 @@ describe('note links', () => {
     const fx = await createBoardFixture(ctx);
     const source = await create(fx.boardId, fx.ownerToken);
     const dead = await create(fx.boardId, fx.ownerToken);
-    await notesCol(ctx.db)
-      .doc(dead.id)
-      .update({ deletedAt: (await stored(dead.id)).createdAt });
-    await notesCol(ctx.db)
-      .doc(source.id)
-      .update({ links: [dead.id, ...Array.from({ length: 9 }, (_, i) => `missing-${i}`)] });
+    await update(dead.id, { deletedAt: (await stored(dead.id)).createdAt });
+    await update(source.id, {
+      links: [dead.id, ...Array.from({ length: 9 }, (_, i) => `missing-${i}`)],
+    });
     const live = await create(fx.boardId, fx.ownerToken);
     const response = await patch(fx.ownerToken, source.id, { linkChanges: { add: [live.id] } });
     expect(response.statusCode).toBe(200);

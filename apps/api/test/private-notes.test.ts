@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { FieldValue } from 'firebase-admin/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { boardPreferencesSchema } from '@wally/shared';
 import {
   addTestMember,
@@ -9,17 +9,16 @@ import {
   resetDatabase,
   type TestContext,
 } from './helpers.js';
-import { notesCol, subtasksCol } from '../src/lib/db/collections.js';
+import { notes, subtasks } from '../src/lib/postgres/schema/index.js';
 
-const projectId = 'wally-private-notes';
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
 
 beforeAll(async () => {
-  ctx = await buildTestApp(projectId);
+  ctx = await buildTestApp();
 });
 beforeEach(async () => {
-  await resetDatabase(projectId);
+  await resetDatabase(ctx.db);
   fx = await createBoardFixture(ctx);
 });
 afterAll(async () => {
@@ -46,9 +45,20 @@ async function list(token: string, query = ''): Promise<Row[]> {
   expect(res.statusCode).toBe(200);
   return res.json();
 }
+async function storedNote(noteId: string) {
+  const [note] = await ctx.db.select().from(notes).where(eq(notes.id, noteId));
+  return note;
+}
+async function storedSubtask(subtaskId: string) {
+  const [subtask] = await ctx.db.select().from(subtasks).where(eq(subtasks.id, subtaskId));
+  return subtask;
+}
+async function updateNote(noteId: string, values: Partial<typeof notes.$inferInsert>) {
+  await ctx.db.update(notes).set(values).where(eq(notes.id, noteId));
+}
 /** Marks a note private straight in the database, so read tests do not depend on writes. */
 async function makePrivate(noteId: string, creatorId: string) {
-  await notesCol(ctx.db).doc(noteId).update({ visibility: 'PRIVATE', assigneeId: creatorId });
+  await updateNote(noteId, { visibility: 'PRIVATE', assigneeId: creatorId });
 }
 
 describe('private notes: reads', () => {
@@ -66,12 +76,6 @@ describe('private notes: reads', () => {
       ctx.inject({ method: 'GET', url: `/notes/${note.id}`, headers: as(token) });
     expect((await read(fx.editToken)).statusCode).toBe(200);
     expect((await read(fx.ownerToken)).statusCode).toBe(404);
-  });
-
-  it('reads notes written before visibility existed as shared', async () => {
-    const note = (await createNote(fx.ownerToken)).json();
-    await notesCol(ctx.db).doc(note.id).update({ visibility: FieldValue.delete() });
-    expect((await list(fx.viewToken))[0]!.visibility).toBe('SHARED');
   });
 
   it('never reveals another person’s private note through search, tags or properties', async () => {
@@ -115,8 +119,8 @@ describe('private notes: reads', () => {
     for (const headers of [owner, as(fx.viewToken)])
       for (const call of calls)
         expect((await ctx.inject({ ...call, headers })).statusCode, call.url).toBe(404);
-    expect((await notesCol(ctx.db).doc(note.id).get()).data()!.title).toBe('Ask Anna about Müller');
-    expect((await subtasksCol(ctx.db, note.id).get()).size).toBe(0);
+    expect((await storedNote(note.id))!.title).toBe('Ask Anna about Müller');
+    expect(await ctx.db.$count(subtasks, eq(subtasks.noteId, note.id))).toBe(0);
   });
 
   it('reads stored board preferences without a visibility as "all"', () => {
@@ -126,7 +130,7 @@ describe('private notes: reads', () => {
 });
 
 async function expectInvariant(noteId: string) {
-  const doc = (await notesCol(ctx.db).doc(noteId).get()).data();
+  const doc = await storedNote(noteId);
   if (doc?.visibility === 'PRIVATE') {
     expect(doc.createdById).not.toBeNull();
     expect(doc.assigneeId).toBe(doc.createdById);
@@ -191,7 +195,7 @@ describe('private notes: writes', () => {
     });
     expect(added.statusCode).toBe(201);
     const subtaskId = added.json().id;
-    const stored = async () => (await subtasksCol(ctx.db, note.id).doc(subtaskId).get()).data();
+    const stored = () => storedSubtask(subtaskId);
 
     const done = await ctx.inject({
       method: 'PATCH',
@@ -234,14 +238,14 @@ describe('private notes: writes', () => {
       payload: { done: true },
     });
     expect(refused.statusCode).toBe(403);
-    expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).data()!.done).toBe(false);
+    expect((await storedSubtask(sharedSub.id))!.done).toBe(false);
     const refusedDelete = await ctx.inject({
       method: 'DELETE',
       url: `/notes/${shared.id}/subtasks/${sharedSub.id}`,
       headers: as(fx.viewToken),
     });
     expect(refusedDelete.statusCode).toBe(403);
-    expect((await subtasksCol(ctx.db, shared.id).doc(sharedSub.id).get()).exists).toBe(true);
+    expect(await storedSubtask(sharedSub.id)).toBeDefined();
   });
 
   it('never lets a viewer change who sees a note', async () => {
@@ -249,7 +253,7 @@ describe('private notes: writes', () => {
     expect((await patch(fx.viewToken, own.id, { visibility: 'SHARED' })).statusCode).toBe(403);
     // A shared note the viewer created back when they had EDIT.
     const shared = (await createNote(fx.ownerToken)).json();
-    await notesCol(ctx.db).doc(shared.id).update({ createdById: fx.viewerId });
+    await updateNote(shared.id, { createdById: fx.viewerId });
     expect((await patch(fx.viewToken, shared.id, { visibility: 'PRIVATE' })).statusCode).toBe(403);
     expect((await list(fx.ownerToken)).map((n) => n.id)).toEqual([shared.id]);
   });
@@ -273,7 +277,7 @@ describe('private notes: writes', () => {
   it('lets nobody but the creator change visibility', async () => {
     const note = (await createNote(fx.editToken)).json();
     expect((await patch(fx.ownerToken, note.id, { visibility: 'PRIVATE' })).statusCode).toBe(403);
-    await notesCol(ctx.db).doc(note.id).update({ createdById: null });
+    await updateNote(note.id, { createdById: null });
     expect((await patch(fx.editToken, note.id, { visibility: 'PRIVATE' })).statusCode).toBe(403);
   });
 
@@ -355,10 +359,10 @@ describe('private notes: replay after a role change', () => {
     const demoted = await demote();
     expect(demoted.statusCode).toBe(200);
     expect(demoted.json().role).toBe('VIEW');
-    const before = (await notesCol(ctx.db).doc(shared.id).get()).data()!;
+    const before = (await storedNote(shared.id))!;
     // Replaying with the same key would otherwise return the stored 200; the role is re-checked.
     expect((await edit()).statusCode).toBe(403);
-    const after = (await notesCol(ctx.db).doc(shared.id).get()).data()!;
+    const after = (await storedNote(shared.id))!;
     expect(after.title).toBe('From the editor');
     expect(after.revision).toBe(before.revision);
   });
@@ -397,10 +401,10 @@ describe('private notes: leaving the board', () => {
     });
     expect(removed.statusCode).toBe(204);
 
-    const privDoc = (await notesCol(ctx.db).doc(priv.id).get()).data()!;
+    const privDoc = (await storedNote(priv.id))!;
     expect(privDoc.assigneeId).toBe(fx.editorId);
     expect(privDoc.revision).toBe(priv.revision);
-    expect((await notesCol(ctx.db).doc(shared.id).get()).data()!.assigneeId).toBeNull();
+    expect((await storedNote(shared.id))!.assigneeId).toBeNull();
     expect((await list(fx.ownerToken)).map((n) => n.id)).toEqual([shared.id]);
 
     await addTestMember(ctx.db, fx.boardId, fx.editorId, 'VIEW');

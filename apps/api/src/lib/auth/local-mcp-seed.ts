@@ -27,18 +27,22 @@ export async function seedMcpLocal(
   await withTransaction(db, async (tx) => {
     await tx
       .insert(users)
-      .values([
-        { id: ownerId, email, displayName: 'Local MCP tester' },
-        { id: 'mcp-local-other', email: 'other@example.invalid', displayName: 'Synthetic owner' },
-      ].map((user) => ({ ...user, emailVerified: true, language: 'en' as const, ...stamps })))
+      .values(
+        [
+          { id: ownerId, email, displayName: 'Local MCP tester' },
+          { id: 'mcp-local-other', email: 'other@example.invalid', displayName: 'Synthetic owner' },
+        ].map((user) => ({ ...user, emailVerified: true, language: 'en' as const, ...stamps })),
+      )
       .onConflictDoNothing();
     await tx
       .insert(whiteboards)
-      .values([
-        { id: ownerId, name: 'MCP test board 1', ownerId },
-        { id: 'mcp-local-second', name: 'MCP test board 2', ownerId },
-        { id: 'mcp-local-shared', name: 'MCP shared test board', ownerId: 'mcp-local-other' },
-      ].map((board) => ({ ...board, revision: 1, ...stamps })))
+      .values(
+        [
+          { id: ownerId, name: 'MCP test board 1', ownerId },
+          { id: 'mcp-local-second', name: 'MCP test board 2', ownerId },
+          { id: 'mcp-local-shared', name: 'MCP shared test board', ownerId: 'mcp-local-other' },
+        ].map((board) => ({ ...board, revision: 1, ...stamps })),
+      )
       .onConflictDoNothing();
     await tx
       .insert(boardMembers)

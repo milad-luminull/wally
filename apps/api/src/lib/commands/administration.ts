@@ -37,7 +37,11 @@ export function rolesFromMembers(
  * command transaction so the count and the write commit together. New boards get generated
  * ids; only the first board, provisioned with the user record, shares the user's uid.
  */
-export async function createBoard(tx: Transaction, actor: Actor, name: string): Promise<CommandResult> {
+export async function createBoard(
+  tx: Transaction,
+  actor: Actor,
+  name: string,
+): Promise<CommandResult> {
   const owned = await tx.$count(
     whiteboards,
     and(eq(whiteboards.ownerId, actor.id), isNull(whiteboards.deletedAt)),
@@ -230,13 +234,10 @@ export async function executeAdminCommand(
     }
     if (next) {
       const { userId, invitedEmail, role, status, activatedAt } = next;
-      await tx
-        .insert(boardMembers)
-        .values(next)
-        .onConflictDoUpdate({
-          target: boardMembers.id,
-          set: { userId, invitedEmail, role, status, activatedAt },
-        });
+      await tx.insert(boardMembers).values(next).onConflictDoUpdate({
+        target: boardMembers.id,
+        set: { userId, invitedEmail, role, status, activatedAt },
+      });
     }
     const memberRoles = rolesFromMembers(nextRows, board.ownerId);
     await updateBoard();

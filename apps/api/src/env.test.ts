@@ -27,16 +27,30 @@ describe('the database connection', () => {
 });
 
 describe('local MCP transport configuration', () => {
-  it.each([
-    { NODE_ENV: 'production', FIRESTORE_EMULATOR_HOST: undefined },
-    { NODE_ENV: 'test', FIRESTORE_EMULATOR_HOST: 'firestore:8080' },
-    { NODE_ENV: 'development', FIRESTORE_EMULATOR_HOST: undefined },
-  ])('rejects local configuration outside a development emulator: %j', (environment) => {
+  it('accepts a development process on a local database', () => {
     _resetEnvCacheForTests();
     expect(() =>
       loadEnv({
         FIREBASE_PROJECT_ID: 'p',
         DATABASE_URL: 'postgres://localhost/wally',
+        NODE_ENV: 'development',
+        MCP_LOCAL_URL: 'http://localhost:4502/mcp',
+      }),
+    ).not.toThrow();
+    _resetEnvCacheForTests();
+  });
+  it.each([
+    { NODE_ENV: 'production', DATABASE_URL: 'postgres://localhost/wally' },
+    { NODE_ENV: 'test', DATABASE_URL: 'postgres://localhost/wally' },
+    {
+      NODE_ENV: 'development',
+      DATABASE_URL: 'postgres://u:p@db.abc.supabase.co:5432/postgres',
+    },
+  ])('rejects local configuration outside development on a local database: %j', (environment) => {
+    _resetEnvCacheForTests();
+    expect(() =>
+      loadEnv({
+        FIREBASE_PROJECT_ID: 'p',
         MCP_LOCAL_URL: 'http://localhost:4502/mcp',
         ...environment,
       }),
@@ -55,7 +69,6 @@ describe('local MCP transport configuration', () => {
         FIREBASE_PROJECT_ID: 'p',
         DATABASE_URL: 'postgres://localhost/wally',
         NODE_ENV: 'development',
-        FIRESTORE_EMULATOR_HOST: 'firestore:8080',
         MCP_LOCAL_URL: url,
       }),
     ).toThrow();

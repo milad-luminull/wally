@@ -1,22 +1,21 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { notesCol, withId } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { notes } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-members-routes';
 
 describe('member/invite routes (owner-only)', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -95,7 +94,7 @@ describe('member/invite routes (owner-only)', () => {
       });
       expect(deleted.statusCode).toBe(204);
 
-      const refreshedNote = withId(await notesCol(ctx.db).doc(noteId).get());
+      const [refreshedNote] = await ctx.db.select().from(notes).where(eq(notes.id, noteId));
       expect(refreshedNote?.assigneeId).toBeNull();
     });
   });

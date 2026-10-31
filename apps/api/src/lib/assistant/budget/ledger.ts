@@ -4,11 +4,7 @@ import { AppError } from '../../errors.js';
 import type { Database } from '../../postgres/client.js';
 import { TransactionConflictError } from '../../postgres/errors.js';
 import { withTransaction, type Transaction } from '../../postgres/transaction.js';
-import {
-  assistantAttempts,
-  assistantSpend,
-  assistantUsage,
-} from '../../postgres/schema/index.js';
+import { assistantAttempts, assistantSpend, assistantUsage } from '../../postgres/schema/index.js';
 import { microUsdFor, type ModelPrice } from './prices.js';
 
 /** Model calls in flight per user, across every conversation and key. */
@@ -125,9 +121,7 @@ export async function reserveAttempt(db: Database, input: ReserveInput): Promise
   // A slot reserved yesterday can still be live only while less than one lease has passed
   // since today began.
   const previousDay =
-    now.getTime() - Date.parse(`${day}T00:00:00.000Z`) < ATTEMPT_LEASE_MS
-      ? addDays(day, -1)
-      : null;
+    now.getTime() - Date.parse(`${day}T00:00:00.000Z`) < ATTEMPT_LEASE_MS ? addDays(day, -1) : null;
   const isLive = (startedAt: number) => now.getTime() - startedAt < ATTEMPT_LEASE_MS;
 
   const transaction = withTransaction(db, async (tx) => {

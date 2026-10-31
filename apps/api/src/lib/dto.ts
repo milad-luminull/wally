@@ -179,7 +179,10 @@ export function toMemberDto(member: MemberRow, users: UserMap): MemberDto {
  * The `owner:` prefix cannot collide with a generated id (newId is alphanumeric), so the
  * member PATCH/DELETE routes 404 on it without needing a guard of their own.
  */
-export function ownerMemberDto(board: Pick<WhiteboardRow, 'id' | 'ownerId'>, users: UserMap): MemberDto {
+export function ownerMemberDto(
+  board: Pick<WhiteboardRow, 'id' | 'ownerId'>,
+  users: UserMap,
+): MemberDto {
   const user = users.get(board.ownerId);
   if (!user) {
     throw new Error(`Whiteboard ${board.id} has no user record for owner ${board.ownerId}`);

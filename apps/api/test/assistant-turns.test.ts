@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { Timestamp } from 'firebase-admin/firestore';
+import { and, eq } from 'drizzle-orm';
 import type { z } from 'zod';
 import { CHARS_PER_TOKEN } from '../src/lib/assistant/budget/estimate.js';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
@@ -10,11 +10,11 @@ import type {
   TurnTool,
 } from '../src/lib/assistant/model/index.js';
 import {
-  assistantAttemptsCol,
-  assistantConversationsCol,
-  assistantUsageCol,
-  whiteboardsCol,
-} from '../src/lib/db/collections.js';
+  assistantAttempts,
+  assistantConversations,
+  assistantUsage,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import {
   buildTestApp,
   createBoardFixture,
@@ -23,7 +23,6 @@ import {
   type TestContext,
 } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-turns';
 const usage = { inputTokens: 100, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
 
 /** The tools the last turn offered the model. */
@@ -184,22 +183,37 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
 describe('assistant turns', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID, {
+    ctx = await buildTestApp({
       assistantRunner: fakeRunner,
       assistantEnabled: true,
       assistantDeadlineMs: 500,
     });
   });
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
   /** The ledger keys usage by the server's UTC day, not by the request's `today`. */
   const usageDay = () => dayKey(new Date());
+  const usageOf = async (userId: string, day: string) =>
+    (
+      await ctx.db
+        .select()
+        .from(assistantUsage)
+        .where(and(eq(assistantUsage.userId, userId), eq(assistantUsage.day, day)))
+    )[0];
+  const attemptsOf = (userId: string) =>
+    ctx.db.select().from(assistantAttempts).where(eq(assistantAttempts.userId, userId));
+  const conversationOf = async (id: string) =>
+    (
+      await ctx.db.select().from(assistantConversations).where(eq(assistantConversations.id, id))
+    )[0];
+  const conversationsOf = (userId: string) =>
+    ctx.db.select().from(assistantConversations).where(eq(assistantConversations.userId, userId));
   const body = (message: string, conversationId?: string) => ({
     message,
     timeZone: 'Europe/Berlin',
@@ -245,7 +259,7 @@ describe('assistant turns', () => {
       partial: false,
       stopped: null,
     });
-    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    const usageDoc = await usageOf(fx.ownerId, usageDay());
     expect(usageDoc?.tokens).toBe(120);
     expect(usageDoc?.inFlight).toEqual({});
   });
@@ -282,7 +296,7 @@ describe('assistant turns', () => {
   it('settles output tokens once, reasoning included, as the providers report them', async () => {
     const fx = await createBoardFixture(ctx);
     expect((await turn(fx.ownerToken, fx.boardId, 'thinking')).statusCode).toBe(200);
-    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    const usageDoc = await usageOf(fx.ownerId, usageDay());
     expect(usageDoc?.tokens).toBe(120);
   });
 
@@ -296,8 +310,8 @@ describe('assistant turns', () => {
       (res.json().conversation.entries[1].text as string).slice('chars:'.length),
     );
     expect(resultChars).toBeGreaterThan(1000);
-    const reserved = (await assistantAttemptsCol(ctx.db, fx.ownerId).get()).docs
-      .map((d) => d.data().reservedTokens)
+    const reserved = (await attemptsOf(fx.ownerId))
+      .map((attempt) => attempt.reservedTokens)
       .sort((a, b) => a - b);
     expect(reserved).toHaveLength(2);
     expect(reserved[1]! - reserved[0]!).toBeGreaterThanOrEqual(
@@ -452,7 +466,7 @@ describe('assistant turns', () => {
     const c = res.json().conversation;
     expect(c.entries).toHaveLength(4);
     expect(c.entries[3]).toMatchObject({ role: 'assistant', text: '', stopped: 'TOOL_LIMIT' });
-    const stored = (await assistantConversationsCol(ctx.db, fx.ownerId).doc(first.id).get()).data();
+    const stored = await conversationOf(first.id);
     expect(stored?.messages).toHaveLength(2);
     expect(stored?.toolCalls).toBe(12);
   });
@@ -469,7 +483,7 @@ describe('assistant turns', () => {
       chips: [],
       stopped: 'TOOL_LIMIT',
     });
-    const stored = (await assistantConversationsCol(ctx.db, fx.ownerId).doc(first.id).get()).data();
+    const stored = await conversationOf(first.id);
     expect(stored?.messages).toHaveLength(2);
     expect(stored?.toolCalls).toBe(12);
   });
@@ -479,7 +493,7 @@ describe('assistant turns', () => {
     const res = await turn(fx.ownerToken, fx.boardId, 'limit-next');
     expect(res.statusCode).toBe(200);
     expect(res.json().conversation.entries[1]).toMatchObject({ text: '', stopped: 'TOOL_LIMIT' });
-    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    const usageDoc = await usageOf(fx.ownerId, usageDay());
     expect(usageDoc?.tokens).toBe(120);
     expect(usageDoc?.inFlight).toEqual({});
   });
@@ -502,11 +516,9 @@ describe('assistant turns', () => {
     const fx = await createBoardFixture(ctx);
     expect((await turn(fx.ownerToken, fx.boardId, 'provider-error')).statusCode).toBe(502);
     expect((await turn(fx.ownerToken, fx.boardId, 'hang')).statusCode).toBe(200);
-    const usageDoc = (await assistantUsageCol(ctx.db, fx.ownerId).doc(usageDay()).get()).data();
+    const usageDoc = await usageOf(fx.ownerId, usageDay());
     expect(usageDoc?.inFlight).toEqual({});
-    const attempts = (await assistantAttemptsCol(ctx.db, fx.ownerId).get()).docs.map((d) =>
-      d.data(),
-    );
+    const attempts = await attemptsOf(fx.ownerId);
     expect(attempts.map((a) => a.state)).toEqual(['ABANDONED', 'ABANDONED']);
     expect(usageDoc?.tokens).toBe(attempts.reduce((sum, a) => sum + a.reservedTokens, 0));
     // Both slots are free again: the next question is answered, not refused as busy.
@@ -516,34 +528,39 @@ describe('assistant turns', () => {
   it('refuses a cap with a code and the reset time, and makes no call', async () => {
     const fx = await createBoardFixture(ctx);
     const day = usageDay();
-    await assistantUsageCol(ctx.db, fx.ownerId)
-      .doc(day)
-      .set({ tokens: 300_000, inFlight: {}, updatedAt: Timestamp.now() });
+    await ctx.db
+      .insert(assistantUsage)
+      .values({ userId: fx.ownerId, day, tokens: 300_000, inFlight: {}, updatedAt: new Date() });
     const res = await turn(fx.ownerToken, fx.boardId, 'one');
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({
       error: 'ASSISTANT_DAILY_CAP',
       resetsAt: nextDayStart(day).toISOString(),
     });
-    expect((await assistantConversationsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect((await conversationsOf(fx.ownerId)).length).toBe(0);
   });
 
   it('answers 409 on a conversation pinned to another model, and 404 off, for outsiders, and on a closed one', async () => {
     const fx = await createBoardFixture(ctx);
     const first = (await turn(fx.ownerToken, fx.boardId, 'one')).json().conversation;
-    await assistantConversationsCol(ctx.db, fx.ownerId)
-      .doc(first.id)
-      .update({ model: 'vertex:old-model' });
+    await ctx.db
+      .update(assistantConversations)
+      .set({ model: 'vertex:old-model' })
+      .where(eq(assistantConversations.id, first.id));
     expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).statusCode).toBe(409);
     expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).json().error).toBe(
       'ASSISTANT_CONVERSATION_CLOSED',
     );
-    await assistantConversationsCol(ctx.db, fx.ownerId)
-      .doc(first.id)
-      .update({ model: 'vertex:gemini-3.8-flash', status: 'CLOSED' });
+    await ctx.db
+      .update(assistantConversations)
+      .set({ model: 'vertex:gemini-3.8-flash', status: 'CLOSED' })
+      .where(eq(assistantConversations.id, first.id));
     expect((await turn(fx.ownerToken, fx.boardId, 'two', first.id)).statusCode).toBe(409);
     expect((await turn(fx.outsiderToken, fx.boardId, 'one')).statusCode).toBe(404);
-    await whiteboardsCol(ctx.db).doc(fx.boardId).update({ assistantDisabled: true });
+    await ctx.db
+      .update(whiteboards)
+      .set({ assistantDisabled: true })
+      .where(eq(whiteboards.id, fx.boardId));
     expect((await turn(fx.ownerToken, fx.boardId, 'one')).statusCode).toBe(404);
   });
 
@@ -575,7 +592,7 @@ describe('assistant turns', () => {
       expect(id.statusCode, conversationId).toBe(400);
       expect(id.json().error, conversationId).toBe('BAD_REQUEST');
     }
-    expect((await assistantConversationsCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect((await conversationsOf(fx.ownerId)).length).toBe(0);
   });
 
   it('answers the route rate limit with the app envelope, without a reset time', async () => {

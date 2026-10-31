@@ -363,10 +363,7 @@ export async function seedDemo(db: Database): Promise<string> {
     const timestamp = new Date();
     await seedUsers(tx, timestamp);
 
-    const [existingBoard] = await tx
-      .select()
-      .from(whiteboards)
-      .where(eq(whiteboards.id, BOARD_ID));
+    const [existingBoard] = await tx.select().from(whiteboards).where(eq(whiteboards.id, BOARD_ID));
     await tx
       .insert(whiteboards)
       .values({

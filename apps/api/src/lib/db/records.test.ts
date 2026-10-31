@@ -89,19 +89,21 @@ describe('records', () => {
   });
 
   it('takes the strongest role of duplicate rows and never lists the owner', async () => {
-    await handle.db.insert(boardMembers).values([
-      ['m1', 'editor', 'VIEW'],
-      ['m2', 'editor', 'EDIT'],
-      ['m3', 'owner', 'VIEW'],
-    ].map(([id, userId, role]) => ({
-      id: id!,
-      boardId: 'b1',
-      userId: userId!,
-      role: role as 'EDIT' | 'VIEW',
-      status: 'ACTIVE' as const,
-      invitedAt: at,
-      activatedAt: at,
-    })));
+    await handle.db.insert(boardMembers).values(
+      [
+        ['m1', 'editor', 'VIEW'],
+        ['m2', 'editor', 'EDIT'],
+        ['m3', 'owner', 'VIEW'],
+      ].map(([id, userId, role]) => ({
+        id: id!,
+        boardId: 'b1',
+        userId: userId!,
+        role: role as 'EDIT' | 'VIEW',
+        status: 'ACTIVE' as const,
+        invitedAt: at,
+        activatedAt: at,
+      })),
+    );
     expect((await liveBoard(handle.db, 'b1'))!.memberRoles).toEqual({ editor: 'EDIT' });
   });
 

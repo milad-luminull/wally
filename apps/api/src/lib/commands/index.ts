@@ -43,11 +43,7 @@ const EDITORS: EffectiveRole[] = ['OWNER', 'EDIT'];
  * so a VIEW member can keep private notes. Changing who sees a note is the exception: it
  * adds to or removes from what the shared board shows, so it always needs EDIT or OWNER.
  */
-function rolesFor(
-  command: BoardCommand,
-  note: Note | null,
-  actorId: string,
-): EffectiveRole[] {
+function rolesFor(command: BoardCommand, note: Note | null, actorId: string): EffectiveRole[] {
   if (command.type === 'link.redeem') return ANY_ROLE;
   // A member leaves; the owner cannot (they delete instead), so OWNER is a 403 here.
   if (command.type === 'board.leave') return ['EDIT', 'VIEW'];
@@ -98,23 +94,28 @@ export async function executeBoardCommand(
       // `roles` are the ones that authorized the command; replay re-checks the caller's
       // current role against them, so a viewer's retried private-note write still replays.
       // An assistant write also leaves its audit record, in the same transaction.
+      // Returns the result as stored: jsonb reorders object keys, and a replay must answer
+      // with exactly the original response (MCP clients see it as JSON text).
       const writeReceipt = async (
         boardId: string,
         result: CommandResult,
         roles: EffectiveRole[],
-      ) => {
+      ): Promise<CommandResult> => {
         const createdAt = new Date();
-        await tx.insert(boardOperations).values({
-          userId: actor.id,
-          operationId,
-          fingerprint,
-          boardId,
-          roles,
-          result,
-          provenance: provenance ?? null,
-          createdAt,
-          expiresAt: new Date(createdAt.getTime() + 7 * 86400000),
-        });
+        const [stored] = await tx
+          .insert(boardOperations)
+          .values({
+            userId: actor.id,
+            operationId,
+            fingerprint,
+            boardId,
+            roles,
+            result,
+            provenance: provenance ?? null,
+            createdAt,
+            expiresAt: new Date(createdAt.getTime() + 7 * 86400000),
+          })
+          .returning({ result: boardOperations.result });
         if (provenance) {
           const occurredAt = createdAt;
           await tx.insert(assistantAudit).values({
@@ -135,11 +136,10 @@ export async function executeBoardCommand(
               : { via: 'mcp' as const, connectionId: provenance.connectionId }),
             revision: result.revision,
             occurredAt,
-            expiresAt: new Date(
-              occurredAt.getTime() + ASSISTANT_AUDIT_RETENTION_DAYS * 86400000,
-            ),
+            expiresAt: new Date(occurredAt.getTime() + ASSISTANT_AUDIT_RETENTION_DAYS * 86400000),
           });
         }
+        return stored!.result;
       };
       const [receipt] = await tx
         .select()
@@ -184,8 +184,10 @@ export async function executeBoardCommand(
       // Its receipt names the new board, so a replay re-authorizes the caller as its owner.
       if (command.type === 'board.create') {
         const result = await createBoard(tx, actor, command.input.name);
-        await writeReceipt(result.boardId, result, rolesFor(command, null, actor.id));
-        return { result, replayed: false };
+        return {
+          result: await writeReceipt(result.boardId, result, rolesFor(command, null, actor.id)),
+          replayed: false,
+        };
       }
 
       const note = 'noteId' in command ? await loadNote(tx, command.noteId) : null;
@@ -237,8 +239,7 @@ export async function executeBoardCommand(
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
           ? await executeNoteCommand(context, command)
           : await executeAdminCommand(context, command);
-      await writeReceipt(boardId, result, roles);
-      return { result, replayed: false };
+      return { result: await writeReceipt(boardId, result, roles), replayed: false };
     });
     options.logger?.info({
       command: command.type,
@@ -271,7 +272,11 @@ export async function executeBoardCommand(
         ...result,
         data: {
           ...note,
-          links: await visibleLinks(db, { boardId: note.whiteboardId, links: note.links }, actor.id),
+          links: await visibleLinks(
+            db,
+            { boardId: note.whiteboardId, links: note.links },
+            actor.id,
+          ),
         },
       };
     }

@@ -1,23 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { eq, sql } from 'drizzle-orm';
 import { DEFAULT_LANGUAGE, INITIAL_BOARD_NAME } from '@wally/shared';
 import type { Language, MembershipStatus, WhiteboardRole } from '@wally/shared';
-import type { UserDoc } from '../src/lib/db/types.js';
 import { buildApp, type BuildAppOptions } from '../src/app.js';
-import {
-  notesCol,
-  membersCol,
-  normalizeEmail,
-  now,
-  shareLinksCol,
-  usersCol,
-  whiteboardsCol,
-} from '../src/lib/db/collections.js';
+import { newId } from '../src/lib/db/ids.js';
+import { normalizeEmail } from '../src/lib/db/records.js';
 import type { AuthVerifier, DecodedAuthToken } from '../src/plugins/firebase.js';
 import type { Database } from '../src/lib/postgres/client.js';
+import {
+  boardMembers,
+  notes,
+  shareLinks,
+  users,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import { createTestDatabase } from './postgres.js';
+
+export { createTestDatabase, type TestDatabase } from './postgres.js';
 
 /**
  * A fake token->identity map used by integration tests instead of real Firebase ID
@@ -39,63 +39,35 @@ export function createFakeAuthVerifier(): {
   return { verifier, tokens };
 }
 
-const instances = new Map<string, Firestore>();
+/** Every application table, emptied between tests. */
+const TABLES = [
+  'users',
+  'whiteboards',
+  'board_operations',
+  'board_cleanup',
+  'assistant_audit',
+  'assistant_spend',
+];
 
 /**
- * A Firestore instance on its own named app and project id, with the settings getDb() uses
- * (src/lib/db/client.ts).
+ * Empties this file's database. Everything else cascades from users and whiteboards; the
+ * tables without foreign keys are named explicitly.
  */
-function createNamedDb(projectId: string): Firestore {
-  const app = initializeApp({ projectId }, `wally-${projectId}`);
-  const db = getFirestore(app);
-  db.settings({ ignoreUndefinedProperties: true });
-  return db;
-}
-
-/**
- * One Firestore per test file, on its own emulator project id.
- *
- * The emulator keeps each project's data separate, so files that pass different ids can
- * run concurrently without fighting over the same fixture documents — which is what the
- * Postgres-era suites needed `fileParallelism: false` to avoid.
- */
-export function getTestDb(projectId: string): Firestore {
-  let db = instances.get(projectId);
-  if (!db) {
-    db = createNamedDb(projectId);
-    instances.set(projectId, db);
-  }
-  return db;
-}
-
-/** Wipes a project's documents via the emulator's own clear endpoint. */
-export async function resetDatabase(projectId: string): Promise<void> {
-  const host = process.env.FIRESTORE_EMULATOR_HOST;
-  if (!host) throw new Error('FIRESTORE_EMULATOR_HOST must be set to run these tests');
-
-  const response = await fetch(
-    `http://${host}/emulator/v1/projects/${projectId}/databases/(default)/documents`,
-    { method: 'DELETE' },
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to clear emulator data for ${projectId}: ${response.status}`);
-  }
+export async function resetDatabase(db: Database): Promise<void> {
+  await db.execute(sql.raw(`truncate ${TABLES.join(', ')} cascade`));
 }
 
 export interface TestContext {
   app: FastifyInstance;
   /** Normal client contract; use app.inject directly to test missing/stale metadata. */
   inject(options: InjectOptions): Promise<LightMyRequestResponse>;
-  db: Firestore;
-  /** This file's own PostgreSQL database, dropped when the app closes. */
-  pg: Database;
-  projectId: string;
+  /** This file's own database, dropped when the app closes. */
+  db: Database;
   tokens: Map<string, DecodedAuthToken>;
   authHeader(token: string): { authorization: string };
 }
 
 export async function buildTestApp(
-  projectId: string,
   options: Pick<
     BuildAppOptions,
     | 'assistantRunner'
@@ -108,14 +80,13 @@ export async function buildTestApp(
     logLines?: string[];
   } = {},
 ): Promise<TestContext> {
-  const db = getTestDb(projectId);
   const { verifier, tokens } = createFakeAuthVerifier();
   const { logLines, ...appOptions } = options;
   const database = await createTestDatabase();
+  const db = database.db;
   const app = await buildApp({
     ...appOptions,
     db,
-    database: database.db,
     authVerifier: verifier,
     logger: false,
     ...(logLines ? { logStream: { write: (line: string) => void logLines.push(line) } } : {}),
@@ -131,10 +102,19 @@ export async function buildTestApp(
       const parts = url.split('/');
       let revision: number | undefined;
       if (parts[1] === 'notes')
-        revision = (await notesCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
+        revision =
+          (
+            await db.select({ revision: notes.revision }).from(notes).where(eq(notes.id, parts[2]!))
+          )[0]?.revision ?? 0;
       // POST /whiteboards (board.create) names no board and takes no expected revision.
       else if (parts[1] === 'whiteboards' && parts[2])
-        revision = (await whiteboardsCol(db).doc(parts[2]!).get()).data()?.revision ?? 0;
+        revision =
+          (
+            await db
+              .select({ revision: whiteboards.revision })
+              .from(whiteboards)
+              .where(eq(whiteboards.id, parts[2]!))
+          )[0]?.revision ?? 0;
       return app.inject({
         ...options,
         headers: {
@@ -145,8 +125,6 @@ export async function buildTestApp(
       });
     },
     db,
-    pg: database.db,
-    projectId,
     tokens,
     authHeader: (token: string) => ({ authorization: `Bearer ${token}` }),
   };
@@ -169,92 +147,66 @@ export function registerTestUser(
   return token;
 }
 
-/**
- * Adds an ACTIVE membership the way production does — the member document and the
- * board's `memberRoles` cache together, so authorization sees it.
- */
+/** Adds an ACTIVE membership, the way an accepted invite leaves it. */
 export async function addTestMember(
-  db: Firestore,
+  db: Database,
   whiteboardId: string,
   userId: string,
   role: WhiteboardRole,
 ): Promise<string> {
-  const timestamp = now();
-  const ref = membersCol(db, whiteboardId).doc();
-  const batch = db.batch();
-  batch.set(ref, {
-    whiteboardId,
-    userId,
-    invitedEmail: null,
-    role,
-    status: 'ACTIVE',
-    invitedAt: timestamp,
-    activatedAt: timestamp,
-  });
-  batch.update(whiteboardsCol(db).doc(whiteboardId), {
-    [`memberRoles.${userId}`]: role,
-    updatedAt: timestamp,
-  });
-  await batch.commit();
-  return ref.id;
+  return createTestMembership(db, whiteboardId, { userId, role, status: 'ACTIVE' });
 }
 
 export async function createTestUser(
-  db: Firestore,
+  db: Database,
   id: string,
   email: string,
   displayName: string | null = null,
   emailVerified = true,
-  /**
-   * Pass 'absent' to omit the language field entirely, reproducing a profile written before
-   * that field existed — what the legacy-profile test needs without dropping to a raw write.
-   *
-   * A sentinel rather than plain `undefined` because a default parameter fires on an
-   * explicitly passed `undefined` too, so `createTestUser(..., undefined)` would silently
-   * write DEFAULT_LANGUAGE and quietly defeat the test.
-   */
-  language: Language | 'absent' = DEFAULT_LANGUAGE,
+  language: Language = DEFAULT_LANGUAGE,
 ): Promise<string> {
-  const timestamp = now();
-  // Cast because the 'absent' case deliberately builds a document that is NOT a valid
-  // UserDoc — that is the whole point of the fixture.
-  await usersCol(db)
-    .doc(id)
-    .set({
-      email: normalizeEmail(email),
-      displayName,
-      emailVerified,
-      ...(language === 'absent' ? {} : { language }),
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    } as UserDoc);
-  return id;
-}
-
-/** A board owned by `ownerId`, keyed by that uid the way production provisions it. */
-export async function createTestBoard(
-  db: Firestore,
-  ownerId: string,
-  memberRoles: Record<string, WhiteboardRole> = {},
-): Promise<string> {
-  const timestamp = now();
-  await whiteboardsCol(db).doc(ownerId).set({
-    name: INITIAL_BOARD_NAME.de,
-    ownerId,
-    memberRoles,
-    shareLinkToken: null,
+  const timestamp = new Date();
+  await db.insert(users).values({
+    id,
+    email: normalizeEmail(email),
+    displayName,
+    emailVerified,
+    language,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
+  return id;
+}
+
+/**
+ * A board owned by `ownerId`, keyed by that uid the way production provisions it, with an
+ * ACTIVE membership for each entry of `memberRoles`.
+ */
+export async function createTestBoard(
+  db: Database,
+  ownerId: string,
+  memberRoles: Record<string, WhiteboardRole> = {},
+): Promise<string> {
+  const timestamp = new Date();
+  await db.insert(whiteboards).values({
+    id: ownerId,
+    name: INITIAL_BOARD_NAME.de,
+    ownerId,
+    revision: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  for (const [userId, role] of Object.entries(memberRoles))
+    await addTestMember(db, ownerId, userId, role);
   return ownerId;
 }
 
 /**
  * A membership written directly, including the shapes production only reaches through a
- * workflow — a PENDING email invite, or a member deliberately left out of `memberRoles`.
+ * workflow — a PENDING email invite, say.
  */
 export async function createTestMembership(
-  db: Firestore,
+  db: Database,
   whiteboardId: string,
   member: {
     userId?: string | null;
@@ -263,10 +215,11 @@ export async function createTestMembership(
     status: MembershipStatus;
   },
 ): Promise<string> {
-  const timestamp = now();
-  const ref = membersCol(db, whiteboardId).doc();
-  await ref.set({
-    whiteboardId,
+  const timestamp = new Date();
+  const id = newId();
+  await db.insert(boardMembers).values({
+    id,
+    boardId: whiteboardId,
     userId: member.userId ?? null,
     invitedEmail: member.invitedEmail ? normalizeEmail(member.invitedEmail) : null,
     role: member.role,
@@ -274,28 +227,19 @@ export async function createTestMembership(
     invitedAt: timestamp,
     activatedAt: member.status === 'ACTIVE' ? timestamp : null,
   });
-  return ref.id;
+  return id;
 }
 
 export async function createTestShareLink(
-  db: Firestore,
+  db: Database,
   token: string,
   whiteboardId: string,
   role: WhiteboardRole,
 ): Promise<string> {
-  const timestamp = now();
-  const batch = db.batch();
-  batch.set(shareLinksCol(db).doc(token), {
-    whiteboardId,
-    role,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-  batch.update(whiteboardsCol(db).doc(whiteboardId), {
-    shareLinkToken: token,
-    updatedAt: timestamp,
-  });
-  await batch.commit();
+  const timestamp = new Date();
+  await db
+    .insert(shareLinks)
+    .values({ token, boardId: whiteboardId, role, createdAt: timestamp, updatedAt: timestamp });
   return token;
 }
 

@@ -102,52 +102,52 @@ async function boardSnapshot(tx: Transaction, actor: Actor, boardId: string, own
 export async function listNotes(db: Database, actor: Actor, boardId: string, rawQuery: unknown) {
   const query = noteListQuerySchema.parse(rawQuery);
   return withSnapshot(db, async (tx) => {
-      await boardSnapshot(tx, actor, boardId);
-      let notes = (
-        await tx
-          .select(noteColumns)
-          .from(notesTable)
-          .where(and(eq(notesTable.boardId, boardId), isNull(notesTable.deletedAt)))
-      ).filter((n) => canSeeNote(n, actor.id));
-      const visibleIds = new Set(notes.map((n) => n.id));
-      if (query.status !== 'ALL') notes = notes.filter((n) => n.status === query.status);
-      if (query.priority?.length) {
-        notes = notes.filter((n) => query.priority!.includes(n.priority));
-      }
-      if (query.horizon?.length) {
-        notes = notes.filter((n) => query.horizon!.includes(n.horizon));
-      }
-      if (query.assignedToMe) notes = notes.filter((n) => n.assigneeId === actor.id);
-      if (query.visibility) notes = notes.filter((n) => n.visibility === query.visibility);
+    await boardSnapshot(tx, actor, boardId);
+    let notes = (
+      await tx
+        .select(noteColumns)
+        .from(notesTable)
+        .where(and(eq(notesTable.boardId, boardId), isNull(notesTable.deletedAt)))
+    ).filter((n) => canSeeNote(n, actor.id));
+    const visibleIds = new Set(notes.map((n) => n.id));
+    if (query.status !== 'ALL') notes = notes.filter((n) => n.status === query.status);
+    if (query.priority?.length) {
+      notes = notes.filter((n) => query.priority!.includes(n.priority));
+    }
+    if (query.horizon?.length) {
+      notes = notes.filter((n) => query.horizon!.includes(n.horizon));
+    }
+    if (query.assignedToMe) notes = notes.filter((n) => n.assigneeId === actor.id);
+    if (query.visibility) notes = notes.filter((n) => n.visibility === query.visibility);
 
-      if (query.q) {
-        const needle = query.q.toLowerCase();
-        notes = notes.filter(
-          (n) =>
-            n.title.toLowerCase().includes(needle) ||
-            n.description.toLowerCase().includes(needle) ||
-            n.tags.some((t) => t.toLowerCase().includes(needle)) ||
-            Object.entries(n.customFields).some(
-              ([key, value]) =>
-                key.toLowerCase().includes(needle) || value.toLowerCase().includes(needle),
-            ),
-        );
-      }
-
-      if (query.field) {
-        const field = query.field;
-        notes = notes.filter((n) => matchesFieldFilter(n.customFields, field));
-      }
-
-      notes.sort(byDueDateThenCreated);
-
-      const users = await loadUsers(
-        tx,
-        notes.flatMap((n) => [n.assigneeId, n.createdById]),
+    if (query.q) {
+      const needle = query.q.toLowerCase();
+      notes = notes.filter(
+        (n) =>
+          n.title.toLowerCase().includes(needle) ||
+          n.description.toLowerCase().includes(needle) ||
+          n.tags.some((t) => t.toLowerCase().includes(needle)) ||
+          Object.entries(n.customFields).some(
+            ([key, value]) =>
+              key.toLowerCase().includes(needle) || value.toLowerCase().includes(needle),
+          ),
       );
-      return notes.map((n) =>
-        toNoteDto({ ...n, links: n.links.filter((id) => visibleIds.has(id)) }, users),
-      );
+    }
+
+    if (query.field) {
+      const field = query.field;
+      notes = notes.filter((n) => matchesFieldFilter(n.customFields, field));
+    }
+
+    notes.sort(byDueDateThenCreated);
+
+    const users = await loadUsers(
+      tx,
+      notes.flatMap((n) => [n.assigneeId, n.createdById]),
+    );
+    return notes.map((n) =>
+      toNoteDto({ ...n, links: n.links.filter((id) => visibleIds.has(id)) }, users),
+    );
   });
 }
 export async function getNote(

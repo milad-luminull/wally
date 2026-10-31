@@ -1,4 +1,3 @@
-import { Timestamp } from 'firebase-admin/firestore';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   appendTurn,
@@ -10,9 +9,9 @@ import {
   messagesBytes,
   toConversationDto,
 } from '../src/lib/assistant/conversations.js';
-import { buildTestApp, resetDatabase, type TestContext } from './helpers.js';
+import { whiteboards } from '../src/lib/postgres/schema/index.js';
+import { buildTestApp, createTestUser, resetDatabase, type TestContext } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-conversations';
 const now = new Date('2026-10-15T10:00:00.000Z');
 const entry = (role: 'user' | 'assistant', text: string) => ({
   role,
@@ -27,27 +26,28 @@ const usage = { inputTokens: 10, cachedInputTokens: 0, outputTokens: 5, reasonin
 describe('assistant conversations', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
   beforeEach(async () => {
+    await createTestUser(ctx.db, 'u1', 'u1@example.com');
+    await createTestUser(ctx.db, 'u2', 'u2@example.com');
     for (const id of ['b1', 'b2'])
       await ctx.db
-        .collection('whiteboards')
-        .doc(id)
-        .set({ ownerId: 'u1', memberRoles: {}, revision: 1, deletedAt: null });
+        .insert(whiteboards)
+        .values({ id, ownerId: 'u1', name: id, createdAt: now, updatedAt: now });
   });
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
   it('creates, appends and exposes a DTO with entries in order', async () => {
     const c = await createConversation(ctx.db, 'u1', 'b1', 'vertex:gemini-3.8-flash', now);
     expect(c).toMatchObject({ boardId: 'b1', status: 'OPEN', turns: 0, entries: [], messages: [] });
-    expect(c.expiresAt.toMillis() - c.lastTurnAt.toMillis()).toBe(
+    expect(c.expiresAt.getTime() - c.lastTurnAt.getTime()).toBe(
       CONVERSATION_RETENTION_DAYS * 86_400_000,
     );
     const after = await appendTurn(ctx.db, 'u1', c.id, {
@@ -66,7 +66,7 @@ describe('assistant conversations', () => {
     expect(after.usage).toEqual(usage);
     expect(after.toolCalls).toBe(1);
     expect(after.messages).toHaveLength(2);
-    expect(after.lastTurnAt.toMillis()).toBe(now.getTime() + 60_000);
+    expect(after.lastTurnAt.getTime()).toBe(now.getTime() + 60_000);
     const dto = toConversationDto(after);
     expect(dto).toMatchObject({
       id: c.id,
@@ -127,7 +127,6 @@ describe('assistant conversations', () => {
       now,
     });
     expect(after.status).toBe('CLOSED');
-    expect(Timestamp.now().toMillis()).toBeGreaterThan(0);
     // The oversized history is not stored; the previous one is kept.
     expect(after.messages).toEqual([]);
     expect(after.entries).toHaveLength(2);

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { docsWithId, membersCol, whiteboardsCol, withId } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { liveBoard } from '../src/lib/db/records.js';
+import { boardMembers, users } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, registerTestUser, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-invite-security';
 
 /**
  * Firebase permits sign-up with an address you do not control, so a `users` record is not
@@ -15,17 +15,22 @@ describe('invite security', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
+
+  // The roles access checks read: one per user, from that board's ACTIVE member rows.
+  const memberRoles = async (boardId: string) => (await liveBoard(ctx.db, boardId))?.memberRoles;
+  const loadUser = async (id: string) =>
+    (await ctx.db.select().from(users).where(eq(users.id, id)))[0];
 
   /** Drives one request per token so the auth preHandler provisions each identity. */
   async function authenticate(token: string) {
@@ -57,9 +62,8 @@ describe('invite security', () => {
     // for the real owner of the inbox. It has to stay keyed by the address instead.
     expect(res.json()).toMatchObject({ status: 'PENDING', userId: null });
 
-    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
     // memberRoles is the sole input to resolveRole — an entry here IS access.
-    expect(board?.memberRoles).toEqual({});
+    expect(await memberRoles('sec-owner')).toEqual({});
   });
 
   it('404s the unverified claimant on the board they were never really invited to', async () => {
@@ -91,13 +95,15 @@ describe('invite security', () => {
     const victimToken = registerTestUser(ctx, 'sec-victim', 'victim@example.com');
     await authenticate(victimToken);
 
-    const members = docsWithId(await membersCol(ctx.db, 'sec-owner').get());
+    const members = await ctx.db
+      .select()
+      .from(boardMembers)
+      .where(eq(boardMembers.boardId, 'sec-owner'));
     // Exactly one row: the pending invite is linked, not duplicated alongside it.
     expect(members).toHaveLength(1);
     expect(members[0]).toMatchObject({ userId: 'sec-victim', status: 'ACTIVE', role: 'EDIT' });
 
-    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
-    expect(board?.memberRoles).toEqual({ 'sec-victim': 'EDIT' });
+    expect(await memberRoles('sec-owner')).toEqual({ 'sec-victim': 'EDIT' });
   });
 
   it('activates a pending invite on the request where the caller first appears verified', async () => {
@@ -117,22 +123,21 @@ describe('invite security', () => {
     });
     await authenticate(token);
 
-    const board = withId(await whiteboardsCol(ctx.db).doc('sec-owner').get());
     // emailVerified flipping is one of only two moments the gated sweep still runs, so it
     // has to count as a provisioning write — otherwise the invite is stranded for good.
-    expect(board?.memberRoles).toEqual({ 'sec-late': 'VIEW' });
+    expect(await memberRoles('sec-owner')).toEqual({ 'sec-late': 'VIEW' });
   });
 
   it('stops rewriting the user record once the caller is in steady state', async () => {
     const token = registerTestUser(ctx, 'sec-steady', 'steady@example.com');
     await authenticate(token);
-    const first = withId(await ctx.db.collection('users').doc('sec-steady').get());
+    const first = await loadUser('sec-steady');
 
     await authenticate(token);
-    const second = withId(await ctx.db.collection('users').doc('sec-steady').get());
+    const second = await loadUser('sec-steady');
 
     // An unchanged updatedAt proves the fast path engaged, which is what gates the
-    // collection-group sweep away from every steady-state request.
-    expect(second?.updatedAt.toMillis()).toBe(first?.updatedAt.toMillis());
+    // pending-invite sweep away from every steady-state request.
+    expect(second?.updatedAt.getTime()).toBe(first?.updatedAt.getTime());
   });
 });

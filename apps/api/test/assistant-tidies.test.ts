@@ -1,21 +1,20 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import type { TidyInput, TidyOutput, TidyRunner } from '../src/lib/assistant/model/index.js';
 import { modelTidySchema } from '../src/lib/assistant/model/tidy.js';
-import { Timestamp } from 'firebase-admin/firestore';
 import { TIDY_MAX_MOVES } from '@wally/shared';
 import {
-  assistantAuditCol,
-  assistantTidiesCol,
-  assistantUsageCol,
-  historyCol,
-  notesCol,
-} from '../src/lib/db/collections.js';
+  assistantAudit,
+  assistantTidies,
+  assistantUsage,
+  noteHistory,
+  notes,
+} from '../src/lib/postgres/schema/index.js';
 import { dayKey, nextDayStart } from '../src/lib/assistant/budget/ledger.js';
 import { TIDY_OUTPUT_TOKENS_BASE, TIDY_OUTPUT_TOKENS_PER_MOVE } from '../src/lib/assistant/tidy.js';
 import { runOperation } from '../src/lib/assistant/run.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-tidies';
 const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
 let lastInput: TidyInput | null = null;
 let calls = 0;
@@ -64,15 +63,15 @@ const fakeRunner: TidyRunner = async (input): Promise<TidyOutput> => {
 describe('tidies', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID, { tidyRunner: fakeRunner, assistantEnabled: true });
+    ctx = await buildTestApp({ tidyRunner: fakeRunner, assistantEnabled: true });
   });
   afterEach(async () => {
     lastInput = null;
     calls = 0;
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -106,9 +105,24 @@ describe('tidies', () => {
       headers: ctx.authHeader(token),
       payload: { title },
     });
-  const note = async (id: string) => (await notesCol(ctx.db).doc(id).get()).data()!;
+  const note = async (id: string) =>
+    (await ctx.db.select().from(notes).where(eq(notes.id, id)))[0]!;
   const stored = async (userId: string, id: string) =>
-    (await assistantTidiesCol(ctx.db, userId).doc(id).get()).data()!;
+    (
+      await ctx.db
+        .select()
+        .from(assistantTidies)
+        .where(and(eq(assistantTidies.userId, userId), eq(assistantTidies.id, id)))
+    )[0]!;
+  const tidiesOf = (userId: string) =>
+    ctx.db.select().from(assistantTidies).where(eq(assistantTidies.userId, userId));
+  const usageOf = async (userId: string, day: string) =>
+    (
+      await ctx.db
+        .select()
+        .from(assistantUsage)
+        .where(and(eq(assistantUsage.userId, userId), eq(assistantUsage.day, day)))
+    )[0];
 
   it('moves dated notes by the rule without a model call, and stores one record', async () => {
     const fx = await createBoardFixture(ctx);
@@ -180,9 +194,7 @@ describe('tidies', () => {
     expect(TIDY_OUTPUT_TOKENS_BASE).toBe(128);
     expect(TIDY_OUTPUT_TOKENS_PER_MOVE).toBe(64);
     expect(lastInput?.maxOutputTokens).toBe(128 + 64 * 2);
-    const usageDoc = (
-      await assistantUsageCol(ctx.db, fx.ownerId).doc(dayKey(new Date())).get()
-    ).data();
+    const usageDoc = await usageOf(fx.ownerId, dayKey(new Date()));
     expect(usageDoc?.tokens).toBe(70);
     expect(usageDoc?.inFlight).toEqual({});
     expect((await stored(fx.ownerId, dto.id)).model).toBe('vertex:gemini-3.8-flash');
@@ -195,7 +207,7 @@ describe('tidies', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ tidy: null });
     expect(calls).toBe(1);
-    expect((await assistantTidiesCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect((await tidiesOf(fx.ownerId)).length).toBe(0);
   });
 
   it('a viewer tidies only their own private notes, and a second request discards the first', async () => {
@@ -212,7 +224,7 @@ describe('tidies', () => {
     const replaced = await stored(fx.viewerId, first.id);
     expect(replaced.status).toBe('DISCARDED');
     expect(replaced.decision).toMatchObject({ source: 'replaced', noteIds: [] });
-    expect(replaced.decision?.at).toBeInstanceOf(Timestamp);
+    expect(new Date(replaced.decision!.at).toISOString()).toBe(replaced.decision!.at);
   });
 
   it('the provider’s failure is a 502 without its words, and a budget refusal a 429', async () => {
@@ -224,13 +236,14 @@ describe('tidies', () => {
     // This fake fails without usage, as a dropped connection does: the call and its retry stay
     // charged, but hold no slot once the tidy answered.
     const day = dayKey(new Date());
-    const failedDay = (await assistantUsageCol(ctx.db, fx.ownerId).doc(day).get()).data();
+    const failedDay = await usageOf(fx.ownerId, day);
     expect(failedDay?.inFlight).toEqual({});
     expect(failedDay?.tokens).toBeGreaterThan(0);
 
-    await assistantUsageCol(ctx.db, fx.ownerId)
-      .doc(day)
-      .set({ tokens: 300_000, inFlight: {}, updatedAt: Timestamp.now() });
+    await ctx.db
+      .update(assistantUsage)
+      .set({ tokens: 300_000, inFlight: {}, updatedAt: new Date() })
+      .where(and(eq(assistantUsage.userId, fx.ownerId), eq(assistantUsage.day, day)));
     await createNote(fx.ownerToken, fx.boardId, { title: 'later: refused' });
     const refused = await tidy(fx.ownerToken, fx.boardId);
     expect(refused.statusCode).toBe(429);
@@ -238,7 +251,7 @@ describe('tidies', () => {
       error: 'ASSISTANT_DAILY_CAP',
       resetsAt: nextDayStart(day).toISOString(),
     });
-    expect((await assistantTidiesCol(ctx.db, fx.ownerId).get()).size).toBe(0);
+    expect((await tidiesOf(fx.ownerId)).length).toBe(0);
   });
 
   it('holds at most the moves a batch may carry, the earliest due first', async () => {
@@ -363,12 +376,15 @@ describe('tidies', () => {
     const dto = (await tidy(fx.ownerToken, fx.boardId)).json().tidy;
     return { a, b, c, dto };
   }
-  /** Every audit row in the test project: each test starts from an empty database. */
-  const audits = async (_userId: string) => (await assistantAuditCol(ctx.db).get()).size;
+  /** Every audit row in the test database: each test starts from an empty database. */
+  const audits = async (_userId: string) => ctx.db.$count(assistantAudit);
   const movedByAssistant = async (noteId: string) =>
-    (await historyCol(ctx.db, noteId).where('type', '==', 'MOVED').get()).docs.filter(
-      (snap) => (snap.data().metadata as { via?: string }).via === 'assistant',
-    ).length;
+    (
+      await ctx.db
+        .select()
+        .from(noteHistory)
+        .where(and(eq(noteHistory.noteId, noteId), eq(noteHistory.type, 'MOVED')))
+    ).filter((row) => (row.metadata as { via?: string }).via === 'assistant').length;
 
   it('a keep moves every note through the command layer, once, with an audit row each', async () => {
     const fx = await createBoardFixture(ctx);
@@ -422,7 +438,7 @@ describe('tidies', () => {
     await patchTitle(fx.ownerToken, a.id, 'Monday, edited');
     const edited = await note(a.id);
     const auditsOf = async (noteId: string) =>
-      (await assistantAuditCol(ctx.db).where('targetId', '==', noteId).get()).size;
+      ctx.db.$count(assistantAudit, eq(assistantAudit.targetId, noteId));
 
     const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
       decision: 'keep',
@@ -553,13 +569,18 @@ describe('tidies', () => {
         operationId: first.operationIds.apply,
       },
     );
-    await assistantTidiesCol(ctx.db, fx.ownerId)
-      .doc(dto.id)
-      .update({
+    await ctx.db
+      .update(assistantTidies)
+      .set({
         status: 'KEPT',
-        decision: { source: 'enter', noteIds: [c.id, a.id, b.id], at: Timestamp.now() },
+        decision: {
+          source: 'enter',
+          noteIds: [c.id, a.id, b.id],
+          at: new Date().toISOString(),
+        },
         applied: null,
-      });
+      })
+      .where(eq(assistantTidies.id, dto.id));
     expect(await audits(fx.ownerId)).toBe(1);
 
     const res = await decide(fx.ownerToken, fx.boardId, dto.id, {
