@@ -16,6 +16,8 @@ import {
   whiteboardsCol,
 } from '../src/lib/db/collections.js';
 import type { AuthVerifier, DecodedAuthToken } from '../src/plugins/firebase.js';
+import type { Database } from '../src/lib/postgres/client.js';
+import { createTestDatabase } from './postgres.js';
 
 /**
  * A fake token->identity map used by integration tests instead of real Firebase ID
@@ -85,6 +87,8 @@ export interface TestContext {
   /** Normal client contract; use app.inject directly to test missing/stale metadata. */
   inject(options: InjectOptions): Promise<LightMyRequestResponse>;
   db: Firestore;
+  /** This file's own PostgreSQL database, dropped when the app closes. */
+  pg: Database;
   projectId: string;
   tokens: Map<string, DecodedAuthToken>;
   authHeader(token: string): { authorization: string };
@@ -107,13 +111,16 @@ export async function buildTestApp(
   const db = getTestDb(projectId);
   const { verifier, tokens } = createFakeAuthVerifier();
   const { logLines, ...appOptions } = options;
+  const database = await createTestDatabase();
   const app = await buildApp({
     ...appOptions,
     db,
+    database: database.db,
     authVerifier: verifier,
     logger: false,
     ...(logLines ? { logStream: { write: (line: string) => void logLines.push(line) } } : {}),
   });
+  app.addHook('onClose', () => database.drop());
   await app.ready();
   return {
     app,
@@ -138,6 +145,7 @@ export async function buildTestApp(
       });
     },
     db,
+    pg: database.db,
     projectId,
     tokens,
     authHeader: (token: string) => ({ authorization: `Bearer ${token}` }),

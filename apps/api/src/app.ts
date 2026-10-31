@@ -9,6 +9,8 @@ import {
 import type { Firestore } from 'firebase-admin/firestore';
 import { loadEnv } from './env.js';
 import firestorePlugin from './plugins/firestore.js';
+import postgresPlugin from './plugins/postgres.js';
+import type { Database } from './lib/postgres/client.js';
 import firebasePlugin, { type AuthVerifier } from './plugins/firebase.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
 import connectionRoutes, { type ConnectionRouteOptions } from './routes/connections.js';
@@ -26,6 +28,8 @@ import { errorReplyFor } from './lib/errorBody.js';
 export interface BuildAppOptions {
   /** Overrides the shared Firestore client — tests pass one scoped to their own project. */
   db?: Firestore;
+  /** Overrides the PostgreSQL database — tests pass their own per-file database. */
+  database?: Database;
   /** Overrides Firebase token verification — tests pass a fake to avoid real tokens. */
   authVerifier?: AuthVerifier;
   /** Auth0 access-token verification seam; production remains opt-in. */
@@ -117,6 +121,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   await app.register(firestorePlugin, { db: options.db });
+  await app.register(postgresPlugin, { database: options.database });
   await app.register(firebasePlugin, { verifier: options.authVerifier });
   await app.register(authPlugin, {
     auth0Verifier:

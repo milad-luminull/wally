@@ -7,10 +7,22 @@ describe('the assistant model defaults', () => {
   // Gemini 2.5 Flash is retired by Google on 2026-10-20; 3.8 Flash is served for this project
   // on the EU multi-region endpoint (`eu`), verified 2026-10-19 (the error handling spec).
   it('default to Gemini 3.8 Flash on the EU multi-region endpoint, with a price', () => {
-    const env = loadEnv({ FIREBASE_PROJECT_ID: 'p', CORS_ORIGIN: 'http://localhost' });
+    const env = loadEnv({
+      FIREBASE_PROJECT_ID: 'p',
+      DATABASE_URL: 'postgres://localhost/wally',
+      CORS_ORIGIN: 'http://localhost',
+    });
     expect(env.ASSISTANT_MODEL).toBe('vertex:gemini-3.8-flash');
     expect(env.ASSISTANT_VERTEX_LOCATION).toBe('eu');
     expect(priceFor(env.ASSISTANT_MODEL).outputMicroUsdPerToken).toBeGreaterThan(0);
+  });
+});
+
+describe('the database connection', () => {
+  it('is required', () => {
+    _resetEnvCacheForTests();
+    expect(() => loadEnv({ FIREBASE_PROJECT_ID: 'p' })).toThrow(/DATABASE_URL/);
+    _resetEnvCacheForTests();
   });
 });
 
@@ -24,6 +36,7 @@ describe('local MCP transport configuration', () => {
     expect(() =>
       loadEnv({
         FIREBASE_PROJECT_ID: 'p',
+        DATABASE_URL: 'postgres://localhost/wally',
         MCP_LOCAL_URL: 'http://localhost:4502/mcp',
         ...environment,
       }),
@@ -40,6 +53,7 @@ describe('local MCP transport configuration', () => {
     expect(() =>
       loadEnv({
         FIREBASE_PROJECT_ID: 'p',
+        DATABASE_URL: 'postgres://localhost/wally',
         NODE_ENV: 'development',
         FIRESTORE_EMULATOR_HOST: 'firestore:8080',
         MCP_LOCAL_URL: url,
@@ -51,7 +65,7 @@ describe('local MCP transport configuration', () => {
 
 describe('the fixed Auth0 values', () => {
   it('accepts AUTH0_ISSUER and AUTH0_AUDIENCE only with the values the API uses', () => {
-    const base = { FIREBASE_PROJECT_ID: 'p' };
+    const base = { FIREBASE_PROJECT_ID: 'p', DATABASE_URL: 'postgres://localhost/wally' };
     _resetEnvCacheForTests();
     expect(() => loadEnv({ ...base, AUTH0_ISSUER, AUTH0_AUDIENCE })).not.toThrow();
     for (const other of [

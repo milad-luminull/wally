@@ -11,6 +11,9 @@ const envSchema = z.object({
   // serves locally. Production sets this to `wally` — the EU (europe-west3) database —-
   // because the project's "(default)" database was auto-created in the US.
   FIRESTORE_DATABASE_ID: z.string().min(1).optional(),
+  // The PostgreSQL connection string. In production it goes through Supabase's transaction
+  // pooler, which is why the client turns prepared statements off (lib/postgres/client.ts).
+  DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
   AUTH0_ENABLED: z
     .enum(['true', 'false'])
