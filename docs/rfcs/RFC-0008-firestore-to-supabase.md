@@ -10,7 +10,7 @@
 
 ## Decision and scope
 
-Replace Firestore with **Supabase PostgreSQL in Frankfurt** as Wally's database, with
+Replace Firestore with **Supabase PostgreSQL in the EU (Ireland, `eu-west-1`; owner, 2026-10-31)** as Wally's database, with
 Drizzle as the schema and query layer.
 
 **No data moves (owner, 2026-10-27):** Firestore holds nothing to keep, and production

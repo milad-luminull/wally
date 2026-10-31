@@ -14,7 +14,7 @@ This RFC replaces the [EU platform overview](RFC-0007-eu-platform-and-ai-workers
 
 ## 1. Outcome
 
-Wally runs on one data and identity provider, Supabase (Frankfurt), with Fastify kept on
+Wally runs on one data and identity provider, Supabase (Ireland, `eu-west-1`), with Fastify kept on
 Cloud Run and the web app on Cloudflare. **Firebase (Firestore, Authentication, Hosting)
 and Auth0 are decommissioned.** Every existing capability keeps working, in particular:
 
@@ -134,7 +134,7 @@ if something fails, nobody can tell which change caused it.
 Each item below is either documented but not yet exercised by Wally, or not documented.
 Each has to be proven on a free project before the slice that depends on it.
 
-1. **Database connectivity from Cloud Run (Belgium) to Supabase (Frankfurt):**
+1. **Database connectivity from Cloud Run (Belgium) to Supabase (Ireland):**
    - Use the transaction pooler on port 6543. It is IPv4 on the Free plan and does not
      support prepared statements.
    - The direct endpoint is IPv6 unless the IPv4 add-on is bought
@@ -241,8 +241,8 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
    - They should be scoped as narrowly as each provider allows, and their rotation
      recorded.
 9. **Region and processors:**
-   - The brief does not name a Supabase region. Frankfurt stays the requirement for data,
-     auth and Realtime.
+   - The brief does not name a Supabase region. Frankfurt was the requirement; the owner
+     kept the project in Ireland (`eu-west-1`) on 2026-10-31 (section 8). Both are EU.
    - Cloudflare, Supabase and Resend become processors, and Google and Auth0 drop out
      for identity. GDPR.md changes in each cutover slice.
 10. **Free plan risk:**
@@ -282,7 +282,20 @@ Decided on 2026-10-27:
 - **Spending:** nothing is spent without the owner's manual approval.
 - **Pro upgrade:** stay on Free; the owner decides when to move to Pro.
 
+Decided on 2026-10-31:
+
+- **Region:** the hosted project (`wally`, ref `jztzhyxshwgjrwscibly`, created 2026-10-26)
+  stays in Ireland (`eu-west-1`), not Frankfurt. A Supabase region cannot be changed after
+  creation; the project was empty, and the owner chose to keep it. The data stays in the EU.
+- **Expiry:** Supabase Cron (pg_cron) runs the purge. Checked on the hosted project on
+  2026-10-31: pg_cron 1.6.4 is available on the Free plan and preloaded, and jobs run in the
+  `postgres` database.
+
 Still open:
+
+- **Backups:** Free has no managed backups (section 5, item 4). The owner decides later
+  between a nightly dump of our own and Pro's daily backups; until then the hosted database
+  has no backup, and that blocks the production cutover.
 
 - **Accounts at the identity switch:** accounts and boards created on PostgreSQL while
   Auth0 still signs people in either move to Supabase Auth, bound to their Wally user

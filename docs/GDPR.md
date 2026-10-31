@@ -49,8 +49,8 @@ single source of truth for stored shapes; field names are the row types' in
 [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
-**Where the data lives (2026-10-31).** The code stores everything in PostgreSQL, built for a
-Supabase project in Frankfurt that does not exist yet. Production runs v0.11.0, which keeps
+**Where the data lives (2026-10-31).** The code stores everything in PostgreSQL, built for the
+Supabase project in Ireland (`eu-west-1`), which exists but holds nothing yet. Production runs v0.11.0, which keeps
 the same fields in Cloud Firestore (database `wally`, `europe-west3`) until the release that
 ships the PostgreSQL API. Nothing is copied across: PostgreSQL starts empty, and the
 Firestore data is deleted when Firestore is decommissioned
@@ -191,8 +191,8 @@ regression is visible as a change to a named file.
 
 ### Data residency stays in the EU
 
-The database is planned in Supabase's Frankfurt region ([`DEPLOY.md`, Create the database](DEPLOY.md#4-step-2--create-the-database)),
-the connection-string secret is replicated only in `europe-west1`, and everything else on
+The database is in Supabase's Ireland region, `eu-west-1` ([`DEPLOY.md`, Create the database](DEPLOY.md#4-step-2--create-the-database)),
+the connection-string secret is replicated only in `europe-west3` (Frankfurt), and everything else on
 Google Cloud is `europe-west1` (Belgium) ([`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout)).
 Until the PostgreSQL release, production's Firestore is `europe-west3` (Frankfurt)
 ([`DEPLOY.md`, Firestore in production until the switch](DEPLOY.md#firestore-in-production-until-the-switch)).

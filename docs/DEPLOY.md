@@ -22,11 +22,11 @@ Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
 Wally is three separate things, and they go to three different places:
 
-| Piece      | What it is                                                 | Where it goes                                                |
-| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
-| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                |
-| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                     |
-| Your data  | Notes, boards, members                                     | **Supabase PostgreSQL** (Frankfurt), reached only by the API |
+| Piece      | What it is                                                 | Where it goes                                                           |
+| ---------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                           |
+| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                                |
+| Your data  | Notes, boards, members                                     | **Supabase PostgreSQL** (Ireland, `eu-west-1`), reached only by the API |
 
 Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
 see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and the
@@ -117,12 +117,14 @@ budget**. Set something small like €10/month so you find out early if somethin
 
 ## 4. Step 2 — Create the database
 
-**Not done yet (2026-10-31).** No hosted Supabase project exists. Creating it, and every step
-below that uses it, waits for the owner and for the proofs in
-[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 5. The project stays on the Free
-plan; nothing is bought without the owner's approval.
+**Partly done (2026-10-31).** The project exists: `wally` (ref `jztzhyxshwgjrwscibly`) in
+Ireland (`eu-west-1`), on the Free plan, PostgreSQL 17.11.0.003, the same image the local
+stack and CI run. Its connection string is in Secret Manager (section 7). Nothing has been
+migrated or deployed to it; the proofs in [RFC-0011](rfcs/RFC-0011-platform-migration.md)
+section 5 come first. Nothing is bought without the owner's approval.
 
-1. Create a Supabase project in the Frankfurt region.
+1. Create a Supabase project. Wally's is in Ireland (`eu-west-1`; the owner's choice,
+   RFC-0011 section 8). A region cannot be changed after creation.
 2. Copy its **transaction pooler** connection string. That is the API's `DATABASE_URL`, and
    it goes into Secret Manager in section 7, never into a file or a plain variable.
 3. Switch off the **Data API**, so only the API reads and writes tables
@@ -231,7 +233,9 @@ Firestore is decommissioned ([Firestore in production until the switch](#firesto
 
 ## 7. Step 5 — Store the connection string and apply the migrations
 
-**Not done yet (2026-10-31).** Like section 4, this waits for the Supabase project.
+**Secret done, migrations not yet (2026-10-31).** The owner created `wally-database-url`
+(version 1, replicated only in `europe-west3`) and ran the bootstrap script, which granted
+the two identities below; no one else can read it. No migration has been applied yet.
 
 Store the transaction pooler URL from section 4 as the secret `wally-database-url`,
 replicated only in the EU. `read -rs` keeps the password out of your shell history:
@@ -239,7 +243,7 @@ replicated only in the EU. `read -rs` keeps the password out of your shell histo
 ```bash
 read -rs DATABASE_URL
 printf '%s' "$DATABASE_URL" | gcloud secrets create wally-database-url \
-  --data-file=- --replication-policy=user-managed --locations=europe-west1
+  --data-file=- --replication-policy=user-managed --locations=europe-west3
 ```
 
 Two identities read it. Grant each `roles/secretmanager.secretAccessor` on this one secret,

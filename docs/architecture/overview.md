@@ -40,7 +40,7 @@ flowchart LR
   subgraph wally["Wally (Google Cloud project luminull-wally)"]
     web["web<br/>React SPA, Vite<br/>Firebase Hosting, wally.luminull.com"]
     api["api<br/>Fastify, Node 22, REST and /mcp<br/>Cloud Run, europe-west1, api.wally.luminull.com"]
-    store[("Supabase PostgreSQL<br/>Frankfurt, transaction pooler")]
+    store[("Supabase PostgreSQL<br/>Ireland, transaction pooler")]
     model["Vertex AI<br/>location eu"]
   end
   browser -->|HTTPS| web
