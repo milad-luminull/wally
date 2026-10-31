@@ -113,14 +113,14 @@ and its own E2E specs. Plans are not stacked.
   migrations and gives Cloud Run `DATABASE_URL` from Secret Manager, but has never run
   against a hosted database.
 - PR #87 stays open, unmerged, until the hosted Supabase project and the proofs it depends
-  on exist: connectivity from Cloud Run, the Data API switched off, and backups (owner,
-  2026-10-31).
+  on exist: connectivity from Cloud Run and the Data API switched off (owner, 2026-10-31).
+  Backups no longer gate it (owner, 2026-10-31; section 8).
 - No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
 production and needs no Supabase account, so it is built before the proofs. Each proof
-still gates the slice that depends on it: database connectivity, the Data API switch and
-backups gate workstream 2; the MCP proof gates workstream 3; the Worker proof gates
+still gates the slice that depends on it: database connectivity and the Data API switch
+gate workstream 2 (backups were dropped as a gate by the owner on 2026-10-31); the MCP proof gates workstream 3; the Worker proof gates
 workstream 4. The foundation's design is in
 [the slice 1 design](../superpowers/specs/2026-10-27-postgres-foundation-design.md).
 
@@ -248,8 +248,9 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
 10. **Free plan risk:**
     - Production data is real from the first signup on Supabase.
     - The brief rightly states that Free has no managed backups and can pause.
-    - The backup routine and restore drill (section 5, item 4) are therefore cutover gates,
-      not follow-ups.
+    - The backup routine and restore drill (section 5, item 4) were planned as cutover
+      gates; the owner deferred them on 2026-10-31 and accepts running without backups
+      for now (section 8).
 11. **Cloud Run free tier:** the brief says the free tier is applied using Tier 1
     pricing. Whether europe-west1 is a Tier 1 region is _unverified_: the pricing page
     could not be read on 2026-10-26.
@@ -304,11 +305,13 @@ Decided on 2026-10-31:
   2026-10-31: pg_cron 1.6.4 is available on the Free plan and preloaded, and jobs run in the
   `postgres` database.
 
-Still open:
+- **Backups: none for now.** Free has no managed backups (section 5, item 4), and the owner
+  decided on 2026-10-31 to run without a backup routine for now; it no longer gates the
+  switch. Accepted risk: data lost on Supabase (a bad migration, a mistaken delete, an
+  incident) cannot be recovered. Revisit before real users depend on Wally, or with the
+  move to Pro, whose daily backups the owner approves when the time comes.
 
-- **Backups:** Free has no managed backups (section 5, item 4). The owner decides later
-  between a nightly dump of our own and Pro's daily backups; until then the hosted database
-  has no backup, and that blocks the production cutover.
+Still open:
 
 - **Accounts at the identity switch:** accounts and boards created on PostgreSQL while
   Auth0 still signs people in either move to Supabase Auth, bound to their Wally user

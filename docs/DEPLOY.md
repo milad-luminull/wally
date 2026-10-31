@@ -167,8 +167,9 @@ affected. This is a second lock beside the Data API switch. Authorization stays 
 ### Backups
 
 The Free plan has no managed backups ([backups](https://supabase.com/docs/guides/platform/backups)).
-An encrypted nightly dump stored outside Supabase, and a timed restore drill, gate the switch
-(RFC-0011 section 5, item 4). Neither is built yet.
+**There are none for now, by the owner's decision of 2026-10-31** (RFC-0011 section 8): data
+lost on Supabase cannot be recovered. An encrypted nightly dump with a restore drill, or Pro's
+daily backups, comes back when the owner decides.
 
 ---
 
@@ -927,8 +928,7 @@ Deliberately out of scope, in rough order of when you will want them:
   sign-in provider into whatever `DATABASE_URL` names. The E2E and local MCP fixture seeds
   refuse a non-local database; the demo seed does not. Never run it with the production
   secret.
-- **Backups.** Not built. The Free plan has none, and a backup routine with a restore drill
-  gates the switch (section 4).
+- **Backups.** None, by the owner's decision for now (section 4); nothing can be restored.
 
 ---
 
