@@ -1,6 +1,7 @@
-import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import type { EffectiveRole } from '@wally/shared';
-import type { NoteDoc, WhiteboardDoc, WithId } from '../db/types.js';
+import type { Board, Note } from '../db/types.js';
+import type { Database } from '../postgres/client.js';
+import type { Transaction } from '../postgres/transaction.js';
 import { AppError } from '../errors.js';
 import { resolveRole } from '../authorization.js';
 import type { Provenance } from '../assistant/provenance.js';
@@ -18,18 +19,18 @@ export interface CommandResult {
   cleanupId?: string;
 }
 export interface CommandContext {
-  db: Firestore;
+  db: Database;
   tx: Transaction;
   actor: Actor;
-  board: WithId<WhiteboardDoc>;
-  note: WithId<NoteDoc> | null;
+  board: Board;
+  note: Note | null;
   operationId: string;
   baseUrl: string;
   /** Present when the assistant is the caller; absent for the browser. */
   provenance?: Provenance;
 }
 export function requireAccess(
-  board: WithId<WhiteboardDoc> | null,
+  board: Board | null,
   actorId: string,
   allowed: EffectiveRole[],
 ): EffectiveRole {
@@ -37,9 +38,6 @@ export function requireAccess(
   if (!board || !role) throw new AppError(404, 'NOT_FOUND', 'Not found');
   if (!allowed.includes(role)) throw new AppError(403, 'FORBIDDEN', 'Insufficient role');
   return role;
-}
-export function revisionOf(value: { revision?: number }): number {
-  return value.revision ?? 0;
 }
 export function notFound(): never {
   throw new AppError(404, 'NOT_FOUND', 'Not found');

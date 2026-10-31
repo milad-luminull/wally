@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
-import {
-  assistantAttemptsCol,
-  assistantSpendCol,
-  assistantUsageCol,
-} from '../../db/collections.js';
-import type { AssistantAttemptDoc } from '../../db/types.js';
+import { and, eq } from 'drizzle-orm';
 import { AppError } from '../../errors.js';
+import type { Database } from '../../postgres/client.js';
+import { TransactionConflictError } from '../../postgres/errors.js';
+import { withTransaction, type Transaction } from '../../postgres/transaction.js';
+import { assistantAttempts, assistantSpend, assistantUsage } from '../../postgres/schema/index.js';
 import { microUsdFor, type ModelPrice } from './prices.js';
 
 /** Model calls in flight per user, across every conversation and key. */
@@ -34,20 +32,43 @@ export class BudgetError extends AppError {
   }
 }
 
-const GRPC_INVALID_ARGUMENT = 3;
-const GRPC_ABORTED = 10;
-
 /**
- * A reservation whose transaction lost to contention (gRPC ABORTED, or INVALID_ARGUMENT for a
- * transaction the emulator or server closed while it retried) is a busy ledger, not a server
- * fault: the caller is told to try again, and nothing was reserved.
+ * A reservation whose transaction still lost to concurrent writers after its retries is a
+ * busy ledger, not a server fault: the caller is told to try again, and nothing was reserved.
  */
 export function reservationFailure(error: unknown): unknown {
-  if (error instanceof AppError) return error;
-  const code = (error as { code?: unknown } | null)?.code;
-  if (code === GRPC_INVALID_ARGUMENT || code === GRPC_ABORTED)
-    return new BudgetError('ASSISTANT_BUSY', null);
+  if (error instanceof TransactionConflictError) return new BudgetError('ASSISTANT_BUSY', null);
   return error;
+}
+
+const usageOf = async (tx: Transaction, userId: string, day: string) =>
+  (
+    await tx
+      .select()
+      .from(assistantUsage)
+      .where(and(eq(assistantUsage.userId, userId), eq(assistantUsage.day, day)))
+  )[0];
+
+const spendOf = async (tx: Transaction, month: string) =>
+  (await tx.select().from(assistantSpend).where(eq(assistantSpend.month, month)))[0];
+
+async function saveUsage(
+  tx: Transaction,
+  userId: string,
+  day: string,
+  values: { tokens: number; inFlight: Record<string, number>; updatedAt: Date },
+) {
+  await tx
+    .insert(assistantUsage)
+    .values({ userId, day, ...values })
+    .onConflictDoUpdate({ target: [assistantUsage.userId, assistantUsage.day], set: values });
+}
+
+async function saveSpend(tx: Transaction, month: string, microUsd: number, updatedAt: Date) {
+  await tx
+    .insert(assistantSpend)
+    .values({ month, microUsd, updatedAt })
+    .onConflictDoUpdate({ target: assistantSpend.month, set: { microUsd, updatedAt } });
 }
 
 export interface ReserveInput {
@@ -84,46 +105,35 @@ function addDays(day: string, n: number): string {
  * would be exceeded, and otherwise writes the worst case into all three. Nothing is
  * dispatched before this commits.
  *
- * The in-flight bound is per user, not per day: slots live on the day document they were
+ * The in-flight bound is per user, not per day: slots live on the day row they were
  * reserved on, so within one lease of midnight the transaction also reads the previous
- * day's document and counts its live slots. A slot from any earlier day has outlived its
+ * day's row and counts its live slots. A slot from any earlier day has outlived its
  * lease, since the lease is far shorter than a day.
  */
-export async function reserveAttempt(db: Firestore, input: ReserveInput): Promise<Reservation> {
+export async function reserveAttempt(db: Database, input: ReserveInput): Promise<Reservation> {
   const { userId, now, estimate, price, caps } = input;
   const day = dayKey(now);
   const month = monthKey(now);
   const reservedTokens = estimate.inputTokens + estimate.outputTokens;
   const reservedMicroUsd = microUsdFor(price, estimate);
   const attemptId = randomUUID();
-  const usageRef = assistantUsageCol(db, userId).doc(day);
-  const spendRef = assistantSpendCol(db).doc(month);
-  const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
 
   // A slot reserved yesterday can still be live only while less than one lease has passed
   // since today began.
-  const previousDayRef =
-    now.getTime() - Date.parse(`${day}T00:00:00.000Z`) < ATTEMPT_LEASE_MS
-      ? assistantUsageCol(db, userId).doc(addDays(day, -1))
-      : null;
+  const previousDay =
+    now.getTime() - Date.parse(`${day}T00:00:00.000Z`) < ATTEMPT_LEASE_MS ? addDays(day, -1) : null;
   const isLive = (startedAt: number) => now.getTime() - startedAt < ATTEMPT_LEASE_MS;
 
-  const transaction = db.runTransaction(async (tx) => {
-    const [usageSnap, spendSnap, previousDaySnap] = await Promise.all([
-      tx.get(usageRef),
-      tx.get(spendRef),
-      previousDayRef ? tx.get(previousDayRef) : null,
-    ]);
-    const usage = usageSnap.data() ?? { tokens: 0, inFlight: {}, updatedAt: Timestamp.now() };
-    const spend = spendSnap.data() ?? { microUsd: 0, updatedAt: Timestamp.now() };
+  const transaction = withTransaction(db, async (tx) => {
+    const usage = (await usageOf(tx, userId, day)) ?? { tokens: 0, inFlight: {} };
+    const spend = (await spendOf(tx, month)) ?? { microUsd: 0 };
+    const yesterday = previousDay ? await usageOf(tx, userId, previousDay) : undefined;
     // Slots whose lease expired belong to calls that died; their charge stays, the slot goes.
     const inFlight = Object.fromEntries(
       Object.entries(usage.inFlight).filter(([, startedAt]) => isLive(startedAt)),
     );
     // Yesterday's live slots count but stay where they are; their settlement frees them.
-    const liveYesterday = Object.values(previousDaySnap?.data()?.inFlight ?? {}).filter(
-      isLive,
-    ).length;
+    const liveYesterday = Object.values(yesterday?.inFlight ?? {}).filter(isLive).length;
     if (Object.keys(inFlight).length + liveYesterday >= MAX_IN_FLIGHT)
       throw new BudgetError('ASSISTANT_BUSY', null);
     if (usage.tokens + reservedTokens > caps.dailyTokens)
@@ -131,14 +141,15 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
     if (spend.microUsd + reservedMicroUsd > caps.monthlyMicroUsd)
       throw new BudgetError('ASSISTANT_MONTHLY_CAP', nextMonthStart(month));
 
-    const stamp = Timestamp.fromDate(now);
-    tx.set(usageRef, {
+    await saveUsage(tx, userId, day, {
       tokens: usage.tokens + reservedTokens,
       inFlight: { ...inFlight, [attemptId]: now.getTime() },
-      updatedAt: stamp,
+      updatedAt: now,
     });
-    tx.set(spendRef, { microUsd: spend.microUsd + reservedMicroUsd, updatedAt: stamp });
-    const attempt: AssistantAttemptDoc = {
+    await saveSpend(tx, month, spend.microUsd + reservedMicroUsd, now);
+    await tx.insert(assistantAttempts).values({
+      id: attemptId,
+      userId,
       day,
       month,
       reservedTokens,
@@ -146,10 +157,9 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
       inputMicroUsdPerToken: price.inputMicroUsdPerToken,
       outputMicroUsdPerToken: price.outputMicroUsdPerToken,
       state: 'RESERVED',
-      createdAt: stamp,
-      expiresAt: Timestamp.fromMillis(now.getTime() + ATTEMPT_RETENTION_DAYS * 86_400_000),
-    };
-    tx.create(attemptRef, attempt);
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + ATTEMPT_RETENTION_DAYS * 86_400_000),
+    });
   });
   // A transaction lost to contention is a busy refusal, like a full in-flight count.
   await transaction.catch((error: unknown) => {
@@ -157,6 +167,14 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
   });
   return { attemptId, day, month, reservedTokens, reservedMicroUsd };
 }
+
+const attemptOf = async (tx: Transaction, userId: string, attemptId: string) =>
+  (
+    await tx
+      .select()
+      .from(assistantAttempts)
+      .where(and(eq(assistantAttempts.userId, userId), eq(assistantAttempts.id, attemptId)))
+  )[0];
 
 /**
  * Replaces the reservation with actual usage, exactly once, in the day and month the
@@ -168,7 +186,7 @@ export async function reserveAttempt(db: Firestore, input: ReserveInput): Promis
  * can never reach the counters.
  */
 export async function settleAttempt(
-  db: Firestore,
+  db: Database,
   userId: string,
   attemptId: string,
   actual: { inputTokens: number; outputTokens: number },
@@ -177,13 +195,11 @@ export async function settleAttempt(
   const isCount = (n: number) => Number.isFinite(n) && n >= 0;
   if (!isCount(actual.inputTokens) || !isCount(actual.outputTokens))
     throw new Error('Unknown usage: the reservation is kept');
-  const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
-  await db.runTransaction(async (tx) => {
-    const attempt = (await tx.get(attemptRef)).data();
+  await withTransaction(db, async (tx) => {
+    const attempt = await attemptOf(tx, userId, attemptId);
     if (!attempt || attempt.state === 'SETTLED') return;
-    const usageRef = assistantUsageCol(db, userId).doc(attempt.day);
-    const spendRef = assistantSpendCol(db).doc(attempt.month);
-    const [usageSnap, spendSnap] = await Promise.all([tx.get(usageRef), tx.get(spendRef)]);
+    const usage = await usageOf(tx, userId, attempt.day);
+    const spend = await spendOf(tx, attempt.month);
     const settledTokens = actual.inputTokens + actual.outputTokens;
     // Priced with the price the attempt was reserved at.
     const settledMicroUsd = microUsdFor(
@@ -193,25 +209,27 @@ export async function settleAttempt(
       },
       actual,
     );
-    const stamp = Timestamp.fromDate(now);
-    const usage = usageSnap.data();
     if (usage) {
       const inFlight = Object.fromEntries(
         Object.entries(usage.inFlight).filter(([id]) => id !== attemptId),
       );
-      tx.set(usageRef, {
+      await saveUsage(tx, userId, attempt.day, {
         tokens: Math.max(0, usage.tokens - attempt.reservedTokens + settledTokens),
         inFlight,
-        updatedAt: stamp,
+        updatedAt: now,
       });
     }
-    const spend = spendSnap.data();
     if (spend && attempt.reservedMicroUsd > 0)
-      tx.set(spendRef, {
-        microUsd: Math.max(0, spend.microUsd - attempt.reservedMicroUsd + settledMicroUsd),
-        updatedAt: stamp,
-      });
-    tx.update(attemptRef, { state: 'SETTLED', settledTokens, settledMicroUsd, settledAt: stamp });
+      await saveSpend(
+        tx,
+        attempt.month,
+        Math.max(0, spend.microUsd - attempt.reservedMicroUsd + settledMicroUsd),
+        now,
+      );
+    await tx
+      .update(assistantAttempts)
+      .set({ state: 'SETTLED', settledTokens, settledMicroUsd, settledAt: now })
+      .where(eq(assistantAttempts.id, attemptId));
   });
 }
 
@@ -222,25 +240,25 @@ export async function settleAttempt(
  * already released one is left as it is.
  */
 export async function releaseAttempt(
-  db: Firestore,
+  db: Database,
   userId: string,
   attemptId: string,
   now: Date,
 ): Promise<void> {
-  const attemptRef = assistantAttemptsCol(db, userId).doc(attemptId);
-  await db.runTransaction(async (tx) => {
-    const attempt = (await tx.get(attemptRef)).data();
+  await withTransaction(db, async (tx) => {
+    const attempt = await attemptOf(tx, userId, attemptId);
     if (attempt?.state !== 'RESERVED') return;
-    const usageRef = assistantUsageCol(db, userId).doc(attempt.day);
-    const usage = (await tx.get(usageRef)).data();
-    const stamp = Timestamp.fromDate(now);
+    const usage = await usageOf(tx, userId, attempt.day);
     if (usage) {
       const inFlight = Object.fromEntries(
         Object.entries(usage.inFlight).filter(([id]) => id !== attemptId),
       );
-      tx.set(usageRef, { tokens: usage.tokens, inFlight, updatedAt: stamp });
+      await saveUsage(tx, userId, attempt.day, { tokens: usage.tokens, inFlight, updatedAt: now });
     }
-    tx.update(attemptRef, { state: 'ABANDONED', abandonedAt: stamp });
+    await tx
+      .update(assistantAttempts)
+      .set({ state: 'ABANDONED', abandonedAt: now })
+      .where(eq(assistantAttempts.id, attemptId));
   });
 }
 
@@ -267,7 +285,7 @@ export interface TrackedAttempts {
  * the lease expires.
  */
 export function trackAttempts(
-  db: Firestore,
+  db: Database,
   userId: string,
   options: { clock: () => Date; onReleaseError?: (error: unknown) => void },
 ): TrackedAttempts {

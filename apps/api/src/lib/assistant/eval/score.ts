@@ -1,5 +1,5 @@
 import { foldFieldKey } from '@wally/shared';
-import type { AssistantSuggestionDoc } from '../../db/types.js';
+import type { SuggestionFields as StoredSuggestionFields } from '../../db/types.js';
 import type { CaptureFixture, ScoredField } from './captureFixtures.js';
 
 /** What a proposal holds, reduced to what the fixtures compare. */
@@ -29,7 +29,7 @@ export interface Summary {
   antiGoalFailures: string[];
 }
 
-type StoredFields = AssistantSuggestionDoc['fields'];
+type StoredFields = StoredSuggestionFields;
 /**
  * Reads the accepted fields of any release: a baseline's single `reference` is one property,
  * so a baseline and a later run score the same fixture the same way.

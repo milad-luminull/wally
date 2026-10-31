@@ -1,19 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 import {
-  historyCol,
-  membersCol,
-  notesCol,
-  now,
-  shareLinksCol,
-  subtasksCol,
-  whiteboardsCol,
-} from '../src/lib/db/collections.js';
+  boardCleanup,
+  boardMembers,
+  boardOperations,
+  noteHistory,
+  notes,
+  shareLinks,
+  subtasks,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import { executeBoardCommand } from '../src/lib/commands/index.js';
-import { drainCleanup, reconcileBoards } from '../src/lib/commands/maintenance.js';
+import { drainCleanup } from '../src/lib/commands/maintenance.js';
 
-const projectId = 'wally-board-safety';
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
 const headers = (revision?: number, key = randomUUID(), token = fx.ownerToken) => ({
@@ -31,6 +32,28 @@ async function createNote() {
   expect(res.statusCode).toBe(201);
   return res.json();
 }
+const noteRow = async (id: string) =>
+  (await ctx.db.select().from(notes).where(eq(notes.id, id)))[0];
+const historyCount = (noteId: string) => ctx.db.$count(noteHistory, eq(noteHistory.noteId, noteId));
+const subtaskCount = (noteId: string) => ctx.db.$count(subtasks, eq(subtasks.noteId, noteId));
+/**
+ * Runs `effect` once, right before the first transaction that starts while a cleanup job is
+ * queued: after the command committed, before its cleanup runs. Every request also runs the
+ * auth plugin's own transaction, so counting transactions would not find that moment.
+ */
+function beforeCleanup(effect: () => Promise<void>) {
+  const original = ctx.db.transaction.bind(ctx.db);
+  let done = false;
+  vi.spyOn(ctx.db, 'transaction').mockImplementation((async (
+    ...args: Parameters<typeof ctx.db.transaction>
+  ) => {
+    if (!done && (await ctx.db.$count(boardCleanup)) > 0) {
+      done = true;
+      await effect();
+    }
+    return original(...args);
+  }) as typeof ctx.db.transaction);
+}
 async function boardRevision() {
   return (
     await ctx.app.inject({
@@ -42,10 +65,10 @@ async function boardRevision() {
 }
 
 beforeAll(async () => {
-  ctx = await buildTestApp(projectId);
+  ctx = await buildTestApp();
 });
 beforeEach(async () => {
-  await resetDatabase(projectId);
+  await resetDatabase(ctx.db);
   fx = await createBoardFixture(ctx);
 });
 afterAll(async () => {
@@ -81,10 +104,10 @@ describe('board safety contract', () => {
 
   it('retains a hidden deletion and durable cleanup job after cleanup failure', async () => {
     const note = await createNote();
-    vi.spyOn(ctx.db, 'recursiveDelete').mockRejectedValueOnce(new Error('interrupted'));
+    beforeCleanup(() => Promise.reject(new Error('interrupted')));
     const request = { method: 'DELETE' as const, url: `/notes/${note.id}`, headers: headers(1) };
     expect((await ctx.app.inject(request)).statusCode).toBe(204);
-    expect((await ctx.db.collection('boardCleanup').get()).size).toBe(1);
+    expect(await ctx.db.$count(boardCleanup)).toBe(1);
     const list = await ctx.app.inject({
       method: 'GET',
       url: `/whiteboards/${fx.boardId}/notes`,
@@ -102,68 +125,43 @@ describe('board safety contract', () => {
       ).statusCode,
     ).toBe(404);
     expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
-    expect((await notesCol(ctx.db).doc(note.id).get()).exists).toBe(false);
+    expect(await noteRow(note.id)).toBeUndefined();
     expect((await ctx.app.inject(request)).statusCode).toBe(204);
-  });
-
-  it('legacy documents start at zero and their first mutation advances to one', async () => {
-    const note = await createNote();
-    const legacy = (await notesCol(ctx.db).doc(note.id).get()).data()!;
-    delete legacy.revision;
-    await notesCol(ctx.db).doc(note.id).set(legacy);
-    const read = await ctx.app.inject({
-      method: 'GET',
-      url: `/notes/${note.id}`,
-      headers: ctx.authHeader(fx.ownerToken),
-    });
-    expect(read.json().revision).toBe(0);
-    const changed = await ctx.app.inject({
-      method: 'PATCH',
-      url: `/notes/${note.id}`,
-      headers: headers(0),
-      payload: { title: 'Versioned' },
-    });
-    expect(changed.json().revision).toBe(1);
   });
 
   it('does not clear an assignment changed after member removal committed', async () => {
     const note = await createNote();
-    await notesCol(ctx.db).doc(note.id).update({ assigneeId: fx.editorId });
+    await ctx.db.update(notes).set({ assigneeId: fx.editorId }).where(eq(notes.id, note.id));
     const version = await boardRevision();
-    const original = ctx.db.runTransaction.bind(ctx.db);
-    let transactions = 0;
-    vi.spyOn(ctx.db, 'runTransaction').mockImplementation((async (
-      ...args: Parameters<typeof ctx.db.runTransaction>
-    ) => {
-      if (++transactions === 2)
-        await notesCol(ctx.db).doc(note.id).update({ assigneeId: fx.ownerId, revision: 2 });
-      return original(...args);
-    }) as typeof ctx.db.runTransaction);
+    beforeCleanup(async () => {
+      await ctx.db
+        .update(notes)
+        .set({ assigneeId: fx.ownerId, revision: 2 })
+        .where(eq(notes.id, note.id));
+    });
     const removed = await ctx.app.inject({
       method: 'DELETE',
       url: `/whiteboards/${fx.boardId}/members/${fx.editMemberId}`,
       headers: headers(version),
     });
     expect(removed.statusCode).toBe(204);
-    expect((await notesCol(ctx.db).doc(note.id).get()).data()).toMatchObject({
-      assigneeId: fx.ownerId,
-      revision: 2,
-    });
+    expect(await noteRow(note.id)).toMatchObject({ assigneeId: fx.ownerId, revision: 2 });
   });
 
   it('bounds large duplication without leaving a partial note or receipt', async () => {
     const note = await createNote();
-    const writer = ctx.db.bulkWriter();
-    for (let i = 0; i < 401; i++)
-      void writer.set(subtasksCol(ctx.db, note.id).doc(), {
+    const timestamp = new Date();
+    await ctx.db.insert(subtasks).values(
+      Array.from({ length: 401 }, (_, i) => ({
+        id: randomUUID(),
         noteId: note.id,
         text: `Task ${i}`,
         done: false,
         sortIndex: i,
-        createdAt: now(),
-        updatedAt: now(),
-      });
-    await writer.close();
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })),
+    );
     const key = randomUUID();
     const copy = await ctx.app.inject({
       method: 'POST',
@@ -173,30 +171,15 @@ describe('board safety contract', () => {
     });
     expect(copy.statusCode).toBe(422);
     expect(copy.json().error).toBe('COPY_TOO_LARGE');
-    expect((await notesCol(ctx.db).get()).size).toBe(1);
-    expect((await ctx.db.doc(`users/${fx.ownerId}/boardOperations/${key}`).get()).exists).toBe(
-      false,
-    );
+    expect(await ctx.db.$count(notes)).toBe(1);
+    expect(
+      await ctx.db.$count(
+        boardOperations,
+        and(eq(boardOperations.userId, fx.ownerId), eq(boardOperations.operationId, key)),
+      ),
+    ).toBe(0);
   });
 
-  it('reconciles role caches and orphan tokens only when explicitly applied', async () => {
-    await whiteboardsCol(ctx.db)
-      .doc(fx.boardId)
-      .update({ memberRoles: { ghost: 'EDIT' } });
-    await shareLinksCol(ctx.db)
-      .doc('orphan')
-      .set({ whiteboardId: fx.boardId, role: 'EDIT', createdAt: now(), updatedAt: now() });
-    const report = await reconcileBoards(ctx.db);
-    expect(report).toMatchObject({ roleCaches: 1, orphanLinks: 1 });
-    expect((await shareLinksCol(ctx.db).doc('orphan').get()).exists).toBe(true);
-    await reconcileBoards(ctx.db, true);
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.memberRoles).toEqual({
-      [fx.editorId]: 'EDIT',
-      [fx.viewerId]: 'VIEW',
-    });
-    expect((await membersCol(ctx.db, fx.boardId).get()).size).toBe(2);
-    expect((await shareLinksCol(ctx.db).doc('orphan').get()).exists).toBe(false);
-  });
   it('requires operation IDs and revisions instead of accepting unprotected writes', async () => {
     const missingKey = await ctx.app.inject({
       method: 'POST',
@@ -230,7 +213,7 @@ describe('board safety contract', () => {
     );
     expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 409]);
     expect(responses.find((r) => r.statusCode === 409)!.json().error).toBe('STALE_REVISION');
-    const stored = (await notesCol(ctx.db).doc(note.id).get()).data()!;
+    const stored = (await noteRow(note.id))!;
     expect(stored.title).toBe(responses.find((r) => r.statusCode === 200)!.json().title);
     expect(stored).toMatchObject({ revision: 2 });
   });
@@ -247,8 +230,8 @@ describe('board safety contract', () => {
     expect(a.statusCode).toBe(201);
     expect(b.statusCode).toBe(201);
     expect(a.json()).toEqual(b.json());
-    expect((await notesCol(ctx.db).where('whiteboardId', '==', fx.boardId).get()).size).toBe(1);
-    expect((await historyCol(ctx.db, a.json().id).get()).size).toBe(1);
+    expect(await ctx.db.$count(notes, eq(notes.boardId, fx.boardId))).toBe(1);
+    expect(await historyCount(a.json().id)).toBe(1);
     const changed = await ctx.app.inject({ ...request, payload: { title: 'Different' } });
     expect(changed.statusCode).toBe(409);
     expect(changed.json().error).toBe('IDEMPOTENCY_KEY_REUSED');
@@ -280,10 +263,13 @@ describe('board safety contract', () => {
       payload: { title: 'Lost update' },
     });
     expect(stale.statusCode).toBe(409);
-    expect((await notesCol(ctx.db).doc(note.id).get()).data()).toMatchObject({
-      revision: 3,
-      subtaskSummary: { total: 1, done: 0 },
-    });
+    expect(await noteRow(note.id)).toMatchObject({ revision: 3 });
+    expect(
+      await ctx.db
+        .select({ text: subtasks.text, done: subtasks.done })
+        .from(subtasks)
+        .where(eq(subtasks.noteId, note.id)),
+    ).toEqual([{ text: 'Edited', done: false }]);
   });
 
   it('replays deletion after physical cleanup and hides the deleted note', async () => {
@@ -325,7 +311,7 @@ describe('board safety contract', () => {
       payload: { title: 'Private' },
     };
     expect((await ctx.app.inject(request)).statusCode).toBe(201);
-    await whiteboardsCol(ctx.db).doc(fx.boardId).update({ memberRoles: {} });
+    await ctx.db.delete(boardMembers).where(eq(boardMembers.boardId, fx.boardId));
     expect((await ctx.app.inject(request)).statusCode).toBe(404);
   });
 
@@ -346,7 +332,7 @@ describe('board safety contract', () => {
     expect(repeated.json().revision).toBe(2);
   });
 
-  it('serializes link creation and refuses orphan tokens', async () => {
+  it('serializes link creation', async () => {
     const revision = await boardRevision();
     const results = await Promise.all(
       [1, 2].map(() =>
@@ -359,17 +345,7 @@ describe('board safety contract', () => {
       ),
     );
     expect(results.map((r) => r.statusCode).sort()).toEqual([201, 409]);
-    expect((await shareLinksCol(ctx.db).where('whiteboardId', '==', fx.boardId).get()).size).toBe(
-      1,
-    );
-    const link = (await shareLinksCol(ctx.db).get()).docs[0]!;
-    await shareLinksCol(ctx.db).doc('orphan').set(link.data());
-    const redeemed = await ctx.app.inject({
-      method: 'POST',
-      url: '/share-links/orphan/redeem',
-      headers: headers(undefined, randomUUID(), fx.outsiderToken),
-    });
-    expect(redeemed.statusCode).toBe(404);
+    expect(await ctx.db.$count(shareLinks, eq(shareLinks.boardId, fx.boardId))).toBe(1);
   });
 });
 
@@ -414,7 +390,7 @@ it('serializes revocation racing a write and denies any later replay', async () 
   expect(removed.statusCode).toBe(204);
   expect([200, 404]).toContain(written.statusCode);
   expect((await ctx.app.inject(edit)).statusCode).toBe(404);
-  expect((await notesCol(ctx.db).doc(note.id).get()).data()?.title).toBe(
+  expect((await noteRow(note.id))?.title).toBe(
     written.statusCode === 200 ? 'Editor change' : 'Original',
   );
 });
@@ -474,7 +450,7 @@ it('concurrent identical copies and subtasks commit each effect once', async () 
   ]);
   expect(taskA.statusCode).toBe(201);
   expect(taskB.json()).toEqual(taskA.json());
-  expect((await subtasksCol(ctx.db, note.id).get()).size).toBe(1);
+  expect(await subtaskCount(note.id)).toBe(1);
   const competing = await Promise.all(
     ['First', 'Second'].map((text) =>
       ctx.app.inject({
@@ -498,39 +474,37 @@ it('concurrent identical copies and subtasks commit each effect once', async () 
   ]);
   expect(copyA.statusCode).toBe(201);
   expect(copyB.json()).toEqual(copyA.json());
-  expect((await notesCol(ctx.db).get()).size).toBe(2);
-  expect((await subtasksCol(ctx.db, copyA.json().id).get()).size).toBe(1);
-  expect((await historyCol(ctx.db, copyA.json().id).get()).size).toBe(1);
+  expect(await ctx.db.$count(notes)).toBe(2);
+  expect(await subtaskCount(copyA.json().id)).toBe(1);
+  expect(await historyCount(copyA.json().id)).toBe(1);
 });
 
 it('preserves assignments when a removed member regains access before cleanup', async () => {
   const note = await createNote();
-  await notesCol(ctx.db).doc(note.id).update({ assigneeId: fx.editorId });
+  await ctx.db.update(notes).set({ assigneeId: fx.editorId }).where(eq(notes.id, note.id));
   const revision = await boardRevision();
-  const run = ctx.db.runTransaction.bind(ctx.db);
-  let calls = 0;
-  vi.spyOn(ctx.db, 'runTransaction').mockImplementation((async (
-    ...args: Parameters<typeof ctx.db.runTransaction>
-  ) => {
-    if (++calls === 2) {
-      const batch = ctx.db.batch();
-      batch.set(membersCol(ctx.db, fx.boardId).doc(fx.editMemberId), {
-        whiteboardId: fx.boardId,
-        userId: fx.editorId,
-        role: 'EDIT',
-        status: 'ACTIVE',
-        invitedEmail: null,
-        invitedAt: now(),
-        activatedAt: now(),
-      });
-      batch.update(whiteboardsCol(ctx.db).doc(fx.boardId), {
-        [`memberRoles.${fx.editorId}`]: 'EDIT',
-        revision: revision + 2,
-      });
-      await batch.commit();
-    }
-    return run(...args);
-  }) as typeof ctx.db.runTransaction);
+  beforeCleanup(async () => {
+    const timestamp = new Date();
+    const member = {
+      boardId: fx.boardId,
+      userId: fx.editorId,
+      role: 'EDIT' as const,
+      status: 'ACTIVE' as const,
+      invitedEmail: null,
+      invitedAt: timestamp,
+      activatedAt: timestamp,
+    };
+    await ctx.db.transaction(async (tx) => {
+      await tx
+        .insert(boardMembers)
+        .values({ id: fx.editMemberId, ...member })
+        .onConflictDoUpdate({ target: boardMembers.id, set: member });
+      await tx
+        .update(whiteboards)
+        .set({ revision: revision + 2 })
+        .where(eq(whiteboards.id, fx.boardId));
+    });
+  });
   expect(
     (
       await ctx.app.inject({
@@ -540,8 +514,5 @@ it('preserves assignments when a removed member regains access before cleanup', 
       })
     ).statusCode,
   ).toBe(204);
-  expect((await notesCol(ctx.db).doc(note.id).get()).data()).toMatchObject({
-    assigneeId: fx.editorId,
-    revision: 1,
-  });
+  expect(await noteRow(note.id)).toMatchObject({ assigneeId: fx.editorId, revision: 1 });
 });

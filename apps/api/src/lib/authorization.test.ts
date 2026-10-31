@@ -1,24 +1,34 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { eq } from 'drizzle-orm';
 import type { NoteVisibility } from '@wally/shared';
-import { notesCol, now, whiteboardsCol } from './db/collections.js';
+import type { Database } from './postgres/client.js';
+import { notes, whiteboards } from './postgres/schema/index.js';
 import {
   createTestBoard,
+  createTestDatabase,
   createTestMembership,
   createTestUser,
-  getTestDb,
   resetDatabase,
+  type TestDatabase,
 } from '../../test/helpers.js';
-import { Timestamp } from 'firebase-admin/firestore';
 import { getEffectiveRole, requireWhiteboardAccess } from './authorization.js';
 
-const PROJECT_ID = 'wally-test-authorization';
+let handle: TestDatabase;
+let db: Database;
+
+beforeAll(async () => {
+  handle = await createTestDatabase();
+  db = handle.db;
+});
+
+afterAll(async () => {
+  await handle?.drop();
+});
 
 describe('getEffectiveRole', () => {
-  const db = getTestDb(PROJECT_ID);
-
   beforeEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(db);
   });
 
   async function makeFixture() {
@@ -28,11 +38,9 @@ describe('getEffectiveRole', () => {
     await createTestUser(db, 'u-pending', 'pending@example.com');
     await createTestUser(db, 'u-stranger', 'stranger@example.com');
 
-    // Only ACTIVE memberships appear in memberRoles — that is exactly the distinction
-    // this function is being asked about.
+    // Only ACTIVE memberships grant a role — that is exactly the distinction this function
+    // is being asked about.
     const board = await createTestBoard(db, 'u-owner', { 'u-edit': 'EDIT', 'u-view': 'VIEW' });
-    await createTestMembership(db, board, { userId: 'u-edit', role: 'EDIT', status: 'ACTIVE' });
-    await createTestMembership(db, board, { userId: 'u-view', role: 'VIEW', status: 'ACTIVE' });
     await createTestMembership(db, board, { userId: 'u-pending', role: 'EDIT', status: 'PENDING' });
     return { board };
   }
@@ -64,7 +72,7 @@ describe('getEffectiveRole', () => {
 
   it('returns null for a tombstoned whiteboard, even for its owner', async () => {
     const { board } = await makeFixture();
-    await whiteboardsCol(db).doc(board).update({ deletedAt: Timestamp.now() });
+    await db.update(whiteboards).set({ deletedAt: new Date() }).where(eq(whiteboards.id, board));
     await expect(getEffectiveRole(db, 'u-owner', board)).resolves.toBeNull();
   });
 
@@ -75,36 +83,32 @@ describe('getEffectiveRole', () => {
 });
 
 describe('requireWhiteboardAccess({ kind: noteParam })', () => {
-  const db = getTestDb(PROJECT_ID);
-
   beforeEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(db);
   });
 
   async function makeNote(id: string, creatorId: string, visibility: NoteVisibility) {
-    const timestamp = now();
-    await notesCol(db)
-      .doc(id)
-      .set({
-        whiteboardId: 'u-owner',
-        title: 'Ask Anna about Müller',
-        status: 'OPEN',
-        completedAt: null,
-        priority: 'MEDIUM',
-        horizon: 'TODAY',
-        freeX: 0,
-        freeY: 0,
-        dueDate: null,
-        assigneeId: creatorId,
-        tags: [],
-        customFields: {},
-        colour: 'CHALK',
-        visibility,
-        createdById: creatorId,
-        subtaskSummary: { total: 0, done: 0 },
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
+    const timestamp = new Date();
+    await db.insert(notes).values({
+      id,
+      boardId: 'u-owner',
+      title: 'Ask Anna about Müller',
+      status: 'OPEN',
+      completedAt: null,
+      priority: 'MEDIUM',
+      horizon: 'TODAY',
+      freeX: 0,
+      freeY: 0,
+      dueDate: null,
+      assigneeId: creatorId,
+      tags: [],
+      customFields: {},
+      colour: 'CHALK',
+      visibility,
+      createdById: creatorId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
   }
 
   /** Runs the preHandler directly with a minimal request and a reply that records its answer. */
@@ -138,7 +142,6 @@ describe('requireWhiteboardAccess({ kind: noteParam })', () => {
     await createTestUser(db, 'u-owner', 'owner@example.com');
     await createTestUser(db, 'u-edit', 'edit@example.com');
     await createTestBoard(db, 'u-owner', { 'u-edit': 'EDIT' });
-    await createTestMembership(db, 'u-owner', { userId: 'u-edit', role: 'EDIT', status: 'ACTIVE' });
   }
 
   it('answers a member who did not create a private note exactly as for a missing note', async () => {

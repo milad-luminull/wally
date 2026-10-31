@@ -1,8 +1,7 @@
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
-import type { Firestore } from 'firebase-admin/firestore';
 import type { EffectiveRole } from '@wally/shared';
-import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
-import { liveWhiteboard, notesCol, whiteboardsCol, withId } from './db/collections.js';
+import type { Board, Note } from './db/types.js';
+import { liveBoard, loadNote, type Queryable } from './db/records.js';
 import { canSeeNote } from './notes.js';
 
 declare module 'fastify' {
@@ -10,14 +9,14 @@ declare module 'fastify' {
     whiteboardContext?: {
       whiteboardId: string;
       role: EffectiveRole;
-      /** The board document, already loaded while resolving access. */
-      board: WithId<WhiteboardDoc>;
+      /** The board, already loaded while resolving access. */
+      board: Board;
     };
     /**
      * The note a `noteParam` route is about, already loaded while resolving access.
-     * Handlers reuse it instead of reading the same document a second time.
+     * Handlers reuse it instead of reading the same row a second time.
      */
-    noteContext?: WithId<NoteDoc>;
+    noteContext?: Note;
   }
 }
 
@@ -25,11 +24,10 @@ declare module 'fastify' {
  * The caller's role on an already-loaded board: OWNER if they own it, else the role of
  * their ACTIVE membership, else null.
  *
- * Answered by the board document alone, via its `memberRoles` map. This runs on nearly
- * every request, which is why active memberships are mirrored onto the board rather than
- * costing a second query here.
+ * Answered by the loaded board alone, via its `memberRoles` map, which liveBoard reads with
+ * the board in the same query.
  */
-export function resolveRole(board: WithId<WhiteboardDoc>, userId: string): EffectiveRole | null {
+export function resolveRole(board: Board, userId: string): EffectiveRole | null {
   if (board.ownerId === userId) return 'OWNER';
   return board.memberRoles[userId] ?? null;
 }
@@ -40,11 +38,11 @@ export function resolveRole(board: WithId<WhiteboardDoc>, userId: string): Effec
  * from "exists but I'm not a member".
  */
 export async function getEffectiveRole(
-  db: Firestore,
+  q: Queryable,
   userId: string,
   whiteboardId: string,
 ): Promise<EffectiveRole | null> {
-  const board = liveWhiteboard(await whiteboardsCol(db).doc(whiteboardId).get());
+  const board = await liveBoard(q, whiteboardId);
   return board ? resolveRole(board, userId) : null;
 }
 
@@ -75,18 +73,18 @@ export function requireWhiteboardAccess(source: WhiteboardSource): preHandlerHoo
     if (source.kind === 'whiteboardParam') {
       whiteboardId = paramValue;
     } else {
-      const loaded = withId(await notesCol(db).doc(paramValue).get());
+      const loaded = await loadNote(db, paramValue);
       // Someone else's private note is answered exactly like a note that does not exist.
       const note = loaded && canSeeNote(loaded, request.user.id) ? loaded : null;
       if (note) request.noteContext = note;
-      whiteboardId = note?.whiteboardId;
+      whiteboardId = note?.boardId;
     }
 
     if (!whiteboardId) {
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
     }
 
-    const board = liveWhiteboard(await whiteboardsCol(db).doc(whiteboardId).get());
+    const board = await liveBoard(db, whiteboardId);
     const role = board ? resolveRole(board, request.user.id) : null;
     if (!board || !role) {
       return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });

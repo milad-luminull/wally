@@ -33,7 +33,7 @@ import { assistantEnabledFor } from '../lib/assistant/switch.js';
 import { decideTidy, proposeTidy } from '../lib/assistant/tidy.js';
 import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
-import { liveWhiteboard, userLanguage, whiteboardsCol } from '../lib/db/collections.js';
+import { liveBoard } from '../lib/db/records.js';
 import { AppError } from '../lib/errors.js';
 
 const params = z.object({
@@ -83,9 +83,7 @@ export default async function assistantRoutes(
   async function boardFor(
     request: Pick<FastifyRequest, 'server' | 'user'> & { params: { id: string } },
   ) {
-    const board = liveWhiteboard(
-      await whiteboardsCol(request.server.db).doc(request.params.id).get(),
-    );
+    const board = await liveBoard(request.server.db, request.params.id);
     const role = requireAccess(board, request.user.id, ['OWNER', 'EDIT', 'VIEW']);
     if (!assistantEnabledFor(enabledEnv, board!)) throw new AppError(404, 'NOT_FOUND', 'Not found');
     return { board: board!, role };
@@ -113,7 +111,7 @@ export default async function assistantRoutes(
         },
         {
           actor: request.user,
-          language: userLanguage(request.user),
+          language: request.user.language,
           board,
           role,
           request: request.body,
@@ -143,7 +141,7 @@ export default async function assistantRoutes(
           logger: request.log,
           deadlineMs: options.deadlineMs,
         },
-        { actor: request.user, language: userLanguage(request.user), board, role },
+        { actor: request.user, language: request.user.language, board, role },
         request.body,
       );
       return { suggestion };
@@ -164,7 +162,7 @@ export default async function assistantRoutes(
       // A decision never calls the model, so it never builds the runner either.
       const suggestion = await decideSuggestion(
         { db: request.server.db, env, logger: request.log },
-        { actor: request.user, language: userLanguage(request.user), board, role },
+        { actor: request.user, language: request.user.language, board, role },
         request.params.suggestionId,
         request.body,
       );
@@ -201,7 +199,7 @@ export default async function assistantRoutes(
           logger: request.log,
           deadlineMs: options.deadlineMs,
         },
-        { actor: request.user, language: userLanguage(request.user), board, role },
+        { actor: request.user, language: request.user.language, board, role },
         request.body,
       );
       return { tidy };
@@ -222,7 +220,7 @@ export default async function assistantRoutes(
       // A decision never calls the model, so it never builds the runner either.
       const tidy = await decideTidy(
         { db: request.server.db, env, logger: request.log },
-        { actor: request.user, language: userLanguage(request.user), board, role },
+        { actor: request.user, language: request.user.language, board, role },
         request.params.tidyId,
         request.body,
       );

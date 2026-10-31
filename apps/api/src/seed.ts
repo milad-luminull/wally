@@ -1,19 +1,21 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { pathToFileURL } from 'node:url';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { INITIAL_BOARD_NAME } from '@wally/shared';
 import type { NoteColour, NoteHorizon, NotePriority, NoteStatus } from '@wally/shared';
-import type { MemberDoc, NoteDoc, UserDoc } from './lib/db/types.js';
+import { loadEnv } from './env.js';
+import { newId } from './lib/db/ids.js';
+import { assertLocalDatabase } from './lib/db/local.js';
+import { createDatabase, type Database } from './lib/postgres/client.js';
+import { withTransaction, type Transaction } from './lib/postgres/transaction.js';
 import {
-  historyCol,
-  membersCol,
-  notesCol,
-  now,
-  shareLinksCol,
-  subtasksCol,
-  usersCol,
-  whiteboardsCol,
-  withId,
-} from './lib/db/collections.js';
-import { getDb } from './lib/db/client.js';
+  boardMembers,
+  noteHistory,
+  notes,
+  shareLinks,
+  subtasks,
+  users,
+  whiteboards,
+} from './lib/postgres/schema/index.js';
 import { generateShareToken } from './lib/tokens.js';
 
 /**
@@ -40,85 +42,61 @@ function dateFromNow(days: number): string {
 }
 
 /** German-profile demo users: the data below is English, the UI they see is German. */
-async function seedUsers(db: Firestore, timestamp: Timestamp) {
-  const users: [string, UserDoc][] = [
-    [
-      OWNER_UID,
-      {
-        email: 'mika.brandt@example.com',
-        displayName: 'Mika Brandt',
+async function seedUsers(tx: Transaction, timestamp: Date) {
+  const rows: (typeof users.$inferInsert)[] = [
+    [OWNER_UID, 'mika.brandt@example.com', 'Mika Brandt'],
+    [EDIT_COLLEAGUE_UID, 'nora.falk@example.com', 'Nora Falk'],
+    [VIEW_COLLEAGUE_UID, 'deniz.kilic@example.com', 'Deniz Kılıç'],
+  ].map(([id, email, displayName]) => ({
+    id: id!,
+    email: email!,
+    displayName: displayName!,
+    emailVerified: true,
+    language: 'de',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }));
+  await tx
+    .insert(users)
+    .values(rows)
+    .onConflictDoUpdate({
+      target: users.id,
+      set: {
+        email: sql`excluded.email`,
+        displayName: sql`excluded.display_name`,
         emailVerified: true,
         language: 'de',
-        createdAt: timestamp,
         updatedAt: timestamp,
       },
-    ],
-    [
-      EDIT_COLLEAGUE_UID,
-      {
-        email: 'nora.falk@example.com',
-        displayName: 'Nora Falk',
-        emailVerified: true,
-        language: 'de',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ],
-    [
-      VIEW_COLLEAGUE_UID,
-      {
-        email: 'deniz.kilic@example.com',
-        displayName: 'Deniz Kılıç',
-        emailVerified: true,
-        language: 'de',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ],
-  ];
-  await Promise.all(users.map(([id, user]) => usersCol(db).doc(id).set(user)));
+    });
 }
 
-async function seedMembers(db: Firestore, timestamp: Timestamp) {
-  const members: [string, MemberDoc][] = [
-    [
-      'seed-member-edit',
-      {
-        whiteboardId: BOARD_ID,
-        userId: EDIT_COLLEAGUE_UID,
-        invitedEmail: null,
-        role: 'EDIT',
-        status: 'ACTIVE',
-        invitedAt: timestamp,
-        activatedAt: timestamp,
-      },
-    ],
-    [
-      'seed-member-view',
-      {
-        whiteboardId: BOARD_ID,
-        userId: VIEW_COLLEAGUE_UID,
-        invitedEmail: null,
-        role: 'VIEW',
-        status: 'ACTIVE',
-        invitedAt: timestamp,
-        activatedAt: timestamp,
-      },
-    ],
-    [
-      'seed-member-pending',
-      {
-        whiteboardId: BOARD_ID,
-        userId: null,
-        invitedEmail: 'robin.vogt@example.com',
-        role: 'VIEW',
-        status: 'PENDING',
-        invitedAt: timestamp,
-        activatedAt: null,
-      },
-    ],
-  ];
-  await Promise.all(members.map(([id, member]) => membersCol(db, BOARD_ID).doc(id).set(member)));
+async function seedMembers(tx: Transaction, timestamp: Date) {
+  const rows: (typeof boardMembers.$inferInsert)[] = [
+    { id: 'seed-member-edit', userId: EDIT_COLLEAGUE_UID, role: 'EDIT', status: 'ACTIVE' },
+    { id: 'seed-member-view', userId: VIEW_COLLEAGUE_UID, role: 'VIEW', status: 'ACTIVE' },
+    {
+      id: 'seed-member-pending',
+      invitedEmail: 'robin.vogt@example.com',
+      role: 'VIEW',
+      status: 'PENDING',
+    },
+  ].map((member) => ({
+    userId: null,
+    invitedEmail: null,
+    ...member,
+    boardId: BOARD_ID,
+    invitedAt: timestamp,
+    activatedAt: member.status === 'ACTIVE' ? timestamp : null,
+  })) as (typeof boardMembers.$inferInsert)[];
+  // Re-created from the definition on every run, like the notes' children below.
+  await tx.delete(boardMembers).where(
+    inArray(
+      boardMembers.id,
+      rows.map((row) => row.id),
+    ),
+  );
+  await tx.insert(boardMembers).values(rows);
 }
 
 interface NoteSeed {
@@ -312,11 +290,20 @@ function buildNoteSeeds(): NoteSeed[] {
   ];
 }
 
-async function seedNotes(db: Firestore, timestamp: Timestamp) {
-  for (const seed of buildNoteSeeds()) {
-    const subtasks = seed.subtasks ?? [];
-    const note: NoteDoc = {
-      whiteboardId: BOARD_ID,
+async function seedNotes(tx: Transaction, timestamp: Date) {
+  const seeds = buildNoteSeeds();
+  // Notes are re-created from the seed definition on every run, children included — the
+  // simplest way to stay idempotent without a natural key per subtask or history event.
+  await tx.delete(notes).where(
+    inArray(
+      notes.id,
+      seeds.map((seed) => seed.id),
+    ),
+  );
+  for (const seed of seeds) {
+    await tx.insert(notes).values({
+      id: seed.id,
+      boardId: BOARD_ID,
       title: seed.title,
       status: seed.status,
       completedAt: seed.status === 'DONE' ? timestamp : null,
@@ -331,93 +318,118 @@ async function seedNotes(db: Firestore, timestamp: Timestamp) {
       colour: seed.colour,
       createdById: seed.createdById,
       revision: 1,
-      subtaskSummary: { total: subtasks.length, done: subtasks.filter((s) => s.done).length },
       createdAt: timestamp,
       updatedAt: timestamp,
-    };
-    await notesCol(db).doc(seed.id).set(note);
-
-    // Subtasks and history are re-derived from the seed definition on every run — the
-    // simplest way to stay idempotent without a natural key per child document.
-    await Promise.all([
-      db.recursiveDelete(subtasksCol(db, seed.id)),
-      db.recursiveDelete(historyCol(db, seed.id)),
-    ]);
-
-    const batch = db.batch();
-    subtasks.forEach((subtask, index) => {
-      batch.set(subtasksCol(db, seed.id).doc(), {
-        noteId: seed.id,
-        text: subtask.text,
-        done: subtask.done,
-        sortIndex: index,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
     });
-    batch.set(historyCol(db, seed.id).doc(), {
-      noteId: seed.id,
-      type: 'CREATED',
-      occurredAt: timestamp,
-      actorId: seed.createdById,
-      metadata: null,
-    });
-    if (seed.movedEvent) {
-      batch.set(historyCol(db, seed.id).doc(), {
+    const tasks = seed.subtasks ?? [];
+    if (tasks.length > 0)
+      await tx.insert(subtasks).values(
+        tasks.map((subtask, index) => ({
+          id: newId(),
+          noteId: seed.id,
+          text: subtask.text,
+          done: subtask.done,
+          sortIndex: index,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })),
+      );
+    await tx.insert(noteHistory).values([
+      {
+        id: newId(),
         noteId: seed.id,
-        type: 'MOVED',
+        type: 'CREATED',
         occurredAt: timestamp,
-        actorId: seed.assigneeId ?? seed.createdById,
-        metadata: seed.movedEvent.metadata,
-      });
-    }
-    await batch.commit();
+        actorId: seed.createdById,
+        metadata: null,
+      },
+      ...(seed.movedEvent
+        ? [
+            {
+              id: newId(),
+              noteId: seed.id,
+              type: 'MOVED' as const,
+              occurredAt: timestamp,
+              actorId: seed.assigneeId ?? seed.createdById,
+              metadata: seed.movedEvent.metadata,
+            },
+          ]
+        : []),
+    ]);
   }
 }
 
-async function main() {
-  const db = getDb();
-  const timestamp = now();
+/** Writes the demo board, its people and notes; safe to run again. Returns the share token. */
+export async function seedDemo(db: Database): Promise<string> {
+  return withTransaction(db, async (tx) => {
+    const timestamp = new Date();
+    await seedUsers(tx, timestamp);
 
-  // Keep whatever share token a previous run generated: the URL may already be in
-  // someone's clipboard, and a predictable literal has no business in source control.
-  const existingBoard = withId(await whiteboardsCol(db).doc(BOARD_ID).get());
-  const shareLinkToken = existingBoard?.shareLinkToken ?? generateShareToken();
+    const [existingBoard] = await tx.select().from(whiteboards).where(eq(whiteboards.id, BOARD_ID));
+    await tx
+      .insert(whiteboards)
+      .values({
+        id: BOARD_ID,
+        name: INITIAL_BOARD_NAME.de,
+        ownerId: OWNER_UID,
+        revision: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .onConflictDoUpdate({
+        target: whiteboards.id,
+        set: {
+          name: INITIAL_BOARD_NAME.de,
+          ownerId: OWNER_UID,
+          deletedAt: null,
+          revision: (existingBoard?.revision ?? 0) + 1,
+          updatedAt: timestamp,
+        },
+      });
 
-  await seedUsers(db, timestamp);
+    // Keep whatever share token a previous run generated: the URL may already be in
+    // someone's clipboard, and a predictable literal has no business in source control.
+    const [existingLink] = await tx
+      .select()
+      .from(shareLinks)
+      .where(eq(shareLinks.boardId, BOARD_ID));
+    const shareLinkToken = existingLink?.token ?? generateShareToken();
+    if (!existingLink)
+      await tx.insert(shareLinks).values({
+        token: shareLinkToken,
+        boardId: BOARD_ID,
+        role: 'VIEW',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
 
-  await whiteboardsCol(db)
-    .doc(BOARD_ID)
-    .set({
-      name: INITIAL_BOARD_NAME.de,
-      ownerId: OWNER_UID,
-      revision: (existingBoard?.revision ?? 0) + 1,
-      memberRoles: { [EDIT_COLLEAGUE_UID]: 'EDIT', [VIEW_COLLEAGUE_UID]: 'VIEW' },
-      shareLinkToken,
-      createdAt: existingBoard?.createdAt ?? timestamp,
-      updatedAt: timestamp,
-    });
-
-  await shareLinksCol(db).doc(shareLinkToken).set({
-    whiteboardId: BOARD_ID,
-    role: 'VIEW',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-
-  await seedMembers(db, timestamp);
-  await seedNotes(db, timestamp);
-
-  console.log('Seed complete:', {
-    board: INITIAL_BOARD_NAME.de,
-    owner: 'mika.brandt@example.com',
-    members: ['nora.falk@example.com', 'deniz.kilic@example.com'],
-    pendingInvite: 'robin.vogt@example.com',
-    shareLinkToken,
+    await seedMembers(tx, timestamp);
+    await seedNotes(tx, timestamp);
+    return shareLinkToken;
   });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+async function main() {
+  // Demo data belongs in a local database only, never in a hosted one.
+  assertLocalDatabase(process.env, 'The demo seed');
+  const { db, close } = createDatabase(loadEnv().DATABASE_URL);
+  try {
+    const shareLinkToken = await seedDemo(db);
+    console.log('Seed complete:', {
+      board: INITIAL_BOARD_NAME.de,
+      owner: 'mika.brandt@example.com',
+      members: ['nora.falk@example.com', 'deniz.kilic@example.com'],
+      pendingInvite: 'robin.vogt@example.com',
+      shareLinkToken,
+    });
+  } finally {
+    await close();
+  }
+}
+
+// Run only as a script, not when a test imports seedDemo.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });

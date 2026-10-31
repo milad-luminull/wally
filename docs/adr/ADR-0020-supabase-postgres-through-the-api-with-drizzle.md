@@ -4,6 +4,9 @@
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:** [ADR-0003](ADR-0003-firestore-reached-only-through-the-api.md)
+- **Amended 2026-10-31:** the hosted project is in Ireland (`eu-west-1`), not Frankfurt; the
+  owner kept the region the project was created in
+  ([RFC-0011](../rfcs/RFC-0011-platform-migration.md) section 8).
 
 ## Context and problem statement
 

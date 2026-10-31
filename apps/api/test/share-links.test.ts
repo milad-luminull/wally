@@ -1,22 +1,21 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { membersCol } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { boardMembers } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-share-links';
 
 describe('share-link routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -127,8 +126,8 @@ describe('share-link routes', () => {
       });
       expect(redeemed.statusCode).toBe(200);
 
-      const members = await membersCol(ctx.db, fx.boardId).count().get();
-      expect(members.data().count).toBe(2); // unchanged: still just the fixture's editor + viewer
+      const members = await ctx.db.$count(boardMembers, eq(boardMembers.boardId, fx.boardId));
+      expect(members).toBe(2); // unchanged: still just the fixture's editor + viewer
     });
   });
 });

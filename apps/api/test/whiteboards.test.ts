@@ -1,24 +1,24 @@
-import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { whiteboardsCol } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { whiteboards } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-whiteboards';
 
 describe('whiteboard routes', () => {
   let ctx: TestContext;
 
+  const loadBoard = async (id: string) =>
+    (await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, id)))[0];
+
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -101,32 +101,6 @@ describe('whiteboard routes', () => {
       expect(res.json().name).toBe('New name');
     });
 
-    it('replays a receipt written before assistantEnabled existed, reading it as false', async () => {
-      const fx = await createBoardFixture(ctx);
-      const revision = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.revision ?? 0;
-      const request = {
-        method: 'PATCH' as const,
-        url: `/whiteboards/${fx.boardId}`,
-        headers: {
-          ...ctx.authHeader(fx.ownerToken),
-          'idempotency-key': randomUUID(),
-          'x-expected-revision': String(revision),
-        },
-        payload: { name: 'New name' },
-      };
-      const first = await ctx.inject(request);
-      expect(first.statusCode).toBe(200);
-
-      // Make the stored receipt look like one written before this deploy.
-      await ctx.db
-        .doc(`users/${fx.ownerId}/boardOperations/${request.headers['idempotency-key']}`)
-        .update({ 'result.data.assistantEnabled': FieldValue.delete() });
-
-      const replay = await ctx.inject(request);
-      expect(replay.statusCode).toBe(200);
-      expect(replay.json()).toMatchObject({ name: 'New name', assistantEnabled: false });
-    });
-
     it('403s for an EDIT member', async () => {
       const fx = await createBoardFixture(ctx);
       const res = await ctx.inject({
@@ -172,9 +146,7 @@ describe('whiteboard routes', () => {
       });
       expect(off.statusCode).toBe(200);
       expect(off.json().assistantEnabled).toBe(false);
-      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.assistantDisabled).toBe(
-        true,
-      );
+      expect((await loadBoard(fx.boardId))?.assistantDisabled).toBe(true);
       const revisionAfterOff = off.json().revision;
 
       const on = await ctx.inject({
@@ -185,9 +157,7 @@ describe('whiteboard routes', () => {
       });
       expect(on.statusCode).toBe(200);
       expect(on.json().revision).toBe(revisionAfterOff + 1);
-      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.assistantDisabled).toBe(
-        false,
-      );
+      expect((await loadBoard(fx.boardId))?.assistantDisabled).toBe(false);
     });
 
     it('is a no-op when the value does not change', async () => {
@@ -224,9 +194,7 @@ describe('whiteboard routes', () => {
         });
         expect(res.statusCode).toBe(status);
       }
-      expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()).not.toHaveProperty(
-        'assistantDisabled',
-      );
+      expect((await loadBoard(fx.boardId))?.assistantDisabled).toBe(false);
     });
 
     it('rejects a body without a boolean', async () => {
@@ -394,7 +362,10 @@ describe('whiteboard routes', () => {
   describe('a tombstoned board', () => {
     async function tombstoned() {
       const fx = await createBoardFixture(ctx);
-      await whiteboardsCol(ctx.db).doc(fx.boardId).update({ deletedAt: Timestamp.now() });
+      await ctx.db
+        .update(whiteboards)
+        .set({ deletedAt: new Date() })
+        .where(eq(whiteboards.id, fx.boardId));
       return fx;
     }
 

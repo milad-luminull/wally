@@ -1,8 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp, registerTestUser, resetDatabase, type TestContext } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-rate-limit';
-
 /** Matches the per-route budget in src/routes/share-links.ts. */
 const REDEEM_LIMIT = 20;
 
@@ -10,15 +8,15 @@ describe('rate limiting', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 

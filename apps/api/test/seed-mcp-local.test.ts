@@ -1,32 +1,34 @@
-import { afterAll, beforeEach, expect, it } from 'vitest';
-import { getTestDb, resetDatabase } from './helpers.js';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { createTestDatabase, resetDatabase, type TestDatabase } from './helpers.js';
 import { seedMcpLocal } from '../src/lib/auth/local-mcp-seed.js';
 import { resolveIdentity } from '../src/lib/auth/identities.js';
-const project = 'wally-mcp-local-test';
-const db = getTestDb(project);
+import { mcpConnections, users, whiteboards } from '../src/lib/postgres/schema/index.js';
+let handle: TestDatabase;
+const env = { DATABASE_URL: process.env.DATABASE_URL, NODE_ENV: 'test' };
 const identity = { subject: 'google-oauth2|local-owner', email: 'owner@example.invalid' };
-beforeEach(() => resetDatabase(project));
-afterAll(() => db.terminate());
+beforeAll(async () => {
+  handle = await createTestDatabase();
+});
+beforeEach(() => resetDatabase(handle.db));
+afterAll(() => handle?.drop());
 it('creates synthetic boards idempotently without connecting an MCP client', async () => {
-  await seedMcpLocal(db, identity);
-  await seedMcpLocal(db, identity);
+  const { db } = handle;
+  await seedMcpLocal(db, identity, env);
+  await seedMcpLocal(db, identity, env);
   expect(
     await resolveIdentity(db, { issuer: 'https://login.luminull.com/', subject: identity.subject }),
   ).toBe('mcp-local-owner');
-  expect((await db.collection('whiteboards').get()).size).toBe(3);
-  expect(
-    (await db.collection('users').doc('mcp-local-owner').collection('mcpConnections').get()).empty,
-  ).toBe(true);
+  expect(await db.$count(whiteboards)).toBe(3);
+  expect(await db.$count(mcpConnections, eq(mcpConnections.userId, 'mcp-local-owner'))).toBe(0);
 });
-it('refuses another project before writing', async () => {
-  const other = getTestDb('wally-mcp-seed-wrong');
-  // A local emulator started with --import gives every untouched project that data.
-  await resetDatabase('wally-mcp-seed-wrong');
-  await expect(seedMcpLocal(other, identity)).rejects.toThrow('project');
-  expect((await other.collection('users').get()).empty).toBe(true);
-  await other.terminate();
-});
-it('refuses missing emulator configuration', async () => {
-  await expect(seedMcpLocal(db, identity, {})).rejects.toThrow('emulator');
-  expect((await db.collection('users').get()).empty).toBe(true);
+it.each([
+  ['a hosted database', { DATABASE_URL: 'postgres://u:p@db.abc.supabase.co:5432/postgres' }],
+  ['no database URL', { DATABASE_URL: undefined }],
+  ['a production process', { NODE_ENV: 'production' }],
+])('refuses %s before writing', async (_label, override) => {
+  await expect(seedMcpLocal(handle.db, identity, { ...env, ...override })).rejects.toThrow(
+    'requires a local database',
+  );
+  expect(await handle.db.$count(users)).toBe(0);
 });

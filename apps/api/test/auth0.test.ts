@@ -2,11 +2,19 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { buildApp } from '../src/app.js';
 import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
-import { createFakeAuthVerifier, createTestUser, getTestDb, resetDatabase } from './helpers.js';
-import { usersCol, whiteboardsCol } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import {
+  createFakeAuthVerifier,
+  createTestDatabase,
+  createTestUser,
+  resetDatabase,
+  type TestDatabase,
+} from './helpers.js';
+import type { Database } from '../src/lib/postgres/client.js';
+import { users, whiteboards } from '../src/lib/postgres/schema/index.js';
 
-const project = 'wally-test-auth0-boundary';
-const db = getTestDb(project);
+let handle: TestDatabase;
+let db: Database;
 const identity: VerifiedIdentity = {
   issuer: 'https://login.luminull.com/',
   subject: 'auth0|linked-user',
@@ -18,7 +26,8 @@ const auth0Token = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSO
 const firebase = createFakeAuthVerifier();
 let app: Awaited<ReturnType<typeof buildApp>>;
 beforeAll(async () => {
-  await resetDatabase(project);
+  handle = await createTestDatabase();
+  db = handle.db;
   app = await buildApp({
     db,
     logger: false,
@@ -32,11 +41,12 @@ beforeAll(async () => {
   });
 });
 afterEach(async () => {
-  await resetDatabase(project);
+  await resetDatabase(db);
   firebase.tokens.clear();
 });
 afterAll(async () => {
-  await app.close();
+  await app?.close();
+  await handle?.drop();
 });
 const getMe = (token = auth0Token) =>
   app.inject({ method: 'GET', url: '/me', headers: { authorization: `Bearer ${token}` } });
@@ -57,7 +67,7 @@ describe('Auth0 REST identity resolution', () => {
         headers: { authorization: `Bearer ${auth0Token}` },
       });
       expect(result.statusCode).toBe(401);
-      expect((await usersCol(db).get()).empty).toBe(true);
+      expect(await db.$count(users)).toBe(0);
     } finally {
       await disabled.close();
     }
@@ -71,20 +81,20 @@ describe('Auth0 REST identity resolution', () => {
       name: null,
     });
     expect((await getMe(invalid)).statusCode).toBe(401);
-    expect((await usersCol(db).get()).empty).toBe(true);
+    expect(await db.$count(users)).toBe(0);
   });
   it('does not recreate a linked user whose record is removed during a profile update', async () => {
     await createTestUser(db, 'deleted-during-request', identity.email);
     await bindKnownIdentity(db, identity, 'deleted-during-request');
-    const runTransaction = db.runTransaction.bind(db);
-    vi.spyOn(db, 'runTransaction').mockImplementationOnce(async (fn, options) => {
-      await usersCol(db).doc('deleted-during-request').delete();
-      return runTransaction(fn, options);
+    const transaction = db.transaction.bind(db);
+    vi.spyOn(db, 'transaction').mockImplementationOnce(async (fn, config) => {
+      await db.delete(users).where(eq(users.id, 'deleted-during-request'));
+      return transaction(fn, config);
     });
     try {
       expect((await getMe()).statusCode).toBe(403);
-      expect((await usersCol(db).get()).empty).toBe(true);
-      expect((await whiteboardsCol(db).get()).empty).toBe(true);
+      expect(await db.$count(users)).toBe(0);
+      expect(await db.$count(whiteboards)).toBe(0);
     } finally {
       vi.restoreAllMocks();
     }
@@ -94,12 +104,15 @@ describe('Auth0 REST identity resolution', () => {
     const result = await getMe();
     expect(result.statusCode).toBe(403);
     expect(result.json().error).toBe('IDENTITY_NOT_LINKED');
-    expect((await usersCol(db).get()).size).toBe(1);
-    expect((await whiteboardsCol(db).get()).empty).toBe(true);
+    expect(await db.$count(users)).toBe(1);
+    expect(await db.$count(whiteboards)).toBe(0);
   });
   it('uses the linked user ID and preserves preferences', async () => {
     await createTestUser(db, 'original-id', identity.email, 'Existing');
-    await usersCol(db).doc('original-id').update({ language: 'en', 'preferences.theme': 'dark' });
+    await db
+      .update(users)
+      .set({ language: 'en', preferences: { theme: 'dark' } })
+      .where(eq(users.id, 'original-id'));
     await bindKnownIdentity(db, identity, 'original-id');
     const result = await getMe();
     expect(result.statusCode).toBe(200);
@@ -108,8 +121,8 @@ describe('Auth0 REST identity resolution', () => {
       language: 'en',
       preferences: { theme: 'dark' },
     });
-    expect((await usersCol(db).get()).size).toBe(1);
-    expect((await whiteboardsCol(db).get()).empty).toBe(true);
+    expect(await db.$count(users)).toBe(1);
+    expect(await db.$count(whiteboards)).toBe(0);
   });
   it('refuses conflicting bindings and permits retries for the same account', async () => {
     await createTestUser(db, 'first', identity.email);
@@ -136,9 +149,9 @@ describe('Auth0 REST identity resolution', () => {
     });
     await createTestUser(db, 'existing', identity.email);
     await bindKnownIdentity(db, identity, 'existing');
-    await usersCol(db).doc('existing').delete();
+    await db.delete(users).where(eq(users.id, 'existing'));
     expect((await getMe()).statusCode).toBe(403);
-    expect((await usersCol(db).get()).empty).toBe(true);
+    expect(await db.$count(users)).toBe(0);
   });
   it('retains Firebase access and returns 401 for invalid credentials', async () => {
     firebase.tokens.set('firebase-token', {

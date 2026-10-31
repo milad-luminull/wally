@@ -57,10 +57,9 @@ RUN node -e "\
 "
 
 # -----------------------------------------------------------------------------------
-# prod — minimal runtime: compiled dist/ and production dependencies only. There is no
-# schema or migration step to ship: Firestore is schemaless, and the composite indexes
-# live in the repo root's firestore.indexes.json, deployed with the Firebase CLI rather
-# than by the server at boot.
+# prod — minimal runtime: compiled dist/, production dependencies and the SQL migrations.
+# The server never migrates at boot; the release runs `node dist/migrate-cli.js` from this
+# same image before the new revision starts (.github/workflows/release.yml).
 # -----------------------------------------------------------------------------------
 FROM node:22-slim AS prod
 ENV NODE_ENV=production
@@ -68,6 +67,8 @@ WORKDIR /app
 COPY --from=build /app/deploy/api/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/package.json ./package.json
+# dist/lib/postgres/migrate.js reads them from ../../../drizzle, which is /app/drizzle.
+COPY --from=build /app/apps/api/drizzle ./drizzle
 ENV PORT=4000
 EXPOSE 4000
 CMD ["node", "dist/server.js"]

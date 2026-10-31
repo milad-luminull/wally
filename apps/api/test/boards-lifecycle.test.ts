@@ -1,26 +1,52 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_OWN_BOARDS } from '@wally/shared';
+import { eq, inArray } from 'drizzle-orm';
 import { drainCleanup } from '../src/lib/commands/maintenance.js';
-import { membersCol, notesCol, shareLinksCol, whiteboardsCol } from '../src/lib/db/collections.js';
+import { liveBoard } from '../src/lib/db/records.js';
+import {
+  boardCleanup,
+  boardMembers,
+  notes,
+  shareLinks,
+  subtasks,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 /** RFC 0002 §8–§10, §12: creating, deleting and leaving boards. */
-const projectId = 'wally-boards-lifecycle';
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
 
 beforeAll(async () => {
-  ctx = await buildTestApp(projectId);
+  ctx = await buildTestApp();
 });
 beforeEach(async () => {
-  await resetDatabase(projectId);
+  await resetDatabase(ctx.db);
   fx = await createBoardFixture(ctx);
 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(async () => {
   await ctx.app.close();
 });
+
+const loadBoard = async (id: string) =>
+  (await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, id)))[0];
+const loadNote = async (id: string) =>
+  (await ctx.db.select().from(notes).where(eq(notes.id, id)))[0];
+const subtaskCount = (noteIds: string[]) =>
+  ctx.db.$count(subtasks, inArray(subtasks.noteId, noteIds));
+
+/**
+ * Fails the cleanup that runs after board.delete commits: the command's own transaction
+ * goes through, the next one (the inline cleanup job) is interrupted.
+ */
+function interruptCleanup() {
+  const original = ctx.db.transaction.bind(ctx.db);
+  vi.spyOn(ctx.db, 'transaction')
+    .mockImplementationOnce(original)
+    .mockRejectedValueOnce(new Error('interrupted'));
+}
 
 const create = (token: string, name = 'Project North', key = randomUUID()) =>
   ctx.app.inject({
@@ -119,8 +145,8 @@ describe('board.delete', () => {
       headers: owner,
       payload: { role: 'VIEW' },
     });
-    const token = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()!.shareLinkToken!;
-    expect(token).toBeTruthy();
+    const [link] = await ctx.db.select().from(shareLinks).where(eq(shareLinks.boardId, fx.boardId));
+    expect(link?.token).toBeTruthy();
 
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
 
@@ -133,23 +159,23 @@ describe('board.delete', () => {
       });
       expect(get.statusCode).toBe(404);
     }
-    expect((await shareLinksCol(ctx.db).doc(token).get()).exists).toBe(false);
+    expect(await ctx.db.$count(shareLinks, eq(shareLinks.token, link!.token))).toBe(0);
     // Cleanup ran inline after the commit; nothing is left for maintenance.
     expect(await drainCleanup(ctx.db)).toEqual({ completed: 0, pending: 0 });
-    expect((await notesCol(ctx.db).doc(note.id).get()).exists).toBe(false);
-    expect((await notesCol(ctx.db).doc(note.id).collection('subtasks').get()).size).toBe(0);
-    expect((await membersCol(ctx.db, fx.boardId).get()).size).toBe(0);
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+    expect(await loadNote(note.id)).toBeUndefined();
+    expect(await subtaskCount([note.id])).toBe(0);
+    expect(await ctx.db.$count(boardMembers, eq(boardMembers.boardId, fx.boardId))).toBe(0);
+    expect(await loadBoard(fx.boardId)).toBeUndefined();
   });
 
   it('keeps the job and the tombstone when cleanup fails, and a later drain finishes it', async () => {
-    vi.spyOn(ctx.db, 'recursiveDelete').mockRejectedValueOnce(new Error('interrupted'));
+    interruptCleanup();
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
-    expect((await ctx.db.collection('boardCleanup').get()).size).toBe(1);
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data()?.deletedAt).toBeTruthy();
+    expect(await ctx.db.$count(boardCleanup)).toBe(1);
+    expect((await loadBoard(fx.boardId))?.deletedAt).toBeTruthy();
     expect((await listIds(fx.ownerToken)).map((b) => b.id)).not.toContain(fx.boardId);
     expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+    expect(await loadBoard(fx.boardId)).toBeUndefined();
   });
 
   it('deletes a board with many notes, and a rerun finishes what a failure left', async () => {
@@ -173,18 +199,16 @@ describe('board.delete', () => {
           payload: { text: 'Part' },
         });
     }
-    // One note's deletion fails; the others go through.
-    vi.spyOn(ctx.db, 'recursiveDelete').mockRejectedValueOnce(new Error('interrupted'));
+    // The cleanup fails; the tombstoned board and its notes wait for the next drain.
+    interruptCleanup();
     expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
-    expect((await ctx.db.collection('boardCleanup').get()).size).toBe(1);
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(true);
+    expect(await ctx.db.$count(boardCleanup)).toBe(1);
+    expect(await loadBoard(fx.boardId)).toBeDefined();
 
     expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
-    const left = await notesCol(ctx.db).where('whiteboardId', '==', fx.boardId).get();
-    expect(left.size).toBe(0);
-    for (const id of ids)
-      expect((await notesCol(ctx.db).doc(id).collection('subtasks').get()).size).toBe(0);
-    expect((await whiteboardsCol(ctx.db).doc(fx.boardId).get()).exists).toBe(false);
+    expect(await ctx.db.$count(notes, eq(notes.boardId, fx.boardId))).toBe(0);
+    expect(await subtaskCount(ids)).toBe(0);
+    expect(await loadBoard(fx.boardId)).toBeUndefined();
   });
 
   it('refuses a stale revision and answers a retry after completion with 404', async () => {
@@ -259,8 +283,8 @@ describe('board.leave', () => {
       await ctx.inject({ method: 'GET', url: `/whiteboards/${fx.boardId}/members`, headers: owner })
     ).json() as { userId: string | null }[];
     expect(members.some((m) => m.userId === fx.editorId)).toBe(false);
-    expect((await notesCol(ctx.db).doc(note.id).get()).data()?.assigneeId).toBeNull();
-    const board = (await whiteboardsCol(ctx.db).doc(fx.boardId).get()).data();
+    expect((await loadNote(note.id))?.assigneeId).toBeNull();
+    const board = await liveBoard(ctx.db, fx.boardId);
     expect(board?.memberRoles[fx.editorId]).toBeUndefined();
   });
 

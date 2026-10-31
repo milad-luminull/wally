@@ -10,7 +10,7 @@ services:
       NODE_ENV: development
       PORT: 4502
       FIREBASE_PROJECT_ID: wally-mcp-local
-      FIRESTORE_EMULATOR_HOST: firestore:8080
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
       CORS_ORIGIN: http://localhost:5174
       AUTH0_ENABLED: 'true'
       AUTH0_SIGNUP_ENABLED: 'true'
@@ -31,25 +31,33 @@ services:
       - /app/packages/shared/node_modules
       - /app/packages/config/node_modules
     depends_on:
-      firestore:
-        condition: service_healthy
-  firestore:
+      migrate:
+        condition: service_completed_successfully
+  migrate:
     build:
       context: .
-      dockerfile: infra/firebase-emulator.Dockerfile
-    command: [firebase, 'emulators:start', --only, firestore, --project, wally-mcp-local]
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
+      FIREBASE_PROJECT_ID: wally-mcp-local
+    command: ['pnpm', '--filter', '@wally/api', 'db:migrate']
     volumes:
-      - ./firebase.json:/workspace/firebase.json:ro
-      - ./firestore.rules:/workspace/firestore.rules:ro
-      - ./firestore.indexes.json:/workspace/firestore.indexes.json:ro
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/config/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: supabase/postgres:17.11.0.003
+    environment:
+      POSTGRES_PASSWORD: postgres
     healthcheck:
-      test:
-        [
-          CMD,
-          node,
-          -e,
-          "fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+      test: ['CMD', 'pg_isready', '-U', 'postgres', '-h', 'localhost']
       interval: 5s
       timeout: 5s
       retries: 20

@@ -6,11 +6,18 @@ import { _resetEnvCacheForTests } from '../src/env.js';
 import { createAuth0Verifier } from '../src/lib/auth/auth0.js';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import * as grants from '../src/lib/mcp/grants.js';
 import { AppError } from '../src/lib/errors.js';
 import { buildApp } from '../src/app.js';
-import { createTestUser, getTestDb, resetDatabase } from './helpers.js';
+import {
+  addTestMember,
+  createTestDatabase,
+  createTestUser,
+  resetDatabase,
+  type TestDatabase,
+} from './helpers.js';
 import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import { connectAccount, revokeConnection } from '../src/lib/mcp/grants.js';
 import { runMcpTool, type McpToolContext } from '../src/lib/mcp/tools.js';
@@ -19,14 +26,21 @@ import {
   authorizeConnectionBoardInTransaction,
 } from '../src/lib/mcp/grants.js';
 import { consumeMcpWriteBudget } from '../src/lib/mcp/rate.js';
-import { notesCol, now, whiteboardsCol } from '../src/lib/db/collections.js';
+import type { Database } from '../src/lib/postgres/client.js';
+import {
+  boardMembers,
+  mcpConnections,
+  mcpLimits,
+  notes,
+  whiteboards,
+} from '../src/lib/postgres/schema/index.js';
 import { MCP_RESOURCE } from '../src/lib/auth/constants.js';
 import { MCP_METADATA_PATH, type McpRouteOptions } from '../src/routes/mcp.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 /** The horizon's spelling from before ADR-0024, refused like any unknown value. */
 const OLD = { horizon: 'SPAETER' } as const;
-const projectId = 'wally-mcp-http';
-const db = getTestDb(projectId);
+let handle: TestDatabase;
+let db: Database;
 let apps: FastifyInstance[];
 let identity: VerifiedIdentity;
 let grantId: string;
@@ -71,17 +85,28 @@ const rpc = (app: FastifyInstance, method: string, params: unknown = {}, extraHe
   });
 const call = (app: FastifyInstance, name: string, args: unknown) =>
   rpc(app, 'tools/call', { name, arguments: args });
+/** Hands the board to another owner, leaving the actor whatever membership the test adds. */
+async function transferBoard(boardId: string) {
+  await createTestUser(db, 'someone-else', 'someone-else@example.com');
+  await db.update(whiteboards).set({ ownerId: 'someone-else' }).where(eq(whiteboards.id, boardId));
+}
+beforeAll(async () => {
+  handle = await createTestDatabase();
+  db = handle.db;
+});
+afterAll(async () => {
+  await handle?.drop();
+});
 beforeEach(async () => {
   apps = [];
-  await resetDatabase(projectId);
+  await resetDatabase(db);
   await createTestUser(db, actor.id, actor.email);
-  const timestamp = now();
-  await whiteboardsCol(db).doc('board').set({
+  const timestamp = new Date();
+  await db.insert(whiteboards).values({
+    id: 'board',
     name: 'Board',
     ownerId: actor.id,
     revision: 1,
-    memberRoles: {},
-    shareLinkToken: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -118,19 +143,24 @@ describe('stateless MCP HTTP boundary', () => {
     expect(denied.statusCode).toBe(429);
     expect(denied.json().error).toBe('RATE_LIMITED');
     expect(denied.headers['retry-after']).toBe('60');
-    expect((await notesCol(db).get()).size).toBe(0);
+    expect(await db.$count(notes)).toBe(0);
   });
 
   it('connects from OAuth alone, dynamically inherits boards and preserves write/replay authorization', async () => {
-    await db.collection('users').doc(actor.id).collection('mcpConnections').doc(grantId).delete();
-    await whiteboardsCol(db).doc('board').update({ assistantDisabled: true });
+    await db.delete(mcpConnections).where(eq(mcpConnections.id, grantId));
+    await db
+      .update(whiteboards)
+      .set({ assistantDisabled: true })
+      .where(eq(whiteboards.id, 'board'));
     const app = await makeApp();
     const listed = (await call(app, 'list_boards', {})).json().result;
     expect(listed.structuredContent.data.map((board: { id: string }) => board.id)).toEqual([
       'board',
     ]);
-    const auto = (await db.collection('users').doc(actor.id).collection('mcpConnections').get())
-      .docs[0]!;
+    const [auto] = await db
+      .select()
+      .from(mcpConnections)
+      .where(eq(mcpConnections.userId, actor.id));
     const args = {
       boardId: 'board',
       operationId: randomUUID(),
@@ -139,24 +169,23 @@ describe('stateless MCP HTTP boundary', () => {
     const created = (await call(app, 'create_note', args)).json().result;
     expect(created.isError).not.toBe(true);
     expect((await call(app, 'create_note', args)).json().result).toEqual(created);
-    expect((await notesCol(db).get()).size).toBe(1);
-    const board = (await whiteboardsCol(db).doc('board').get()).data()!;
-    await whiteboardsCol(db)
-      .doc('new-board')
-      .set({ ...board, name: 'New board' });
+    expect(await db.$count(notes)).toBe(1);
+    const [board] = await db.select().from(whiteboards).where(eq(whiteboards.id, 'board'));
+    await db.insert(whiteboards).values({ ...board!, id: 'new-board', name: 'New board' });
     expect((await call(app, 'list_boards', {})).json().result.structuredContent.data).toHaveLength(
       2,
     );
-    await whiteboardsCol(db)
-      .doc('board')
-      .update({ ownerId: 'someone-else', memberRoles: { [actor.id]: 'VIEW' } });
+    await transferBoard('board');
+    await addTestMember(db, 'board', actor.id, 'VIEW');
     expect((await call(app, 'get_board', { boardId: 'board' })).json().result.isError).not.toBe(
       true,
     );
     expect((await call(app, 'create_note', args)).json().result.isError).toBe(true);
-    await whiteboardsCol(db).doc('board').update({ memberRoles: {} });
+    await db
+      .delete(boardMembers)
+      .where(and(eq(boardMembers.boardId, 'board'), eq(boardMembers.userId, actor.id)));
     expect((await call(app, 'get_board', { boardId: 'board' })).json().result.isError).toBe(true);
-    await revokeConnection(db, actor.id, auto.id);
+    await revokeConnection(db, actor.id, auto!.id);
     identity.issuedAt! += 100;
     expect((await rpc(app, 'tools/list')).statusCode).toBe(403);
   });
@@ -200,7 +229,7 @@ describe('stateless MCP HTTP boundary', () => {
     expect(resource.text).toContain('ui/initialize');
     expect(resource.text).not.toContain(created.data.id);
     expect(resource._meta.ui.csp).toMatchObject({ connectDomains: [], resourceDomains: [] });
-    expect((await notesCol(db).get()).size).toBe(1);
+    expect(await db.$count(notes)).toBe(1);
     await revokeConnection(db, actor.id, grantId);
     expect((await rpc(app, 'resources/read', { uri })).statusCode).toBe(403);
   });
@@ -314,8 +343,11 @@ describe('stateless MCP HTTP boundary', () => {
       { ...args, boardId: 'not-a-member', operationId: randomUUID() },
       'NOT_FOUND',
     );
-    expect((await notesCol(db).get()).size).toBe(1);
-    const note = (await notesCol(db).doc(first.structuredContent.data.id).get()).data();
+    expect(await db.$count(notes)).toBe(1);
+    const [note] = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, first.structuredContent.data.id));
     expect(note).toMatchObject({ title: 'Edited', revision: 2 });
     await revokeConnection(db, actor.id, grantId);
     expect((await call(app, 'update_note', update)).statusCode).toBe(403);
@@ -344,7 +376,7 @@ describe('stateless MCP HTTP boundary', () => {
     const result = CallToolResultSchema.parse(response.json().result);
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content)).toMatch(/invalid/i);
-    expect((await notesCol(db).doc(noteId).get()).data()).toMatchObject({
+    expect((await db.select().from(notes).where(eq(notes.id, noteId)))[0]).toMatchObject({
       horizon: 'TODAY',
       revision: 1,
     });
@@ -367,7 +399,7 @@ describe('stateless MCP HTTP boundary', () => {
       payload: '{bad json',
     });
     expect(malformed.statusCode).toBe(400);
-    expect((await notesCol(db).get()).size).toBe(0);
+    expect(await db.$count(notes)).toBe(0);
   });
 
   it('advertises the isolated local transport and accepts only its explicit Inspector origin', async () => {
@@ -474,7 +506,7 @@ describe('stateless MCP HTTP boundary', () => {
     const secondApp = await makeApp();
     const replay = await call(secondApp, 'create_note', args);
     expect(replay.json()).toEqual(first.json());
-    expect((await notesCol(db).get()).size).toBe(1);
+    expect(await db.$count(notes)).toBe(1);
     await revokeConnection(db, actor.id, grantId);
     expect((await call(secondApp, 'create_note', args)).statusCode).toBe(403);
   });
@@ -539,7 +571,7 @@ describe('stateless MCP HTTP boundary', () => {
     }
     const disabled = await call(await makeApp(), 'get_board', { boardId: 'board' });
     expect(disabled.json().result.isError).not.toBe(true);
-    expect((await notesCol(db).get()).size).toBe(0);
+    expect(await db.$count(notes)).toBe(0);
   });
   it.each(['revoke-new', 'revoke-replay', 'membership-new', 'membership-replay'])(
     'rechecks account-wide access inside the write transaction: %s',
@@ -555,14 +587,11 @@ describe('stateless MCP HTTP boundary', () => {
           await authorizeConnectionBoard(db, actor, upgraded.id, boardId, write, true);
           if (interrupt) {
             if (scenario.startsWith('revoke')) await revokeConnection(db, actor.id, upgraded.id);
-            else
-              await whiteboardsCol(db)
-                .doc(boardId)
-                .update({ ownerId: 'someone-else', memberRoles: {} });
+            else await transferBoard(boardId);
           }
         },
         authorizeWrite: (tx, boardId) =>
-          authorizeConnectionBoardInTransaction(db, tx, actor, upgraded.id, boardId, true, true),
+          authorizeConnectionBoardInTransaction(tx, actor, upgraded.id, boardId, true, true),
       };
       const args = {
         boardId: 'board',
@@ -575,7 +604,7 @@ describe('stateless MCP HTTP boundary', () => {
       await expect(runMcpTool(context, 'create_note', args)).rejects.toMatchObject({
         code: scenario.startsWith('revoke') ? 'MCP_CONSENT_REQUIRED' : 'NOT_FOUND',
       });
-      expect((await notesCol(db).get()).size).toBe(replay ? 1 : 0);
+      expect(await db.$count(notes)).toBe(replay ? 1 : 0);
     },
   );
   it('keeps the production Auth0 switch mandatory without a verifier test override', async () => {
@@ -595,6 +624,7 @@ describe('stateless MCP HTTP boundary', () => {
         await call(b, 'create_note', { boardId: 'board', operationId: randomUUID(), input: {} })
       ).json().result.structuredContent.error,
     ).toBe('RATE_LIMITED');
+    await createTestUser(db, 'separate-user', 'separate@example.com');
     await consumeMcpWriteBudget(db, 'separate-user', 'one', { user: 1, connection: 2 }, 100000);
     await expect(
       consumeMcpWriteBudget(db, 'separate-user', 'two', { user: 1, connection: 2 }, 100000),
@@ -602,12 +632,8 @@ describe('stateless MCP HTTP boundary', () => {
     await expect(
       consumeMcpWriteBudget(db, 'separate-user', 'two', { user: 1, connection: 2 }, 180000),
     ).resolves.toBeUndefined();
-    const counters = await db
-      .collection('users')
-      .doc('separate-user')
-      .collection('mcpLimits')
-      .get();
-    expect(counters.size).toBe(1);
-    expect(Object.keys(counters.docs[0]!.data().connections)).toHaveLength(1);
+    const counters = await db.select().from(mcpLimits).where(eq(mcpLimits.userId, 'separate-user'));
+    expect(counters).toHaveLength(1);
+    expect(Object.keys(counters[0]!.connections)).toHaveLength(1);
   });
 });

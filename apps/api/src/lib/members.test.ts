@@ -1,37 +1,40 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import {
   createTestBoard,
+  createTestDatabase,
   createTestMembership,
   createTestShareLink,
   createTestUser,
-  getTestDb,
   resetDatabase,
+  type TestDatabase,
 } from '../../test/helpers.js';
-import { docsWithId, membersCol, whiteboardsCol, withId } from './db/collections.js';
+import { liveBoard } from './db/records.js';
+import type { Database } from './postgres/client.js';
+import { boardMembers, whiteboards } from './postgres/schema/index.js';
 import { activatePendingInvitesForEmail } from './members.js';
 import { executeBoardCommand, type Actor } from './commands/index.js';
 import { randomUUID } from 'node:crypto';
-import type { Firestore } from 'firebase-admin/firestore';
 import type { WhiteboardRole, MemberDto, ShareLinkRedeemResult } from '@wally/shared';
 import { AppError } from './errors.js';
 
 // Exercise the real application commands; these fixtures only supply transport metadata.
-async function upsertInvite(db: Firestore, boardId: string, email: string, role: WhiteboardRole) {
-  const board = (await whiteboardsCol(db).doc(boardId).get()).data()!;
+async function upsertInvite(db: Database, boardId: string, email: string, role: WhiteboardRole) {
+  const [board] = await db.select().from(whiteboards).where(eq(whiteboards.id, boardId));
   const result = await executeBoardCommand(
     db,
-    { id: board.ownerId, email: 'owner@example.com', emailVerified: true },
+    { id: board!.ownerId, email: 'owner@example.com', emailVerified: true },
     { type: 'member.invite', boardId, input: { email, role } },
-    { operationId: randomUUID(), expectedRevision: board.revision ?? 0 },
+    { operationId: randomUUID(), expectedRevision: board!.revision },
   );
-  return withId(
-    await membersCol(db, boardId)
-      .doc((result.data as MemberDto).id)
-      .get(),
-  )!;
+  const [member] = await db
+    .select()
+    .from(boardMembers)
+    .where(eq(boardMembers.id, (result.data as MemberDto).id));
+  return member!;
 }
 async function redeemShareLink(
-  db: Firestore,
+  db: Database,
   token: string,
   actor: Actor,
 ): Promise<ShareLinkRedeemResult | null> {
@@ -50,18 +53,27 @@ async function redeemShareLink(
   }
 }
 
-const PROJECT_ID = 'wally-test-members-lib';
-
 describe('members business logic', () => {
-  const db = getTestDb(PROJECT_ID);
+  let handle: TestDatabase;
+  let db: Database;
 
-  beforeEach(async () => {
-    await resetDatabase(PROJECT_ID);
+  beforeAll(async () => {
+    handle = await createTestDatabase();
+    db = handle.db;
   });
 
-  const listMembers = async (boardId: string) => docsWithId(await membersCol(db, boardId).get());
-  const memberRoles = async (boardId: string) =>
-    (await withId(await whiteboardsCol(db).doc(boardId).get()))?.memberRoles;
+  afterAll(async () => {
+    await handle?.drop();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(db);
+  });
+
+  const listMembers = (boardId: string) =>
+    db.select().from(boardMembers).where(eq(boardMembers.boardId, boardId));
+  // The roles access checks read: one per user, from that board's ACTIVE member rows.
+  const memberRoles = async (boardId: string) => (await liveBoard(db, boardId))?.memberRoles;
 
   describe('upsertInvite', () => {
     it('creates a PENDING row when no User exists for that email', async () => {
@@ -74,7 +86,7 @@ describe('members business logic', () => {
       expect(member.userId).toBeNull();
       expect(member.invitedEmail).toBe('new-person@example.com');
       expect(member.role).toBe('VIEW');
-      // A pending invite grants nothing yet, so it must not reach the role cache.
+      // A pending invite grants nothing yet, so it must not give a role.
       expect(await memberRoles(board)).toEqual({});
     });
 
@@ -137,8 +149,8 @@ describe('members business logic', () => {
 
     it('prefers a verified user record over an unverified one with the same email', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
-      // Created first, so it sorts earlier by document id — limit(1) on the unordered
-      // equality query would have returned this one and stranded the invite as PENDING for
+      // Created first, so it sorts earlier by id — limit(1) on the unordered equality
+      // query would have returned this one and stranded the invite as PENDING for
       // a user whose record already exists, where the gated sweep never looks again.
       await createTestUser(db, 'aaa-squatter', 'invitee@example.com', null, false);
       await createTestUser(db, 'zzz-real', 'invitee@example.com');
@@ -163,7 +175,8 @@ describe('members business logic', () => {
         status: 'PENDING',
       });
       expect(await activatePendingInvitesForEmail(db, 'claimant', 'claimant@example.com')).toBe(0);
-      expect((await membersCol(db, board).doc(id).get()).data()?.userId).toBe('different-account');
+      const [member] = await db.select().from(boardMembers).where(eq(boardMembers.id, id));
+      expect(member?.userId).toBe('different-account');
       expect(await memberRoles(board)).toEqual({});
     });
 
@@ -197,7 +210,7 @@ describe('members business logic', () => {
     it('merges a pending invite into the row the user already has on that board', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       await createTestUser(db, 'alice', 'alice@example.com');
-      const board = await createTestBoard(db, 'owner', { alice: 'VIEW' });
+      const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, { userId: 'alice', role: 'VIEW', status: 'ACTIVE' });
       await createTestMembership(db, board, {
         invitedEmail: 'alice@example.com',
@@ -207,8 +220,8 @@ describe('members business logic', () => {
 
       await activatePendingInvitesForEmail(db, 'alice', 'alice@example.com');
 
-      // Two ACTIVE rows for one person desync memberRoles: removing one deletes the entry
-      // while the other still grants access.
+      // Two ACTIVE rows for one person list the board twice with conflicting roles, and
+      // removing one leaves the other still granting access.
       expect(await listMembers(board)).toHaveLength(1);
       // The owner's explicit invite is the authoritative grant, so its role wins the merge.
       expect(await memberRoles(board)).toEqual({ alice: 'EDIT' });
@@ -230,22 +243,6 @@ describe('members business logic', () => {
       const [member] = await listMembers(board);
       expect(member?.invitedEmail).toBeNull();
       expect(member?.userId).toBe('alice');
-    });
-
-    it('skips a pending invite whose board no longer exists', async () => {
-      await createTestUser(db, 'alice', 'alice@example.com');
-      // A member subcollection can outlive its parent document in Firestore.
-      await createTestMembership(db, 'vanished-board', {
-        invitedEmail: 'alice@example.com',
-        role: 'EDIT',
-        status: 'PENDING',
-      });
-
-      // A single batch would have failed the whole commit here — inside the auth hook, so
-      // every other board's activation would go down with it, on every request.
-      await expect(activatePendingInvitesForEmail(db, 'alice', 'alice@example.com')).resolves.toBe(
-        0,
-      );
     });
 
     it('drops a pending invite addressed to the board owner rather than making them a member', async () => {
@@ -310,7 +307,7 @@ describe('members business logic', () => {
     it('upgrades an existing VIEW membership when redeeming an EDIT link', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       await createTestUser(db, 'redeemer', 'r@example.com');
-      const board = await createTestBoard(db, 'owner', { redeemer: 'VIEW' });
+      const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
         userId: 'redeemer',
         role: 'VIEW',
@@ -327,7 +324,7 @@ describe('members business logic', () => {
     it('never downgrades an existing EDIT membership when redeeming a VIEW link', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       await createTestUser(db, 'redeemer', 'r@example.com');
-      const board = await createTestBoard(db, 'owner', { redeemer: 'EDIT' });
+      const board = await createTestBoard(db, 'owner');
       await createTestMembership(db, board, {
         userId: 'redeemer',
         role: 'EDIT',

@@ -1,23 +1,37 @@
 import { randomUUID } from 'node:crypto';
 import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createTestUser, getTestDb, resetDatabase } from '../../../test/helpers.js';
-import { notesCol, now, whiteboardsCol } from '../db/collections.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
+import {
+  createTestDatabase,
+  createTestUser,
+  resetDatabase,
+  type TestDatabase,
+} from '../../../test/helpers.js';
 import { AppError } from '../errors.js';
+import type { Database } from '../postgres/client.js';
+import { assistantAudit, notes, whiteboards } from '../postgres/schema/index.js';
 import { availableMcpTools, runMcpTool, type McpToolContext } from './tools.js';
 
-const projectId = 'wally-mcp-tools';
-const db = getTestDb(projectId);
+let handle: TestDatabase;
+let db: Database;
 let context: McpToolContext;
+beforeAll(async () => {
+  handle = await createTestDatabase();
+  db = handle.db;
+});
+afterAll(async () => {
+  await handle?.drop();
+});
 beforeEach(async () => {
-  await resetDatabase(projectId);
+  await resetDatabase(db);
   await createTestUser(db, 'owner', 'owner@example.com');
-  const timestamp = now();
-  await whiteboardsCol(db).doc('board').set({
+  await createTestUser(db, 'other', 'other@example.com');
+  const timestamp = new Date();
+  await db.insert(whiteboards).values({
+    id: 'board',
     name: 'Board',
-    shareLinkToken: null,
     ownerId: 'owner',
-    memberRoles: {},
     revision: 1,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -71,12 +85,10 @@ describe('MCP operations', () => {
     expect((await runMcpTool(context, 'list_boards', {})).data).toEqual([]);
   });
   it('discovers newly accessible boards and excludes nonmember boards', async () => {
-    const source = (await whiteboardsCol(db).doc('board').get()).data()!;
-    await whiteboardsCol(db)
-      .doc('second')
-      .set({ ...source, name: 'Second' });
+    const [source] = await db.select().from(whiteboards).where(eq(whiteboards.id, 'board'));
+    await db.insert(whiteboards).values({ ...source!, id: 'second', name: 'Second' });
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(2);
-    await whiteboardsCol(db).doc('second').update({ ownerId: 'other' });
+    await db.update(whiteboards).set({ ownerId: 'other' }).where(eq(whiteboards.id, 'second'));
     expect((await runMcpTool(context, 'list_boards', {})).data).toHaveLength(1);
     await expect(runMcpTool(context, 'get_board', { boardId: 'second' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -90,20 +102,24 @@ describe('MCP operations', () => {
     };
     const result = await runMcpTool(context, 'create_note', args);
     const id = (result.data as { id: string }).id;
-    await notesCol(db).doc(id).update({ visibility: 'PRIVATE', createdById: 'other' });
+    // A private note is its author's alone, so it is also assigned to them.
+    await db
+      .update(notes)
+      .set({ visibility: 'PRIVATE', createdById: 'other', assigneeId: 'other' })
+      .where(eq(notes.id, id));
     await expect(runMcpTool(context, 'create_note', args)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
-    expect((await notesCol(db).get()).size).toBe(1);
+    expect(await db.$count(notes)).toBe(1);
   });
   it('treats identical intentional creations with different IDs as separate actions', async () => {
     await create({ title: 'Same' });
     await create({ title: 'Same' });
-    expect((await notesCol(db).get()).size).toBe(2);
-    const audit = await db.collection('assistantAudit').get();
-    expect(audit.size).toBe(2);
-    for (const row of audit.docs)
-      expect(row.data()).toMatchObject({
+    expect(await db.$count(notes)).toBe(2);
+    const audit = await db.select().from(assistantAudit);
+    expect(audit).toHaveLength(2);
+    for (const row of audit)
+      expect(row).toMatchObject({
         via: 'mcp',
         connectionId: 'connection',
         actorId: 'owner',
@@ -119,17 +135,21 @@ describe('MCP operations', () => {
       await expect(runMcpTool(context, name, args)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     context.scopes = ['wally:read'];
     await expect(create()).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect((await notesCol(db).get()).size).toBe(0);
+    expect(await db.$count(notes)).toBe(0);
   });
   it('filters private notes, links and refuses wrong-board reads and writes', async () => {
     const shared = (await create({ title: 'Shared' })).data as { id: string };
     const privateNote = (await create({ title: 'Private', visibility: 'PRIVATE' })).data as {
       id: string;
     };
-    await notesCol(db).doc(privateNote.id).update({ createdById: 'other' });
-    await notesCol(db)
-      .doc(shared.id)
-      .update({ links: [privateNote.id] });
+    await db
+      .update(notes)
+      .set({ createdById: 'other', assigneeId: 'other' })
+      .where(eq(notes.id, privateNote.id));
+    await db
+      .update(notes)
+      .set({ links: [privateNote.id] })
+      .where(eq(notes.id, shared.id));
     expect((await runMcpTool(context, 'list_notes', { boardId: 'board' })).data).toMatchObject({
       notes: [{ id: shared.id, links: [] }],
     });
@@ -150,10 +170,10 @@ describe('MCP operations', () => {
   });
   it('traverses more than 100 notes with query-bound cursors and property filters', async () => {
     const sample = (await create({ customFields: { Customer: 'A' } })).data as { id: string };
-    const stored = (await notesCol(db).doc(sample.id).get()).data()!;
-    const batch = db.batch();
-    for (let i = 0; i < 105; i++) batch.set(notesCol(db).doc(`copy-${i}`), stored);
-    await batch.commit();
+    const [stored] = await db.select().from(notes).where(eq(notes.id, sample.id));
+    await db
+      .insert(notes)
+      .values(Array.from({ length: 105 }, (_, i) => ({ ...stored!, id: `copy-${i}` })));
     const args = { boardId: 'board', field: 'customer:a', visibility: 'SHARED' };
     const first = (await runMcpTool(context, 'list_notes', args)).data as {
       notes: { id: string }[];
@@ -176,8 +196,8 @@ describe('MCP operations', () => {
     const args = { boardId: 'board', operationId: randomUUID(), input: { title: 'Original' } };
     const first = await runMcpTool(context, 'create_note', args);
     expect(await runMcpTool(context, 'create_note', args)).toEqual(first);
-    expect((await notesCol(db).get()).size).toBe(1);
-    expect((await db.collection('assistantAudit').get()).size).toBe(1);
+    expect(await db.$count(notes)).toBe(1);
+    expect(await db.$count(assistantAudit)).toBe(1);
     await expect(
       runMcpTool(context, 'create_note', { ...args, input: { title: 'Changed' } }),
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });

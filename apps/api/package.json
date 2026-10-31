@@ -15,7 +15,9 @@
     "seed": "tsx src/seed.ts",
     "maintenance": "tsx src/maintenance.ts",
     "assistant:smoke": "tsx src/assistant-smoke.ts",
-    "assistant:capture-eval": "tsx src/capture-eval.ts"
+    "assistant:capture-eval": "tsx src/capture-eval.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate-cli.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "5.0.119",
@@ -24,16 +26,19 @@
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@wally/shared": "workspace:*",
     "ai": "7.0.148",
+    "drizzle-orm": "0.45.4",
     "fastify": "^5.12.7",
     "fastify-plugin": "^5.0.1",
     "fastify-type-provider-zod": "^4.0.2",
     "firebase-admin": "^13.0.2",
     "jose": "^6.2.13",
+    "postgres": "3.4.9",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "@wally/config": "workspace:*",
+    "drizzle-kit": "0.31.11",
     "eslint": "^9.17.0",
     "tsx": "^4.23.15",
     "typescript": "^5.7.2",

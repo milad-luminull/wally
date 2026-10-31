@@ -10,7 +10,7 @@ export interface AssistantProvenance {
   approvalId: string;
 }
 
-/** Audit records expire through a Firestore TTL policy on `expiresAt`, like receipts. */
+/** Audit records expire at `expiresAt` (purgeExpired), like receipts. */
 export const ASSISTANT_AUDIT_RETENTION_DAYS = 30;
 
 /** External caller provenance is supplied only by the authenticated MCP transport. */

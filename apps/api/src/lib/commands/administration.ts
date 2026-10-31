@@ -1,32 +1,24 @@
-import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import { and, eq, isNull } from 'drizzle-orm';
 import { MAX_OWN_BOARDS, type BoardCommand, type WhiteboardRole } from '@wally/shared';
+import { loadUsers } from '../db/records.js';
+import { newId } from '../db/ids.js';
+import type { MemberRow } from '../db/types.js';
+import type { Transaction } from '../postgres/transaction.js';
 import {
-  docsWithId,
-  isEmailVerified,
-  loadUsers,
-  membersCol,
-  now,
-  shareLinksCol,
-  stripId,
-  usersCol,
-  whiteboardsCol,
-  withId,
-} from '../db/collections.js';
-import type { MemberDoc, WhiteboardDoc, WithId } from '../db/types.js';
+  boardCleanup,
+  boardMembers,
+  shareLinks,
+  users,
+  whiteboards,
+} from '../postgres/schema/index.js';
 import { ownerMemberDto, toMemberDto, toShareLinkDto, toWhiteboardDto } from '../dto.js';
 import { AppError } from '../errors.js';
 import { strongestRole } from '../members.js';
 import { generateShareToken } from '../tokens.js';
-import {
-  notFound,
-  revisionOf,
-  type Actor,
-  type CommandContext,
-  type CommandResult,
-} from './context.js';
+import { notFound, type Actor, type CommandContext, type CommandResult } from './context.js';
 
 export function rolesFromMembers(
-  rows: WithId<MemberDoc>[],
+  rows: MemberRow[],
   ownerId: string,
 ): Record<string, WhiteboardRole> {
   const roles: Record<string, WhiteboardRole> = {};
@@ -46,31 +38,33 @@ export function rolesFromMembers(
  * ids; only the first board, provisioned with the user record, shares the user's uid.
  */
 export async function createBoard(
-  db: Firestore,
   tx: Transaction,
   actor: Actor,
   name: string,
 ): Promise<CommandResult> {
-  const owned = docsWithId(await tx.get(whiteboardsCol(db).where('ownerId', '==', actor.id)));
-  if (owned.filter((board) => !board.deletedAt).length >= MAX_OWN_BOARDS)
+  const owned = await tx.$count(
+    whiteboards,
+    and(eq(whiteboards.ownerId, actor.id), isNull(whiteboards.deletedAt)),
+  );
+  if (owned >= MAX_OWN_BOARDS)
     throw new AppError(422, 'BOARD_LIMIT_REACHED', `You can own at most ${MAX_OWN_BOARDS} boards`);
-  const ref = whiteboardsCol(db).doc();
-  const timestamp = now();
-  const doc: WhiteboardDoc = {
-    name,
-    ownerId: actor.id,
-    revision: 1,
-    memberRoles: {},
-    shareLinkToken: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-  tx.create(ref, doc);
+  const timestamp = new Date();
+  const [board] = await tx
+    .insert(whiteboards)
+    .values({
+      id: newId(),
+      name,
+      ownerId: actor.id,
+      revision: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning();
   return {
-    data: toWhiteboardDto({ ...doc, id: ref.id }, 'OWNER'),
+    data: toWhiteboardDto(board!, 'OWNER'),
     revision: 1,
     status: 201,
-    boardId: ref.id,
+    boardId: board!.id,
   };
 }
 
@@ -78,10 +72,9 @@ export async function executeAdminCommand(
   ctx: CommandContext,
   command: BoardCommand,
 ): Promise<CommandResult> {
-  const { db, tx, actor, board } = ctx;
-  const boardRef = whiteboardsCol(db).doc(board.id);
-  const timestamp = now();
-  const revision = revisionOf(board) + 1;
+  const { tx, actor, board } = ctx;
+  const timestamp = new Date();
+  const revision = board.revision + 1;
   const result = (
     data: unknown,
     status = 200,
@@ -94,12 +87,22 @@ export async function executeAdminCommand(
     boardId: board.id,
     ...(cleanupId ? { cleanupId } : {}),
   });
-  const updateBoard = (data: Record<string, unknown>) =>
-    tx.update(boardRef, { ...data, revision, updatedAt: timestamp });
+  const updateBoard = (data: Partial<typeof whiteboards.$inferInsert> = {}) =>
+    tx
+      .update(whiteboards)
+      .set({ ...data, revision, updatedAt: timestamp })
+      .where(eq(whiteboards.id, board.id));
+  const enqueueCleanup = (job: Omit<typeof boardCleanup.$inferInsert, 'id' | 'createdAt'>) => {
+    const cleanupId = `${actor.id}_${ctx.operationId}`;
+    return tx
+      .insert(boardCleanup)
+      .values({ ...job, id: cleanupId, createdAt: timestamp })
+      .then(() => cleanupId);
+  };
   if (command.type === 'board.rename') {
     if (command.input.name === board.name)
-      return result(toWhiteboardDto(board, 'OWNER'), 200, revisionOf(board));
-    updateBoard({ name: command.input.name });
+      return result(toWhiteboardDto(board, 'OWNER'), 200, board.revision);
+    await updateBoard({ name: command.input.name });
     return result(
       toWhiteboardDto(
         { ...board, name: command.input.name, updatedAt: timestamp, revision },
@@ -109,9 +112,9 @@ export async function executeAdminCommand(
   }
   if (command.type === 'board.assistant') {
     const disabled = !command.input.enabled;
-    if ((board.assistantDisabled === true) === disabled)
-      return result(toWhiteboardDto(board, 'OWNER'), 200, revisionOf(board));
-    updateBoard({ assistantDisabled: disabled });
+    if (board.assistantDisabled === disabled)
+      return result(toWhiteboardDto(board, 'OWNER'), 200, board.revision);
+    await updateBoard({ assistantDisabled: disabled });
     return result(
       toWhiteboardDto(
         { ...board, assistantDisabled: disabled, updatedAt: timestamp, revision },
@@ -121,17 +124,13 @@ export async function executeAdminCommand(
   }
 
   // Tombstone, withdraw the share link and enqueue the physical deletion, all in this commit.
-  // From here the board reads as absent for everyone (liveWhiteboard); the cleanup job removes
-  // its notes, members and document and can be resumed by maintenance (RFC 0002 §12.2).
+  // From here the board reads as absent for everyone (liveBoard); the cleanup job removes the
+  // board and everything that cascades with it, and can be resumed by maintenance
+  // (RFC 0002 §12.2).
   if (command.type === 'board.delete') {
-    const cleanupId = `${actor.id}_${ctx.operationId}`;
-    if (board.shareLinkToken) tx.delete(shareLinksCol(db).doc(board.shareLinkToken));
-    updateBoard({ deletedAt: timestamp, shareLinkToken: null });
-    tx.create(db.collection('boardCleanup').doc(cleanupId), {
-      kind: 'board.delete',
-      boardId: board.id,
-      createdAt: timestamp,
-    });
+    await tx.delete(shareLinks).where(eq(shareLinks.boardId, board.id));
+    await updateBoard({ deletedAt: timestamp });
+    const cleanupId = await enqueueCleanup({ kind: 'board.delete', boardId: board.id });
     return result(null, 204, revision, cleanupId);
   }
 
@@ -142,21 +141,21 @@ export async function executeAdminCommand(
     command.type === 'board.leave' ||
     command.type === 'link.redeem'
   ) {
-    const members = membersCol(db, board.id);
-    const rows = docsWithId(await tx.get(members));
+    const rows = await tx.select().from(boardMembers).where(eq(boardMembers.boardId, board.id));
     let nextRows = [...rows];
-    let next: WithId<MemberDoc> | undefined;
+    let next: MemberRow | undefined;
     let deletedUser: string | null = null;
     if (command.type === 'member.invite') {
-      const candidates = docsWithId(
-        await tx.get(usersCol(db).where('email', '==', command.input.email)),
-      );
-      const user = candidates.find(isEmailVerified);
+      const [user] = await tx
+        .select()
+        .from(users)
+        .where(and(eq(users.email, command.input.email), eq(users.emailVerified, true)))
+        .limit(1);
       if (user?.id === board.ownerId)
         return result(
-          ownerMemberDto(board, await loadUsers(db, [board.ownerId])),
+          ownerMemberDto(board, await loadUsers(tx, [board.ownerId])),
           200,
-          revisionOf(board),
+          board.revision,
         );
       const existing = rows.find(
         (row) =>
@@ -166,8 +165,8 @@ export async function executeAdminCommand(
       next = existing
         ? { ...existing, role: command.input.role }
         : {
-            id: members.doc().id,
-            whiteboardId: board.id,
+            id: newId(),
+            boardId: board.id,
             userId: null,
             invitedEmail: command.input.email,
             role: command.input.role,
@@ -185,9 +184,7 @@ export async function executeAdminCommand(
         };
       nextRows = [...rows.filter((row) => row.id !== next!.id), next];
     } else if (command.type === 'member.update' || command.type === 'member.delete') {
-      const existing = rows.find(
-        (row) => row.id === command.memberId && row.whiteboardId === board.id,
-      );
+      const existing = rows.find((row) => row.id === command.memberId);
       if (!existing || existing.userId === board.ownerId) notFound();
       nextRows = rows.filter((row) => row.id !== existing.id);
       if (command.type === 'member.update') {
@@ -195,21 +192,20 @@ export async function executeAdminCommand(
         nextRows.push(next);
       } else {
         deletedUser = existing.userId;
-        tx.delete(members.doc(existing.id));
+        await tx.delete(boardMembers).where(eq(boardMembers.id, existing.id));
       }
     } else if (command.type === 'board.leave') {
       // The caller's own ACTIVE rows only; requireAccess already proved they hold one.
       const own = rows.filter((row) => row.userId === actor.id && row.status === 'ACTIVE');
       if (own.length === 0) notFound();
       nextRows = rows.filter((row) => !own.includes(row));
-      for (const row of own) tx.delete(members.doc(row.id));
+      for (const row of own) await tx.delete(boardMembers).where(eq(boardMembers.id, row.id));
       deletedUser = actor.id;
     } else {
-      const link = withId(await tx.get(shareLinksCol(db).doc(command.token)));
-      if (!link || link.whiteboardId !== board.id || board.shareLinkToken !== command.token)
-        notFound();
+      const [link] = await tx.select().from(shareLinks).where(eq(shareLinks.token, command.token));
+      if (!link || link.boardId !== board.id) notFound();
       if (actor.id === board.ownerId)
-        return result({ whiteboardId: board.id, role: link.role }, 200, revisionOf(board));
+        return result({ whiteboardId: board.id, role: link.role }, 200, board.revision);
       const matching = rows.filter(
         (row) =>
           row.userId === actor.id ||
@@ -225,33 +221,34 @@ export async function executeAdminCommand(
       const role = strongestRole([link.role, ...claimable.map((row) => row.role)])!;
       const existing = matching[0];
       next = {
-        ...(existing ?? { id: members.doc().id, whiteboardId: board.id, invitedAt: timestamp }),
+        ...(existing ?? { id: newId(), boardId: board.id, invitedAt: timestamp }),
         userId: actor.id,
         invitedEmail: null,
         role,
         status: 'ACTIVE',
         activatedAt: existing?.activatedAt ?? timestamp,
       };
-      for (const duplicate of matching.slice(1)) tx.delete(members.doc(duplicate.id));
+      for (const duplicate of matching.slice(1))
+        await tx.delete(boardMembers).where(eq(boardMembers.id, duplicate.id));
       nextRows = [...rows.filter((row) => !matching.some((match) => match.id === row.id)), next];
     }
-    if (next) tx.set(members.doc(next.id), stripId(next));
-    const memberRoles = rolesFromMembers(nextRows, board.ownerId);
-    updateBoard({ memberRoles });
-    let cleanupId: string | undefined;
-    if (deletedUser && !memberRoles[deletedUser]) {
-      cleanupId = `${actor.id}_${ctx.operationId}`;
-      tx.create(db.collection('boardCleanup').doc(cleanupId), {
-        kind: 'member.remove',
-        boardId: board.id,
-        userId: deletedUser,
-        createdAt: timestamp,
+    if (next) {
+      const { userId, invitedEmail, role, status, activatedAt } = next;
+      await tx.insert(boardMembers).values(next).onConflictDoUpdate({
+        target: boardMembers.id,
+        set: { userId, invitedEmail, role, status, activatedAt },
       });
     }
+    const memberRoles = rolesFromMembers(nextRows, board.ownerId);
+    await updateBoard();
+    const cleanupId =
+      deletedUser && !memberRoles[deletedUser]
+        ? await enqueueCleanup({ kind: 'member.remove', boardId: board.id, userId: deletedUser })
+        : undefined;
     if (command.type === 'member.delete' || command.type === 'board.leave')
       return result(null, 204, revision, cleanupId);
     if (command.type === 'link.redeem') return result({ whiteboardId: board.id, role: next!.role });
-    return result(toMemberDto(next!, await loadUsers(db, [next!.userId])));
+    return result(toMemberDto(next!, await loadUsers(tx, [next!.userId])));
   }
 
   if (
@@ -260,34 +257,29 @@ export async function executeAdminCommand(
     command.type === 'link.rotate' ||
     command.type === 'link.delete'
   ) {
-    const existing = board.shareLinkToken
-      ? withId(await tx.get(shareLinksCol(db).doc(board.shareLinkToken)))
-      : null;
-    if (command.type === 'link.create' && board.shareLinkToken)
+    const [existing] = await tx.select().from(shareLinks).where(eq(shareLinks.boardId, board.id));
+    if (command.type === 'link.create' && existing)
       throw new AppError(409, 'SHARE_LINK_EXISTS', 'A share link already exists for this board');
-    if (command.type !== 'link.create' && (!existing || existing.whiteboardId !== board.id))
-      notFound();
+    if (command.type !== 'link.create' && !existing) notFound();
     if (command.type === 'link.delete') {
-      tx.delete(shareLinksCol(db).doc(existing!.id));
-      updateBoard({ shareLinkToken: null });
+      await tx.delete(shareLinks).where(eq(shareLinks.token, existing!.token));
+      await updateBoard();
       return result(null, 204);
     }
     if (command.type === 'link.update' && existing!.role === command.input.role)
-      return result(toShareLinkDto(existing!, ctx.baseUrl), 200, revisionOf(board));
-    const token = command.type === 'link.update' ? existing!.id : generateShareToken();
+      return result(toShareLinkDto(existing!, ctx.baseUrl), 200, board.revision);
     const link = {
-      whiteboardId: board.id,
+      token: command.type === 'link.update' ? existing!.token : generateShareToken(),
+      boardId: board.id,
       role: command.type === 'link.rotate' ? existing!.role : command.input.role,
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
-    if (command.type === 'link.rotate') tx.delete(shareLinksCol(db).doc(existing!.id));
-    tx.set(shareLinksCol(db).doc(token), link);
-    updateBoard({ shareLinkToken: token });
-    return result(
-      toShareLinkDto({ ...link, id: token }, ctx.baseUrl),
-      command.type === 'link.create' ? 201 : 200,
-    );
+    // One link per board: the old row goes before the new one takes its place.
+    if (existing) await tx.delete(shareLinks).where(eq(shareLinks.token, existing.token));
+    await tx.insert(shareLinks).values(link);
+    await updateBoard();
+    return result(toShareLinkDto(link, ctx.baseUrl), command.type === 'link.create' ? 201 : 200);
   }
   throw new Error('Not an administration command');
 }

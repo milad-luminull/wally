@@ -14,23 +14,22 @@ import type {
   WhiteboardDto,
 } from '@wally/shared';
 import type {
-  HistoryEventDoc,
-  MemberDoc,
-  NoteDoc,
-  ShareLinkDoc,
-  SubtaskDoc,
-  UserDoc,
-  WhiteboardDoc,
-  WithId,
+  HistoryRow,
+  MemberRow,
+  Note,
+  ShareLinkRow,
+  SubtaskRow,
+  UserRow,
+  WhiteboardRow,
 } from './db/types.js';
-import { toIso, toIsoOrNull } from './db/collections.js';
+import { toIso, toIsoOrNull } from './db/records.js';
 import { loadEnv } from '../env.js';
 import { assistantEnabledFor } from './assistant/switch.js';
 
 /** Users referenced by the documents being mapped, keyed by id — see loadUsers. */
-export type UserMap = Map<string, WithId<UserDoc>>;
+export type UserMap = Map<string, UserRow>;
 
-function toUserSummary(user: WithId<UserDoc> | null | undefined): UserSummary | null {
+function toUserSummary(user: UserRow | null | undefined): UserSummary | null {
   if (!user) return null;
   return { id: user.id, email: user.email, displayName: user.displayName };
 }
@@ -38,14 +37,11 @@ function toUserSummary(user: WithId<UserDoc> | null | undefined): UserSummary | 
 /**
  * The caller's own profile.
  *
- * Takes its fields structurally rather than a WithId<UserDoc> so both call sites can use it
+ * Takes its fields structurally rather than a UserRow so both call sites can use it
  * without a redundant read: GET /me maps the already decorated `request.user` (the auth
  * preHandler read that document a moment ago) and PATCH /me maps the state it has just
  * written. Structural rather than `AuthenticatedUser` on purpose — lib/ importing a type out
  * of plugins/ would invert the layering, since plugins/ already imports lib/.
- *
- * Note a raw WithId<UserDoc> does NOT satisfy this at runtime: `language` may be absent. That
- * is the point — callers must pass a value that has been through userLanguage().
  */
 export function toMeDto(user: {
   id: string;
@@ -67,7 +63,7 @@ function lookup(users: UserMap, id: string | null): UserSummary | null {
   return id ? toUserSummary(users.get(id)) : null;
 }
 
-export function toSubtaskDto(subtask: WithId<SubtaskDoc>): SubtaskDto {
+export function toSubtaskDto(subtask: SubtaskRow): SubtaskDto {
   return {
     id: subtask.id,
     noteId: subtask.noteId,
@@ -79,14 +75,14 @@ export function toSubtaskDto(subtask: WithId<SubtaskDoc>): SubtaskDto {
   };
 }
 
-function toSubtaskSummary(subtasks: WithId<SubtaskDoc>[]): SubtaskSummary {
+function toSubtaskSummary(subtasks: SubtaskRow[]): SubtaskSummary {
   return {
     total: subtasks.length,
     done: subtasks.filter((s) => s.done).length,
   };
 }
 
-function toHistoryEventDto(event: WithId<HistoryEventDoc>, users: UserMap): HistoryEventDto {
+function toHistoryEventDto(event: HistoryRow, users: UserMap): HistoryEventDto {
   return {
     id: event.id,
     type: event.type,
@@ -96,13 +92,13 @@ function toHistoryEventDto(event: WithId<HistoryEventDoc>, users: UserMap): Hist
   };
 }
 
-export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
+export function toNoteDto(note: Note, users: UserMap): NoteDto {
   return {
     id: note.id,
-    whiteboardId: note.whiteboardId,
-    revision: note.revision ?? 0,
+    whiteboardId: note.boardId,
+    revision: note.revision,
     title: note.title,
-    description: note.description ?? '',
+    description: note.description,
     status: note.status,
     completedAt: toIsoOrNull(note.completedAt),
     priority: note.priority,
@@ -111,13 +107,11 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
     freeY: note.freeY,
     dueDate: note.dueDate,
     assignee: lookup(users, note.assigneeId),
-    // Notes written before custom fields existed have no such field at all, and the
-    // 200-response schema requires an object.
-    customFields: note.customFields ?? {},
+    customFields: note.customFields,
     tags: note.tags,
-    links: note.links ?? [],
+    links: note.links,
     colour: note.colour,
-    visibility: note.visibility ?? 'SHARED',
+    visibility: note.visibility,
     subtaskSummary: note.subtaskSummary,
     createdBy: lookup(users, note.createdById),
     createdAt: toIso(note.createdAt),
@@ -125,14 +119,11 @@ export function toNoteDto(note: WithId<NoteDoc>, users: UserMap): NoteDto {
   };
 }
 
-/**
- * The detail view has the real subtasks in hand, so it recomputes the summary rather than
- * trusting the denormalized counter on the note — which quietly repairs any drift.
- */
+/** The detail view has the subtasks in hand, so it counts them itself. */
 export function toNoteDetailDto(
-  note: WithId<NoteDoc>,
-  subtasks: WithId<SubtaskDoc>[],
-  history: WithId<HistoryEventDoc>[],
+  note: Note,
+  subtasks: SubtaskRow[],
+  history: HistoryRow[],
   users: UserMap,
 ): NoteDetailDto {
   return {
@@ -140,20 +131,20 @@ export function toNoteDetailDto(
     subtaskSummary: toSubtaskSummary(subtasks),
     subtasks: [...subtasks].sort((a, b) => a.sortIndex - b.sortIndex).map(toSubtaskDto),
     history: [...history]
-      .sort((a, b) => b.occurredAt.toMillis() - a.occurredAt.toMillis())
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
       .map((event) => toHistoryEventDto(event, users)),
   };
 }
 
 export function toWhiteboardDto(
-  whiteboard: WithId<WhiteboardDoc>,
+  whiteboard: WhiteboardRow,
   currentUserRole: EffectiveRole,
 ): WhiteboardDto {
   return {
     id: whiteboard.id,
     name: whiteboard.name,
     ownerId: whiteboard.ownerId,
-    revision: whiteboard.revision ?? 0,
+    revision: whiteboard.revision,
     currentUserRole,
     assistantEnabled: assistantEnabledFor(loadEnv(), whiteboard),
     createdAt: toIso(whiteboard.createdAt),
@@ -161,7 +152,7 @@ export function toWhiteboardDto(
   };
 }
 
-export function toMemberDto(member: WithId<MemberDoc>, users: UserMap): MemberDto {
+export function toMemberDto(member: MemberRow, users: UserMap): MemberDto {
   const user = member.userId ? users.get(member.userId) : undefined;
   const email = user?.email ?? member.invitedEmail;
   if (!email) {
@@ -179,16 +170,19 @@ export function toMemberDto(member: WithId<MemberDoc>, users: UserMap): MemberDt
 }
 
 /**
- * The board owner as a member row. No such document exists — a board records its owner in
+ * The board owner as a member row. No such row exists — a board records its owner in
  * `ownerId`, and an invite addressed to the owner is deleted rather than stored (see
  * lib/members.ts). Without this the members list comes back empty on a board nobody has been
  * invited to, which is every personal board: the assignee picker then offers "Niemand" and
  * nothing else, so a note could never be assigned, not even to yourself.
  *
- * The `owner:` prefix cannot collide with a Firestore auto-id, so the member PATCH/DELETE
- * routes 404 on it without needing a guard of their own.
+ * The `owner:` prefix cannot collide with a generated id (newId is alphanumeric), so the
+ * member PATCH/DELETE routes 404 on it without needing a guard of their own.
  */
-export function ownerMemberDto(board: WithId<WhiteboardDoc>, users: UserMap): MemberDto {
+export function ownerMemberDto(
+  board: Pick<WhiteboardRow, 'id' | 'ownerId'>,
+  users: UserMap,
+): MemberDto {
   const user = users.get(board.ownerId);
   if (!user) {
     throw new Error(`Whiteboard ${board.id} has no user record for owner ${board.ownerId}`);
@@ -203,10 +197,10 @@ export function ownerMemberDto(board: WithId<WhiteboardDoc>, users: UserMap): Me
   };
 }
 
-export function toShareLinkDto(shareLink: WithId<ShareLinkDoc>, baseUrl: string): ShareLinkDto {
+export function toShareLinkDto(shareLink: ShareLinkRow, baseUrl: string): ShareLinkDto {
   return {
-    token: shareLink.id,
+    token: shareLink.token,
     role: shareLink.role,
-    url: `${baseUrl.replace(/\/$/, '')}/share/${shareLink.id}`,
+    url: `${baseUrl.replace(/\/$/, '')}/share/${shareLink.token}`,
   };
 }

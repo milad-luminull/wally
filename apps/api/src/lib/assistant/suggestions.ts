@@ -1,6 +1,6 @@
 import { assertAssistantBoardActive, assertAssistantNotesActive } from './guards.js';
 import { randomUUID } from 'node:crypto';
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { and, eq, inArray } from 'drizzle-orm';
 import type {
   CaptureSuggestRequest,
   EffectiveRole,
@@ -24,22 +24,12 @@ import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
 import { notFound } from '../commands/context.js';
-import {
-  assistantSuggestionsCol,
-  docsWithId,
-  loadUsers,
-  notesCol,
-  stripId,
-  toIso,
-  withId,
-} from '../db/collections.js';
-import type {
-  AssistantSuggestionDoc,
-  NoteDoc,
-  SuggestionOperationIds,
-  WhiteboardDoc,
-  WithId,
-} from '../db/types.js';
+import { loadUsers, toIso, type Queryable } from '../db/records.js';
+import { newId } from '../db/ids.js';
+import type { AssistantSuggestionRow, Board, SuggestionOperationIds } from '../db/types.js';
+import type { Database } from '../postgres/client.js';
+import { withTransaction } from '../postgres/transaction.js';
+import { assistantSuggestions, notes as notesTable } from '../postgres/schema/index.js';
 import { AppError } from '../errors.js';
 import { canSeeNote, isValidAssignee } from '../notes.js';
 import {
@@ -71,7 +61,7 @@ export const SUGGESTION_PENDING_MAX_AGE_MS = 24 * 3_600_000;
 
 /** What a decision and the pending list need; neither calls the model. */
 export interface SuggestionDeps {
-  db: Firestore;
+  db: Database;
   env: Env;
   logger?: CommandLogger;
   now?: () => Date;
@@ -84,7 +74,7 @@ export interface CaptureDeps extends SuggestionDeps {
 export interface SuggestionContext {
   actor: Actor;
   language: Language;
-  board: WithId<WhiteboardDoc>;
+  board: Board;
   role: EffectiveRole;
 }
 
@@ -121,7 +111,7 @@ const TYPED_KEYS: readonly SuggestionFieldKey[] = ['dueDate', 'priority', 'assig
 /** Each value once, first occurrence first. */
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
-const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionFieldKey[] =>
+const proposedKeys = (fields: AssistantSuggestionRow['fields']): SuggestionFieldKey[] =>
   // A slice 2 record has no title, reference or subtasks at all: absent reads as nothing proposed.
   suggestionFieldKeys.filter((key) => (fields[key] ?? null) !== null);
 
@@ -131,19 +121,42 @@ const proposedKeys = (fields: AssistantSuggestionDoc['fields']): SuggestionField
  * what the card shows and from what a keep writes.
  */
 function liveFields(
-  board: WithId<WhiteboardDoc>,
-  fields: AssistantSuggestionDoc['fields'],
-): AssistantSuggestionDoc['fields'] {
+  board: Board,
+  fields: AssistantSuggestionRow['fields'],
+): AssistantSuggestionRow['fields'] {
   return fields.assignee && !isValidAssignee(board, fields.assignee.value)
     ? { ...fields, assignee: null }
     : fields;
 }
 
+/** The fields a suggestion needs of the notes it names. */
+const notesById = (q: Queryable, ids: string[]) =>
+  q
+    .select({
+      id: notesTable.id,
+      boardId: notesTable.boardId,
+      title: notesTable.title,
+      deletedAt: notesTable.deletedAt,
+      visibility: notesTable.visibility,
+      createdById: notesTable.createdById,
+      revision: notesTable.revision,
+    })
+    .from(notesTable)
+    .where(inArray(notesTable.id, ids));
+
+const suggestionOf = async (q: Queryable, userId: string, id: string) =>
+  (
+    await q
+      .select()
+      .from(assistantSuggestions)
+      .where(and(eq(assistantSuggestions.userId, userId), eq(assistantSuggestions.id, id)))
+  )[0];
+
 async function toDto(
-  db: Firestore,
-  board: WithId<WhiteboardDoc>,
+  db: Database,
+  board: Board,
   ownerId: string,
-  doc: WithId<AssistantSuggestionDoc>,
+  doc: AssistantSuggestionRow,
 ): Promise<SuggestionDto> {
   const live = liveFields(board, doc.fields);
   const users = await loadUsers(db, [live.assignee?.value]);
@@ -153,16 +166,13 @@ async function toDto(
   // Each item keeps the index it has in the stored record, so a keep and its echo (`kept.links`)
   // name the same items however many dropped out.
   const linkIds = live.links?.items.map((item) => item.noteId) ?? [];
-  const targets = linkIds.length
-    ? await db.getAll(...linkIds.map((id) => notesCol(db).doc(id)))
-    : [];
+  const targets = linkIds.length ? await notesById(db, linkIds) : [];
   const titles = new Map(
-    targets.flatMap((snap) => {
-      const data = snap.data() as NoteDoc | undefined;
-      return data && !data.deletedAt && data.whiteboardId === board.id && canSeeNote(data, ownerId)
-        ? [[snap.id, data.title]]
-        : [];
-    }),
+    targets.flatMap((target) =>
+      !target.deletedAt && target.boardId === board.id && canSeeNote(target, ownerId)
+        ? [[target.id, target.title]]
+        : [],
+    ),
   );
   const links = live.links
     ? {
@@ -301,12 +311,13 @@ export async function suggestForCapture(
   if (!fields) return null;
 
   const now = clock();
-  const stamp = Timestamp.fromDate(now);
-  const doc: AssistantSuggestionDoc = {
+  const doc: AssistantSuggestionRow = {
+    id: newId(),
+    userId: actor.id,
     boardId: board.id,
     noteId: note.id,
     baseRevision: note.revision,
-    ...(fields.title ? { baseTitle: note.title } : {}),
+    baseTitle: fields.title ? note.title : null,
     fields,
     // The chips' fields the person set, each once (R4); the title is in the first group anyway.
     typed: suggestionFieldKeys.filter(
@@ -322,27 +333,26 @@ export async function suggestForCapture(
       inputTokens: output.usage?.inputTokens ?? 0,
       outputTokens: output.usage?.outputTokens ?? 0,
     },
-    createdAt: stamp,
-    updatedAt: stamp,
-    expiresAt: Timestamp.fromMillis(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: new Date(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
   };
-  const ref = assistantSuggestionsCol(db, actor.id).doc();
-  await db.runTransaction(async (tx) => {
-    await assertAssistantBoardActive(db, actor.id, board.id, tx, board.revision ?? 0);
-    await assertAssistantNotesActive(db, actor.id, board.id, tx, [note, ...boardNotes]);
-    tx.create(ref, doc);
+  await withTransaction(db, async (tx) => {
+    await assertAssistantBoardActive(tx, actor.id, board.id, board.revision);
+    await assertAssistantNotesActive(tx, actor.id, board.id, [note, ...boardNotes]);
+    await tx.insert(assistantSuggestions).values(doc);
   });
-  return toDto(db, board, actor.id, { ...doc, id: ref.id });
+  return toDto(db, board, actor.id, doc);
 }
 
 /** The caller's own record on this board, or 404 (the access recheck of RFC-0003-wally-agent.md §3.4). */
 async function loadSuggestion(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   boardId: string,
   id: string,
-): Promise<WithId<AssistantSuggestionDoc>> {
-  const doc = withId(await assistantSuggestionsCol(db, actor.id).doc(id).get());
+): Promise<AssistantSuggestionRow> {
+  const doc = await suggestionOf(db, actor.id, id);
   if (!doc || doc.boardId !== boardId) notFound();
   return doc;
 }
@@ -353,12 +363,12 @@ async function loadSuggestion(
  * the record as it stands after the claim and whether this call made it.
  */
 async function claim(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   boardId: string,
   id: string,
-  from: AssistantSuggestionDoc['status'],
-  to: AssistantSuggestionDoc['status'],
+  from: AssistantSuggestionRow['status'],
+  to: AssistantSuggestionRow['status'],
   decision: {
     source: string;
     fields: SuggestionFieldKey[];
@@ -368,27 +378,22 @@ async function claim(
     properties?: number[];
   },
   now: Date,
-): Promise<{ doc: WithId<AssistantSuggestionDoc>; claimed: boolean }> {
+): Promise<{ doc: AssistantSuggestionRow; claimed: boolean }> {
   // An undo is recorded beside the keep, so the keep's own decision (its source and fields)
   // stays on the record after the undo.
-  const field = to === 'UNDONE' ? 'undone' : 'decision';
-  const ref = assistantSuggestionsCol(db, actor.id).doc(id);
-  return db.runTransaction(async (tx) => {
-    const current = withId(await tx.get(ref));
+  const at = now.toISOString();
+  return withTransaction(db, async (tx) => {
+    const current = await suggestionOf(tx, actor.id, id);
     if (!current || current.boardId !== boardId) notFound();
-    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
+    await assertAssistantBoardActive(tx, actor.id, current.boardId);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
-    const next: WithId<AssistantSuggestionDoc> = {
-      ...current,
-      status: to,
-      ...(field === 'undone'
-        ? { undone: { source: decision.source, at: Timestamp.fromDate(now) } }
-        : { decision: { ...decision, at: Timestamp.fromDate(now) } }),
-      updatedAt: Timestamp.fromDate(now),
-    };
-    tx.set(ref, stripId(next));
-    return { doc: next, claimed: true };
+    const changes =
+      to === 'UNDONE'
+        ? { status: to, undone: { source: decision.source, at }, updatedAt: now }
+        : { status: to, decision: { ...decision, at }, updatedAt: now };
+    await tx.update(assistantSuggestions).set(changes).where(eq(assistantSuggestions.id, id));
+    return { doc: { ...current, ...changes }, claimed: true };
   });
 }
 
@@ -465,7 +470,7 @@ type FieldValues = {
   properties: { set: Record<string, string> } | { remove: string[] };
   description: string;
 };
-type Applied = NonNullable<AssistantSuggestionDoc['applied']>;
+type Applied = NonNullable<AssistantSuggestionRow['applied']>;
 
 /**
  * What a proposed date, priority or person held at `baseRevision`. One is proposed only when
@@ -480,7 +485,7 @@ const EMPTY = { dueDate: null, priority: 'MEDIUM', assigneeId: null } as const s
  * What a keep writes: the proposed values (a field that is not kept is never read). The links
  * are every proposed one; a keep writes only the ticked ones (`keptLinkIds`).
  */
-function proposedValues(doc: AssistantSuggestionDoc, actorId: string): FieldValues {
+function proposedValues(doc: AssistantSuggestionRow, actorId: string): FieldValues {
   const { fields } = doc;
   return {
     dueDate: fields.dueDate?.value ?? EMPTY.dueDate,
@@ -505,12 +510,12 @@ function proposedValues(doc: AssistantSuggestionDoc, actorId: string): FieldValu
 }
 
 /** The tags and properties the ticked indexes name, in the order of `indexes`. */
-const keptTags = (doc: AssistantSuggestionDoc, indexes: number[]): string[] =>
+const keptTags = (doc: AssistantSuggestionRow, indexes: number[]): string[] =>
   indexes.flatMap((index) => {
     const tag = doc.fields.tags?.items[index];
     return tag ? [tag] : [];
   });
-const keptProperties = (doc: AssistantSuggestionDoc, indexes: number[]) =>
+const keptProperties = (doc: AssistantSuggestionRow, indexes: number[]) =>
   indexes.flatMap((index) => {
     const item = doc.fields.properties?.items[index];
     return item ? [item] : [];
@@ -521,7 +526,7 @@ const keptProperties = (doc: AssistantSuggestionDoc, indexes: number[]) =>
  * The note had none of these at the base (L3, R7), so writing and removing them is exact.
  */
 function keptValues(
-  doc: AssistantSuggestionDoc,
+  doc: AssistantSuggestionRow,
   actorId: string,
   picked: { links: number[]; tags: number[]; properties: number[] },
 ): FieldValues {
@@ -536,7 +541,7 @@ function keptValues(
 }
 
 /** The ids the ticked links name, in the order of `indexes` (ascending). */
-const keptLinkIds = (doc: AssistantSuggestionDoc, indexes: number[]): string[] =>
+const keptLinkIds = (doc: AssistantSuggestionRow, indexes: number[]): string[] =>
   indexes.flatMap((index) => {
     const id = doc.fields.links?.items[index]?.noteId;
     return id ? [id] : [];
@@ -598,7 +603,7 @@ function propertyValue(fields: Record<string, string>, key: string): string | nu
  * gets no reference proposed (R7), so the key held nothing at the base otherwise.
  */
 function beforeKeep(
-  doc: AssistantSuggestionDoc,
+  doc: AssistantSuggestionRow,
   kept: SuggestionFieldKey[],
   note: NoteDetailDto,
 ): Applied['before'] {
@@ -630,7 +635,7 @@ const noteValue = (key: SuggestionFieldKey, note: NoteDetailDto) =>
 /** The one operation that makes one step's write, with exactly the keys the strict schemas accept. */
 function stepCall(
   step: Step,
-  doc: Pick<AssistantSuggestionDoc, 'boardId' | 'noteId'>,
+  doc: Pick<AssistantSuggestionRow, 'boardId' | 'noteId'>,
   expectedRevision: number,
   values: FieldValues,
 ): { name: string; input: unknown } {
@@ -753,7 +758,7 @@ function stillWritten(
  */
 async function runChain(
   opCtx: OperationContext,
-  doc: WithId<AssistantSuggestionDoc>,
+  doc: AssistantSuggestionRow,
   steps: Step[],
   values: FieldValues,
   ids: (step: Step) => string,
@@ -797,7 +802,7 @@ const isFinal = (error: unknown): error is AppError =>
 async function revertWrites(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
-  doc: WithId<AssistantSuggestionDoc>,
+  doc: AssistantSuggestionRow,
   done: Step[],
   written: FieldValues,
   restore: FieldValues,
@@ -833,25 +838,20 @@ async function revertWrites(
  * that finished first is never overwritten. Returns the record as it stands afterwards.
  */
 async function settleKeep(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   id: string,
-  change: Pick<AssistantSuggestionDoc, 'status'> & Partial<Pick<AssistantSuggestionDoc, 'applied'>>,
+  change: Pick<AssistantSuggestionRow, 'status'> & Partial<Pick<AssistantSuggestionRow, 'applied'>>,
   now: Date,
-): Promise<WithId<AssistantSuggestionDoc>> {
-  const ref = assistantSuggestionsCol(db, actor.id).doc(id);
-  return db.runTransaction(async (tx) => {
-    const current = withId(await tx.get(ref));
+): Promise<AssistantSuggestionRow> {
+  return withTransaction(db, async (tx) => {
+    const current = await suggestionOf(tx, actor.id, id);
     if (!current) notFound();
-    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
+    await assertAssistantBoardActive(tx, actor.id, current.boardId);
     if (current.status !== 'KEPT' || current.applied) return current;
-    const next: WithId<AssistantSuggestionDoc> = {
-      ...current,
-      ...change,
-      updatedAt: Timestamp.fromDate(now),
-    };
-    tx.set(ref, stripId(next));
-    return next;
+    const changes = { ...change, updatedAt: now };
+    await tx.update(assistantSuggestions).set(changes).where(eq(assistantSuggestions.id, id));
+    return { ...current, ...changes };
   });
 }
 
@@ -871,8 +871,8 @@ async function settleKeep(
 async function completeKeep(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
-  doc: WithId<AssistantSuggestionDoc>,
-): Promise<WithId<AssistantSuggestionDoc>> {
+  doc: AssistantSuggestionRow,
+): Promise<AssistantSuggestionRow> {
   if (doc.applied) return doc;
   const { db } = deps;
   const kept = doc.decision?.fields ?? [];
@@ -1126,46 +1126,56 @@ export async function decideSuggestion(
  * proposal (a keep would be refused), or it is more than a day old.
  */
 export async function pendingSuggestions(
-  db: Firestore,
+  db: Database,
   actor: Actor,
-  board: WithId<WhiteboardDoc>,
+  board: Board,
   now: Date = new Date(),
 ): Promise<SuggestionDto[]> {
-  // Two equality filters need no composite index; the sort is done here.
-  const docs = docsWithId(
-    await assistantSuggestionsCol(db, actor.id)
-      .where('boardId', '==', board.id)
-      .where('status', '==', 'PENDING')
-      .get(),
-  );
+  const docs = await db
+    .select()
+    .from(assistantSuggestions)
+    .where(
+      and(
+        eq(assistantSuggestions.userId, actor.id),
+        eq(assistantSuggestions.boardId, board.id),
+        eq(assistantSuggestions.status, 'PENDING'),
+      ),
+    );
   if (docs.length === 0) return [];
-  const notes = await db.getAll(...docs.map((doc) => notesCol(db).doc(doc.noteId)));
-  const byId = new Map(notes.map((snap) => [snap.id, snap.data()]));
-  const live: WithId<AssistantSuggestionDoc>[] = [];
-  const stale: WithId<AssistantSuggestionDoc>[] = [];
+  const notes = await notesById(
+    db,
+    docs.map((doc) => doc.noteId),
+  );
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  const live: AssistantSuggestionRow[] = [];
+  const stale: AssistantSuggestionRow[] = [];
   for (const doc of docs) {
     const note = byId.get(doc.noteId);
     const usable =
       note !== undefined &&
       !note.deletedAt &&
-      note.whiteboardId === board.id &&
-      (note.revision ?? 0) === doc.baseRevision &&
-      now.getTime() - doc.createdAt.toMillis() <= SUGGESTION_PENDING_MAX_AGE_MS;
+      note.boardId === board.id &&
+      note.revision === doc.baseRevision &&
+      now.getTime() - doc.createdAt.getTime() <= SUGGESTION_PENDING_MAX_AGE_MS;
     (usable ? live : stale).push(doc);
   }
-  if (stale.length > 0) {
-    const stamp = Timestamp.fromDate(now);
-    const col = assistantSuggestionsCol(db, actor.id);
-    const refs = stale.map((doc) => col.doc(doc.id));
-    // Only the status moves: no decision was taken, so none is recorded. Each record is read
-    // again in the transaction, so one kept or discarded in another tab since the query is
-    // left as that tab decided it.
-    await db.runTransaction(async (tx) => {
-      for (const snap of await tx.getAll(...refs))
-        if (snap.data()?.status === 'PENDING')
-          tx.update(snap.ref, { status: 'DISCARDED', updatedAt: stamp });
-    });
-  }
-  live.sort((a, b) => a.createdAt.toMillis() - b.createdAt.toMillis());
+  if (stale.length > 0)
+    // Only the status moves: no decision was taken, so none is recorded. A record kept or
+    // discarded in another tab since the query is left as that tab decided it.
+    await withTransaction(db, (tx) =>
+      tx
+        .update(assistantSuggestions)
+        .set({ status: 'DISCARDED', updatedAt: now })
+        .where(
+          and(
+            inArray(
+              assistantSuggestions.id,
+              stale.map((doc) => doc.id),
+            ),
+            eq(assistantSuggestions.status, 'PENDING'),
+          ),
+        ),
+    );
+  live.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   return Promise.all(live.map((doc) => toDto(db, board, actor.id, doc)));
 }

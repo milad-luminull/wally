@@ -3,18 +3,19 @@ import { buildApp } from '../src/app.js';
 import {
   createFakeAuthVerifier,
   createTestBoard,
+  createTestDatabase,
   createTestUser,
-  getTestDb,
   resetDatabase,
+  type TestDatabase,
 } from './helpers.js';
 import connectionRoutes from '../src/routes/connections.js';
 
-const project = 'wally-test-connection-routes';
-const db = getTestDb(project);
 const auth = createFakeAuthVerifier();
+let handle: TestDatabase;
 let app: Awaited<ReturnType<typeof buildApp>>;
 beforeAll(async () => {
-  app = await buildApp({ db, logger: false, authVerifier: auth.verifier });
+  handle = await createTestDatabase();
+  app = await buildApp({ db: handle.db, logger: false, authVerifier: auth.verifier });
   // Scoped registration keeps these tests independent of deployment configuration.
   await app.register(connectionRoutes, {
     prefix: '/test',
@@ -24,15 +25,16 @@ beforeAll(async () => {
   });
 });
 beforeEach(async () => {
-  await resetDatabase(project);
+  const { db } = handle;
+  await resetDatabase(db);
   await createTestUser(db, 'owner', 'owner@example.com');
   await createTestBoard(db, 'owner');
   for (const id of ['owner', 'editor'])
     auth.tokens.set(id, { uid: id, email: `${id}@example.com`, emailVerified: true, name: null });
 });
 afterAll(async () => {
-  await app.close();
-  await resetDatabase(project);
+  await app?.close();
+  await handle?.drop();
 });
 const headers = (id = 'owner') => ({ authorization: `Bearer ${id}` });
 const connect = (

@@ -1,22 +1,21 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { subtasksCol, withId } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { subtasks } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-subtasks';
 
 describe('subtask routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -95,14 +94,14 @@ describe('subtask routes', () => {
     });
     expect(deleted.statusCode).toBe(204);
 
-    const gone = withId(await subtasksCol(ctx.db, noteId).doc(subtaskId).get());
-    expect(gone).toBeNull();
+    const gone = await ctx.db.select().from(subtasks).where(eq(subtasks.id, subtaskId));
+    expect(gone).toEqual([]);
   });
 
   it("keeps the note's subtask counter correct, including repeated done:true", async () => {
-    // The counter on the note is denormalized and moved by increments, so a PATCH that
-    // does not actually change `done` must not move it — the schema allows done:true on
-    // an already-done subtask.
+    // The note's counts come from its subtask rows, so a PATCH that does not actually
+    // change `done` must not move them — the schema allows done:true on an already-done
+    // subtask.
     const { fx, noteId } = await setup();
     const created = await ctx.inject({
       method: 'POST',

@@ -7,7 +7,7 @@ This index is the one place that says where each RFC stands. A document's own he
 records its decision; the **In production** column below is kept true by the pull request
 that changes it (see [Keeping the status true](../README.md#keeping-the-status-true)).
 
-Last checked against the code on 2026-10-27, at `main` e72dd429. Production runs **v0.11.0**.
+Last checked against the code on 2026-10-27, at `main` 3f2354e8. Production runs **v0.11.0**.
 
 ## Index
 
@@ -20,10 +20,10 @@ Last checked against the code on 2026-10-27, at `main` e72dd429. Production runs
 | [RFC-0005](RFC-0005-wallybot-inline.md)            | Wallybot inline                               | accepted                              | **live**; the full set since v0.6.0                                                                                                                                                 |
 | [RFC-0006](RFC-0006-auth0-mcp-rollout.md)          | Auth0 login and first MCP release             | superseded by RFC-0012                | **live** since v0.8.3. Still serves production until RFC-0012 is built. The one-off Auth0 import was removed in v0.10.1                                                             |
 | [RFC-0007](RFC-0007-eu-platform-and-ai-workers.md) | EU platform and durable AI workers            | superseded by RFC-0011                | never built                                                                                                                                                                         |
-| [RFC-0008](RFC-0008-firestore-to-supabase.md)      | Firestore to Supabase                         | accepted                              | not built                                                                                                                                                                           |
+| [RFC-0008](RFC-0008-firestore-to-supabase.md)      | Firestore to Supabase                         | accepted                              | not used by production. The API on PostgreSQL (workstreams 1 and 2) is built (PR #87) but not released; no hosted database, backups or restore drill yet                            |
 | [RFC-0009](RFC-0009-uploads-and-retrieval.md)      | Private uploads and document retrieval        | proposed                              | not built                                                                                                                                                                           |
 | [RFC-0010](RFC-0010-durable-ai-workers.md)         | Durable AI workers                            | accepted, as workstream 5 of RFC-0011 | not built                                                                                                                                                                           |
-| [RFC-0011](RFC-0011-platform-migration.md)         | Platform migration to Supabase and Cloudflare | accepted                              | not built; no workstream has started                                                                                                                                                |
+| [RFC-0011](RFC-0011-platform-migration.md)         | Platform migration to Supabase and Cloudflare | accepted                              | not used by production. Workstream 1 (PostgreSQL foundation) is built; workstream 2 (the API on PostgreSQL) is built (PR #87) but not released. Production runs on Firestore        |
 | [RFC-0012](RFC-0012-supabase-auth-and-mcp.md)      | Identity and MCP on Supabase Auth             | accepted                              | not built                                                                                                                                                                           |
 
 ## Statuses

@@ -1,17 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { FieldValue } from 'firebase-admin/firestore';
+import { asc, eq } from 'drizzle-orm';
 import { MAX_FIELDS_PER_NOTE, MAX_TAGS_PER_NOTE } from '@wally/shared';
-import {
-  docsWithId,
-  historyCol,
-  notesCol,
-  subtasksCol,
-  withId,
-} from '../src/lib/db/collections.js';
+import { noteHistory, notes, subtasks } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 import { listNotes } from '../src/lib/commands/queries.js';
-
-const PROJECT_ID = 'wally-test-notes-routes';
 
 /** Spellings from before ADR-0024, refused like any unknown value. */
 const OLD = { priority: 'HOCH', horizon: 'SPAETER' } as const;
@@ -20,17 +12,22 @@ describe('note routes', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
+
+  async function storedNote(id: string) {
+    const [note] = await ctx.db.select().from(notes).where(eq(notes.id, id));
+    return note ?? null;
+  }
 
   async function createNote(
     boardId: string,
@@ -45,6 +42,13 @@ describe('note routes', () => {
     });
     return res;
   }
+
+  it('refuses a title PostgreSQL cannot store with a 400 that is not worth retrying', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await createNote(fx.boardId, fx.ownerToken, { title: 'a\u0000b' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'BAD_REQUEST', retryable: false });
+  });
 
   describe('GET /whiteboards/:id/notes', () => {
     it('preserves priority, horizon and assignment filters through HTTP and direct queries', async () => {
@@ -237,7 +241,7 @@ describe('note routes', () => {
       const fx = await createBoardFixture(ctx);
       const refused = await createNote(fx.boardId, fx.ownerToken, { priority: OLD.priority });
       expect(refused.statusCode).toBe(400);
-      expect((await notesCol(ctx.db).where('whiteboardId', '==', fx.boardId).get()).size).toBe(0);
+      expect(await ctx.db.$count(notes, eq(notes.boardId, fx.boardId))).toBe(0);
 
       const created = await createNote(fx.boardId, fx.ownerToken);
       expect(created.statusCode).toBe(201);
@@ -249,7 +253,7 @@ describe('note routes', () => {
         payload: { mode: 'HORIZON', horizon: OLD.horizon },
       });
       expect(moved.statusCode).toBe(400);
-      expect((await notesCol(ctx.db).doc(noteId).get()).data()).toMatchObject({
+      expect(await storedNote(noteId)).toMatchObject({
         horizon: 'TODAY',
         revision: created.json().revision,
       });
@@ -305,7 +309,7 @@ describe('note routes', () => {
         const invalidCreate = await createNote(fx.boardId, fx.ownerToken, { assigneeId });
         expect(invalidCreate.statusCode).toBe(422);
         expect(invalidCreate.json().error).toBe('INVALID_ASSIGNEE');
-        expect((await notesCol(ctx.db).get()).size).toBe(0);
+        expect(await ctx.db.$count(notes)).toBe(0);
 
         const created = (
           await createNote(fx.boardId, fx.ownerToken, { assigneeId: fx.editorId })
@@ -318,7 +322,7 @@ describe('note routes', () => {
         });
         expect(invalidAssign.statusCode).toBe(422);
         expect(invalidAssign.json().error).toBe('INVALID_ASSIGNEE');
-        expect((await notesCol(ctx.db).doc(created.id).get()).data()).toMatchObject({
+        expect(await storedNote(created.id)).toMatchObject({
           assigneeId: fx.editorId,
           revision: created.revision,
         });
@@ -350,21 +354,6 @@ describe('note routes', () => {
 
       const without = await createNote(fx.boardId, fx.ownerToken);
       expect(without.json().description).toBe('');
-    });
-
-    it('reads a note stored before descriptions existed as an empty description', async () => {
-      const fx = await createBoardFixture(ctx);
-      const created = await createNote(fx.boardId, fx.ownerToken);
-      const id = created.json().id as string;
-      await notesCol(ctx.db).doc(id).update({ description: FieldValue.delete() });
-
-      const res = await ctx.inject({
-        method: 'GET',
-        url: `/notes/${id}`,
-        headers: ctx.authHeader(fx.ownerToken),
-      });
-      expect(res.statusCode).toBe(200);
-      expect(res.json().description).toBe('');
     });
 
     it('400s on custom fields that break the key rules or the per-note cap', async () => {
@@ -441,20 +430,38 @@ describe('note routes', () => {
     });
 
     describe('PATCH fieldChanges / tagChanges', () => {
-      const patchAs = (token: string, noteId: string, payload: Record<string, unknown>) =>
+      const patchAs = (
+        token: string,
+        noteId: string,
+        payload: Record<string, unknown>,
+        expectedRevision?: number,
+      ) =>
         ctx.inject({
           method: 'PATCH',
           url: `/notes/${noteId}`,
-          headers: ctx.authHeader(token),
+          headers: {
+            ...ctx.authHeader(token),
+            // Pinned for the two racing edits: both must claim the version they read before
+            // either was sent, or the second could legitimately see the first's commit.
+            ...(expectedRevision === undefined
+              ? {}
+              : { 'x-expected-revision': String(expectedRevision) }),
+          },
           payload,
         });
 
       it('keeps property deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
+        const revision = (await storedNote(noteId))!.revision;
 
         const [a, b] = await Promise.all([
-          patchAs(fx.ownerToken, noteId, { fieldChanges: { set: { Customer: 'Müller GmbH' } } }),
-          patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }),
+          patchAs(
+            fx.ownerToken,
+            noteId,
+            { fieldChanges: { set: { Customer: 'Müller GmbH' } } },
+            revision,
+          ),
+          patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }, revision),
         ]);
         expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
         const retry =
@@ -465,16 +472,17 @@ describe('note routes', () => {
             : await patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } });
         expect(retry.statusCode).toBe(200);
 
-        const stored = withId(await notesCol(ctx.db).doc(noteId).get());
+        const stored = await storedNote(noteId);
         expect(stored?.customFields).toEqual({ Customer: 'Müller GmbH', Contract: '4711' });
       });
 
       it('keeps tag deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
+        const revision = (await storedNote(noteId))!.revision;
 
         const [a, b] = await Promise.all([
-          patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }),
-          patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }),
+          patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }, revision),
+          patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }, revision),
         ]);
 
         expect([a!.statusCode, b!.statusCode].sort()).toEqual([200, 409]);
@@ -485,7 +493,7 @@ describe('note routes', () => {
             })
           ).statusCode,
         ).toBe(200);
-        const stored = withId(await notesCol(ctx.db).doc(noteId).get());
+        const stored = await storedNote(noteId);
         expect([...(stored?.tags ?? [])].sort()).toEqual(['cyber', 'd&o']);
       });
 
@@ -682,13 +690,12 @@ describe('note routes', () => {
       });
       expect(ok.statusCode).toBe(204);
 
-      const gone = withId(await notesCol(ctx.db).doc(noteId).get());
+      const gone = await storedNote(noteId);
       expect(gone).toBeNull();
     });
 
     it("DELETE /notes/:id takes the note's subtasks and history with it", async () => {
-      // Firestore does not delete subcollections when their parent document goes, and
-      // there are no foreign keys left to cascade — the route has to do this by hand.
+      // The note's subtasks and history must not outlive it.
       const { fx, noteId } = await setup();
       await ctx.inject({
         method: 'POST',
@@ -696,8 +703,8 @@ describe('note routes', () => {
         headers: ctx.authHeader(fx.ownerToken),
         payload: { text: 'Hangs on the note' },
       });
-      expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(1);
-      expect((await historyCol(ctx.db, noteId).get()).size).toBe(1); // the CREATED event
+      expect(await ctx.db.$count(subtasks, eq(subtasks.noteId, noteId))).toBe(1);
+      expect(await ctx.db.$count(noteHistory, eq(noteHistory.noteId, noteId))).toBe(1); // the CREATED event
 
       const deleted = await ctx.inject({
         method: 'DELETE',
@@ -706,8 +713,8 @@ describe('note routes', () => {
       });
       expect(deleted.statusCode).toBe(204);
 
-      expect((await subtasksCol(ctx.db, noteId).get()).size).toBe(0);
-      expect((await historyCol(ctx.db, noteId).get()).size).toBe(0);
+      expect(await ctx.db.$count(subtasks, eq(subtasks.noteId, noteId))).toBe(0);
+      expect(await ctx.db.$count(noteHistory, eq(noteHistory.noteId, noteId))).toBe(0);
     });
   });
 
@@ -745,7 +752,11 @@ describe('note routes', () => {
           payload: { text },
         });
       }
-      const [first] = docsWithId(await subtasksCol(ctx.db, noteId).orderBy('sortIndex').get());
+      const [first] = await ctx.db
+        .select()
+        .from(subtasks)
+        .where(eq(subtasks.noteId, noteId))
+        .orderBy(asc(subtasks.sortIndex));
       await ctx.inject({
         method: 'PATCH',
         url: `/notes/${noteId}/subtasks/${first!.id}`,
@@ -831,7 +842,7 @@ describe('note routes', () => {
 
     it('drops an assignee who has left the board instead of failing', async () => {
       const { fx, noteId } = await doneNoteWithEverything();
-      await notesCol(ctx.db).doc(noteId).update({ assigneeId: 'gone-user' });
+      await ctx.db.update(notes).set({ assigneeId: 'gone-user' }).where(eq(notes.id, noteId));
       const res = await duplicate(noteId, fx.ownerToken);
       expect(res.statusCode).toBe(201);
       expect(res.json().assignee).toBeNull();

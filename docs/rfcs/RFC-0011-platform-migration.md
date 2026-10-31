@@ -1,8 +1,9 @@
 # Platform migration: Supabase, Supabase Auth and Cloudflare
 
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
-  (section 8); planning, nothing migrated yet.
-- **Date:** 2026-10-26, updated 2026-10-27
+  (section 8). Workstreams 1 and 2 are built (2026-10-31), not released: production still
+  runs on Firestore. See section 4.
+- **Date:** 2026-10-26, updated 2026-10-27 and 2026-10-31
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
@@ -13,7 +14,7 @@ This RFC replaces the [EU platform overview](RFC-0007-eu-platform-and-ai-workers
 
 ## 1. Outcome
 
-Wally runs on one data and identity provider, Supabase (Frankfurt), with Fastify kept on
+Wally runs on one data and identity provider, Supabase (Ireland, `eu-west-1`), with Fastify kept on
 Cloud Run and the web app on Cloudflare. **Firebase (Firestore, Authentication, Hosting)
 and Auth0 are decommissioned.** Every existing capability keeps working, in particular:
 
@@ -103,10 +104,23 @@ and its own E2E specs. Plans are not stacked.
 | 5   | **Background service, Realtime notifications, Resend**                    | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
 | 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0     | all, plus rollback windows    | Section 6                                         |
 
+**Status (2026-10-31):**
+
+- Workstream 1 is built.
+- Workstream 2 is built in PR #87: the API reads and writes only PostgreSQL, and Firestore
+  is gone from the API, compose, CI and the release
+  ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)). The release applies the
+  migrations and gives Cloud Run `DATABASE_URL` from Secret Manager, but has never run
+  against a hosted database.
+- PR #87 stays open, unmerged, until the hosted Supabase project and the proofs it depends
+  on exist: connectivity from Cloud Run and the Data API switched off (owner, 2026-10-31).
+  Backups no longer gate it (owner, 2026-10-31; section 8).
+- No other workstream has started.
+
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
 production and needs no Supabase account, so it is built before the proofs. Each proof
-still gates the slice that depends on it: database connectivity, the Data API switch and
-backups gate workstream 2; the MCP proof gates workstream 3; the Worker proof gates
+still gates the slice that depends on it: database connectivity and the Data API switch
+gate workstream 2 (backups were dropped as a gate by the owner on 2026-10-31); the MCP proof gates workstream 3; the Worker proof gates
 workstream 4. The foundation's design is in
 [the slice 1 design](../superpowers/specs/2026-10-27-postgres-foundation-design.md).
 
@@ -120,7 +134,7 @@ if something fails, nobody can tell which change caused it.
 Each item below is either documented but not yet exercised by Wally, or not documented.
 Each has to be proven on a free project before the slice that depends on it.
 
-1. **Database connectivity from Cloud Run (Belgium) to Supabase (Frankfurt):**
+1. **Database connectivity from Cloud Run (Belgium) to Supabase (Ireland):**
    - Use the transaction pooler on port 6543. It is IPv4 on the Free plan and does not
      support prepared statements.
    - The direct endpoint is IPv6 unless the IPv4 add-on is bought
@@ -227,15 +241,16 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
    - They should be scoped as narrowly as each provider allows, and their rotation
      recorded.
 9. **Region and processors:**
-   - The brief does not name a Supabase region. Frankfurt stays the requirement for data,
-     auth and Realtime.
+   - The brief does not name a Supabase region. Frankfurt was the requirement; the owner
+     kept the project in Ireland (`eu-west-1`) on 2026-10-31 (section 8). Both are EU.
    - Cloudflare, Supabase and Resend become processors, and Google and Auth0 drop out
      for identity. GDPR.md changes in each cutover slice.
 10. **Free plan risk:**
     - Production data is real from the first signup on Supabase.
     - The brief rightly states that Free has no managed backups and can pause.
-    - The backup routine and restore drill (section 5, item 4) are therefore cutover gates,
-      not follow-ups.
+    - The backup routine and restore drill (section 5, item 4) were planned as cutover
+      gates; the owner deferred them on 2026-10-31 and accepts running without backups
+      for now (section 8).
 11. **Cloud Run free tier:** the brief says the free tier is applied using Tier 1
     pricing. Whether europe-west1 is a Tier 1 region is _unverified_: the pricing page
     could not be read on 2026-10-26.
@@ -267,6 +282,34 @@ Decided on 2026-10-27:
 - **AI spend:** at most $30/month, inside the $50 ceiling.
 - **Spending:** nothing is spent without the owner's manual approval.
 - **Pro upgrade:** stay on Free; the owner decides when to move to Pro.
+
+Decided on 2026-10-31:
+
+- **Region:** the hosted project (`wally`, ref `jztzhyxshwgjrwscibly`, created 2026-10-26)
+  stays in Ireland (`eu-west-1`), not Frankfurt. A Supabase region cannot be changed after
+  creation; the project was empty, and the owner chose to keep it. The data stays in the EU.
+- **Data API:** switched off by the owner. Checked from outside on 2026-10-31 with the
+  publishable key: `/rest/v1/<table>` and `/graphql/v1` answer 503 (`PGRST002`) every time,
+  so they serve nothing, while `/auth/v1/health` answers 200. Repeated after the schema was
+  applied, against real tables and `rpc/purge_expired`: still 503. Realtime with the Data
+  API off is still unproven (section 5, item 3).
+- **Schema applied:** the owner ran `migrate-cli --require-purge-job` on 2026-10-31 from
+  their machine through the transaction pooler, so Drizzle's migrator and the pg_cron
+  setup work through it. Checked afterwards: both migrations recorded, 19 tables with RLS
+  and no policies, `wally-purge-expired` active hourly as `postgres`, and the Data API roles
+  cannot execute `purge_expired`. The security advisor reports only the intended "RLS
+  enabled, no policy" notice. A GitHub runner cannot run this before the release: the
+  deploy identity is bound to the `production` environment and its `v*` tag policy, so the
+  first release proves that part.
+- **Expiry:** Supabase Cron (pg_cron) runs the purge. Checked on the hosted project on
+  2026-10-31: pg_cron 1.6.4 is available on the Free plan and preloaded, and jobs run in the
+  `postgres` database.
+
+- **Backups: none for now.** Free has no managed backups (section 5, item 4), and the owner
+  decided on 2026-10-31 to run without a backup routine for now; it no longer gates the
+  switch. Accepted risk: data lost on Supabase (a bad migration, a mistaken delete, an
+  incident) cannot be recovered. Revisit before real users depend on Wally, or with the
+  move to Pro, whose daily backups the owner approves when the time comes.
 
 Still open:
 

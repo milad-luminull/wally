@@ -99,35 +99,33 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      # 34 of 65 API test files import apps/api/test/helpers.ts, which THROWS (does not
-      # skip) unless this is set. 127.0.0.1 rather than localhost: the emulator binds IPv4
-      # and Node 22 resolves localhost to ::1 first.
-      FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
       # env.ts declares FIREBASE_PROJECT_ID as z.string().min(1) with no default. Any value
-      # works: the API suites inject a fake AuthVerifier and never verify a real token, and
-      # each test file namespaces itself with its own emulator project id.
+      # works: the API suites inject a fake AuthVerifier and never verify a real token.
       FIREBASE_PROJECT_ID: wally-ci
+      # Each API test file clones its own database from a template migrated once per run
+      # (apps/api/test/postgres.ts). 127.0.0.1 rather than localhost: Node 22 resolves
+      # localhost to ::1 first, and the service publishes on IPv4.
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    services:
+      # Same image and tag as docker-compose.yml, so CI runs the engine Supabase runs.
+      postgres:
+        image: supabase/postgres:17.11.0.003
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -h localhost"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: ./.github/actions/setup
 
-      - name: Cache the Firestore emulator jar
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/firebase/emulators
-          key: firebase-emulators-${{ runner.os }}-firestore-v13
-
-      # emulators:exec (rather than docker compose) for the unit job: ubuntu-24.04 already
-      # ships a JDK, it reads the repo's own firebase.json — so CI exercises the real
-      # emulator config, including "singleProjectMode": false, which the per-file project-id
-      # isolation depends on — and it guarantees teardown while propagating the exit code.
-      - name: Run tests against the Firestore emulator
-        run: |
-          npx --yes firebase-tools@13 emulators:exec \
-            --only firestore \
-            --project wally-ci \
-            'pnpm turbo run test'
+      - name: Run tests
+        run: pnpm turbo run test
 
   e2e:
     name: E2E (full stack)
@@ -192,8 +190,8 @@ jobs:
       # the file is missing. Optional variables are left out rather than blanked: env_file
       # turns `KEY=` into an empty string, which env.ts rejects at boot.
       #
-      # No service-account key is needed: Firestore is emulated, and verifying a real
-      # Firebase ID token needs only the project id (firebase-admin checks the signature
+      # No service-account key is needed: the database is the stack's own PostgreSQL, and
+      # verifying a real Firebase ID token needs only the project id (firebase-admin checks the signature
       # against Google's public certificates). See apps/api/src/plugins/firebase.ts.
       - name: Generate .env for the compose stack
         env:
@@ -325,7 +323,7 @@ jobs:
           docker compose \
             run --rm api pnpm --filter @wally/api seed
 
-      - name: Bind Auth0 CI identity in the emulator
+      - name: Bind Auth0 CI identity in the stack's database
         if: env.E2E_AUTH_PROVIDER == 'auth0'
         env:
           E2E_AUTH0_SUBJECT: ${{ vars[github.actor == 'dependabot[bot]' && 'E2E_AUTH0_DEPENDABOT_SUBJECT' || 'E2E_AUTH0_SUBJECT'] }}

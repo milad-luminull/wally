@@ -1,13 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { INITIAL_BOARD_NAME } from '@wally/shared';
-import {
-  docsWithId,
-  membersCol,
-  now,
-  usersCol,
-  whiteboardsCol,
-  withId,
-} from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { liveBoard } from '../src/lib/db/records.js';
+import type { Database } from '../src/lib/postgres/client.js';
+import { boardMembers, users } from '../src/lib/postgres/schema/index.js';
 import {
   buildTestApp,
   createTestMembership,
@@ -16,21 +12,28 @@ import {
   type TestContext,
 } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-auth';
+async function userRow(db: Database, id: string) {
+  const [user] = await db.select().from(users).where(eq(users.id, id));
+  return user;
+}
+
+function membersOf(db: Database, boardId: string) {
+  return db.select().from(boardMembers).where(eq(boardMembers.boardId, boardId));
+}
 
 describe('auth preHandler', () => {
   let ctx: TestContext;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
 
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
 
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -58,12 +61,12 @@ describe('auth preHandler', () => {
     });
     expect(res.statusCode).toBe(200);
 
-    const user = withId(await usersCol(ctx.db).doc('auth-new-user').get());
+    const user = await userRow(ctx.db, 'auth-new-user');
     expect(user?.email).toBe('brand-new@example.com');
 
     // The board's id IS the owner's uid, which is what makes one-board-per-owner
     // structural rather than a constraint.
-    const board = withId(await whiteboardsCol(ctx.db).doc('auth-new-user').get());
+    const board = await liveBoard(ctx.db, 'auth-new-user');
     expect(board?.name).toBe(INITIAL_BOARD_NAME.de);
     expect(board?.ownerId).toBe('auth-new-user');
   });
@@ -90,12 +93,13 @@ describe('auth preHandler', () => {
       headers: ctx.authHeader(inviteeToken),
     });
 
-    const [member] = docsWithId(await membersCol(ctx.db, 'auth-owner').get());
+    const [member] = await membersOf(ctx.db, 'auth-owner');
     expect(member?.status).toBe('ACTIVE');
     expect(member?.userId).toBe('auth-invitee');
 
-    // Activation is only real if authorization can see it.
-    const board = withId(await whiteboardsCol(ctx.db).doc('auth-owner').get());
+    // Activation is only real if authorization can see it: the roles it reads come from the
+    // ACTIVE membership rows.
+    const board = await liveBoard(ctx.db, 'auth-owner');
     expect(board?.memberRoles).toEqual({ 'auth-invitee': 'EDIT' });
   });
 
@@ -129,25 +133,25 @@ describe('auth preHandler', () => {
       headers: ctx.authHeader(attackerToken),
     });
 
-    const [member] = docsWithId(await membersCol(ctx.db, 'auth-owner-2').get());
+    const [member] = await membersOf(ctx.db, 'auth-owner-2');
     expect(member?.status).toBe('PENDING');
     expect(member?.userId).toBeNull();
 
-    const board = withId(await whiteboardsCol(ctx.db).doc('auth-owner-2').get());
+    const board = await liveBoard(ctx.db, 'auth-owner-2');
     expect(board?.memberRoles).toEqual({});
   });
   it('persists emailVerified on the user record', async () => {
     const token = registerTestUser(ctx, 'auth-verified', 'verified@example.com');
     await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
 
-    const user = withId(await usersCol(ctx.db).doc('auth-verified').get());
+    const user = await userRow(ctx.db, 'auth-verified');
     expect(user?.emailVerified).toBe(true);
   });
 
   it('updates a stored emailVerified of false once the caller verifies', async () => {
     const token = registerTestUser(ctx, 'auth-later', 'later@example.com', null, false);
     await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
-    expect(withId(await usersCol(ctx.db).doc('auth-later').get())?.emailVerified).toBe(false);
+    expect((await userRow(ctx.db, 'auth-later'))?.emailVerified).toBe(false);
 
     ctx.tokens.set(token, {
       uid: 'auth-later',
@@ -159,24 +163,6 @@ describe('auth preHandler', () => {
 
     // emailVerified has to take part in the fast-path comparison, or a user who verifies
     // later keeps a stale false forever and the invite waiting on it never activates.
-    expect(withId(await usersCol(ctx.db).doc('auth-later').get())?.emailVerified).toBe(true);
-  });
-
-  it('backfills emailVerified on a user record written before the field existed', async () => {
-    const timestamp = now();
-    // Deliberately field-less, bypassing the typed collection helper.
-    await ctx.db.collection('users').doc('auth-legacy').set({
-      email: 'legacy@example.com',
-      displayName: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
-
-    const token = registerTestUser(ctx, 'auth-legacy', 'legacy@example.com');
-    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
-
-    // An absent flag reads as false, so this one migrating write is forced — and it is also
-    // the one sweep that recovers any invite the pre-fix code left stranded.
-    expect(withId(await usersCol(ctx.db).doc('auth-legacy').get())?.emailVerified).toBe(true);
+    expect((await userRow(ctx.db, 'auth-later'))?.emailVerified).toBe(true);
   });
 });

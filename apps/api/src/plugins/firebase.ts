@@ -1,8 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirebaseApp, runsOnGoogleCloud } from '../lib/firebase-app.js';
-import { loadEnv } from '../env.js';
+import { getFirebaseApp } from '../lib/firebase-app.js';
 
 /** The minimal shape our app needs out of a verified Firebase ID token. */
 export interface DecodedAuthToken {
@@ -39,12 +38,10 @@ export interface FirebasePluginOptions {
  * Decorates the Fastify instance with `authVerifier`, the seam src/plugins/auth.ts calls
  * instead of touching the Firebase SDK directly.
  *
- * Verifying a real ID token needs no credential — only the project id. A credential is
- * required for *Firestore*, and the only one the API uses is Application Default
- * Credentials on Google Cloud, so this refuses to start when the process would talk to a
- * real database anywhere else, rather than failing per-request later. Pointing
- * FIRESTORE_EMULATOR_HOST at an emulator satisfies it. Tests supply their own verifier and
- * never reach the check at all.
+ * Verifying a real ID token needs no credential — only the project id — so the same code
+ * runs on Cloud Run, in compose and in CI without a service-account key, which the
+ * organization's iam.disableServiceAccountKeyCreation policy blocks anyway. Tests supply
+ * their own verifier.
  */
 export default fp(
   async function firebasePlugin(fastify: FastifyInstance, opts: FirebasePluginOptions) {
@@ -53,31 +50,10 @@ export default fp(
       return;
     }
 
-    // Verifying an ID token needs no credential at all: firebase-admin fetches Google's
-    // public x509 certs over unauthenticated HTTPS and checks aud/iss against the project
-    // id, which initializeApp({ projectId }) already supplies (see firebase-admin's
-    // auth/token-verifier.js and utils.findProjectId — the latter short-circuits on
-    // app.options.projectId and never consults the credential).
-    //
-    // What a credential is genuinely required for is *Firestore*. So that is what this
-    // guard should ask about: on Google Cloud, Application Default Credentials come from the
-    // runtime service account; FIRESTORE_EMULATOR_HOST means the Admin SDK is not talking to
-    // a real database, and the emulator needs no credentials. That is what lets
-    // docker-compose and CI run the full stack against real Firebase Auth without a
-    // service-account key — which the organization's iam.disableServiceAccountKeyCreation
-    // policy blocks from being created anyway.
-    //
-    // Production is unaffected: it has no FIRESTORE_EMULATOR_HOST, and env.ts now makes
-    // NODE_ENV=production together with FIRESTORE_EMULATOR_HOST a fatal startup error.
-    const usingFirestoreEmulator = Boolean(loadEnv().FIRESTORE_EMULATOR_HOST);
-    if (!runsOnGoogleCloud() && !usingFirestoreEmulator) {
-      throw new Error(
-        'Outside Google Cloud the API has no credentials for a real Firestore database: it ' +
-          'uses Application Default Credentials only on Cloud Run. Point ' +
-          'FIRESTORE_EMULATOR_HOST at an emulator to run it anywhere else.',
-      );
-    }
-
+    // firebase-admin fetches Google's public x509 certs over unauthenticated HTTPS and
+    // checks aud/iss against the project id, which initializeApp({ projectId }) already
+    // supplies (see firebase-admin's auth/token-verifier.js and utils.findProjectId — the
+    // latter short-circuits on app.options.projectId and never consults the credential).
     const auth = getAuth(getFirebaseApp());
 
     fastify.decorate('authVerifier', {

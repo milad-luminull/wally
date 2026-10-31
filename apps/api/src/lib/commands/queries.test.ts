@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { customFieldsSchema, findFieldKey, foldFieldKey } from '@wally/shared';
-import { matchesFieldFilter } from './queries.js';
+import { byDueDateThenCreated, matchesFieldFilter } from './queries.js';
+import type { Note } from '../db/types.js';
 
 /**
  * The property-key fold is data integrity, so it is pinned here once for the shared schema and
@@ -53,5 +54,31 @@ describe('matchesFieldFilter', () => {
 
   it('matches nothing on a note without properties', () => {
     expect(matchesFieldFilter({}, 'Customer')).toBe(false);
+  });
+});
+
+describe('the note list order', () => {
+  const note = (id: string, dueDate: string | null, createdAt: string) =>
+    ({ id, dueDate, createdAt: new Date(createdAt) }) satisfies Pick<
+      Note,
+      'id' | 'dueDate' | 'createdAt'
+    >;
+
+  it('is due date, then creation, then id, whatever order the database returned', () => {
+    const at = '2026-10-31T09:00:00.000Z';
+    const rows = [
+      note('n-c', null, at),
+      note('n-b', null, at),
+      note('n-a', null, at),
+      note('n-later', '2026-11-02', at),
+      note('n-soon', '2026-11-01', '2026-10-31T10:00:00.000Z'),
+    ];
+    expect([...rows].sort(byDueDateThenCreated).map((n) => n.id)).toEqual([
+      'n-soon',
+      'n-later',
+      'n-a',
+      'n-b',
+      'n-c',
+    ]);
   });
 });

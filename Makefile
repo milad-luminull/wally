@@ -2,13 +2,12 @@ COMPOSE := docker compose
 
 .PHONY: up down logs test lint typecheck format seed e2e
 
-## Build and start the whole stack (firestore emulator, api, web).
+## Build and start the whole stack (PostgreSQL, api, web).
 up:
 	$(COMPOSE) up --build -d
 	@echo ""
 	@echo "Web:            http://localhost:5174"
 	@echo "API:            http://localhost:4000"
-	@echo "Firestore UI:   http://localhost:4001"
 	@echo "Run 'make logs' to follow output, 'make seed' on first run."
 
 ## Stop and remove containers.

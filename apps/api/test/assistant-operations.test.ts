@@ -3,17 +3,18 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Actor } from '../src/lib/commands/index.js';
 import { runOperation, type OperationContext } from '../src/lib/assistant/run.js';
 import type { Provenance } from '../src/lib/assistant/provenance.js';
-import { assistantAuditCol } from '../src/lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { assistantAudit } from '../src/lib/postgres/schema/index.js';
 import {
   buildTestApp,
   createBoardFixture,
   createTestBoard,
+  createTestUser,
   registerTestUser,
   resetDatabase,
   type TestContext,
 } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-assistant-operations';
 const provenance: Provenance = { via: 'assistant', conversationId: 'conv-1', approvalId: 'appr-1' };
 
 describe('runOperation', () => {
@@ -23,13 +24,13 @@ describe('runOperation', () => {
   let viewer: Actor;
 
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
   afterEach(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 
@@ -167,7 +168,7 @@ describe('runOperation', () => {
     await expect(
       runOperation(as(owner), call('get_note', { boardId, noteId })),
     ).rejects.toMatchObject({ statusCode: 404 });
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(9);
+    expect(await ctx.db.$count(assistantAudit)).toBe(9);
   });
 
   it('deletes a subtask once, replays on retry, and refuses stale or unknown ones', async () => {
@@ -193,16 +194,16 @@ describe('runOperation', () => {
       revision: deleted.revision,
     });
     const deleteAudits = () =>
-      assistantAuditCol(ctx.db).where('commandType', '==', 'subtask.delete').get();
-    expect((await deleteAudits()).size).toBe(1);
+      ctx.db.$count(assistantAudit, eq(assistantAudit.commandType, 'subtask.delete'));
+    expect(await deleteAudits()).toBe(1);
 
     const replayed = await runOperation(as(owner), del);
     expect(replayed.revision).toBe(deleted.revision);
     expect(replayed.data).toEqual(deleted.data);
-    expect((await deleteAudits()).size).toBe(1);
+    expect(await deleteAudits()).toBe(1);
 
     // A refusal writes nothing: the note keeps its revision and no audit row is added.
-    const audits = (await assistantAuditCol(ctx.db).get()).size;
+    const audits = await ctx.db.$count(assistantAudit);
     const revisionNow = async () =>
       (
         (await runOperation(as(owner), call('get_note', { boardId, noteId }))).data as {
@@ -227,7 +228,7 @@ describe('runOperation', () => {
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(await revisionNow()).toBe(deleted.revision);
-    expect((await assistantAuditCol(ctx.db).get()).size).toBe(audits);
+    expect(await ctx.db.$count(assistantAudit)).toBe(audits);
   });
 
   it('refuses a stale revision without applying anything', async () => {
@@ -246,6 +247,7 @@ describe('runOperation', () => {
   it('binds every call to the context board', async () => {
     await fixture();
     registerTestUser(ctx, 'other-owner', 'other@fixture.de', 'Other');
+    await createTestUser(ctx.db, 'other-owner', 'other@fixture.de', 'Other');
     const otherBoard = await createTestBoard(ctx.db, 'other-owner');
     const other: Actor = { id: 'other-owner', email: 'other@fixture.de', emailVerified: true };
     const foreign = idOf(

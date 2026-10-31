@@ -1,14 +1,9 @@
+import { asc, eq, inArray } from 'drizzle-orm';
 import type { BoardCommand } from '@wally/shared';
-import type { NoteDoc, SubtaskDoc, WithId } from '../db/types.js';
-import {
-  docsWithId,
-  historyCol,
-  loadUsers,
-  notesCol,
-  now,
-  stripId,
-  subtasksCol,
-} from '../db/collections.js';
+import type { Note, NoteRow, SubtaskRow } from '../db/types.js';
+import { loadUsers } from '../db/records.js';
+import { newId } from '../db/ids.js';
+import { boardCleanup, noteHistory, notes, subtasks } from '../postgres/schema/index.js';
 import { toNoteDto, toSubtaskDto } from '../dto.js';
 import {
   applyFieldChanges,
@@ -20,19 +15,19 @@ import {
   computeMoveUpdate,
   isValidAssignee,
 } from '../notes.js';
-import { notFound, revisionOf, type CommandContext, type CommandResult } from './context.js';
+import { notFound, type CommandContext, type CommandResult } from './context.js';
 import { AppError } from '../errors.js';
 
-// An application bound keeps copies within one atomic transaction, with room for the
-// note, history and receipt. Ordinary notes may still contain more subtasks.
+// An application bound keeps a copy's transaction small. Ordinary notes may still contain
+// more subtasks.
 const MAX_COPY_SUBTASKS = 400;
 
 export async function executeNoteCommand(
   ctx: CommandContext,
   command: BoardCommand,
 ): Promise<CommandResult> {
-  const { db, tx, actor, board, operationId } = ctx;
-  const timestamp = now();
+  const { tx, actor, board, operationId } = ctx;
+  const timestamp = new Date();
   const via = ctx.provenance ? { via: ctx.provenance.via } : {};
   const result = (
     data: unknown,
@@ -46,19 +41,28 @@ export async function executeNoteCommand(
     boardId: board.id,
     ...(cleanupId ? { cleanupId } : {}),
   });
-  const dto = async (note: WithId<NoteDoc>) =>
-    toNoteDto(note, await loadUsers(db, [note.assigneeId, note.createdById]));
+  const dto = async (note: Note) =>
+    toNoteDto(note, await loadUsers(tx, [note.assigneeId, note.createdById]));
+  const summaryOf = (tasks: Pick<SubtaskRow, 'done'>[]) => ({
+    total: tasks.length,
+    done: tasks.filter((t) => t.done).length,
+  });
 
   if (command.type === 'note.create' || command.type === 'note.duplicate') {
     const source = ctx.note;
     const tasks =
       command.type === 'note.duplicate'
-        ? docsWithId(await tx.get(subtasksCol(db, source!.id).limit(MAX_COPY_SUBTASKS + 1)))
+        ? await tx
+            .select()
+            .from(subtasks)
+            .where(eq(subtasks.noteId, source!.id))
+            .orderBy(asc(subtasks.sortIndex))
+            .limit(MAX_COPY_SUBTASKS + 1)
         : [];
     if (tasks.length > MAX_COPY_SUBTASKS)
       throw new AppError(422, 'COPY_TOO_LARGE', 'A copy may contain at most 400 subtasks');
-    const ref = notesCol(db).doc();
-    let note: NoteDoc;
+    const id = newId();
+    let note: NoteRow;
     if (command.type === 'note.create') {
       const body = command.input;
       const isPrivate = body.visibility === 'PRIVATE';
@@ -67,22 +71,25 @@ export async function executeNoteCommand(
       } else assertValidAssignee(board, body.assigneeId ?? null);
       note = {
         ...body,
-        whiteboardId: board.id,
+        id,
+        boardId: board.id,
+        deletedAt: null,
+        links: [],
         dueDate: body.dueDate ?? null,
         assigneeId: isPrivate ? actor.id : (body.assigneeId ?? null),
         status: 'OPEN',
         completedAt: null,
         createdById: actor.id,
-        subtaskSummary: { total: 0, done: 0 },
         createdAt: timestamp,
         updatedAt: timestamp,
         revision: 1,
       };
     } else {
+      const { subtaskSummary: _summary, ...copied } = source!;
       note = {
-        ...stripId(source!),
+        ...copied,
         ...command.input,
-        visibility: source!.visibility ?? 'SHARED',
+        id,
         // Only the creator can reach a private source, so the copy is theirs too.
         assigneeId:
           source!.visibility === 'PRIVATE'
@@ -93,22 +100,25 @@ export async function executeNoteCommand(
         status: 'OPEN',
         completedAt: null,
         createdById: actor.id,
-        subtaskSummary: { total: tasks.length, done: tasks.filter((t) => t.done).length },
         createdAt: timestamp,
         updatedAt: timestamp,
         revision: 1,
       };
     }
-    tx.create(ref, note);
-    for (const task of tasks)
-      tx.create(subtasksCol(db, ref.id).doc(), {
-        ...stripId(task),
-        noteId: ref.id,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-    tx.create(historyCol(db, ref.id).doc(), {
-      noteId: ref.id,
+    await tx.insert(notes).values(note);
+    if (tasks.length > 0)
+      await tx.insert(subtasks).values(
+        tasks.map((task) => ({
+          ...task,
+          id: newId(),
+          noteId: id,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })),
+      );
+    await tx.insert(noteHistory).values({
+      id: newId(),
+      noteId: id,
       type: 'CREATED',
       occurredAt: timestamp,
       actorId: actor.id,
@@ -117,17 +127,22 @@ export async function executeNoteCommand(
           ? { ...(source ? { duplicatedFrom: source.id } : {}), ...via }
           : null,
     });
-    return result(await dto({ ...note, id: ref.id }), 1, 201);
+    return result(await dto({ ...note, subtaskSummary: summaryOf(tasks) }), 1, 201);
   }
 
   const note = ctx.note!;
-  const currentRevision = revisionOf(note);
+  const currentRevision = note.revision;
   const revision = currentRevision + 1;
-  const noteRef = notesCol(db).doc(note.id);
+  const bumpNote = (changes: Partial<typeof notes.$inferInsert> = {}) =>
+    tx
+      .update(notes)
+      .set({ ...changes, updatedAt: timestamp, revision })
+      .where(eq(notes.id, note.id));
   if (command.type === 'note.delete') {
     const cleanupId = `${actor.id}_${operationId}`;
-    tx.update(noteRef, { deletedAt: timestamp, updatedAt: timestamp, revision });
-    tx.create(db.collection('boardCleanup').doc(cleanupId), {
+    await bumpNote({ deletedAt: timestamp });
+    await tx.insert(boardCleanup).values({
+      id: cleanupId,
       kind: 'note.delete',
       boardId: board.id,
       noteId: note.id,
@@ -141,13 +156,11 @@ export async function executeNoteCommand(
     command.type === 'subtask.update' ||
     command.type === 'subtask.delete'
   ) {
-    const tasks = docsWithId(await tx.get(subtasksCol(db, note.id)));
-    let nextTasks: WithId<SubtaskDoc>[];
-    let changed: WithId<SubtaskDoc> | null;
+    const tasks = await tx.select().from(subtasks).where(eq(subtasks.noteId, note.id));
+    let changed: SubtaskRow | null;
     if (command.type === 'subtask.create') {
-      const ref = subtasksCol(db, note.id).doc();
       changed = {
-        id: ref.id,
+        id: newId(),
         noteId: note.id,
         text: command.input.text,
         done: false,
@@ -155,15 +168,13 @@ export async function executeNoteCommand(
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      tx.create(ref, stripId(changed));
-      nextTasks = [...tasks, changed];
+      await tx.insert(subtasks).values(changed);
     } else {
-      const existing = tasks.find((t) => t.id === command.subtaskId && t.noteId === note.id);
+      const existing = tasks.find((t) => t.id === command.subtaskId);
       if (!existing) notFound();
       if (command.type === 'subtask.delete') {
         changed = null;
-        tx.delete(subtasksCol(db, note.id).doc(existing.id));
-        nextTasks = tasks.filter((t) => t.id !== existing.id);
+        await tx.delete(subtasks).where(eq(subtasks.id, existing.id));
       } else {
         const body = command.input;
         if (
@@ -172,15 +183,13 @@ export async function executeNoteCommand(
         )
           return result(toSubtaskDto(existing), currentRevision);
         changed = { ...existing, ...body, updatedAt: timestamp };
-        tx.set(subtasksCol(db, note.id).doc(existing.id), stripId(changed));
-        nextTasks = tasks.map((t) => (t.id === existing.id ? changed! : t));
+        await tx
+          .update(subtasks)
+          .set({ text: changed.text, done: changed.done, updatedAt: timestamp })
+          .where(eq(subtasks.id, existing.id));
       }
     }
-    tx.update(noteRef, {
-      revision,
-      updatedAt: timestamp,
-      subtaskSummary: { total: nextTasks.length, done: nextTasks.filter((t) => t.done).length },
-    });
+    await bumpNote();
     return result(
       changed ? toSubtaskDto(changed) : null,
       revision,
@@ -188,7 +197,7 @@ export async function executeNoteCommand(
     );
   }
 
-  let changes: Partial<NoteDoc>;
+  let changes: Partial<NoteRow>;
   let moveMetadata: Record<string, unknown> | undefined;
   switch (command.type) {
     case 'note.update': {
@@ -197,11 +206,22 @@ export async function executeNoteCommand(
         throw new AppError(403, 'FORBIDDEN', 'Only the creator can change who sees a note');
       let links: string[] | undefined;
       if (linkChanges) {
-        const current = note.links ?? [];
+        const current = note.links;
         const requested = [...new Set(linkChanges.add ?? [])];
         const ids = [...new Set([...current, ...requested])];
-        const targets = ids.length ? await tx.getAll(...ids.map((id) => notesCol(db).doc(id))) : [];
-        const byId = new Map(targets.map((snap) => [snap.id, snap.data()]));
+        const targets = ids.length
+          ? await tx
+              .select({
+                id: notes.id,
+                boardId: notes.boardId,
+                deletedAt: notes.deletedAt,
+                visibility: notes.visibility,
+                createdById: notes.createdById,
+              })
+              .from(notes)
+              .where(inArray(notes.id, ids))
+          : [];
+        const byId = new Map(targets.map((target) => [target.id, target]));
         // Validate every requested target, even an already stored edge: otherwise success
         // reveals an inaccessible relation and lets unrelated fields bypass refusal.
         for (const id of requested) {
@@ -209,7 +229,7 @@ export async function executeNoteCommand(
           if (
             !target ||
             target.deletedAt ||
-            target.whiteboardId !== board.id ||
+            target.boardId !== board.id ||
             !canSeeNote(target, actor.id)
           )
             throw new AppError(422, 'LINK_TARGET_INVALID', 'A link must name a note on this board');
@@ -218,7 +238,7 @@ export async function executeNoteCommand(
         // Live private targets remain stored; only response mapping hides them per reader.
         const live = current.filter((id) => {
           const target = byId.get(id);
-          return target && !target.deletedAt && target.whiteboardId === board.id;
+          return target && !target.deletedAt && target.boardId === board.id;
         });
         const next = applyLinkChanges(live, linkChanges, note.id);
         if (JSON.stringify(next) !== JSON.stringify(current)) links = next;
@@ -229,7 +249,7 @@ export async function executeNoteCommand(
         // Same change set, so one revision, receipt and rollback cover both fields.
         ...(visibility === 'PRIVATE' ? { assigneeId: actor.id } : {}),
         ...(fieldChanges
-          ? { customFields: applyFieldChanges(note.customFields ?? {}, fieldChanges) }
+          ? { customFields: applyFieldChanges(note.customFields, fieldChanges) }
           : {}),
         ...(tagChanges ? { tags: applyTagChanges(note.tags, tagChanges) } : {}),
         ...(links ? { links } : {}),
@@ -261,14 +281,15 @@ export async function executeNoteCommand(
   }
   if (
     Object.entries(changes).every(
-      ([key, value]) => JSON.stringify(note[key as keyof NoteDoc]) === JSON.stringify(value),
+      ([key, value]) => JSON.stringify(note[key as keyof NoteRow]) === JSON.stringify(value),
     )
   )
     return result(await dto(note), currentRevision);
   const updated = { ...note, ...changes, updatedAt: timestamp, revision };
-  tx.update(noteRef, { ...changes, updatedAt: timestamp, revision });
+  await bumpNote(changes);
   if (moveMetadata)
-    tx.create(historyCol(db, note.id).doc(), {
+    await tx.insert(noteHistory).values({
+      id: newId(),
       noteId: note.id,
       type: 'MOVED',
       occurredAt: timestamp,

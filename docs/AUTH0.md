@@ -149,7 +149,7 @@ same transaction.
 
 [`docker-compose.mcp-local.yml`](../docker-compose.mcp-local.yml) starts an isolated stack:
 
-- its own emulator project `wally-mcp-local` (no published ports);
+- its own PostgreSQL and one-shot `migrate` service (no published database port);
 - the API on `http://localhost:4502` (MCP at `/mcp`, metadata at
   `/.well-known/oauth-protected-resource/mcp`);
 - MCP Inspector on `http://localhost:6274`. The session URL is printed in the
@@ -164,14 +164,15 @@ docker compose -f docker-compose.mcp-local.yml exec -T api \
 **Local MCP address:**
 
 - `MCP_LOCAL_URL=http://localhost:4502/mcp` changes the advertised resource.
-- It is accepted only in development with an emulator.
+- It is accepted only by a development process whose `DATABASE_URL` is local (`localhost`,
+  `127.0.0.1`, `[::1]` or the compose service `postgres`).
 - Only that address plus the Inspector origin `http://localhost:6274` are allowed.
 
 **Seeder:**
 
 - The identity file holds the exact Auth0 `subject` and `email` of the tester. It stays
   outside the repository.
-- The seeder refuses any project except the isolated one. It creates synthetic boards
+- The seeder refuses a non-local `DATABASE_URL` and any `NODE_ENV=production`. It creates synthetic boards
   for a synthetic Wally user, bound to that subject.
 
 **Limits:**

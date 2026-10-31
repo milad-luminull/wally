@@ -1,15 +1,16 @@
 # Firestore to Supabase
 
-- **Status:** Supabase selected for data and identity; not built. Revised
-  2026-10-27 for the clean start.
-- **Date:** 2026-10-19, revised 2026-10-26 and 2026-10-27
+- **Status:** Supabase selected for data and identity. Revised 2026-10-27 for the clean
+  start. Delivery steps 1 and 3 are built (2026-10-31), not released; steps 2 and 4 are
+  open. See [Delivery](#delivery).
+- **Date:** 2026-10-19, revised 2026-10-26, 2026-10-27 and 2026-10-31
 - **Decision:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)
 - **Context:** [platform migration](RFC-0011-platform-migration.md), workstreams 1 and 2.
 - **Reference:** [provider research](../researches/2026-10-19-provider-strategy.md)
 
 ## Decision and scope
 
-Replace Firestore with **Supabase PostgreSQL in Frankfurt** as Wally's database, with
+Replace Firestore with **Supabase PostgreSQL in the EU (Ireland, `eu-west-1`; owner, 2026-10-31)** as Wally's database, with
 Drizzle as the schema and query layer.
 
 **No data moves (owner, 2026-10-27):** Firestore holds nothing to keep, and production
@@ -125,25 +126,46 @@ The invariants:
 
 ## Delivery
 
-1. **Foundation (workstream 1, additive, built first):** see the
+1. **Foundation (workstream 1, additive, built first). Built.** See the
    [slice 1 design](../superpowers/specs/2026-10-27-postgres-foundation-design.md).
    - Drizzle schema and SQL migrations in the repository.
    - A local PostgreSQL in the compose stack, beside the Firestore emulator until the
-     switch. ADR-0009 is partly superseded in that slice.
+     switch. ADR-0009 is partly superseded in that slice
+     ([ADR-0025](../adr/ADR-0025-local-postgres-and-per-file-test-databases.md)).
    - Tests isolated per file, so they still run in parallel.
    - Connection through the transaction pooler, with prepared statements off.
    - The transaction helper and the mapping from SQLSTATE codes to Wally errors.
-2. **Backups (workstream 0 proof, before the switch):** a nightly encrypted
+2. **Backups (workstream 0 proof, before the switch). Not started.** a nightly encrypted
    `pg_dump`/`supabase db dump`, stored outside Supabase, plus a timed restore drill.
    Free has no managed backups
    ([backups](https://supabase.com/docs/guides/platform/backups)).
-3. **Move the API onto PostgreSQL (workstream 2):** first behind a data-access layer that
-   still uses Firestore, then on PostgreSQL. Verify:
+3. **Move the API onto PostgreSQL (workstream 2). Built in PR #87, not released.** Verify:
    - Permission checks, concurrent writes and stale revisions.
    - Retry and replay safety, deletion and cleanup.
    - MCP reads and writes.
    - The full E2E suite against PostgreSQL.
-4. **Switch production:**
+
+   As built ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)):
+   - No interim data-access layer: every Firestore call was rewritten onto PostgreSQL in
+     one step, because the board command transaction spans users, boards, notes, receipts,
+     audit, MCP grants and assistant records.
+   - Writes use `withTransaction` (SERIALIZABLE, bounded jittered retry); consistent reads
+     use `withSnapshot` (read-only REPEATABLE READ).
+   - The cached views `memberRoles`, `shareLinkToken` and `subtaskSummary` are gone. The
+     loaders in `apps/api/src/lib/db/records.ts` compute them when they read, so there is no
+     cache to keep in the same commit.
+   - Expiry is the database function `purge_expired()`, run every hour by the Supabase Cron
+     (pg_cron) job `wally-purge-expired` inside PostgreSQL, and on demand by
+     `pnpm --filter @wally/api maintenance`. A SQL migration creates both. It never touches
+     `board_cleanup` or MCP connections. That Supabase Cron runs on the Free plan is still
+     to confirm in the hosted project.
+   - Firestore, its emulator, rules and indexes are gone from the API, compose, CI and the
+     release. The release applies the migrations from the image it deploys, before the new
+     revision exists. That has not run against a hosted database yet
+     ([DEPLOY.md](../DEPLOY.md)).
+
+4. **Switch production. Not started:** it needs the hosted project, the proofs and the
+   rollback window.
    - Apply the migrations to the empty hosted database, then release the API on
      PostgreSQL. Nothing is copied from Firestore.
    - Define the rollback window before starting. No permanent dual writes.

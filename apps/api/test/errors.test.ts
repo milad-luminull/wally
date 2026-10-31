@@ -2,15 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiErrorSchema } from '@wally/shared';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
-const PROJECT_ID = 'wally-test-errors';
-
 describe('error bodies on the wire', () => {
   let ctx: TestContext;
   beforeAll(async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
   });
   afterAll(async () => {
-    await resetDatabase(PROJECT_ID);
+    await resetDatabase(ctx.db);
     await ctx.app.close();
   });
 

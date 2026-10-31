@@ -1,38 +1,61 @@
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { _resetEnvCacheForTests } from '../src/env.js';
 import {
   buildTestApp,
   createFakeAuthVerifier,
-  getTestDb,
+  createTestDatabase,
   resetDatabase,
   type TestContext,
+  type TestDatabase,
 } from './helpers.js';
-
-const PROJECT_ID = 'wally-test-health';
 
 describe('GET /health', () => {
   let ctx: TestContext;
 
   it('returns 200 with no auth header at all', async () => {
-    ctx = await buildTestApp(PROJECT_ID);
+    ctx = await buildTestApp();
     const res = await ctx.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       status: 'ok',
+      database: 'ok',
       assistant: { enabled: false, model: 'vertex:gemini-3.8-flash' },
     });
   });
 
+  it('answers 503 when the database cannot be reached, so a release candidate fails its smoke test', async () => {
+    const spy = vi
+      .spyOn(ctx.db, 'execute')
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    try {
+      const res = await ctx.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(503);
+      expect(res.json()).toEqual({ status: 'unavailable', database: 'unreachable' });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   afterAll(async () => {
     if (ctx) {
-      await resetDatabase(PROJECT_ID);
+      await resetDatabase(ctx.db);
       await ctx.app.close();
     }
   });
 });
 
 describe('boot with a malformed ASSISTANT_MODEL', () => {
+  let handle: TestDatabase;
+
+  beforeAll(async () => {
+    handle = await createTestDatabase();
+  });
+
+  afterAll(async () => {
+    await handle?.drop();
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     _resetEnvCacheForTests();
@@ -51,7 +74,7 @@ describe('boot with a malformed ASSISTANT_MODEL', () => {
     let failure: unknown;
     try {
       const app = await buildApp({
-        db: getTestDb(PROJECT_ID),
+        db: handle.db,
         authVerifier: verifier,
         logger: false,
       });

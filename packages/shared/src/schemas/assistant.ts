@@ -12,12 +12,19 @@ import { userSummarySchema } from './user.js';
 
 export const assistantTurnRequestSchema = z
   .object({
-    // A Firestore document id, as the API creates them; the pattern me.ts uses for ids.
+    // An id as the API creates them; the pattern me.ts uses for ids.
     conversationId: z
       .string()
       .regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid conversation id')
       .optional(),
-    message: z.string().trim().min(1).max(2000),
+    // A NUL character is refused here, before a model call is reserved: the database could
+    // not store the turn afterwards.
+    message: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2000)
+      .refine((text) => !text.includes('\u0000'), 'Invalid character'),
     timeZone: z.string().min(1).max(64).refine(isTimeZone, 'Unknown time zone'),
     today: z.string().date(),
   })
