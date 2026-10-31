@@ -430,20 +430,38 @@ describe('note routes', () => {
     });
 
     describe('PATCH fieldChanges / tagChanges', () => {
-      const patchAs = (token: string, noteId: string, payload: Record<string, unknown>) =>
+      const patchAs = (
+        token: string,
+        noteId: string,
+        payload: Record<string, unknown>,
+        expectedRevision?: number,
+      ) =>
         ctx.inject({
           method: 'PATCH',
           url: `/notes/${noteId}`,
-          headers: ctx.authHeader(token),
+          headers: {
+            ...ctx.authHeader(token),
+            // Pinned for the two racing edits: both must claim the version they read before
+            // either was sent, or the second could legitimately see the first's commit.
+            ...(expectedRevision === undefined
+              ? {}
+              : { 'x-expected-revision': String(expectedRevision) }),
+          },
           payload,
         });
 
       it('keeps property deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
+        const revision = (await storedNote(noteId))!.revision;
 
         const [a, b] = await Promise.all([
-          patchAs(fx.ownerToken, noteId, { fieldChanges: { set: { Customer: 'Müller GmbH' } } }),
-          patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }),
+          patchAs(
+            fx.ownerToken,
+            noteId,
+            { fieldChanges: { set: { Customer: 'Müller GmbH' } } },
+            revision,
+          ),
+          patchAs(fx.editToken, noteId, { fieldChanges: { set: { Contract: '4711' } } }, revision),
         ]);
         expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
         const retry =
@@ -460,10 +478,11 @@ describe('note routes', () => {
 
       it('keeps tag deltas after the stale editor reviews and resubmits', async () => {
         const { fx, noteId } = await setup();
+        const revision = (await storedNote(noteId))!.revision;
 
         const [a, b] = await Promise.all([
-          patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }),
-          patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }),
+          patchAs(fx.ownerToken, noteId, { tagChanges: { add: ['cyber'] } }, revision),
+          patchAs(fx.editToken, noteId, { tagChanges: { add: ['d&o'] } }, revision),
         ]);
 
         expect([a!.statusCode, b!.statusCode].sort()).toEqual([200, 409]);
