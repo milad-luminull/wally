@@ -1,51 +1,7 @@
 services:
-  firestore:
-    build:
-      context: .
-      dockerfile: infra/firebase-emulator.Dockerfile
-    # Run under the same project id the API writes with, so the Emulator UI opens on the
-    # data this app actually stores. (The emulator still serves any project id — that's
-    # what lets each test file use its own.)
-    command:
-      - firebase
-      - emulators:start
-      - --only
-      - firestore
-      - --project
-      - ${FIREBASE_PROJECT_ID:-wally-local}
-    # The emulator reads firebase.json for its port/host config and picks up the rules and
-    # index definitions next to it. Read-only: nothing in the container should edit them.
-    volumes:
-      - ./firebase.json:/workspace/firebase.json:ro
-      - ./firestore.rules:/workspace/firestore.rules:ro
-      - ./firestore.indexes.json:/workspace/firestore.indexes.json:ro
-    ports:
-      # All three are for the Emulator UI, which runs in YOUR browser and therefore reaches
-      # the emulator over the host, not the compose network: 4001 serves the UI itself,
-      # 8080 is the Firestore data API it reads, and 9150 the websocket behind its request
-      # monitor. Publishing only 4001 gets you a blank page and a "Failed to fetch".
-      # The API container still reaches the data port as `firestore:8080`.
-      - '4001:4001'
-      - '8080:8080'
-      - '9150:9150'
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:8080/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
-
-  # PostgreSQL for the move off Firestore (RFC-0008, ADR-0025). Nothing in the API uses it
-  # until workstream 2; today only the API's PostgreSQL test suites do. Same image and tag
-  # as CI. No published port: several compose projects (worktrees) run side by side, and a
-  # fixed host port would collide. Reach it with
-  # `docker compose exec postgres psql -U postgres -h localhost`.
+  # The API's database (RFC-0008, ADR-0025). Same image and tag as CI. No published port:
+  # several compose projects (worktrees) run side by side, and a fixed host port would
+  # collide. Reach it with `docker compose exec postgres psql -U postgres -h localhost`.
   postgres:
     image: supabase/postgres:17.11.0.003
     environment:
@@ -59,6 +15,28 @@ services:
       retries: 20
       start_period: 20s
 
+  # Applies the migrations once, then exits; the API starts only after it succeeded.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
+      # env.ts requires it; migrating verifies no token.
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-wally-local}
+    command: ['pnpm', '--filter', '@wally/api', 'db:migrate']
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/config/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -67,11 +45,8 @@ services:
     env_file:
       - .env
     environment:
-      # The Admin SDK reads this itself and routes all Firestore traffic to the emulator.
-      # Firebase Auth is NOT redirected — ID tokens are still verified against the real
-      # project, which is why FIREBASE_PROJECT_ID in .env still matters (it is the only
-      # Firebase value the API needs; there is no service-account key).
-      FIRESTORE_EMULATOR_HOST: firestore:8080
+      # ID tokens are verified against the real Firebase project, which is why
+      # FIREBASE_PROJECT_ID in .env still matters (there is no service-account key).
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
       AUTH0_ENABLED: ${AUTH0_ENABLED:-false}
@@ -79,15 +54,12 @@ services:
       MCP_ENABLED: ${MCP_ENABLED:-false}
       MCP_WRITES_ENABLED: ${MCP_WRITES_ENABLED:-false}
       # Optional MCP_CLIENT_ID is inherited from .env; do not inject an empty string.
-      # Read only by the PostgreSQL test harness (apps/api/test/postgres.ts) for now.
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
     ports:
       - '4000:4000'
     depends_on:
-      firestore:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - .:/app
       - /app/node_modules

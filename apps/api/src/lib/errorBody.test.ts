@@ -42,11 +42,11 @@ describe('errorReplyFor: one body for every failure', () => {
       true,
     ],
     [
-      'a Firestore NOT_FOUND is a 404',
+      'a numeric driver code is no status of its own',
       Object.assign(new Error('gone'), { code: 5 }),
-      404,
-      'NOT_FOUND',
-      false,
+      500,
+      'INTERNAL_SERVER_ERROR',
+      true,
     ],
     [
       'a body too large is named',

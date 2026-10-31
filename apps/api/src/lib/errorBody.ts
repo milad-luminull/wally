@@ -1,9 +1,6 @@
 import { RETRYABLE_ERROR_CODES, type ApiErrorBody } from '@wally/shared';
 import { AppError } from './errors.js';
 
-/** gRPC NOT_FOUND: an update against a Firestore document deleted meanwhile. */
-const GRPC_NOT_FOUND = 5;
-
 /** The framework's own 4xx statuses, each with its own code rather than one catch-all. */
 const FRAMEWORK_CODES: Record<number, string> = {
   400: 'BAD_REQUEST',
@@ -19,8 +16,8 @@ const retryable = (status: number, code: string) =>
 
 /**
  * The status and body for any error a route throws (the error handling spec, 2026-10-19): an
- * AppError keeps its status and code, a Firestore NOT_FOUND is a 404, the framework's 4xx get
- * their own codes, and anything else is a 500 whose text is never sent.
+ * AppError keeps its status and code, the framework's 4xx get their own codes, and anything
+ * else is a 500 whose text is never sent.
  */
 export function errorReplyFor(error: unknown): { status: number; body: ApiErrorBody } {
   if (error instanceof AppError) {
@@ -38,8 +35,6 @@ export function errorReplyFor(error: unknown): { status: number; body: ApiErrorB
       },
     };
   }
-  if ((error as { code?: unknown } | null)?.code === GRPC_NOT_FOUND)
-    return { status: 404, body: { error: 'NOT_FOUND', message: 'Not found', retryable: false } };
   const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
   const status = typeof statusCode === 'number' && statusCode >= 400 ? statusCode : 500;
   if (status >= 500)

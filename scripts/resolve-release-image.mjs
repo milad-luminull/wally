@@ -14,7 +14,6 @@ export function apiConfig(env) {
     FIREBASE_PROJECT_ID: env.GCP_PROJECT_ID,
     NODE_ENV: 'production',
     CORS_ORIGIN: env.WEB_ORIGIN,
-    FIRESTORE_DATABASE_ID: 'wally',
     ASSISTANT_ENABLED: env.ASSISTANT_ENABLED,
     ASSISTANT_MODEL: env.ASSISTANT_MODEL,
     ASSISTANT_VERTEX_LOCATION: env.ASSISTANT_VERTEX_LOCATION,
@@ -35,6 +34,9 @@ export function apiConfig(env) {
     env: Object.entries(values)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([name, value]) => ({ name, value })),
+    // Values Cloud Run reads from Secret Manager when an instance starts. The database URL
+    // carries its password, so it is never a plain variable.
+    secrets: [{ name: 'DATABASE_URL', secret: 'wally-database-url', version: 'latest' }],
   };
 }
 
@@ -43,6 +45,33 @@ export function apiConfig(env) {
 // history, is the source of truth.
 export function runEnvFlag(config) {
   return '^@^' + config.env.map(({ name, value }) => `${name}=${value}`).join('@');
+}
+
+// --set-secrets REPLACES every secret the service had, like --set-env-vars does for values.
+export function runSecretsFlag(config) {
+  return config.secrets
+    .map(({ name, secret, version }) => `${name}=${secret}:${version}`)
+    .join(',');
+}
+
+// A revision's environment as the checks compare it: plain values, then secret references.
+function deployedConfig(revision) {
+  const entries = revision.spec?.containers?.[0]?.env || [];
+  return {
+    serviceAccountName: revision.spec?.serviceAccountName,
+    env: entries
+      .filter((entry) => !entry.valueFrom)
+      .map(({ name, value }) => ({ name, value }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    secrets: entries
+      .filter((entry) => entry.valueFrom)
+      .map(({ name, valueFrom }) => ({
+        name,
+        secret: valueFrom.secretKeyRef?.name,
+        version: valueFrom.secretKeyRef?.key,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
 }
 
 export function existingDigest(revisions, name, repository, expected) {
@@ -55,12 +84,7 @@ export function existingDigest(revisions, name, repository, expected) {
     if (revision.metadata?.labels?.['wally-commit'] !== expected.commit)
       throw new Error('Existing candidate full commit mismatch');
     const container = revision.spec?.containers?.[0];
-    const actual = {
-      serviceAccountName: revision.spec?.serviceAccountName,
-      env: (container?.env || [])
-        .map(({ name, value }) => ({ name, value }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    };
+    const actual = deployedConfig(revision);
     if (
       JSON.stringify(actual) !== JSON.stringify(expected.config) ||
       container?.command ||
@@ -142,7 +166,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const digest = existingDigest(...args);
       appendFileSync(
         out,
-        `digest=${digest}\nrun_env=${runEnvFlag(config)}\nservice_account=${config.serviceAccountName}\n`,
+        `digest=${digest}\nrun_env=${runEnvFlag(config)}\nrun_secrets=${runSecretsFlag(config)}\nservice_account=${config.serviceAccountName}\n`,
       );
       console.log(
         digest

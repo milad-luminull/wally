@@ -5,6 +5,7 @@ import {
   existingDigest,
   platformDigest,
   runEnvFlag,
+  runSecretsFlag,
   verifyCandidate,
 } from './resolve-release-image.mjs';
 
@@ -24,7 +25,18 @@ const candidate = (config, image = 'repo@' + digest) => ({
   metadata: { name: 'candidate', labels: { 'wally-commit': 'same' } },
   spec: {
     serviceAccountName: config.serviceAccountName,
-    containers: [{ image, env: config.env.map(({ name, value }) => ({ value, name })) }],
+    containers: [
+      {
+        image,
+        env: [
+          ...config.env.map(({ name, value }) => ({ value, name })),
+          ...config.secrets.map(({ name, secret, version }) => ({
+            name,
+            valueFrom: { secretKeyRef: { name: secret, key: version } },
+          })),
+        ],
+      },
+    ],
   },
 });
 
@@ -80,9 +92,12 @@ test('the deploy flag carries exactly the configuration the checks expect', () =
       return { name, value: value.join('=') };
     });
   assert.deepEqual(parsed, config.env);
-  assert.ok(parsed.some((e) => e.name === 'FIRESTORE_DATABASE_ID' && e.value === 'wally'));
   assert.ok(!parsed.some((e) => e.name === 'MCP_CLIENT_ID'));
+  // The connection string carries a password: it is never a plain variable.
+  assert.ok(!parsed.some((e) => e.name === 'DATABASE_URL'));
 });
+test('the database connection comes from Secret Manager', () =>
+  assert.equal(runSecretsFlag(apiConfig(releaseEnv)), 'DATABASE_URL=wally-database-url:latest'));
 test('the configuration sets exactly the variables the API reads in production', () =>
   assert.deepEqual(
     apiConfig({ ...releaseEnv, MCP_CLIENT_ID: 'client' }).env.map(({ name }) => name),
@@ -94,7 +109,6 @@ test('the configuration sets exactly the variables the API reads in production',
       'AUTH0_SIGNUP_ENABLED',
       'CORS_ORIGIN',
       'FIREBASE_PROJECT_ID',
-      'FIRESTORE_DATABASE_ID',
       'MCP_CLIENT_ID',
       'MCP_ENABLED',
       'MCP_WRITES_ENABLED',
@@ -116,7 +130,19 @@ test('deployed candidate with an extra variable fails', () => {
   const config = apiConfig(releaseEnv);
   const r = candidate({
     ...config,
-    env: [...config.env, { name: 'FIRESTORE_EMULATOR_HOST', value: 'x' }],
+    env: [...config.env, { name: 'NODE_OPTIONS', value: 'x' }],
+  });
+  assert.throws(
+    () => verifyCandidate([r], 'candidate', 'repo', { commit: 'same', config }, digest),
+    /configuration/,
+  );
+});
+test('deployed candidate with the database URL as a plain variable fails', () => {
+  const config = apiConfig(releaseEnv);
+  const r = candidate({
+    ...config,
+    env: [...config.env, { name: 'DATABASE_URL', value: 'postgres://u:p@host/db' }],
+    secrets: [],
   });
   assert.throws(
     () => verifyCandidate([r], 'candidate', 'repo', { commit: 'same', config }, digest),

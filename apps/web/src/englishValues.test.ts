@@ -33,8 +33,8 @@ const SCANNED = [
   'scripts',
   'infra',
   '.github',
-  'firestore.rules',
-  'firestore.indexes.json',
+  // The SQL migrations, whose check constraints spell every persisted value.
+  'apps/api/drizzle',
 ];
 
 /** Root files matched by name, so a new compose file is scanned without a list change. */

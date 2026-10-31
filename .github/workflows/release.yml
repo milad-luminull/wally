@@ -197,25 +197,7 @@ jobs:
           retention-days: 30
 
       # ---------------------------------------------------------------------------------
-      # 1. Firestore rules + indexes. First, because they are additive and backward
-      #    compatible, and because both other tiers may depend on a new index existing.
-      # ---------------------------------------------------------------------------------
-      - name: Deploy Firestore rules and indexes
-        run: |
-          set -euo pipefail
-          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
-            --only firestore \
-            --project "${GCP_PROJECT_ID}" \
-            --non-interactive
-
-      # Index builds are asynchronous: the deploy returns long before the index is usable,
-      # and querying one that is still building returns FAILED_PRECONDITION at runtime.
-      - name: Wait for composite indexes to finish building
-        run: |
-          node scripts/wait-firestore-indexes.mjs
-
-      # ---------------------------------------------------------------------------------
-      # 2. API image. Built on the runner: GitHub runners are amd64, so the Apple-Silicon
+      # 1. API image. Built on the runner: GitHub runners are amd64, so the Apple-Silicon
       #    reason for Cloud Build (docs/DEPLOY.md section 8) does not apply in CI, and this
       #    avoids uploading the whole repo to a GCS staging bucket on every release.
       # ---------------------------------------------------------------------------------
@@ -270,6 +252,25 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       # ---------------------------------------------------------------------------------
+      # 2. Database migrations, run by the image this release deploys, so the schema and the
+      #    code come from the same commit. Before the new revision exists, so it never meets
+      #    an older schema. Migrations must stay backward compatible with the revision still
+      #    serving: a failed release rolls back the API, never the schema (docs/DEPLOY.md).
+      # ---------------------------------------------------------------------------------
+      - name: Apply database migrations
+        env:
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          DATABASE_URL=$(gcloud secrets versions access latest \
+                           --secret=wally-database-url --project="${GCP_PROJECT_ID}")
+          echo "::add-mask::${DATABASE_URL}"
+          export DATABASE_URL
+          docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID="${GCP_PROJECT_ID}" \
+            "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${DIGEST}" \
+            node dist/migrate-cli.js
+
+      # ---------------------------------------------------------------------------------
       # 3. Cloud Run, with NO traffic. The revision gets its own URL, production keeps
       #    serving the old one, and we smoke-test the new one before anything shifts — so a
       #    failed smoke test needs no rollback at all: users never saw it.
@@ -280,6 +281,7 @@ jobs:
           DIGEST: ${{ steps.image.outputs.digest }}
           EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
           RUN_ENV: ${{ steps.existing.outputs.run_env }}
+          RUN_SECRETS: ${{ steps.existing.outputs.run_secrets }}
           SERVICE_ACCOUNT: ${{ steps.existing.outputs.service_account }}
           SHORT: ${{ steps.ver.outputs.short }}
         run: |
@@ -293,6 +295,7 @@ jobs:
             --region="${GCP_REGION}" \
             --service-account="${SERVICE_ACCOUNT}" \
             --set-env-vars="$RUN_ENV" \
+            --set-secrets="$RUN_SECRETS" \
             --tag="rel-${SHORT}" \
             --revision-suffix="rel-${SHORT}" \
             --labels="wally-commit=${GITHUB_SHA}" \
@@ -313,7 +316,7 @@ jobs:
         run: |
           set -euo pipefail
           # The candidate must run the selected image with exactly apiConfig's variables and
-          # service account: nothing extra (FIRESTORE_EMULATOR_HOST, PORT), nothing missing.
+          # service account, and DATABASE_URL from Secret Manager: nothing extra, nothing missing.
           node scripts/resolve-release-image.mjs verify
 
           # docs/DEPLOY.md section 9c: the invoker IAM check is disabled on this service

@@ -5,24 +5,17 @@
 # parts that exist for a human at a laptop. `!reset` needs Compose >= 2.24 (the GitHub
 # runners ship far newer).
 services:
-  firestore:
-    # `!override`, not a plain list: compose MERGES sequences by default, so a plain list
-    # would append to the base file's ports rather than replace them.
-    # 4001 (Emulator UI) and 9150 (its websocket) exist for a browser on the host. CI has
-    # none, and publishing fewer ports means fewer things to race on.
-    ports: !override
-      - '8080:8080'
+  migrate:
+    volumes: !reset []
 
   api:
     # The source bind mounts exist so a laptop gets hot reload; in CI they only slow the
     # container start, and the anonymous node_modules volumes exist purely to shadow them.
     volumes: !reset []
-    # Compose merges `environment` key by key, so FIRESTORE_EMULATOR_HOST, PORT and
-    # CORS_ORIGIN come from the base file; only NODE_ENV is added here.
+    # Compose merges `environment` key by key, so DATABASE_URL, PORT and CORS_ORIGIN come
+    # from the base file; only NODE_ENV is added here.
     environment:
-      # Deliberately NOT production: env.ts now treats NODE_ENV=production together with
-      # FIRESTORE_EMULATOR_HOST as a fatal misconfiguration, which is exactly the protection
-      # we want to keep working.
+      # Not production: the E2E seeds refuse to write in a production process.
       NODE_ENV: development
 
   web:

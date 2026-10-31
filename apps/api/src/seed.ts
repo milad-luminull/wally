@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { INITIAL_BOARD_NAME } from '@wally/shared';
 import type { NoteColour, NoteHorizon, NotePriority, NoteStatus } from '@wally/shared';
@@ -424,7 +425,7 @@ async function main() {
 }
 
 // Run only as a script, not when a test imports seedDemo.
-if (import.meta.url === `file://${process.argv[1]}`)
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   main().catch((err) => {
     console.error(err);
     process.exitCode = 1;
