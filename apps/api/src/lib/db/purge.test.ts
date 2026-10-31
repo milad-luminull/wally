@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../../../test/postgres.js';
 import {
   assistantAttempts,
@@ -10,7 +10,7 @@ import {
   boardOperations,
   users,
 } from '../postgres/schema/index.js';
-import { purgeExpired, schedulePurge, type PurgeCounts } from './purge.js';
+import { purgeExpired } from './purge.js';
 
 const now = new Date('2026-10-31T12:00:00.000Z');
 const past = new Date(now.getTime() - 1);
@@ -148,37 +148,35 @@ describe('purgeExpired', () => {
   });
 });
 
-describe('schedulePurge', () => {
-  it('purges once per interval, logs the counts and a failure, and stops when asked', async () => {
-    vi.useFakeTimers();
-    try {
-      const runs: Date[] = [];
-      const logged: unknown[] = [];
-      let fail = false;
-      const stop = schedulePurge({
-        intervalMs: 1000,
-        purge: async (now) => {
-          runs.push(now);
-          if (fail) throw new Error('database unavailable');
-          return { boardOperations: 1 } as PurgeCounts;
-        },
-        log: { info: (fields) => logged.push(fields), warn: (fields) => logged.push(fields) },
-      });
-      await vi.advanceTimersByTimeAsync(999);
-      expect(runs).toHaveLength(0);
-      await vi.advanceTimersByTimeAsync(1);
-      expect(runs).toHaveLength(1);
-      fail = true;
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(logged).toEqual([
-        { type: 'maintenance.purge', purged: { boardOperations: 1 } },
-        { type: 'maintenance.purge_failed', error: 'Error' },
-      ]);
-      stop();
-      await vi.advanceTimersByTimeAsync(5000);
-      expect(runs).toHaveLength(2);
-    } finally {
-      vi.useRealTimers();
-    }
+describe('the purge_expired database function', () => {
+  let handle: TestDatabase;
+
+  beforeAll(async () => {
+    handle = await createTestDatabase();
+  });
+
+  afterAll(async () => {
+    await handle?.drop();
+  });
+
+  it('is what purgeExpired runs, so the cron job and maintenance delete the same rows', async () => {
+    const rows = await handle.sql<{ table_name: string; deleted: string }[]>`
+      select * from purge_expired(${now.toISOString()}::timestamptz)`;
+    expect(rows.map((row) => row.table_name).sort()).toEqual([
+      'assistant_attempts',
+      'assistant_audit',
+      'assistant_conversations',
+      'assistant_suggestions',
+      'assistant_tidies',
+      'board_operations',
+    ]);
+  });
+
+  it('cannot be called by the Data API roles', async () => {
+    const [row] = await handle.sql<{ anon: boolean; authenticated: boolean }[]>`
+      select has_function_privilege('anon', 'purge_expired(timestamptz)', 'execute') as anon,
+             has_function_privilege('authenticated', 'purge_expired(timestamptz)', 'execute')
+               as authenticated`;
+    expect(row).toEqual({ anon: false, authenticated: false });
   });
 });

@@ -1,65 +1,31 @@
-import { lte } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Database } from '../postgres/client.js';
-import {
-  assistantAttempts,
-  assistantAudit,
-  assistantConversations,
-  assistantSuggestions,
-  assistantTidies,
-  boardOperations,
-} from '../postgres/schema/index.js';
 
-const EXPIRING = {
-  boardOperations,
-  assistantAudit,
-  assistantAttempts,
-  assistantConversations,
-  assistantSuggestions,
-  assistantTidies,
-};
+const TABLES = {
+  board_operations: 'boardOperations',
+  assistant_audit: 'assistantAudit',
+  assistant_attempts: 'assistantAttempts',
+  assistant_conversations: 'assistantConversations',
+  assistant_suggestions: 'assistantSuggestions',
+  assistant_tidies: 'assistantTidies',
+} as const;
 
-export type PurgeCounts = Record<keyof typeof EXPIRING, number>;
+export type PurgeCounts = Record<(typeof TABLES)[keyof typeof TABLES], number>;
 
 /**
- * Deletes every row whose `expires_at` has passed, the job Firestore's TTL policies did.
- * Board cleanup jobs carry no expiry and are never touched: they must run to completion.
+ * Deletes every row whose `expires_at` has passed, through the `purge_expired()` database
+ * function (apps/api/drizzle/0001_purge_expired.sql). A Supabase Cron job runs the same
+ * function hourly; this is for `pnpm maintenance`. Board cleanup jobs carry no expiry and
+ * are never touched.
  *
- * Expiry is storage hygiene, not access control: like Firestore TTL, which deleted up to a
- * day late, a row may outlive its expiry until the next run.
+ * Expiry is storage hygiene, not access control: a row may outlive its expiry until the
+ * next run.
  */
 export async function purgeExpired(db: Database, now: Date = new Date()): Promise<PurgeCounts> {
+  const rows = await db.execute<{ table_name: keyof typeof TABLES; deleted: string }>(
+    sql`select * from purge_expired(${now.toISOString()}::timestamptz)`,
+  );
   const counts = {} as PurgeCounts;
-  for (const [name, table] of Object.entries(EXPIRING) as [
-    keyof typeof EXPIRING,
-    (typeof EXPIRING)[keyof typeof EXPIRING],
-  ][]) {
-    const result = await db.delete(table).where(lte(table.expiresAt, now));
-    counts[name] = result.count;
-  }
+  for (const row of rows) counts[TABLES[row.table_name]] = Number(row.deleted);
   return counts;
-}
-
-/**
- * Runs `purge` every `intervalMs`, logging what it deleted, until the returned function is
- * called. The timer never keeps the process alive. On Cloud Run an idle instance gets CPU
- * only while it serves, so a run may come late; expiry tolerates that.
- */
-export function schedulePurge(options: {
-  intervalMs: number;
-  purge: (now: Date) => Promise<PurgeCounts>;
-  log: {
-    info: (fields: Record<string, unknown>) => void;
-    warn: (fields: Record<string, unknown>) => void;
-  };
-}): () => void {
-  const { intervalMs, purge, log } = options;
-  const timer = setInterval(() => {
-    purge(new Date()).then(
-      (purged) => log.info({ type: 'maintenance.purge', purged }),
-      (error: unknown) =>
-        log.warn({ type: 'maintenance.purge_failed', error: (error as Error).name }),
-    );
-  }, intervalMs);
-  timer.unref();
-  return () => clearInterval(timer);
 }
