@@ -9,7 +9,7 @@ import {
   type NotePriority,
   type NoteUpdateInput,
 } from '@wally/shared';
-import type { NoteDoc, WhiteboardDoc, WithId } from './db/types.js';
+import type { Board, NoteRow } from './db/types.js';
 import { AppError } from './errors.js';
 
 /**
@@ -20,7 +20,7 @@ import { AppError } from './errors.js';
  * `request.whiteboardContext.board` rather than reading it a second time — `memberRoles`
  * holds ACTIVE members only, which is exactly the check.
  */
-export function assertValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): void {
+export function assertValidAssignee(board: Board, assigneeId: string | null): void {
   if (isValidAssignee(board, assigneeId)) return;
 
   throw new AppError(
@@ -31,7 +31,7 @@ export function assertValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: st
 }
 
 /** The rule behind `assertValidAssignee`, for callers that fall back instead of failing. */
-export function isValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string | null): boolean {
+export function isValidAssignee(board: Board, assigneeId: string | null): boolean {
   return (
     assigneeId === null ||
     board.ownerId === assigneeId ||
@@ -42,7 +42,7 @@ export function isValidAssignee(board: WithId<WhiteboardDoc>, assigneeId: string
 
 /** A private note exists only for its creator: everyone else gets "not found". */
 export function canSeeNote(
-  note: Pick<NoteDoc, 'visibility' | 'createdById'>,
+  note: Pick<NoteRow, 'visibility' | 'createdById'>,
   actorId: string,
 ): boolean {
   return note.visibility !== 'PRIVATE' || note.createdById === actorId;
@@ -59,7 +59,7 @@ export function assertPrivateAssignee(creatorId: string | null, assigneeId: stri
 }
 
 export interface MoveComputation {
-  data: Partial<Pick<NoteDoc, 'horizon' | 'priority' | 'freeX' | 'freeY'>>;
+  data: Partial<Pick<NoteRow, 'horizon' | 'priority' | 'freeX' | 'freeY'>>;
   metadata: Record<string, unknown>;
 }
 

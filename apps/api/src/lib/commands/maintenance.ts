@@ -1,80 +1,55 @@
-import type { Firestore } from 'firebase-admin/firestore';
-import {
-  docsWithId,
-  liveWhiteboard,
-  membersCol,
-  notesCol,
-  now,
-  shareLinksCol,
-  whiteboardsCol,
-  withId,
-} from '../db/collections.js';
-import { revisionOf } from './context.js';
-import { rolesFromMembers } from './administration.js';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import type { Database } from '../postgres/client.js';
+import { withTransaction } from '../postgres/transaction.js';
+import { boardCleanup, notes, whiteboards } from '../postgres/schema/index.js';
+import { anyBoard, liveBoard, loadNote } from '../db/records.js';
 
-/** Cleanup is durable and independent of receipt retention. The original authorization
- * committed the job; cleanup does not need the initiating caller to remain a member. */
-export async function drainCleanupJob(db: Firestore, id: string): Promise<void> {
-  const ref = db.collection('boardCleanup').doc(id);
-  const job = (await ref.get()).data();
-  if (!job) return;
-  if (job.kind === 'note.delete') {
-    const noteRef = notesCol(db).doc(job.noteId);
-    const note = (await noteRef.get()).data();
-    if (note && (!note.deletedAt || note.whiteboardId !== job.boardId))
-      throw new Error('Invalid deletion cleanup target');
-    await db.recursiveDelete(noteRef);
-  } else if (job.kind === 'member.remove') {
-    // Use one transaction per note: rejoining or reassignment while cleanup is running
-    // must never erase a now-valid assignment. Query results are only candidate IDs.
-    const assigned = await notesCol(db)
-      .where('whiteboardId', '==', job.boardId)
-      .where('assigneeId', '==', job.userId)
-      .get();
-    for (const row of assigned.docs)
-      await db.runTransaction(async (tx) => {
-        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(job.boardId)));
-        const note = withId(await tx.get(row.ref));
-        if (
-          !board ||
-          !note ||
-          note.deletedAt ||
-          // A private note stays its creator's, hidden, until they rejoin (PRIVATE_NOTES §3).
-          note.visibility === 'PRIVATE' ||
-          note.whiteboardId !== board.id ||
-          note.assigneeId !== job.userId ||
-          board.ownerId === job.userId ||
-          board.memberRoles[job.userId]
-        )
-          return;
-        tx.update(row.ref, { assigneeId: null, updatedAt: now(), revision: revisionOf(note) + 1 });
-      });
-  } else if (job.kind === 'board.delete') {
-    // Every step deletes something that may already be gone, so a rerun after a failure is safe.
-    const boardRef = whiteboardsCol(db).doc(job.boardId);
-    const board = (await boardRef.get()).data();
-    if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');
-    const notes = await notesCol(db).where('whiteboardId', '==', job.boardId).get();
-    // One BulkWriter for every note: batched, parallel deletes instead of one round trip per
-    // note, so a large board does not hold the DELETE request open for long. Every deletion is
-    // attempted before a failure is reported; the job stays and a rerun finishes the rest.
-    const writer = db.bulkWriter();
-    const results = await Promise.allSettled(
-      notes.docs.map((row) => db.recursiveDelete(row.ref, writer)),
-    );
-    await writer.close();
-    const failed = results.find((result) => result.status === 'rejected');
-    if (failed) throw failed.reason;
-    // Takes the members subcollection with the board document.
-    await db.recursiveDelete(boardRef);
-  } else throw new Error('Unknown cleanup kind');
-  await ref.delete();
+/**
+ * Finishes the work a committed command left behind, then removes the job, in one
+ * transaction. Cleanup is durable and independent of receipt retention: the original
+ * authorization committed the job, and cleanup does not need the initiating caller to remain
+ * a member. Every step tolerates work that is already done, so a rerun after a failure is safe.
+ */
+export async function drainCleanupJob(db: Database, id: string): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const [job] = await tx.select().from(boardCleanup).where(eq(boardCleanup.id, id));
+    if (!job) return;
+    if (job.kind === 'note.delete') {
+      const note = await loadNote(tx, job.noteId!);
+      if (note && (!note.deletedAt || note.boardId !== job.boardId))
+        throw new Error('Invalid deletion cleanup target');
+      // Subtasks and history cascade with the note.
+      await tx.delete(notes).where(eq(notes.id, job.noteId!));
+    } else if (job.kind === 'member.remove') {
+      // Rejoining or a new grant while the job waited must never erase a now-valid assignment.
+      const board = await liveBoard(tx, job.boardId);
+      if (board && board.ownerId !== job.userId && !board.memberRoles[job.userId!])
+        await tx
+          .update(notes)
+          .set({ assigneeId: null, updatedAt: new Date(), revision: sql`${notes.revision} + 1` })
+          .where(
+            and(
+              eq(notes.boardId, job.boardId),
+              eq(notes.assigneeId, job.userId!),
+              isNull(notes.deletedAt),
+              // A private note stays its creator's, hidden, until they rejoin (PRIVATE_NOTES §3).
+              ne(notes.visibility, 'PRIVATE'),
+            ),
+          );
+    } else {
+      const board = await anyBoard(tx, job.boardId);
+      if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');
+      // Members, the share link, notes and their subtasks and history cascade with the board.
+      await tx.delete(whiteboards).where(eq(whiteboards.id, job.boardId));
+    }
+    await tx.delete(boardCleanup).where(eq(boardCleanup.id, id));
+  });
 }
 
-export async function drainCleanup(db: Firestore): Promise<{ completed: number; pending: number }> {
-  const jobs = await db.collection('boardCleanup').get();
+export async function drainCleanup(db: Database): Promise<{ completed: number; pending: number }> {
+  const jobs = await db.select({ id: boardCleanup.id }).from(boardCleanup);
   let completed = 0;
-  for (const job of jobs.docs) {
+  for (const job of jobs) {
     try {
       await drainCleanupJob(db, job.id);
       completed++;
@@ -82,44 +57,5 @@ export async function drainCleanup(db: Firestore): Promise<{ completed: number; 
       /* retained for the next attempt */
     }
   }
-  return { completed, pending: jobs.size - completed };
-}
-
-/** Dry run by default. Every applied repair re-reads its inputs transactionally. */
-export async function reconcileBoards(
-  db: Firestore,
-  apply = false,
-): Promise<{ roleCaches: number; orphanLinks: number }> {
-  let roleCaches = 0,
-    orphanLinks = 0;
-  for (const ref of await whiteboardsCol(db).listDocuments()) {
-    const changed = await db.runTransaction(async (tx) => {
-      // A tombstoned board is finished by its own cleanup job, not repaired here.
-      const board = liveWhiteboard(await tx.get(ref));
-      if (!board) return false;
-      const roles = rolesFromMembers(
-        docsWithId(await tx.get(membersCol(db, board.id))),
-        board.ownerId,
-      );
-      const same =
-        Object.keys(roles).length === Object.keys(board.memberRoles).length &&
-        Object.entries(roles).every(([uid, role]) => board.memberRoles[uid] === role);
-      if (!same && apply)
-        tx.update(ref, { memberRoles: roles, revision: revisionOf(board) + 1, updatedAt: now() });
-      return !same;
-    });
-    if (changed) roleCaches++;
-  }
-  for (const ref of await shareLinksCol(db).listDocuments()) {
-    const orphan = await db.runTransaction(async (tx) => {
-      const link = withId(await tx.get(ref));
-      if (!link) return false;
-      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(link.whiteboardId)));
-      if (board?.shareLinkToken === link.id) return false;
-      if (apply) tx.delete(ref);
-      return true;
-    });
-    if (orphan) orphanLinks++;
-  }
-  return { roleCaches, orphanLinks };
+  return { completed, pending: jobs.length - completed };
 }

@@ -5,7 +5,7 @@ import { loadEnv } from '../env.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
-    pg: Database;
+    db: Database;
   }
 }
 
@@ -17,11 +17,11 @@ declare module 'fastify' {
 export default fp(
   async function postgresPlugin(fastify: FastifyInstance, opts: { database?: Database }) {
     if (opts.database) {
-      fastify.decorate('pg', opts.database);
+      fastify.decorate('db', opts.database);
       return;
     }
     const { db, close } = createDatabase(loadEnv().DATABASE_URL);
-    fastify.decorate('pg', db);
+    fastify.decorate('db', db);
     fastify.addHook('onClose', close);
   },
   { name: 'postgres-plugin' },

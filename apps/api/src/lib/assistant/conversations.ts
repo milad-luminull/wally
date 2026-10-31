@@ -1,15 +1,18 @@
 import { assertAssistantBoardActive } from './guards.js';
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { and, eq } from 'drizzle-orm';
 import type { AssistantConversationDto, AssistantEntry } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
 import { AppError } from '../errors.js';
-import { assistantConversationsCol, stripId, toIso, withId } from '../db/collections.js';
-import type { AssistantConversationDoc, AssistantEntryDoc, WithId } from '../db/types.js';
+import { newId } from '../db/ids.js';
+import type { AssistantConversationRow } from '../db/types.js';
+import type { Database } from '../postgres/client.js';
+import { withTransaction } from '../postgres/transaction.js';
+import { assistantConversations } from '../postgres/schema/index.js';
 import type { StoredMessage, TurnUsage } from './model/index.js';
 
 export const MAX_TURNS = 20;
-/** Half of Firestore's 1 MiB document limit, leaving room for entries and usage. */
+/** The bound on one conversation's stored model history, so a row stays small. */
 export const MAX_MESSAGES_BYTES = 512 * 1024;
 export const CONVERSATION_RETENTION_DAYS = 30;
 
@@ -20,53 +23,59 @@ const ZERO_USAGE: TurnUsage = {
   reasoningTokens: 0,
 };
 const expiry = (lastTurnAt: Date) =>
-  Timestamp.fromMillis(lastTurnAt.getTime() + CONVERSATION_RETENTION_DAYS * 86_400_000);
+  new Date(lastTurnAt.getTime() + CONVERSATION_RETENTION_DAYS * 86_400_000);
 
 export async function createConversation(
-  db: Firestore,
+  db: Database,
   userId: string,
   boardId: string,
   model: string,
   now: Date,
-): Promise<WithId<AssistantConversationDoc>> {
-  const ref = assistantConversationsCol(db, userId).doc();
-  const stamp = Timestamp.fromDate(now);
-  const doc: AssistantConversationDoc = {
-    boardId,
-    model,
-    status: 'OPEN',
-    turns: 0,
-    messages: [],
-    entries: [],
-    usage: ZERO_USAGE,
-    toolCalls: 0,
-    createdAt: stamp,
-    lastTurnAt: stamp,
-    expiresAt: expiry(now),
-  };
-  await db.runTransaction(async (tx) => {
-    await assertAssistantBoardActive(db, userId, boardId, tx);
-    tx.create(ref, doc);
+): Promise<AssistantConversationRow> {
+  return withTransaction(db, async (tx) => {
+    await assertAssistantBoardActive(tx, userId, boardId);
+    const [row] = await tx
+      .insert(assistantConversations)
+      .values({
+        id: newId(),
+        userId,
+        boardId,
+        model,
+        status: 'OPEN',
+        turns: 0,
+        messages: [],
+        entries: [],
+        usage: ZERO_USAGE,
+        toolCalls: 0,
+        createdAt: now,
+        lastTurnAt: now,
+        expiresAt: expiry(now),
+      })
+      .returning();
+    return row!;
   });
-  return { ...doc, id: ref.id };
 }
 
 /** Null unless the conversation belongs to this user on this board: the access recheck of §3.4. */
 export async function loadConversation(
-  db: Firestore,
+  db: Database,
   userId: string,
   boardId: string,
   id: string,
-): Promise<WithId<AssistantConversationDoc> | null> {
-  const doc = withId(await assistantConversationsCol(db, userId).doc(id).get());
-  return doc && doc.boardId === boardId ? doc : null;
+): Promise<AssistantConversationRow | null> {
+  const [row] = await db
+    .select()
+    .from(assistantConversations)
+    .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.id, id)));
+  return row && row.boardId === boardId ? row : null;
 }
 
-function toEntryDoc(entry: AssistantEntry): AssistantEntryDoc {
-  return { ...entry, at: Timestamp.fromDate(new Date(entry.at)) };
+/** An entry as stored: its instant normalized to the ISO form toIsoString writes. */
+function toStoredEntry(entry: AssistantEntry): AssistantEntry {
+  return { ...entry, at: new Date(entry.at).toISOString() };
 }
 
-/** UTF-8 bytes of the stored history, the unit Firestore counts against its document limit. */
+/** UTF-8 bytes of the stored history, the unit MAX_MESSAGES_BYTES bounds. */
 export function messagesBytes(messages: readonly unknown[]): number {
   return Buffer.byteLength(JSON.stringify(messages), 'utf8');
 }
@@ -75,7 +84,7 @@ export function messagesBytes(messages: readonly unknown[]): number {
  * Records one turn: both entries always; the model messages and usage only when the turn
  * completed (a stopped turn keeps the previous history). Closes the conversation at the
  * turn cap, or when the new history would exceed MAX_MESSAGES_BYTES: then the previous
- * history is kept, so the document never grows past the bound.
+ * history is kept, so the row never grows past the bound.
  *
  * `expectedTurns` is the turn count the caller loaded before running the model. The
  * transaction refuses with 409 ASSISTANT_CONVERSATION_CLOSED when the conversation is no
@@ -85,7 +94,7 @@ export function messagesBytes(messages: readonly unknown[]): number {
  * or record a turn past MAX_TURNS.
  */
 export async function appendTurn(
-  db: Firestore,
+  db: Database,
   userId: string,
   id: string,
   turn: {
@@ -98,12 +107,14 @@ export async function appendTurn(
     toolCalls: number;
     now: Date;
   },
-): Promise<WithId<AssistantConversationDoc>> {
-  const ref = assistantConversationsCol(db, userId).doc(id);
-  return db.runTransaction(async (tx) => {
-    const current = withId(await tx.get(ref));
+): Promise<AssistantConversationRow> {
+  return withTransaction(db, async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(assistantConversations)
+      .where(and(eq(assistantConversations.userId, userId), eq(assistantConversations.id, id)));
     if (!current) throw new AppError(404, 'NOT_FOUND', 'Not found');
-    await assertAssistantBoardActive(db, userId, current.boardId, tx, turn.expectedBoardRevision);
+    await assertAssistantBoardActive(tx, userId, current.boardId, turn.expectedBoardRevision);
     if (current.status !== 'OPEN')
       throw new AppError(409, 'ASSISTANT_CONVERSATION_CLOSED', 'This conversation is closed');
     if (current.turns !== turn.expectedTurns)
@@ -116,12 +127,12 @@ export async function appendTurn(
     const messages = tooBig ? current.messages : (turn.messages ?? current.messages);
     const usage = turn.usage ?? ZERO_USAGE;
     const turns = current.turns + 1;
-    const next: WithId<AssistantConversationDoc> = {
+    const next: AssistantConversationRow = {
       ...current,
       status: turns >= MAX_TURNS || tooBig ? 'CLOSED' : 'OPEN',
       turns,
       messages,
-      entries: [...current.entries, toEntryDoc(turn.user), toEntryDoc(turn.assistant)],
+      entries: [...current.entries, toStoredEntry(turn.user), toStoredEntry(turn.assistant)],
       usage: {
         inputTokens: current.usage.inputTokens + usage.inputTokens,
         cachedInputTokens: current.usage.cachedInputTokens + usage.cachedInputTokens,
@@ -129,21 +140,33 @@ export async function appendTurn(
         reasoningTokens: current.usage.reasoningTokens + usage.reasoningTokens,
       },
       toolCalls: current.toolCalls + turn.toolCalls,
-      lastTurnAt: Timestamp.fromDate(turn.now),
+      lastTurnAt: turn.now,
       expiresAt: expiry(turn.now),
     };
-    tx.set(ref, stripId(next));
+    await tx
+      .update(assistantConversations)
+      .set({
+        status: next.status,
+        turns: next.turns,
+        messages: next.messages,
+        entries: next.entries,
+        usage: next.usage,
+        toolCalls: next.toolCalls,
+        lastTurnAt: next.lastTurnAt,
+        expiresAt: next.expiresAt,
+      })
+      .where(eq(assistantConversations.id, id));
     return next;
   });
 }
 
-export function toConversationDto(doc: WithId<AssistantConversationDoc>): AssistantConversationDto {
+export function toConversationDto(doc: AssistantConversationRow): AssistantConversationDto {
   return {
     id: doc.id,
     boardId: doc.boardId,
     status: doc.status,
     model: doc.model,
-    entries: doc.entries.map((e) => ({ ...e, at: toIso(e.at) })),
+    entries: doc.entries,
   };
 }
 
@@ -153,9 +176,9 @@ export function toConversationDto(doc: WithId<AssistantConversationDoc>): Assist
  * otherwise out of the caller's sight is dropped; the entry's text stays as it was answered.
  */
 export async function toVisibleConversationDto(
-  db: Firestore,
+  db: Database,
   actor: Actor,
-  doc: WithId<AssistantConversationDoc>,
+  doc: AssistantConversationRow,
 ): Promise<AssistantConversationDto> {
   const dto = toConversationDto(doc);
   if (!dto.entries.some((entry) => entry.chips.length > 0)) return dto;

@@ -9,7 +9,7 @@ import {
   customFieldValueSchema,
   foldFieldKey,
 } from '@wally/shared';
-import type { AssistantSuggestionDoc } from '../db/types.js';
+import type { SuggestionFields as StoredSuggestionFields } from '../db/types.js';
 import {
   CAPTURE_MAX_KEY_VALUES,
   CAPTURE_MAX_OTHER_NOTES,
@@ -298,7 +298,7 @@ export type CaptureOutcome =
   | 'no_title'
   | 'private';
 
-type AcceptedFields = AssistantSuggestionDoc['fields'];
+type AcceptedFields = StoredSuggestionFields;
 
 /**
  * Keeps a field only when it is a candidate, confident enough, (for a person) a member and
@@ -404,7 +404,7 @@ export function acceptCapture(
 function acceptTags(
   tags: NonNullable<ModelSuggestion['tags']>,
   boardTags: string[],
-): NonNullable<AssistantSuggestionDoc['fields']['tags']> | null {
+): NonNullable<StoredSuggestionFields['tags']> | null {
   const seen = new Set<string>();
   const items: string[] = [];
   for (const raw of tags.items) {
@@ -426,7 +426,7 @@ function acceptTags(
 function acceptProperties(
   properties: NonNullable<ModelSuggestion['properties']>,
   fieldKeys: string[],
-): NonNullable<AssistantSuggestionDoc['fields']['properties']> | null {
+): NonNullable<StoredSuggestionFields['properties']> | null {
   const seen = new Set<string>();
   const items: { key: string; value: string }[] = [];
   for (const item of properties.items) {
@@ -449,7 +449,7 @@ function acceptProperties(
  */
 function acceptSubtasks(
   subtasks: NonNullable<ModelSuggestion['subtasks']>,
-): NonNullable<AssistantSuggestionDoc['fields']['subtasks']> | null {
+): NonNullable<StoredSuggestionFields['subtasks']> | null {
   const { items } = subtasks;
   return items.length >= SUGGESTION_MIN_SUBTASKS ? { items, reason: subtasks.reason } : null;
 }
@@ -461,7 +461,7 @@ function acceptSubtasks(
 function acceptLinks(
   links: NonNullable<ModelSuggestion['links']>,
   others: Map<string, string>,
-): NonNullable<AssistantSuggestionDoc['fields']['links']> | null {
+): NonNullable<StoredSuggestionFields['links']> | null {
   const items = links.items
     .filter((item) => others.has(item.noteId))
     .slice(0, SUGGESTION_MAX_LINKS)

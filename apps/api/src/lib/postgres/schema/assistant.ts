@@ -9,15 +9,23 @@ import {
   primaryKey,
   text,
 } from 'drizzle-orm/pg-core';
-import { suggestionFieldKeySchema, tidyStatusSchema } from '@wally/shared';
+import { suggestionFieldKeySchema, tidyStatusSchema, type SuggestionFieldKey } from '@wally/shared';
 import type {
-  AssistantConversationDoc,
-  AssistantSuggestionDoc,
-  AssistantTidyDoc,
+  AssistantEntry,
+  ConversationUsage,
+  SuggestionApplied,
+  SuggestionDecision,
+  SuggestionFields,
+  SuggestionOperationIds,
+  SuggestionUndone,
+  SuggestionUsage,
+  TidyApplied,
+  TidyDecision,
+  TidyMove,
+  TidyUndone,
 } from '../../db/types.js';
 import { users } from './accounts.js';
 import { allOf, instant, oneOf } from './columns.js';
-import type { AsJson } from './json.js';
 
 /**
  * The assistant's records are the user's own: each belongs to a user and cascades with
@@ -97,8 +105,8 @@ export const assistantConversations = pgTable(
     turns: integer().notNull(),
     /** The model library's own messages, opaque JSON, replayed on continuation. */
     messages: jsonb().$type<unknown[]>().notNull(),
-    entries: jsonb().$type<AsJson<AssistantConversationDoc['entries']>>().notNull(),
-    usage: jsonb().$type<AssistantConversationDoc['usage']>().notNull(),
+    entries: jsonb().$type<AssistantEntry[]>().notNull(),
+    usage: jsonb().$type<ConversationUsage>().notNull(),
     toolCalls: integer().notNull(),
     createdAt: instant().notNull(),
     lastTurnAt: instant().notNull(),
@@ -113,8 +121,6 @@ export const assistantConversations = pgTable(
 
 export const suggestionStatusValues = ['PENDING', 'KEPT', 'UNDONE', 'DISCARDED'] as const;
 
-type Suggestion = AsJson<AssistantSuggestionDoc>;
-
 /** The approval record for one capture (RFC-0003 §3.2, RFC-0005 §4). */
 export const assistantSuggestions = pgTable(
   'assistant_suggestions',
@@ -127,15 +133,15 @@ export const assistantSuggestions = pgTable(
     noteId: text().notNull(),
     baseRevision: integer().notNull(),
     baseTitle: text(),
-    fields: jsonb().$type<Suggestion['fields']>().notNull(),
-    typed: text().$type<NonNullable<Suggestion['typed']>[number]>().array(),
-    operationIds: jsonb().$type<Suggestion['operationIds']>().notNull(),
+    fields: jsonb().$type<SuggestionFields>().notNull(),
+    typed: text().array().$type<SuggestionFieldKey[]>(),
+    operationIds: jsonb().$type<SuggestionOperationIds>().notNull(),
     status: text({ enum: suggestionStatusValues }).notNull(),
-    decision: jsonb().$type<NonNullable<Suggestion['decision']>>(),
-    undone: jsonb().$type<NonNullable<Suggestion['undone']>>(),
-    applied: jsonb().$type<NonNullable<Suggestion['applied']>>(),
+    decision: jsonb().$type<SuggestionDecision>(),
+    undone: jsonb().$type<SuggestionUndone>(),
+    applied: jsonb().$type<SuggestionApplied>(),
     model: text().notNull(),
-    usage: jsonb().$type<Suggestion['usage']>().notNull(),
+    usage: jsonb().$type<SuggestionUsage>().notNull(),
     createdAt: instant().notNull(),
     updatedAt: instant().notNull(),
     expiresAt: instant().notNull(),
@@ -150,8 +156,6 @@ export const assistantSuggestions = pgTable(
 
 const tidyStatusValues = tidyStatusSchema.options;
 
-type Tidy = AsJson<AssistantTidyDoc>;
-
 /** The approval record for one Tidy of the horizon wall (RFC-0005 §3.5). */
 export const assistantTidies = pgTable(
   'assistant_tidies',
@@ -162,13 +166,13 @@ export const assistantTidies = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     boardId: text().notNull(),
     status: text({ enum: tidyStatusValues }).notNull(),
-    moves: jsonb().$type<Tidy['moves']>().notNull(),
-    decision: jsonb().$type<NonNullable<Tidy['decision']>>(),
-    undone: jsonb().$type<NonNullable<Tidy['undone']>>(),
-    applied: jsonb().$type<NonNullable<Tidy['applied']>>(),
+    moves: jsonb().$type<TidyMove[]>().notNull(),
+    decision: jsonb().$type<TidyDecision>(),
+    undone: jsonb().$type<TidyUndone>(),
+    applied: jsonb().$type<TidyApplied>(),
     /** Null when every move came from the date rule and no model ran. */
     model: text(),
-    usage: jsonb().$type<NonNullable<Tidy['usage']>>(),
+    usage: jsonb().$type<SuggestionUsage>(),
     createdAt: instant().notNull(),
     updatedAt: instant().notNull(),
     expiresAt: instant().notNull(),

@@ -1,25 +1,20 @@
 import { visibleLinks } from '../visibleLinks.js';
-import { runQueryTransaction } from '../db/transaction.js';
 import { createHash } from 'node:crypto';
-import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
+import { and, eq } from 'drizzle-orm';
 import {
   boardCommandSchema,
   operationMetadataSchema,
   type BoardCommand,
   type EffectiveRole,
 } from '@wally/shared';
-import {
-  assistantAuditCol,
-  liveWhiteboard,
-  notesCol,
-  shareLinksCol,
-  whiteboardsCol,
-  withId,
-} from '../db/collections.js';
+import { liveBoard, loadNote } from '../db/records.js';
 import { AppError } from '../errors.js';
 import { ASSISTANT_AUDIT_RETENTION_DAYS, type Provenance } from '../assistant/provenance.js';
-import type { NoteDoc, WithId } from '../db/types.js';
-import { requireAccess, revisionOf, notFound, type Actor, type CommandResult } from './context.js';
+import type { Note } from '../db/types.js';
+import type { Database } from '../postgres/client.js';
+import { withTransaction, type Transaction } from '../postgres/transaction.js';
+import { assistantAudit, boardOperations, shareLinks } from '../postgres/schema/index.js';
+import { requireAccess, notFound, type Actor, type CommandResult } from './context.js';
 import { canSeeNote } from '../notes.js';
 import { executeNoteCommand } from './notes.js';
 import { createBoard, executeAdminCommand } from './administration.js';
@@ -50,7 +45,7 @@ const EDITORS: EffectiveRole[] = ['OWNER', 'EDIT'];
  */
 function rolesFor(
   command: BoardCommand,
-  note: WithId<NoteDoc> | null,
+  note: Note | null,
   actorId: string,
 ): EffectiveRole[] {
   if (command.type === 'link.redeem') return ANY_ROLE;
@@ -65,7 +60,7 @@ function rolesFor(
 
 /** The only entry point for user-triggered board writes. No Fastify dependency. */
 export async function executeBoardCommand(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   rawCommand: unknown,
   rawMetadata: unknown,
@@ -89,8 +84,8 @@ export async function executeBoardCommand(
   const command = parsed.data;
   const { operationId, expectedRevision } = metadata.data;
   const { provenance } = options;
-  // Provenance joins the fingerprint only when present, so receipts written before it
-  // existed still replay.
+  // Provenance joins the fingerprint only when present, so a browser command's fingerprint
+  // is the same with or without the field.
   const fingerprint = createHash('sha256')
     .update(
       canonical(
@@ -98,29 +93,31 @@ export async function executeBoardCommand(
       ),
     )
     .digest('hex');
-  const receiptRef = db
-    .collection('users')
-    .doc(actor.id)
-    .collection('boardOperations')
-    .doc(operationId);
   try {
-    const { result, replayed } = await runQueryTransaction(db, async (tx) => {
+    const { result, replayed } = await withTransaction(db, async (tx) => {
       // `roles` are the ones that authorized the command; replay re-checks the caller's
       // current role against them, so a viewer's retried private-note write still replays.
       // An assistant write also leaves its audit record, in the same transaction.
-      const writeReceipt = (boardId: string, result: CommandResult, roles: EffectiveRole[]) => {
-        tx.create(receiptRef, {
+      const writeReceipt = async (
+        boardId: string,
+        result: CommandResult,
+        roles: EffectiveRole[],
+      ) => {
+        const createdAt = new Date();
+        await tx.insert(boardOperations).values({
+          userId: actor.id,
+          operationId,
           fingerprint,
           boardId,
           roles,
           result,
-          ...(provenance ? { provenance } : {}),
-          createdAt: Timestamp.now(),
-          expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000),
+          provenance: provenance ?? null,
+          createdAt,
+          expiresAt: new Date(createdAt.getTime() + 7 * 86400000),
         });
         if (provenance) {
-          const occurredAt = Timestamp.now();
-          tx.create(assistantAuditCol(db).doc(operationId), {
+          const occurredAt = createdAt;
+          await tx.insert(assistantAudit).values({
             operationId,
             actorId: actor.id,
             boardId,
@@ -138,20 +135,24 @@ export async function executeBoardCommand(
               : { via: 'mcp' as const, connectionId: provenance.connectionId }),
             revision: result.revision,
             occurredAt,
-            expiresAt: Timestamp.fromMillis(
-              occurredAt.toMillis() + ASSISTANT_AUDIT_RETENTION_DAYS * 86400000,
+            expiresAt: new Date(
+              occurredAt.getTime() + ASSISTANT_AUDIT_RETENTION_DAYS * 86400000,
             ),
           });
         }
       };
-      const receipt = (await tx.get(receiptRef)).data();
+      const [receipt] = await tx
+        .select()
+        .from(boardOperations)
+        .where(
+          and(eq(boardOperations.userId, actor.id), eq(boardOperations.operationId, operationId)),
+        );
       // A committed deletion no longer has a target. Receipts carry its board so we can
-      // re-authorize BEFORE replaying, without depending on the deleted document.
+      // re-authorize BEFORE replaying, without depending on the deleted row.
       if (receipt) {
-        const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(receipt.boardId)));
+        const board = await liveBoard(tx, receipt.boardId);
         await options.authorize?.(tx, receipt.boardId);
-        // Receipts written before roles were stored fall back to the note-free rule.
-        requireAccess(board, actor.id, receipt.roles ?? rolesFor(command, null, actor.id));
+        requireAccess(board, actor.id, receipt.roles);
         if (receipt.fingerprint !== fingerprint)
           throw new AppError(
             409,
@@ -164,43 +165,41 @@ export async function executeBoardCommand(
           'noteId' in command
             ? command.noteId
             : command.type === 'note.create'
-              ? (receipt.result?.data as { id?: string } | undefined)?.id
+              ? (receipt.result.data as { id?: string } | null)?.id
               : undefined;
         if (targetId && command.type !== 'note.delete') {
-          const target = withId(await tx.get(notesCol(db).doc(targetId)));
+          const target = await loadNote(tx, targetId);
           if (
             !target ||
             target.deletedAt ||
-            target.whiteboardId !== receipt.boardId ||
+            target.boardId !== receipt.boardId ||
             !canSeeNote(target, actor.id)
           )
             notFound();
         }
-        return { result: receipt.result as CommandResult, replayed: true };
+        return { result: receipt.result, replayed: true };
       }
 
       // The only command with no existing board to resolve, authorize or check a revision on.
       // Its receipt names the new board, so a replay re-authorizes the caller as its owner.
       if (command.type === 'board.create') {
-        const result = await createBoard(db, tx, actor, command.input.name);
-        writeReceipt(result.boardId, result, rolesFor(command, null, actor.id));
+        const result = await createBoard(tx, actor, command.input.name);
+        await writeReceipt(result.boardId, result, rolesFor(command, null, actor.id));
         return { result, replayed: false };
       }
 
-      const note =
-        'noteId' in command ? withId(await tx.get(notesCol(db).doc(command.noteId))) : null;
+      const note = 'noteId' in command ? await loadNote(tx, command.noteId) : null;
       if ('noteId' in command && (!note || note.deletedAt)) notFound();
       // Before any role check, so a non-creator learns nothing from a private note's id.
       if (note && !canSeeNote(note, actor.id)) notFound();
-      const link =
+      const [link] =
         command.type === 'link.redeem'
-          ? withId(await tx.get(shareLinksCol(db).doc(command.token)))
-          : null;
-      const boardId =
-        note?.whiteboardId ?? ('boardId' in command ? command.boardId : link?.whiteboardId);
+          ? await tx.select().from(shareLinks).where(eq(shareLinks.token, command.token))
+          : [];
+      const boardId = note?.boardId ?? ('boardId' in command ? command.boardId : link?.boardId);
       if (!boardId || ('boardId' in command && command.boardId && command.boardId !== boardId))
         notFound();
-      const board = liveWhiteboard(await tx.get(whiteboardsCol(db).doc(boardId)));
+      const board = await liveBoard(tx, boardId);
       if (!board) notFound();
       await options.authorize?.(tx, boardId);
       const roles = rolesFor(command, note, actor.id);
@@ -217,7 +216,7 @@ export async function executeBoardCommand(
       ) {
         if (expectedRevision === undefined)
           throw new AppError(428, 'PRECONDITION_REQUIRED', 'Expected revision is required');
-        if (expectedRevision !== revisionOf(note ?? board))
+        if (expectedRevision !== (note ?? board).revision)
           throw new AppError(
             409,
             'STALE_REVISION',
@@ -238,7 +237,7 @@ export async function executeBoardCommand(
         command.type.startsWith('note.') || command.type.startsWith('subtask.')
           ? await executeNoteCommand(context, command)
           : await executeAdminCommand(context, command);
-      writeReceipt(boardId, result, roles);
+      await writeReceipt(boardId, result, roles);
       return { result, replayed: false };
     });
     options.logger?.info({
@@ -268,7 +267,13 @@ export async function executeBoardCommand(
       'links' in result.data
     ) {
       const note = result.data as { whiteboardId: string; links: string[] };
-      return { ...result, data: { ...note, links: await visibleLinks(db, note, actor.id) } };
+      return {
+        ...result,
+        data: {
+          ...note,
+          links: await visibleLinks(db, { boardId: note.whiteboardId, links: note.links }, actor.id),
+        },
+      };
     }
     return result;
   } catch (error) {

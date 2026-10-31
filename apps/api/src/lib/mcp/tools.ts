@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import type { Database } from '../postgres/client.js';
+import type { Transaction } from '../postgres/transaction.js';
 import { z } from 'zod';
 import { noteListQuerySchema } from '@wally/shared';
 import type { Actor } from '../commands/context.js';
@@ -10,7 +11,7 @@ import { AppError } from '../errors.js';
 
 /** The transport supplies trusted identity and checks durable consent on every call. */
 export interface McpToolContext {
-  db: Firestore;
+  db: Database;
   actor: Actor;
   connectionId: string;
   scopes: string[];

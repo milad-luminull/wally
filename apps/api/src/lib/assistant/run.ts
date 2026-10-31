@@ -1,4 +1,5 @@
-import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import type { Database } from '../postgres/client.js';
+import type { Transaction } from '../postgres/transaction.js';
 import type { BoardCommand, NoteDetailDto, NoteDto } from '@wally/shared';
 import { executeBoardCommand, type Actor, type CommandLogger } from '../commands/index.js';
 import { getNote, listMembers, listNotes } from '../commands/queries.js';
@@ -13,7 +14,7 @@ import {
 import type { Provenance } from './provenance.js';
 
 export interface OperationContext {
-  db: Firestore;
+  db: Database;
   actor: Actor;
   /** The board the conversation is bound to; every call must name it. */
   boardId: string;
@@ -53,7 +54,7 @@ export interface NoteRow {
  * Runs one assistant operation for one caller on one board. Reads go to the query
  * functions; writes go through executeBoardCommand with the caller as actor, the call's
  * operation id and expected revision, and the server's provenance. Nothing here touches
- * Firestore directly.
+ * the database directly.
  */
 export async function runOperation(
   ctx: OperationContext,

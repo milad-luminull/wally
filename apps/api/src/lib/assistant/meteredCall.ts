@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import type { Database } from '../postgres/client.js';
 import type { Env } from '../../env.js';
 import type { CommandLogger } from '../commands/index.js';
 import { AppError } from '../errors.js';
@@ -11,7 +11,7 @@ import { retryDelayMs, withOneRetry, type SuggestionInput } from './model/index.
 export const MIN_ATTEMPT_MS = 4_000;
 
 export interface MeteredCallDeps {
-  db: Firestore;
+  db: Database;
   env: Env;
   logger?: CommandLogger;
   now?: () => Date;

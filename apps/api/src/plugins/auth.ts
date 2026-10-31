@@ -1,17 +1,12 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Firestore } from 'firebase-admin/firestore';
+import { eq } from 'drizzle-orm';
 import { INITIAL_BOARD_NAME, type Language, type Preferences } from '@wally/shared';
-import type { UserDoc, WithId } from '../lib/db/types.js';
-import {
-  normalizeEmail,
-  now,
-  userLanguage,
-  userPreferences,
-  usersCol,
-  whiteboardsCol,
-  withId,
-} from '../lib/db/collections.js';
+import type { UserRow } from '../lib/db/types.js';
+import { normalizeEmail, userPreferences } from '../lib/db/records.js';
+import type { Database } from '../lib/postgres/client.js';
+import { withTransaction } from '../lib/postgres/transaction.js';
+import { users, whiteboards } from '../lib/postgres/schema/index.js';
 import { activatePendingInvitesForEmail } from '../lib/members.js';
 import { languageFromAcceptLanguage } from '../lib/language.js';
 import { decodeJwt } from 'jose';
@@ -30,20 +25,18 @@ export interface AuthenticatedUser {
   email: string;
   /**
    * Straight from the verified ID token, not the stored copy. Required before trusting
-   * `email` for anything privilege-granting — see UserDoc.emailVerified and the share-link
+   * `email` for anything privilege-granting — see the share-link
    * redemption in lib/members.ts, which may only claim an invite keyed by an address the
    * caller has actually confirmed.
    */
   emailVerified: boolean;
   displayName: string | null;
   /**
-   * The caller's stored UI language, read through userLanguage() so a profile written before
-   * the field existed reads as the default rather than undefined. Sourced from the profile
-   * ONLY — Accept-Language is consulted at provisioning and nowhere else, see
-   * lib/language.ts.
+   * The caller's stored UI language. Sourced from the profile ONLY — Accept-Language is
+   * consulted at provisioning and nowhere else, see lib/language.ts.
    */
   language: Language;
-  /** Read through userPreferences(), for the same reason as `language`. */
+  /** Read through userPreferences(), which defaults and drops anything malformed. */
   preferences: Preferences;
 }
 
@@ -60,12 +53,11 @@ declare module 'fastify' {
 const PUBLIC_PATHS = new Set<string>(['/health']);
 
 interface ProvisionResult {
-  user: WithId<UserDoc>;
+  user: UserRow;
   /**
-   * Whether this transaction actually wrote anything. The pending-invite sweep below is a
-   * collection-group query — billed on every request even when it matches nothing — and it
-   * is only ever *needed* at the two moments this flips true for a user record: its
-   * creation, and emailVerified going false -> true. See the sweep's call site.
+   * Whether this transaction actually wrote anything. The pending-invite sweep below is
+   * only ever *needed* at the two moments this flips true for a user record: its creation,
+   * and emailVerified going false -> true. See the sweep's call site.
    */
   changed: boolean;
 }
@@ -78,7 +70,7 @@ interface ProvisionResult {
  * any more. A board the user deleted is never recreated here (RFC 0002 §12.3).
  */
 async function provisionUser(
-  db: Firestore,
+  db: Database,
   uid: string,
   email: string,
   displayName: string | null,
@@ -91,11 +83,8 @@ async function provisionUser(
   signupLanguage: Language,
   allowCreate: boolean,
 ): Promise<ProvisionResult> {
-  const userRef = usersCol(db).doc(uid);
-  const boardRef = whiteboardsCol(db).doc(uid);
-
-  return db.runTransaction(async (tx) => {
-    const existing = withId(await tx.get(userRef));
+  return withTransaction(db, async (tx) => {
+    const [existing] = await tx.select().from(users).where(eq(users.id, uid));
     if (!existing && !allowCreate) {
       throw new AppError(
         403,
@@ -107,13 +96,18 @@ async function provisionUser(
     // removed by hand) is kept rather than overwritten. That includes a tombstoned board still
     // being cleaned up: its notes still point at this id, so a fresh board here would show them
     // again. Such a user starts with no board and creates one from the home.
-    const boardExists = existing ? true : (await tx.get(boardRef)).exists;
-    const timestamp = now();
+    const boardExists = existing
+      ? true
+      : (await tx.select({ id: whiteboards.id }).from(whiteboards).where(eq(whiteboards.id, uid)))
+          .length > 0;
+    const timestamp = new Date();
     let changed = false;
+    let user = existing;
 
-    const user: WithId<UserDoc> = existing
-      ? { ...existing, email, displayName, emailVerified, updatedAt: timestamp }
-      : {
+    if (!user) {
+      [user] = await tx
+        .insert(users)
+        .values({
           id: uid,
           email,
           displayName,
@@ -121,49 +115,37 @@ async function provisionUser(
           language: signupLanguage,
           createdAt: timestamp,
           updatedAt: timestamp,
-        };
-
-    if (!existing) {
-      tx.set(userRef, {
-        email,
-        displayName,
-        emailVerified,
-        language: signupLanguage,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
+        })
+        .returning();
       changed = true;
     } else if (
-      existing.email !== email ||
-      existing.displayName !== displayName ||
-      // Strict, not isEmailVerified(): a record written before this field existed carries no
-      // value at all, so `undefined !== false` forces exactly one backfilling write. That
-      // write is also the one sweep that recovers any invite the old code left stranded.
-      existing.emailVerified !== emailVerified
+      user.email !== email ||
+      user.displayName !== displayName ||
+      user.emailVerified !== emailVerified
     ) {
-      // This field list is deliberately exhaustive rather than a spread of `user`. update()
-      // merges only the paths it names, which is what preserves a stored `language` here —
-      // swapping it for tx.set(userRef, user) would destroy the user's chosen language on
-      // every Firebase profile change. `language` must never be added to this list either:
-      // it is not sourced from the token.
-      tx.update(userRef, { email, displayName, emailVerified, updatedAt: timestamp });
+      // `language` is never part of this update: it is not sourced from the token, and only
+      // PATCH /me changes it.
+      [user] = await tx
+        .update(users)
+        .set({ email, displayName, emailVerified, updatedAt: timestamp })
+        .where(eq(users.id, uid))
+        .returning();
       changed = true;
     }
 
     if (!boardExists) {
-      tx.set(boardRef, {
+      await tx.insert(whiteboards).values({
+        id: uid,
         name: INITIAL_BOARD_NAME[signupLanguage],
         ownerId: uid,
         revision: 1,
-        memberRoles: {},
-        shareLinkToken: null,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
       changed = true;
     }
 
-    return { user, changed };
+    return { user: user!, changed };
   });
 }
 
@@ -173,9 +155,9 @@ async function provisionUser(
  * exists (with a first whiteboard for a brand-new identity), and auto-activates any pending
  * invite addressed to their email.
  *
- * The steady-state path is one document read, no writes and no collection-group query:
- * provisioning only runs on a user's first request or when their Firebase profile has
- * actually changed, and the pending-invite sweep only runs when provisioning wrote.
+ * The steady-state path is one read and no writes: provisioning only runs on a user's first
+ * request or when their Firebase profile has actually changed, and the pending-invite sweep
+ * only runs when provisioning wrote.
  */
 export default fp(
   async function authPlugin(fastify: FastifyInstance, options: AuthPluginOptions) {
@@ -251,9 +233,8 @@ export default fp(
       const email = normalizeEmail(decoded.email);
       const displayName = decoded.name ?? null;
 
-      const userSnapshot = await usersCol(db).doc(decoded.uid).get();
+      const [existing] = await db.select().from(users).where(eq(users.id, decoded.uid));
       const emailVerified = decoded.emailVerified;
-      const existing = withId(userSnapshot);
       // A linked identity whose user record is gone (removed by hand) is refused: it never
       // recreates that user or creates an empty one.
       if (externalIdentity && !existing) {
@@ -266,15 +247,14 @@ export default fp(
 
       // emailVerified MUST take part in this comparison. Without it, a user who verifies
       // later keeps a stale `false` on their record forever, and the pending invite waiting
-      // on that flag could never activate. The strictness (rather than isEmailVerified) is
-      // deliberate — see provisionUser.
+      // on that flag could never activate.
       const upToDate =
-        existing !== null &&
+        existing !== undefined &&
         existing.email === email &&
         existing.displayName === displayName &&
         existing.emailVerified === emailVerified;
 
-      let user: WithId<UserDoc>;
+      let user: UserRow;
       let provisioned = identityCreated;
       if (upToDate) {
         user = existing;
@@ -301,8 +281,7 @@ export default fp(
       // `provisioned` narrows it further: upsertInvite links an invite addressed to a
       // VERIFIED existing user straight to an ACTIVE row, so a PENDING row can only become
       // claimable at the two moments provisioning writes — the record's creation, and
-      // emailVerified flipping false -> true. Outside those there is nothing to find, and
-      // this is a collection-group query billed on every single authenticated request.
+      // emailVerified flipping false -> true. Outside those there is nothing to find.
       if (emailVerified && provisioned) {
         await activatePendingInvitesForEmail(db, user.id, email);
       }
@@ -312,13 +291,10 @@ export default fp(
         email: user.email,
         emailVerified,
         displayName: user.displayName,
-        // userLanguage(), not user.language: on the up-to-date path `user` is the raw stored
-        // document, whose language is absent for any account created before this field
-        // existed. Reading it directly would decorate undefined and 500 GET /me.
-        language: userLanguage(user),
+        language: user.language,
         preferences: userPreferences(user),
       };
     });
   },
-  { name: 'auth-plugin', dependencies: ['firestore-plugin', 'firebase-plugin'] },
+  { name: 'auth-plugin', dependencies: ['postgres-plugin', 'firebase-plugin'] },
 );

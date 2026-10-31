@@ -1,16 +1,10 @@
 import { z } from 'zod';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
+import { isLocalDatabaseUrl } from './lib/db/local.js';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   FIREBASE_PROJECT_ID: z.string().min(1),
-  // Set by docker-compose to point the Admin SDK at the local Firestore emulator. The SDK
-  // reads this variable itself; it's declared here so the config is visible and validated.
-  FIRESTORE_EMULATOR_HOST: z.string().min(1).optional(),
-  // Which Firestore database to use. Unset means "(default)", which is what the emulator
-  // serves locally. Production sets this to `wally` — the EU (europe-west3) database —-
-  // because the project's "(default)" database was auto-created in the US.
-  FIRESTORE_DATABASE_ID: z.string().min(1).optional(),
   // The PostgreSQL connection string. In production it goes through Supabase's transaction
   // pooler, which is why the client turns prepared statements off (lib/postgres/client.ts).
   DATABASE_URL: z.string().url(),
@@ -77,24 +71,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
-  // A production process must never be pointed at an emulator. plugins/firebase.ts allows a
-  // credential-less boot when FIRESTORE_EMULATOR_HOST is set, so without this a
-  // misconfigured production deploy would start happily and quietly try to reach an
-  // emulator that does not exist. docs/DEPLOY.md section 15 records that exact leak as a
-  // real incident class ("API returns 500s and the logs mention connecting to
-  // firestore:8080"); make it fatal at boot instead of a 500 on every request.
-  if (parsed.data.NODE_ENV === 'production' && parsed.data.FIRESTORE_EMULATOR_HOST) {
-    throw new Error(
-      'FIRESTORE_EMULATOR_HOST must never be set when NODE_ENV=production — it would send ' +
-        'all Firestore traffic to a non-existent emulator instead of the real database.',
-    );
-  }
-
   if (parsed.data.MCP_LOCAL_URL) {
     const url = new URL(parsed.data.MCP_LOCAL_URL);
     if (
       parsed.data.NODE_ENV !== 'development' ||
-      !parsed.data.FIRESTORE_EMULATOR_HOST ||
+      !isLocalDatabaseUrl(parsed.data.DATABASE_URL) ||
       url.protocol !== 'http:' ||
       url.hostname !== 'localhost' ||
       !url.port ||
@@ -105,7 +86,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       url.hash
     )
       throw new Error(
-        'MCP_LOCAL_URL requires a development emulator and an explicit http://localhost:PORT/mcp URL',
+        'MCP_LOCAL_URL requires a development process on a local database and an explicit http://localhost:PORT/mcp URL',
       );
   }
 

@@ -46,3 +46,13 @@ export async function withTransaction<T>(
     }
   }
 }
+
+/**
+ * Runs `body` as one read-only transaction on a single snapshot (REPEATABLE READ), what
+ * Firestore's read-only transactions gave the board and note queries: every read sees the
+ * same moment. A read-only snapshot never fails with a serialization error, so there is
+ * nothing to retry.
+ */
+export function withSnapshot<T>(db: Database, body: (tx: Transaction) => Promise<T>): Promise<T> {
+  return db.transaction(body, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+}

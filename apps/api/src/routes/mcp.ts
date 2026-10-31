@@ -4,7 +4,8 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { createAuth0Verifier, type AccessTokenVerifier } from '../lib/auth/auth0.js';
 import { AUTH0_ISSUER, MCP_RESOURCE } from '../lib/auth/constants.js';
 import { resolveIdentity } from '../lib/auth/identities.js';
-import { usersCol } from '../lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { users } from '../lib/postgres/schema/index.js';
 import { loadEnv } from '../env.js';
 import { AppError } from '../lib/errors.js';
 import {
@@ -92,7 +93,7 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
       )
         return unauthorized();
       const userId = await resolveIdentity(app.db, identity);
-      if (!(await usersCol(app.db).doc(userId).get()).exists)
+      if ((await app.db.$count(users, eq(users.id, userId))) === 0)
         throw new AppError(
           403,
           'IDENTITY_NOT_LINKED',
@@ -121,7 +122,6 @@ export default async function mcpRoutes(app: FastifyInstance, options: McpRouteO
         scopes,
         async authorizeWrite(tx, boardId) {
           await authorizeConnectionBoardInTransaction(
-            app.db,
             tx,
             actor,
             grant.id,

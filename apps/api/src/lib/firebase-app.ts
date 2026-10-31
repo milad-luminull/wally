@@ -2,16 +2,13 @@ import { applicationDefault, getApp, getApps, initializeApp, type App } from 'fi
 import { loadEnv } from '../env.js';
 
 /**
- * The one firebase-admin App the process uses, for both Auth token verification and
- * Firestore. Initialized lazily and reused — calling initializeApp twice for the same
- * name throws.
+ * The one firebase-admin App the process uses, for Auth token verification only.
+ * Initialized lazily and reused — calling initializeApp twice for the same name throws.
  *
  * No service-account key is ever used (the organization's policy forbids creating one). On
  * Google Cloud the app uses Application Default Credentials, which the runtime service
- * account supplies. Elsewhere it is initialized with just the project id: that is what lets
- * the API and the test suites talk to the Firestore emulator, which needs no credentials at
- * all — see plugins/firebase.ts, which refuses to start against a real database outside
- * Google Cloud rather than failing later at request time.
+ * account supplies; elsewhere just the project id, which is all token verification needs
+ * (see plugins/firebase.ts).
  */
 export function getFirebaseApp(): App {
   if (getApps().length > 0) return getApp();

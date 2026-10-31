@@ -1,38 +1,22 @@
 import { eq, getTableColumns, inArray, sql } from 'drizzle-orm';
-import type { WhiteboardRole } from '@wally/shared';
+import {
+  DEFAULT_WALLYBOT_PREFERENCES,
+  boardPreferencesSchema,
+  canvasPatternSchema,
+  paletteSchema,
+  preferenceBoardIdSchema,
+  themePreferenceSchema,
+  wallybotPreferencesSchema,
+  type Preferences,
+  type WhiteboardRole,
+} from '@wally/shared';
+import type { Board, Note, UserRow } from './types.js';
 import type { Database } from '../postgres/client.js';
 import type { Transaction } from '../postgres/transaction.js';
-import {
-  boardMembers,
-  notes,
-  shareLinks,
-  subtasks,
-  users,
-  whiteboards,
-} from '../postgres/schema/index.js';
+import { notes, users, whiteboards } from '../postgres/schema/index.js';
 
 /** Anything a query can run on: the database itself or an open transaction. */
 export type Queryable = Database | Transaction;
-
-export type UserRow = typeof users.$inferSelect;
-export type WhiteboardRow = typeof whiteboards.$inferSelect;
-export type MemberRow = typeof boardMembers.$inferSelect;
-export type ShareLinkRow = typeof shareLinks.$inferSelect;
-export type NoteRow = typeof notes.$inferSelect;
-export type SubtaskRow = typeof subtasks.$inferSelect;
-
-/**
- * A board as every access check reads it: the row, the roles of its ACTIVE members by user
- * id, and its share link's token. Firestore kept both as caches on the board document; here
- * they are read with it, so there is nothing to keep in step.
- */
-export type Board = WhiteboardRow & {
-  memberRoles: Record<string, WhiteboardRole>;
-  shareLinkToken: string | null;
-};
-
-/** A note with its subtask counts, which every NoteDto carries. */
-export type Note = NoteRow & { subtaskSummary: { total: number; done: number } };
 
 /*
  * The correlated subqueries below are plain SQL on purpose: in a single-table select Drizzle
@@ -41,10 +25,18 @@ export type Note = NoteRow & { subtaskSummary: { total: number; done: number } }
  */
 const boardColumns = {
   ...getTableColumns(whiteboards),
+  // One role per member user: the strongest of their ACTIVE rows (strongestRole in
+  // lib/members.ts), never the owner, who is OWNER through owner_id.
   memberRoles: sql<Record<string, WhiteboardRole>>`coalesce((
-    select jsonb_object_agg(m.user_id, m.role)
-    from board_members m
-    where m.board_id = whiteboards.id and m.status = 'ACTIVE' and m.user_id is not null
+    select jsonb_object_agg(r.user_id, r.role) from (
+      select m.user_id, case when bool_or(m.role = 'EDIT') then 'EDIT' else 'VIEW' end as role
+      from board_members m
+      where m.board_id = whiteboards.id
+        and m.status = 'ACTIVE'
+        and m.user_id is not null
+        and m.user_id <> whiteboards.owner_id
+      group by m.user_id
+    ) r
   ), '{}'::jsonb)`,
   shareLinkToken: sql<string | null>`(
     select l.token from share_links l where l.board_id = whiteboards.id
@@ -100,3 +92,42 @@ export async function loadUsers(
     found.set(user.id, user);
   return found;
 }
+
+/**
+ * Emails are stored lowercase and compared exactly. Every write path runs addresses through
+ * here so those comparisons hold.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * A profile's preferences, with every field defaulted and anything that no longer parses
+ * dropped — a stored value written by an older schema must degrade to the default, never 500
+ * GET /me.
+ */
+export function userPreferences(user: Pick<UserRow, 'preferences'>): Preferences {
+  const stored = user.preferences;
+  const theme = themePreferenceSchema.safeParse(stored.theme);
+  const palette = paletteSchema.safeParse(stored.palette);
+  const canvas = canvasPatternSchema.safeParse(stored.canvas);
+  const lastBoardId = preferenceBoardIdSchema.safeParse(stored.lastBoardId);
+  const wallybot = wallybotPreferencesSchema.safeParse(stored.wallybot);
+  const boards: Preferences['boards'] = {};
+  for (const [id, value] of Object.entries(stored.boards ?? {})) {
+    const parsed = boardPreferencesSchema.safeParse(value);
+    if (parsed.success && preferenceBoardIdSchema.safeParse(id).success) boards[id] = parsed.data;
+  }
+  return {
+    theme: theme.success ? theme.data : 'system',
+    palette: palette.success ? palette.data : 'paper',
+    canvas: canvas.success ? canvas.data : 'dots',
+    lastBoardId: lastBoardId.success ? lastBoardId.data : null,
+    boards,
+    wallybot: wallybot.success ? wallybot.data : DEFAULT_WALLYBOT_PREFERENCES,
+  };
+}
+
+export const toIso = (value: Date): string => value.toISOString();
+
+export const toIsoOrNull = (value: Date | null): string | null => (value ? toIso(value) : null);

@@ -1,7 +1,6 @@
 /**
- * Runs one real assistant turn from the command line, against whatever Firestore the
- * environment points at (the emulator when FIRESTORE_EMULATOR_HOST is set) and the
- * configured model. For checking a deployment route by hand; never used by tests.
+ * Runs one real assistant turn from the command line, against the database DATABASE_URL
+ * names and the configured model. For checking a deployment route by hand; never used by tests.
  *
  *   pnpm --filter @wally/api assistant:smoke <uid> <boardId> "<question>"
  */
@@ -9,14 +8,10 @@ import { loadEnv } from './env.js';
 import { runAssistantTurn } from './lib/assistant/turn.js';
 import { createConfiguredTurnRunner } from './lib/assistant/model/index.js';
 import { requireAccess } from './lib/commands/context.js';
-import { getDb } from './lib/db/client.js';
-import {
-  liveWhiteboard,
-  userLanguage,
-  usersCol,
-  whiteboardsCol,
-  withId,
-} from './lib/db/collections.js';
+import { eq } from 'drizzle-orm';
+import { liveBoard } from './lib/db/records.js';
+import { createDatabase } from './lib/postgres/client.js';
+import { users } from './lib/postgres/schema/index.js';
 
 const [uid, boardId, ...rest] = process.argv.slice(2);
 const question = rest.join(' ');
@@ -41,19 +36,17 @@ function localDate(date: Date, timeZone: string): string {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-// getDb, like the maintenance script: it honours FIRESTORE_DATABASE_ID and the configured
-// credentials, so the same command reads the emulator locally and the named database elsewhere.
-const db = getDb();
+const { db, close } = createDatabase(env.DATABASE_URL);
 try {
-  const user = withId(await usersCol(db).doc(uid).get());
+  const [user] = await db.select().from(users).where(eq(users.id, uid));
   if (!user) throw new Error(`No user ${uid}`);
-  const board = liveWhiteboard(await whiteboardsCol(db).doc(boardId).get());
+  const board = await liveBoard(db, boardId);
   const role = requireAccess(board, uid, ['OWNER', 'EDIT', 'VIEW']);
   const conversation = await runAssistantTurn(
     { db, env, runner: createConfiguredTurnRunner(env), logger: console },
     {
       actor: { id: user.id, email: user.email, emailVerified: user.emailVerified },
-      language: userLanguage(user),
+      language: user.language,
       board: board!,
       role,
       request: {
@@ -70,5 +63,5 @@ try {
   if (reply.stopped) console.log('stopped:', reply.stopped);
   console.log('conversation:', conversation.id);
 } finally {
-  await db.terminate();
+  await close();
 }

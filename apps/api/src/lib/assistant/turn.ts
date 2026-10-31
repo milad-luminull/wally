@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Firestore } from 'firebase-admin/firestore';
+import type { Database } from '../postgres/client.js';
 import type {
   AssistantConversationDto,
   AssistantEntry,
@@ -10,7 +10,7 @@ import type {
 import type { Env } from '../../env.js';
 import type { Actor, CommandLogger } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
-import type { AssistantConversationDoc, WhiteboardDoc, WithId } from '../db/types.js';
+import type { AssistantConversationRow, Board } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { CHARS_PER_TOKEN, estimateTokens } from './budget/estimate.js';
 import { trackAttempts } from './budget/ledger.js';
@@ -50,7 +50,7 @@ const READ_TOOLS: { name: OperationName; description: string }[] = [
 ];
 
 export interface TurnDeps {
-  db: Firestore;
+  db: Database;
   env: Env;
   runner: TurnRunner;
   logger?: CommandLogger;
@@ -60,7 +60,7 @@ export interface TurnDeps {
 export interface TurnRequestContext {
   actor: Actor;
   language: Language;
-  board: WithId<WhiteboardDoc>;
+  board: Board;
   role: EffectiveRole;
   request: AssistantTurnRequest;
 }
@@ -119,7 +119,7 @@ export async function runAssistantTurn(
     throw new AppError(409, 'ASSISTANT_CONVERSATION_CLOSED', 'This conversation is closed');
   // A new conversation is written only once its first model call is reserved, so a turn the
   // budget refuses leaves nothing behind.
-  let conversation: WithId<AssistantConversationDoc> | null = existing;
+  let conversation: AssistantConversationRow | null = existing;
   const ensureConversation = async () =>
     (conversation ??= await createConversation(db, actor.id, board.id, model, now));
   const history = existing?.messages ?? [];
@@ -316,7 +316,7 @@ export async function runAssistantTurn(
   const target = await ensureConversation();
   const stored = await appendTurn(db, actor.id, target.id, {
     expectedTurns: target.turns,
-    expectedBoardRevision: board.revision ?? 0,
+    expectedBoardRevision: board.revision,
     user: userEntry,
     assistant: assistantEntry,
     messages: output ? output.messages : null,

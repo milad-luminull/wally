@@ -88,6 +88,23 @@ describe('records', () => {
     expect(board!.createdAt).toEqual(at);
   });
 
+  it('takes the strongest role of duplicate rows and never lists the owner', async () => {
+    await handle.db.insert(boardMembers).values([
+      ['m1', 'editor', 'VIEW'],
+      ['m2', 'editor', 'EDIT'],
+      ['m3', 'owner', 'VIEW'],
+    ].map(([id, userId, role]) => ({
+      id: id!,
+      boardId: 'b1',
+      userId: userId!,
+      role: role as 'EDIT' | 'VIEW',
+      status: 'ACTIVE' as const,
+      invitedAt: at,
+      activatedAt: at,
+    })));
+    expect((await liveBoard(handle.db, 'b1'))!.memberRoles).toEqual({ editor: 'EDIT' });
+  });
+
   it('gives a board without members or link empty roles and a null token', async () => {
     const board = await liveBoard(handle.db, 'b1');
     expect(board).toMatchObject({ memberRoles: {}, shareLinkToken: null });

@@ -1,25 +1,23 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { bindKnownIdentity } from './identities.js';
 import { AUTH0_ISSUER } from './constants.js';
-import { normalizeEmail } from '../db/collections.js';
+import { normalizeEmail } from '../db/records.js';
+import { assertLocalDatabase } from '../db/local.js';
+import type { Database } from '../postgres/client.js';
+import { users } from '../postgres/schema/index.js';
 
 /** CLI fixture only; never called by the server or used as an authentication bypass. */
 export async function seedAuth0E2eIdentity(
-  db: Firestore,
+  db: Database,
   env: Record<string, string | undefined> = process.env,
 ): Promise<void> {
-  if (!env.FIRESTORE_EMULATOR_HOST || !process.env.FIRESTORE_EMULATOR_HOST)
-    throw new Error('Auth0 E2E seeding requires the Firestore emulator');
-  // The SDK exposes this getter at runtime but omits it from its public declaration.
-  // Inspect the actual client, not a caller-supplied project label; absence fails closed.
-  if (!('projectId' in db) || db.projectId !== 'wally-e2e')
-    throw new Error('Auth0 E2E seeding requires project wally-e2e');
+  assertLocalDatabase(env, 'Auth0 E2E seeding');
   const subject = z
     .string()
     .regex(/^auth0\|[^/\s]+$/)
     .parse(env.E2E_AUTH0_SUBJECT);
   const email = normalizeEmail(z.string().email().parse(env.E2E_AUTH0_EMAIL));
   await bindKnownIdentity(db, { issuer: AUTH0_ISSUER, subject }, 'seed-owner');
-  await db.collection('users').doc('seed-owner').update({ email });
+  await db.update(users).set({ email }).where(eq(users.id, 'seed-owner'));
 }

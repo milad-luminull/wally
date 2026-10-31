@@ -1,17 +1,21 @@
-import { getDb } from './lib/db/client.js';
-import { drainCleanup, reconcileBoards } from './lib/commands/maintenance.js';
+import { loadEnv } from './env.js';
+import { createDatabase } from './lib/postgres/client.js';
+import { drainCleanup } from './lib/commands/maintenance.js';
+import { purgeExpired } from './lib/db/purge.js';
+import { boardCleanup } from './lib/postgres/schema/index.js';
 
 const args = new Set(process.argv.slice(2));
-if ([...args].some((arg) => !['--apply', '--cleanup'].includes(arg)))
-  throw new Error('Usage: pnpm maintenance [--apply] [--cleanup]');
-const db = getDb();
+if ([...args].some((arg) => arg !== '--cleanup'))
+  throw new Error('Usage: pnpm maintenance [--cleanup]');
+const { db, close } = createDatabase(loadEnv().DATABASE_URL);
 try {
-  const repairs = await reconcileBoards(db, args.has('--apply'));
+  // Expired receipts, audit and assistant records always go; cleanup jobs only with --cleanup.
+  const purged = await purgeExpired(db);
   const cleanup = args.has('--cleanup')
     ? await drainCleanup(db)
-    : { pending: (await db.collection('boardCleanup').get()).size };
-  process.stdout.write(`${JSON.stringify({ dryRun: !args.has('--apply'), repairs, cleanup })}\n`);
+    : { pending: await db.$count(boardCleanup) };
+  process.stdout.write(`${JSON.stringify({ purged, cleanup })}\n`);
   if (args.has('--cleanup') && cleanup.pending > 0) process.exitCode = 1;
 } finally {
-  await db.terminate();
+  await close();
 }

@@ -1,19 +1,16 @@
 import { assertAssistantBoardActive, assertAssistantNotesActive } from './guards.js';
 import { randomUUID } from 'node:crypto';
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { and, eq } from 'drizzle-orm';
 import { TIDY_MAX_MOVES, type TidyDecision, type TidyDto, type TidyRequest } from '@wally/shared';
 import type { Actor } from '../commands/index.js';
 import { listNotes } from '../commands/queries.js';
 import { notFound } from '../commands/context.js';
-import {
-  assistantSuggestionsCol,
-  assistantTidiesCol,
-  docsWithId,
-  stripId,
-  toIso,
-  withId,
-} from '../db/collections.js';
-import type { AssistantTidyDoc, WithId } from '../db/types.js';
+import { toIso, type Queryable } from '../db/records.js';
+import { newId } from '../db/ids.js';
+import type { AssistantTidyRow, SuggestionUsage, TidyMove } from '../db/types.js';
+import type { Database } from '../postgres/client.js';
+import { withTransaction } from '../postgres/transaction.js';
+import { assistantSuggestions, assistantTidies } from '../postgres/schema/index.js';
 import { AppError } from '../errors.js';
 import { tidySchemaJson, type TidyRunner } from './model/index.js';
 import { runMeteredCall } from './meteredCall.js';
@@ -43,7 +40,7 @@ export interface TidyDeps extends SuggestionDeps {
 
 const settled = () => new AppError(409, 'ASSISTANT_TIDY_SETTLED', 'This tidy was already decided');
 
-export function toTidyDto(doc: WithId<AssistantTidyDoc>): TidyDto {
+export function toTidyDto(doc: AssistantTidyRow): TidyDto {
   return {
     id: doc.id,
     boardId: doc.boardId,
@@ -56,14 +53,22 @@ export function toTidyDto(doc: WithId<AssistantTidyDoc>): TidyDto {
   };
 }
 
+const tidyOf = async (q: Queryable, userId: string, id: string) =>
+  (
+    await q
+      .select()
+      .from(assistantTidies)
+      .where(and(eq(assistantTidies.userId, userId), eq(assistantTidies.id, id)))
+  )[0];
+
 /** The caller's own record on this board, or 404 (the access recheck of RFC-0003-wally-agent.md §3.4). */
 export async function loadTidy(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   boardId: string,
   id: string,
-): Promise<WithId<AssistantTidyDoc>> {
-  const doc = withId(await assistantTidiesCol(db, actor.id).doc(id).get());
+): Promise<AssistantTidyRow> {
+  const doc = await tidyOf(db, actor.id, id);
   if (!doc || doc.boardId !== boardId) notFound();
   return doc;
 }
@@ -73,70 +78,69 @@ export async function loadTidy(
  * tabs deciding at once agree on one outcome, the second replays the first's.
  */
 export async function claimTidy(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   boardId: string,
   id: string,
-  from: AssistantTidyDoc['status'],
-  to: AssistantTidyDoc['status'],
+  from: AssistantTidyRow['status'],
+  to: AssistantTidyRow['status'],
   decision: { source: string; noteIds: string[] },
   now: Date,
-): Promise<{ doc: WithId<AssistantTidyDoc>; claimed: boolean }> {
-  const ref = assistantTidiesCol(db, actor.id).doc(id);
-  return db.runTransaction(async (tx) => {
-    const current = withId(await tx.get(ref));
+): Promise<{ doc: AssistantTidyRow; claimed: boolean }> {
+  return withTransaction(db, async (tx) => {
+    const current = await tidyOf(tx, actor.id, id);
     if (!current || current.boardId !== boardId) notFound();
-    await assertAssistantBoardActive(db, actor.id, current.boardId, tx);
+    await assertAssistantBoardActive(tx, actor.id, current.boardId);
     if (current.status === to) return { doc: current, claimed: false };
     if (current.status !== from) throw settled();
-    const stamp = Timestamp.fromDate(now);
-    const next: WithId<AssistantTidyDoc> = {
-      ...current,
-      status: to,
-      ...(to === 'UNDONE'
-        ? { undone: { ...decision, at: stamp } }
-        : { decision: { ...decision, at: stamp } }),
-      updatedAt: stamp,
-    };
-    tx.set(ref, stripId(next));
-    return { doc: next, claimed: true };
+    const stamp = { ...decision, at: now.toISOString() };
+    const changes =
+      to === 'UNDONE'
+        ? { status: to, undone: stamp, updatedAt: now }
+        : { status: to, decision: stamp, updatedAt: now };
+    await tx.update(assistantTidies).set(changes).where(eq(assistantTidies.id, id));
+    return { doc: { ...current, ...changes }, claimed: true };
   });
 }
 
 /** Every pending tidy of this caller on this board is discarded: one proposal at a time (R9). */
-async function discardPending(db: Firestore, actor: Actor, boardId: string, now: Date) {
-  const pending = docsWithId(
-    await assistantTidiesCol(db, actor.id)
-      .where('boardId', '==', boardId)
-      .where('status', '==', 'PENDING')
-      .get(),
+async function discardPending(db: Database, actor: Actor, boardId: string, now: Date) {
+  await withTransaction(db, (tx) =>
+    tx
+      .update(assistantTidies)
+      .set({
+        status: 'DISCARDED',
+        // No person decided it: a newer tidy replaced it (R9).
+        decision: { source: 'replaced', noteIds: [], at: now.toISOString() },
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(assistantTidies.userId, actor.id),
+          eq(assistantTidies.boardId, boardId),
+          eq(assistantTidies.status, 'PENDING'),
+        ),
+      ),
   );
-  if (pending.length === 0) return;
-  const stamp = Timestamp.fromDate(now);
-  const col = assistantTidiesCol(db, actor.id);
-  await db.runTransaction(async (tx) => {
-    for (const snap of await tx.getAll(...pending.map((doc) => col.doc(doc.id))))
-      if (snap.data()?.status === 'PENDING')
-        tx.update(snap.ref, {
-          status: 'DISCARDED',
-          // No person decided it: a newer tidy replaced it (R9).
-          decision: { source: 'replaced', noteIds: [], at: stamp },
-          updatedAt: stamp,
-        });
-  });
 }
 
 /** The notes with a pending Wallybot change: one pending change per note (R2). */
 async function notesWithPendingSuggestion(
-  db: Firestore,
+  db: Database,
   actor: Actor,
   boardId: string,
 ): Promise<Set<string>> {
-  const docs = await assistantSuggestionsCol(db, actor.id)
-    .where('boardId', '==', boardId)
-    .where('status', '==', 'PENDING')
-    .get();
-  return new Set(docs.docs.map((snap) => snap.data().noteId));
+  const rows = await db
+    .select({ noteId: assistantSuggestions.noteId })
+    .from(assistantSuggestions)
+    .where(
+      and(
+        eq(assistantSuggestions.userId, actor.id),
+        eq(assistantSuggestions.boardId, boardId),
+        eq(assistantSuggestions.status, 'PENDING'),
+      ),
+    );
+  return new Set(rows.map((row) => row.noteId));
 }
 
 /**
@@ -175,7 +179,7 @@ export async function proposeTidy(
 
   let byWords: PlannedMove[] = [];
   let model: string | null = null;
-  let usage: AssistantTidyDoc['usage'] = null;
+  let usage: SuggestionUsage | null = null;
   if (undated.length > 0) {
     const instructions = buildTidyInstructions({
       today: request.today,
@@ -215,8 +219,9 @@ export async function proposeTidy(
   // At most what one batch may carry: dated moves first, earliest due first (`listNotes` order).
   const moves = [...dated, ...byWords].slice(0, TIDY_MAX_MOVES);
   if (moves.length === 0) return null;
-  const stamp = Timestamp.fromDate(now);
-  const doc: AssistantTidyDoc = {
+  const doc: AssistantTidyRow = {
+    id: newId(),
+    userId: actor.id,
     boardId: board.id,
     status: 'PENDING',
     moves: moves.map((move) => ({
@@ -228,17 +233,16 @@ export async function proposeTidy(
     applied: null,
     model,
     usage,
-    createdAt: stamp,
-    updatedAt: stamp,
-    expiresAt: Timestamp.fromMillis(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: new Date(now.getTime() + SUGGESTION_RETENTION_DAYS * 86_400_000),
   };
-  const ref = assistantTidiesCol(db, actor.id).doc();
-  await db.runTransaction(async (tx) => {
-    await assertAssistantBoardActive(db, actor.id, board.id, tx, board.revision ?? 0);
-    await assertAssistantNotesActive(db, actor.id, board.id, tx, notes);
-    tx.create(ref, doc);
+  await withTransaction(db, async (tx) => {
+    await assertAssistantBoardActive(tx, actor.id, board.id, board.revision);
+    await assertAssistantNotesActive(tx, actor.id, board.id, notes);
+    await tx.insert(assistantTidies).values(doc);
   });
-  return toTidyDto({ ...doc, id: ref.id });
+  return toTidyDto(doc);
 }
 
 /**
@@ -250,8 +254,6 @@ const FINAL_REFUSALS = new Set([403, 404, 409, 422]);
 export const isFinalRefusal = (error: unknown): error is AppError =>
   error instanceof AppError && FINAL_REFUSALS.has(error.statusCode);
 
-type TidyMoveDoc = AssistantTidyDoc['moves'][number];
-
 /**
  * Moves the notes, each under its own operation id on the revision given, skipping the ones
  * the command layer refuses for good (changed since, gone, not the caller's to move) and
@@ -261,8 +263,8 @@ type TidyMoveDoc = AssistantTidyDoc['moves'][number];
 async function moveEach(
   opCtx: OperationContext,
   moves: {
-    move: TidyMoveDoc;
-    to: TidyMoveDoc['to'];
+    move: TidyMove;
+    to: TidyMove['to'];
     expectedRevision: number;
     operationId: string;
   }[],
@@ -298,8 +300,8 @@ async function moveEach(
 async function completeKeep(
   deps: SuggestionDeps,
   ctx: SuggestionContext,
-  doc: WithId<AssistantTidyDoc>,
-): Promise<WithId<AssistantTidyDoc>> {
+  doc: AssistantTidyRow,
+): Promise<AssistantTidyRow> {
   if (doc.applied) return doc;
   const chosen = new Set(doc.decision?.noteIds ?? []);
   const { moved, skipped } = await moveEach(
@@ -313,20 +315,15 @@ async function completeKeep(
         operationId: move.operationIds.apply,
       })),
   );
-  const ref = assistantTidiesCol(deps.db, ctx.actor.id).doc(doc.id);
   const now = deps.now?.() ?? new Date();
-  return deps.db.runTransaction(async (tx) => {
-    const current = withId(await tx.get(ref));
+  return withTransaction(deps.db, async (tx) => {
+    const current = await tidyOf(tx, ctx.actor.id, doc.id);
     if (!current) notFound();
-    await assertAssistantBoardActive(deps.db, ctx.actor.id, current.boardId, tx);
+    await assertAssistantBoardActive(tx, ctx.actor.id, current.boardId);
     if (current.status !== 'KEPT' || current.applied) return current;
-    const next: WithId<AssistantTidyDoc> = {
-      ...current,
-      applied: { moves: moved, skipped },
-      updatedAt: Timestamp.fromDate(now),
-    };
-    tx.set(ref, stripId(next));
-    return next;
+    const changes = { applied: { moves: moved, skipped }, updatedAt: now };
+    await tx.update(assistantTidies).set(changes).where(eq(assistantTidies.id, doc.id));
+    return { ...current, ...changes };
   });
 }
 
