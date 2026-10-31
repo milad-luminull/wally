@@ -287,6 +287,10 @@ Decided on 2026-10-31:
 - **Region:** the hosted project (`wally`, ref `jztzhyxshwgjrwscibly`, created 2026-10-26)
   stays in Ireland (`eu-west-1`), not Frankfurt. A Supabase region cannot be changed after
   creation; the project was empty, and the owner chose to keep it. The data stays in the EU.
+- **Data API:** switched off by the owner. Checked from outside on 2026-10-31 with the
+  publishable key: `/rest/v1/<table>` and `/graphql/v1` answer 503 (`PGRST002`) every time,
+  so they serve nothing, while `/auth/v1/health` answers 200. Repeat the check once the
+  tables exist; Realtime with the Data API off is still unproven (section 5, item 3).
 - **Expiry:** Supabase Cron (pg_cron) runs the purge. Checked on the hosted project on
   2026-10-31: pg_cron 1.6.4 is available on the Free plan and preloaded, and jobs run in the
   `postgres` database.
