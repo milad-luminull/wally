@@ -54,7 +54,7 @@ Authenticated MCP requests share a 300/minute per-user and per-connection budget
 instances; writes additionally retain their 60/user and 30/connection per-minute budget.
 Exhausted request budgets return HTTP 429 with Retry-After: 60 before tool execution.
 
-Tests use dedicated emulator project IDs only, never the manual `wally-mcp-local` project.
+Tests use their own per-file databases ([ADR-0025](adr/ADR-0025-local-postgres-and-per-file-test-databases.md)), never the manual local MCP stack.
 
 ## Verification
 

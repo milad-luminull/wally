@@ -5,21 +5,33 @@ deployed to Google Cloud before. Every command is meant to be copy-pasted in ord
 
 Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
+> **The database is changing (2026-10-31).** Production runs v0.11.0, whose API stores
+> everything in Cloud Firestore (database `wally`). The code this guide describes reads and
+> writes only PostgreSQL ([ADR-0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)),
+> and the release that ships it applies migrations to a hosted Supabase database and hands
+> Cloud Run its `DATABASE_URL` from Secret Manager. **That path is prepared but unproven: it
+> has never run against a hosted database.** It needs the Supabase project, the
+> `wally-database-url` secret and two IAM grants first (sections 4 and 7), and the proofs in
+> [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 5. Until that release, production
+> is what [Firestore in production until the switch](#firestore-in-production-until-the-switch)
+> describes.
+
 ---
 
 ## 1. What you are actually deploying
 
 Wally is three separate things, and they go to three different places:
 
-| Piece      | What it is                                                 | Where it goes                                                  |
-| ---------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
-| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                  |
-| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                       |
-| Your data  | Notes, boards, members                                     | **Cloud Firestore** (already the database, nothing to install) |
+| Piece      | What it is                                                 | Where it goes                                                |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                |
+| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                     |
+| Your data  | Notes, boards, members                                     | **Supabase PostgreSQL** (Frankfurt), reached only by the API |
 
 Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
-see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and your
-**Firestore security rules and indexes**. Firebase Auth is not a production fallback: since
+see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and the
+**database migrations** in `apps/api/drizzle/`, which ship inside the API image and run
+from it at release. Firebase Auth is not a production fallback: since
 the [ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
 account is an Auth0 signup with a random Wally id and no Firebase mapping, so switching
 production back to Firebase would give every user a new, empty account. The planned move to Supabase and Cloudflare
@@ -33,7 +45,8 @@ Browser ──▶ Firebase Hosting          (serves the React app)
    │
    └──────▶ Cloud Run                  (the API; verifies the user's Auth0 access token)
                  │
-                 └──▶ Cloud Firestore  (reads and writes the data)
+                 └──▶ Supabase PostgreSQL (reads and writes the data, through the
+                                           transaction pooler)
 ```
 
 **Why Cloud Run and not "just Firebase"?** Firebase Hosting can only serve static files.
@@ -88,8 +101,8 @@ supported by every service used here.
 
 ## 3. Step 1 — Put the project on the Blaze plan
 
-Firestore and Hosting both work on the free Spark plan, but **Cloud Run and Cloud Build do
-not**. You must enable billing.
+Hosting works on the free Spark plan, but **Cloud Run and Cloud Build do not**. You must
+enable billing.
 
 1. Open the [Firebase console](https://console.firebase.google.com/), select your project.
 2. Bottom-left, click the plan name (**Spark**) → **Upgrade** → **Blaze**.
@@ -102,37 +115,58 @@ budget**. Set something small like €10/month so you find out early if somethin
 
 ---
 
-## 4. Step 2 — Create the Firestore database
+## 4. Step 2 — Create the database
 
-Your local development uses the Firestore _emulator_, which is a fake. The real database
-does not exist yet until you create it.
+**Not done yet (2026-10-31).** No hosted Supabase project exists. Creating it, and every step
+below that uses it, waits for the owner and for the proofs in
+[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 5. The project stays on the Free
+plan; nothing is bought without the owner's approval.
 
-1. Firebase console → **Build → Firestore Database** → **Create database**.
-2. Choose **Production mode** (starts locked down — correct, since only our API touches it).
-3. Choose a location in the EU.
+1. Create a Supabase project in the Frankfurt region.
+2. Copy its **transaction pooler** connection string. That is the API's `DATABASE_URL`, and
+   it goes into Secret Manager in section 7, never into a file or a plain variable.
+3. Switch off the **Data API**, so only the API reads and writes tables
+   ([securing your API](https://supabase.com/docs/guides/api/securing-your-api)). Whether
+   Auth and Realtime keep working with it off is an open proof (RFC-0011 section 5, item 3).
 
-> **A database's location is permanent.** It cannot be changed after creation; the only fix
-> is a different database. Choose deliberately.
+### Which connection the API uses
 
-### Which database this project actually uses
+| Connection         | Port | Network                                 | Used for                                  |
+| ------------------ | ---- | --------------------------------------- | ----------------------------------------- |
+| Transaction pooler | 6543 | IPv4 on every plan                      | **The API**, and the release's migrations |
+| Session pooler     | 5432 | IPv4 on every plan                      | Not used                                  |
+| Direct connection  | 5432 | IPv6, or IPv4 with the paid IPv4 add-on | Not used                                  |
 
-There are two, and this matters more than it looks:
+All three are described in Supabase's
+[connecting guide](https://supabase.com/docs/guides/database/connecting-to-postgres). The
+transaction pooler does not support prepared statements, so `createDatabase` in
+[`apps/api/src/lib/postgres/client.ts`](../apps/api/src/lib/postgres/client.ts) turns them
+off everywhere, locally too, as [Drizzle's Supabase guide](https://orm.drizzle.team/docs/connect-supabase)
+advises.
 
-| Database    | Location                   | Used                           |
-| ----------- | -------------------------- | ------------------------------ |
-| `wally`     | `europe-west3` (Frankfurt) | **yes — this is the real one** |
-| `(default)` | `nam5` (United States)     | no — auto-created, left empty  |
+Supabase recommends the direct connection for migrations. The release runs them from a
+GitHub-hosted runner, which Supabase lists among services that only reach IPv4
+([IPv4 and IPv6](https://supabase.com/docs/guides/troubleshooting/supabase--your-network-ipv4-and-ipv6-compatibility-cHe3BP)),
+so it migrates through the same pooler URL the API uses. **Unverified:** that Drizzle's
+migrator works through the transaction pooler. If it does not, the session pooler is the
+IPv4 alternative, and the release would need a second secret.
 
-Google creates a `(default)` database in the US on its own if something asks for one before
-you have made your choice. The Admin SDK's `getFirestore(app)` resolves to `(default)`
-**unless you name a database**, so the natural-looking code silently writes to the US.
+### Row Level Security
 
-That is why [`apps/api/src/lib/db/client.ts`](../apps/api/src/lib/db/client.ts) reads
-`FIRESTORE_DATABASE_ID` and Cloud Run sets it to `wally` (section 9b). Locally it is left
-unset, because the emulator serves `(default)` and nothing leaves your machine.
+Every one of the 19 tables has Row Level Security enabled and no policies
+([`apps/api/drizzle/`](../apps/api/drizzle/)). PostgreSQL then denies every row to any role
+that row security applies to ([row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)),
+and Supabase asks for RLS on every table in an exposed schema
+([RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)). The tables
+belong to the role that ran the migrations, which is the role in `DATABASE_URL`, and table
+owners bypass row security unless `FORCE ROW LEVEL SECURITY` is set, so the API is not
+affected. This is a second lock beside the Data API switch. Authorization stays in the API.
 
-If you ever see production data appear nowhere in the Frankfurt database, check that env var
-first — writes are going to the US one.
+### Backups
+
+The Free plan has no managed backups ([backups](https://supabase.com/docs/guides/platform/backups)).
+An encrypted nightly dump stored outside Supabase, and a timed restore drill, gate the switch
+(RFC-0011 section 5, item 4). Neither is built yet.
 
 ---
 
@@ -143,23 +177,23 @@ credentials automatically through **Application Default Credentials (ADC)**, so 
 key to create, store, or rotate — and the organization blocks service-account key creation
 (`iam.disableServiceAccountKeyCreation`) anyway.
 
+The API uses these credentials for Vertex AI (section 9b). The database is not reached
+with them: Cloud Run hands the API its `DATABASE_URL` from Secret Manager (section 7).
+
 This is already handled in the code — no edits needed before you deploy:
 
 - **`apps/api/src/lib/firebase-app.ts`** — `getFirebaseApp()` uses `applicationDefault()`
   when running on Cloud Run, detected via `runsOnGoogleCloud()` (checks the `K_SERVICE` env
   var Cloud Run sets). Anywhere else it is initialized with the project id alone.
-- **`apps/api/src/plugins/firebase.ts`** — refuses to start outside Google Cloud unless
-  `FIRESTORE_EMULATOR_HOST` is set. Verifying an ID token needs no credential —
-  firebase-admin checks the signature against Google's public certificates and compares
-  `aud`/`iss` to the project id. A credential is required only for _Firestore_, and the
-  emulator needs none, which is what lets docker-compose and CI run the full stack without a
-  key.
-- **`apps/api/src/env.ts`** makes `NODE_ENV=production` together with `FIRESTORE_EMULATOR_HOST`
-  a fatal startup error, so the emulator case can never apply to production. This also turns
-  the "emulator host leaked into production" failure in section 15 from a per-request 500
-  into a refusal to boot.
+- **`apps/api/src/plugins/firebase.ts`** — firebase-admin is left only to verify Firebase ID
+  tokens, and that needs no credential: it checks the signature against Google's public
+  certificates and compares `aud`/`iss` to the project id. So the same code runs on Cloud
+  Run, in compose and in CI without a key. It no longer refuses to start outside Google
+  Cloud; that guard protected Firestore, which the API no longer uses.
+- **`apps/api/src/env.ts`** requires `DATABASE_URL` and refuses to boot without it.
+  `FIRESTORE_EMULATOR_HOST` and `FIRESTORE_DATABASE_ID` no longer exist.
 
-If you ever touch these files, keep all three checks intact. To double-check it still compiles:
+To double-check it still compiles:
 
 ```bash
 docker compose run --rm api pnpm turbo run typecheck test
@@ -187,42 +221,67 @@ gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
-  firestore.googleapis.com
+  secretmanager.googleapis.com
 ```
+
+`firestore.googleapis.com` was enabled for the Firestore database. It stays on until
+Firestore is decommissioned ([Firestore in production until the switch](#firestore-in-production-until-the-switch)).
 
 ---
 
-## 7. Step 5 — Deploy the Firestore rules and indexes
+## 7. Step 5 — Store the connection string and apply the migrations
 
-Two files in the repo root control your production database. Neither is enforced by the
-local emulator, so **this is the step people forget** and then get mystery errors in
-production.
+**Not done yet (2026-10-31).** Like section 4, this waits for the Supabase project.
 
-- [`firestore.rules`](../firestore.rules) — denies all direct client access. This is
-  correct: only the API (via the Admin SDK, which bypasses rules) should touch data.
-- [`firestore.indexes.json`](../firestore.indexes.json) — the composite indexes that the
-  members and notes queries need. The emulator invents indexes on the fly; real Firestore
-  does not, and a missing one surfaces as a `FAILED_PRECONDITION` error at runtime.
+Store the transaction pooler URL from section 4 as the secret `wally-database-url`,
+replicated only in the EU. `read -rs` keeps the password out of your shell history:
 
 ```bash
-firebase deploy --only firestore
+read -rs DATABASE_URL
+printf '%s' "$DATABASE_URL" | gcloud secrets create wally-database-url \
+  --data-file=- --replication-policy=user-managed --locations=europe-west1
 ```
 
-That deploys both rules and indexes. (`--only firestore:rules` and
-`--only firestore:indexes` work individually if you ever need them.)
-
-[`firebase.json`](../firebase.json) pins this to the right database with
-`"firestore": { "database": "wally", ... }`. Without that key the CLI targets `(default)` —
-the US one — and you get indexes built on a database nothing reads. Confirm where they
-landed:
+Two identities read it. Grant each `roles/secretmanager.secretAccessor` on this one secret,
+not the project ([access control](https://docs.cloud.google.com/secret-manager/docs/access-control)):
 
 ```bash
-gcloud firestore indexes composite list --database=wally --format="table(name.basename(),state)"
+gcloud secrets add-iam-policy-binding wally-database-url \
+  --member="serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud secrets add-iam-policy-binding wally-database-url \
+  --member="serviceAccount:github-deployer@luminull-wally.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
 ```
 
-Index building is asynchronous — the command returns before the indexes are ready. Watch
-the progress in Firebase console → **Firestore Database → Indexes**. Wait until they all
-say **Enabled** before testing sharing or invites.
+- **`wally-api`**, the runtime service account: Cloud Run reads the secret when an instance
+  starts, and an instance whose secret cannot be read does not start
+  ([Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets)).
+- **`github-deployer`**, the release's identity: the "Apply database migrations" step reads
+  the secret with `gcloud secrets versions access latest`. [`scripts/bootstrap-gcp-cicd.sh`](../scripts/bootstrap-gcp-cicd.sh)
+  does not grant this yet.
+
+### Applying the migrations
+
+The SQL migrations live in [`apps/api/drizzle/`](../apps/api/drizzle/) and ship in the API
+image at `/app/drizzle`. The server never migrates at boot. The release runs
+`node dist/migrate-cli.js` from the exact image it deploys, before the candidate revision
+exists (section 13). By hand, with the image you are about to deploy:
+
+```bash
+read -rs DATABASE_URL && export DATABASE_URL
+docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID=luminull-wally \
+  europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api@<digest> \
+  node dist/migrate-cli.js
+```
+
+`FIREBASE_PROJECT_ID` is there only because `env.ts` requires it; migrating verifies no token.
+
+**Every migration must keep working with the revision still serving.** The schema changes
+before the new revision serves, and a failed release rolls back the API, never the schema:
+there are no down migrations. Add before you remove, in separate releases. Every schema
+change is a new migration file ([SETUP.md](SETUP.md#docker)).
 
 ---
 
@@ -300,20 +359,18 @@ look.
 
 ### 9a. Create a service account for the API
 
-Cloud Run will run your container _as_ this identity, and this is what gives it Firestore
-access — no keys involved.
+Cloud Run will run your container _as_ this identity — no keys involved. It needs no
+database role: it reads the database's connection string from Secret Manager, which takes
+the grant in section 7.
 
 ```bash
 gcloud iam service-accounts create wally-api \
   --display-name="Wally API runtime"
-
-gcloud projects add-iam-policy-binding luminull-wally \
-  --member="serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com" \
-  --role="roles/datastore.user"
 ```
 
-`roles/datastore.user` is read/write access to Firestore data and nothing else. (Firestore
-is the successor to a product called Datastore, which is why the role has that name.)
+The account also holds `roles/datastore.user`, granted when the API used Firestore. The
+v0.11.0 revision production serves still needs it; it goes when Firestore is decommissioned
+([Firestore in production until the switch](#firestore-in-production-until-the-switch)).
 
 > IAM changes take up to 5 minutes to take effect. If your first request fails with a
 > permission error, wait and retry before assuming something is broken.
@@ -322,11 +379,12 @@ is the successor to a product called Datastore, which is why the role has that n
 
 `--set-env-vars` **replaces** the service's whole set of variables, and production needs
 every one that `apiConfig` in [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs)
-defines: `FIREBASE_PROJECT_ID`, `NODE_ENV`, `CORS_ORIGIN`, `FIRESTORE_DATABASE_ID`,
+defines: `FIREBASE_PROJECT_ID`, `NODE_ENV`, `CORS_ORIGIN`,
 `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`, `ASSISTANT_VERTEX_LOCATION`, `AUTH0_ENABLED`,
 `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`.
 A hand-typed list drops one easily, and a dropped `AUTH0_ENABLED` turns production sign-in
-off. So build the flag with `apiConfig` and `runEnvFlag`, the functions the release uses.
+off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the functions the
+release uses.
 The values below are what production ran on 2026-10-27 (release v0.11.0). Compare them with
 `gh variable list` and `gh variable list --env production` (which overrides it) before you
 deploy, and change any that differ:
@@ -339,14 +397,20 @@ export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
 RUN_ENV=$(node --input-type=module -e "
   const { apiConfig, runEnvFlag } = await import('./scripts/resolve-release-image.mjs');
   console.log(runEnvFlag(apiConfig(process.env)));")
-echo "$RUN_ENV"   # check it before deploying
+RUN_SECRETS=$(node --input-type=module -e "
+  const { apiConfig, runSecretsFlag } = await import('./scripts/resolve-release-image.mjs');
+  console.log(runSecretsFlag(apiConfig(process.env)));")
+echo "$RUN_ENV"; echo "$RUN_SECRETS"   # check both before deploying
 
 gcloud run deploy wally-api \
   --image=europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest \
   --region=europe-west1 \
   --service-account=wally-api@luminull-wally.iam.gserviceaccount.com \
-  --set-env-vars="$RUN_ENV"
+  --set-env-vars="$RUN_ENV" \
+  --set-secrets="$RUN_SECRETS"
 ```
+
+Apply the migrations from the same image first (section 7).
 
 If `MCP_CLIENT_ID` is ever unset, leave it out of the export entirely rather than exporting an
 empty or placeholder value. `apiConfig` refuses a missing value, so a forgotten variable stops
@@ -354,13 +418,16 @@ here rather than in production.
 
 Three things worth understanding:
 
-- **`FIRESTORE_DATABASE_ID=wally` is not optional.** Drop it and the API silently writes to
-  the `(default)` database, which lives in the United States. See section 4.
+- **`DATABASE_URL` is a secret, never a plain variable.** It carries the database password.
+  `RUN_SECRETS` is `DATABASE_URL=wally-database-url:latest`: Cloud Run reads the secret's
+  latest version when an instance starts. Google recommends pinning a version instead of
+  `latest` for environment variables
+  ([Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets));
+  Wally does not pin yet.
+- **`--set-secrets` replaces every secret, like `--set-env-vars`.** To change one, use
+  `--update-secrets` (same page).
 - **Do not set `PORT`.** Cloud Run injects it (8080), and the server already reads
   `env.PORT` and binds `0.0.0.0`. Setting it yourself is rejected.
-- **Do not set `FIRESTORE_EMULATOR_HOST`.** If that leaks into production the API will
-  quietly try to reach a non-existent emulator instead of your real database. Note it is
-  absent from the command above on purpose.
 
 A redeploy that passes only `--image` keeps the current variables. To change one variable,
 use `--update-env-vars`, never `--set-env-vars` with a partial list. The next release
@@ -396,8 +463,8 @@ the vendor's pricing page before changing `ASSISTANT_MODEL`.
 To call Vertex from a local machine, the API uses Application Default Credentials: run
 `gcloud auth application-default login` with an account that has `roles/aiplatform.user`,
 and the Vertex AI API (`aiplatform.googleapis.com`) must be enabled on the project. On Cloud
-Run the runtime service account applies. One real turn can be run by hand, against whatever Firestore the
-environment points at:
+Run the runtime service account applies. One real turn can be run by hand, against whatever
+database `DATABASE_URL` names:
 
 ```bash
 pnpm --filter @wally/api assistant:smoke <uid> <boardId> "<question>"
@@ -483,7 +550,7 @@ unauthenticated access.
 > **The health endpoint is `/health`, not `/healthz`, and that is deliberate.** Google Front
 > End reserves the exact path `/healthz` on Cloud Run and answers it with its own 404 before
 > the request reaches your container — Cloud Run treats paths ending in `z` as reserved.
-> This is invisible locally (the emulator stack and `docker compose` never go through GFE),
+> This is invisible locally (`docker compose` never goes through GFE),
 > so it only shows up in production, as a Google-branded 404 page on one single path while
 > every other route works. Do not name routes with a trailing `z`.
 
@@ -532,8 +599,7 @@ bundle really does contain the production API URL and not `localhost:4000`.
 
 ### 10b. The Hosting block in `firebase.json`
 
-Already present in [`firebase.json`](../firebase.json), alongside `"firestore"` and
-`"emulators"`:
+Already present in [`firebase.json`](../firebase.json), which holds nothing else now:
 
 ```json
   "hosting": {
@@ -613,15 +679,13 @@ console (F12) first — most failures announce themselves there.
 2. You can create an account and sign in.
 3. The board loads (it will be empty — there is no seed data in production, by design).
 4. Create a note. Reload the page; it is still there.
-5. Firebase console → **Firestore Database → Data**: you can see a `whiteboards` document
-   whose ID is your Wally user ID (a random id created at your first sign-in, the same as
-   your `users` document's), plus your note under `notes`.
+5. In the database (`psql` with the connection string from section 4),
+   `select id, owner_id from whiteboards` shows a board whose `id` is your Wally user id (a
+   random id created at your first sign-in, the same as your `users` row's), and
+   `select title from notes` shows your note.
 6. Drag a note between horizon zones, then open it and confirm the history shows the move.
 7. Add a subtask, tick it, confirm the counter on the card updates.
 8. Open **Teilen**, invite an email address, confirm the member appears as `PENDING`.
-
-If step 8 errors, it is almost certainly indexes still building — check
-**Firestore → Indexes**.
 
 ---
 
@@ -656,10 +720,14 @@ What it does differently from the manual commands, and why:
 - **Ships the API with `--no-traffic --tag=rel-<sha>` first**, smoke-tests that revision's
   own URL, and only then shifts traffic. A failed smoke test therefore needs no rollback —
   production never served the bad revision.
-- **Asserts the environment back** after deploying. `--set-env-vars` replaces the whole set,
-  so the workflow re-reads the service and fails the release if `FIRESTORE_DATABASE_ID` is
-  not `wally` (see section 4 for why that is the worst thing that can silently go wrong).
-- **Waits for composite indexes to reach READY** instead of returning while they build.
+- **Applies the database migrations first**, from the exact image it is about to deploy and
+  before the candidate revision exists (section 7). It reads `wally-database-url` with the
+  deploy identity, so that identity needs `roles/secretmanager.secretAccessor` on the
+  secret. A failed migration stops the release before Cloud Run changes.
+- **Asserts the environment back** after deploying. `--set-env-vars` and `--set-secrets`
+  replace the whole set, so the workflow re-reads the candidate and fails the release unless
+  its variables are exactly `apiConfig`'s and `DATABASE_URL` comes from `wally-database-url`
+  (`node scripts/resolve-release-image.mjs verify`).
 - **Checks the deployed bundle** actually contains the production API URL and not
   `localhost:4000`.
 
@@ -687,9 +755,18 @@ curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Length: 0" \
   "https://firebasehosting.googleapis.com/v1beta1/sites/luminull-wally/releases?versionName=$PREV"
 ```
 
-Firestore rules and indexes have no inverse operation. Reverting means re-deploying the
-previous `firestore.rules` from git, which is why rules changes are worth releasing on their
-own.
+**A rollback reverts the API, never the schema.** There are no down migrations, so the
+schema a release applied stays when its revision is rolled back. That is why every migration
+must keep working with the revision before it (section 7).
+
+**None of the smoke checks reads the database.** `/health` and the unauthenticated 401 never
+query it, so a candidate that cannot reach Supabase passes them. A missing secret or grant
+does fail: the revision does not start. Connectivity from Cloud Run is a proof still to run
+(RFC-0011 section 5, item 1).
+
+**The first PostgreSQL release is different.** Rolling it back sends traffic to v0.11.0,
+which reads Firestore, so anything written to PostgreSQL in between is not visible there.
+RFC-0011 section 6 requires the rollback window to be agreed before that release.
 
 ### The manual path (break-glass)
 
@@ -711,11 +788,8 @@ pnpm --filter @wally/web build
 firebase deploy --only hosting
 ```
 
-**Rules or indexes changed:**
-
-```bash
-firebase deploy --only firestore
-```
+**Schema changed:** apply the migrations from the new image first (section 7), then deploy
+the backend as above.
 
 Cloud Run keeps every revision. If a deploy breaks production, roll back in the Cloud Run
 console: select the service → **Revisions** → pick the previous one → **Manage traffic** →
@@ -737,8 +811,10 @@ npx --yes firebase-tools@15.30.2 firestore:delete --all-collections --database w
 
 Composite indexes, TTL
 policies and rules are configuration, not documents, and stayed. A release before v0.11.0
-cannot be rolled back to; fix forward. Locally, `docker compose restart firestore api web`
-gives an empty emulator (it keeps no data across restarts) and `make seed` the demo board.
+cannot be rolled back to; fix forward. Locally, the database now lives in the
+`postgres-data` volume and survives `make down`; `docker compose down -v` deletes it
+([`docker compose down`](https://docs.docker.com/reference/cli/docker/compose/down/)), and
+`make up && make seed` gives an empty database with the demo board.
 
 ---
 
@@ -747,14 +823,14 @@ gives an empty emulator (it keeps no data across restarts) and `make seed` the d
 For an app this size, realistically **near zero**, but Blaze means "pay for what you use"
 rather than "free with a hard cap", so it is worth knowing the shape.
 
-Firestore's permanently-free daily allowance is 50,000 document reads, 20,000 writes,
-20,000 deletes, and 1 GiB stored. Wally reads roughly one document per note shown, and the
-frontend refetches on window focus, so a handful of people using it daily lands nowhere near
-that. Cloud Run scales to zero — you are billed per request and per second of execution, and
+The database is a Supabase project on the Free plan. Its budget is in
+[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 2, and the Free plan's catches (no
+managed backups, a project that can pause) in its section 7. Nothing beyond Free is bought
+without the owner's approval. Cloud Run scales to zero — you are billed per request and per second of execution, and
 an idle service costs nothing. Firebase Hosting gives 10 GB of storage and 360 MB/day of
 transfer free.
 
-The thing that would actually cost money is a runaway loop hammering Firestore. That is
+The thing that would actually cost money is a runaway loop on Cloud Run or the assistant. That is
 exactly what the budget alert in [section 3](#3-step-1--put-the-project-on-the-blaze-plan)
 is for.
 
@@ -762,23 +838,20 @@ is for.
 
 ## 15. Troubleshooting
 
-**`PERMISSION_DENIED` / `Missing or insufficient permissions` from the API**
-The runtime service account lacks `roles/datastore.user`, or you are within the 5-minute IAM
-propagation window. Re-run the `add-iam-policy-binding` command from step 9a and wait.
+**The new revision never starts, and its logs mention the secret**
+Cloud Run could not read `wally-database-url`: the `wally-api` account lacks
+`roles/secretmanager.secretAccessor` on it, or you are within the IAM propagation window.
+Re-run the grant from section 7 and wait.
 
-**`FAILED_PRECONDITION: The query requires an index`**
-An index from `firestore.indexes.json` is missing or still building. Run
-`firebase deploy --only firestore:indexes` and watch Firestore → Indexes. The error message
-also contains a direct link that creates the exact index needed. If the indexes look present
-in the console but the error persists, check you are looking at the `wally` database and not
-`(default)` — the console defaults to whichever it feels like.
+**"Apply database migrations" fails in the release**
+The deploy identity cannot read the secret (section 7), or the runner cannot reach the
+host. GitHub-hosted runners reach only IPv4, so the secret must hold a pooler URL, not the
+direct connection (section 4).
 
-**Writes succeed but the data is nowhere to be found in the Firestore console**
-You are almost certainly looking at the wrong database. Production writes to `wally`
-(Frankfurt); `(default)` (US) should stay empty. Check the running config with
-`gcloud run services describe wally-api --region=europe-west1 --format="value(spec.template.spec.containers[0].env)"`
-— `FIRESTORE_DATABASE_ID=wally` must be there. A redeploy that used `--set-env-vars` without
-listing it would have dropped it.
+**The API refuses to boot with `Invalid environment configuration: DATABASE_URL`**
+`DATABASE_URL` is missing or not a URL. On Cloud Run it comes only from `--set-secrets`;
+check the revision with
+`gcloud run services describe wally-api --region=europe-west1 --format="value(spec.template.spec.containers[0].env)"`.
 
 **White screen, console shows `auth/invalid-api-key`**
 The `VITE_*` variables were not present when you built. Confirm `apps/web/.env.production`
@@ -791,10 +864,6 @@ Section 11 — add the domain to Firebase Auth's authorized domains.
 **CORS errors in the browser console**
 `CORS_ORIGIN` on Cloud Run does not exactly match the origin the browser is using. Compare
 them character by character, including `https://` and the absence of a trailing slash.
-
-**API returns 500s and the logs mention connecting to `firestore:8080` or ECONNREFUSED**
-`FIRESTORE_EMULATOR_HOST` leaked into the Cloud Run environment. Remove it:
-`gcloud run services update wally-api --region=europe-west1 --remove-env-vars=FIRESTORE_EMULATOR_HOST`
 
 **Reading the actual logs** — this is the thing to reach for before guessing:
 
@@ -845,10 +914,12 @@ Deliberately out of scope, in rough order of when you will want them:
   manual break-glass path.
 - **A separate staging project.** The usual approach is a second Firebase project with the
   same setup, selected via `firebase use`.
-- **Seed data in production.** `make seed` targets the emulator and writes fixture users
-  that do not exist in real Firebase Auth. Do not point it at production.
-- **Backups.** Firestore supports scheduled exports; worth setting up before the data
-  matters to anyone.
+- **Seed data in production.** `make seed` writes fixture users that do not exist in any real
+  sign-in provider into whatever `DATABASE_URL` names. The E2E and local MCP fixture seeds
+  refuse a non-local database; the demo seed does not. Never run it with the production
+  secret.
+- **Backups.** Not built. The Free plan has none, and a backup routine with a restore drill
+  gates the switch (section 4).
 
 ---
 
@@ -861,18 +932,18 @@ pushes to `main`, in six jobs:
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Lint & format**            | `prettier --check` and `eslint` across the workspace.                                                                                                              |
 | **Typecheck & build**        | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
-| **Unit & integration tests** | The Vitest suites, with a Firestore emulator started by `firebase emulators:exec` so CI reads this repo's own `firebase.json`.                                     |
+| **Unit & integration tests** | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).            |
 | **E2E (full stack)**         | Playwright against a real `docker compose` stack.                                                                                                                  |
 | **Detect docs-only changes** | Whether a pull request changes anything besides `*.md` files and `docs/`. Only the E2E job reads it.                                                               |
 | **E2E gate**                 | The required check: passes when E2E passed or was skipped for a docs-only change, fails otherwise. See below.                                                      |
 
 ### Two things about the E2E job that are easy to get wrong
 
-**It runs against the emulator, not production.** Every spec writes real data, and
-`share.spec.ts` creates an invite on each run. Against production those records would
-accumulate in the live `wally` database forever. Compose routes Firestore to the emulator
-while sign-in still goes through real Firebase Auth (or real Auth0, on the opt-in path), so
-the coverage is genuine and the data is disposable. Production only ever gets read-only smoke checks.
+**It runs against the stack's own database, not production.** Every spec writes real data,
+and `share.spec.ts` creates an invite on each run. Against production those records would
+accumulate in the live database forever. The compose stack runs its own PostgreSQL, created
+fresh on the runner, while sign-in still goes through real Firebase Auth (or real Auth0, on
+the opt-in path), so the coverage is genuine and the data is disposable. Production only ever gets read-only smoke checks.
 
 **A green E2E job is not automatically a meaningful one.** Every spec opens with
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
@@ -932,8 +1003,9 @@ secret name in Dependabot secrets, alongside its separate account variables. See
 [E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
 
 > There is deliberately **no service-account key anywhere.** The organization enforces
-> `iam.disableServiceAccountKeyCreation`, and the API never uses one: ADC on Cloud Run, the
-> emulator everywhere else (section 5).
+> `iam.disableServiceAccountKeyCreation`, and the API never uses one: ADC on Cloud Run, and
+> nothing elsewhere, since verifying a token needs no credential (section 5). The database
+> password is the one secret, in Secret Manager (section 7).
 
 ### Why traces are disabled in CI
 
@@ -950,31 +1022,67 @@ rotate the E2E password afterwards.
 Board commands, revisions and receipts ([ADR-0010](adr/ADR-0010-board-commands-revisions-and-receipts.md))
 are live since v0.3.3; the one-time rollout steps are done. What stays:
 
-**TTL policies.** `firestore.indexes.json` declares six, all deployed to the `wally`
-database by the release: `boardOperations.expiresAt`, `assistantAudit.expiresAt`,
-`assistantConversations.expiresAt`, `assistantAttempts.expiresAt`,
-`assistantSuggestions.expiresAt` and `assistantTidies.expiresAt`. TTL removal is
-asynchronous, usually within 24 hours after expiry; seven days (receipts, assistant attempts,
-and assistant suggestions and tidies, whose receipts expire with them) and 30 days (assistant
-audit records, and assistant conversations after their last turn) are retention targets, not
-exact erasure times. Do not enable TTL on `boardCleanup`.
+**Expiry.** Six tables carry an `expires_at` column: `board_operations`, `assistant_audit`,
+`assistant_conversations`, `assistant_attempts`, `assistant_suggestions` and
+`assistant_tidies`. The database function `purge_expired()` deletes every row past it, and
+the Supabase Cron (pg_cron) job `wally-purge-expired` runs it every hour, inside PostgreSQL.
+They replace the Firestore TTL policies. `board_cleanup` has no expiry and the purge never
+touches it. Seven days (receipts, assistant attempts, and assistant suggestions and tidies)
+and 30 days (assistant audit records, and assistant conversations after their last turn) are
+retention targets, not exact erasure times.
 
-**Maintenance.** Reconciliation rebuilds role caches from active membership records and
-removes share-link documents that are not a board's current token. Run it in dry-run mode
-first and review its counts. Local Docker commands (emulator only):
+Both come from a SQL migration in [`apps/api/drizzle/`](../apps/api/drizzle/), so the release
+creates them with the rest of the schema. Supabase enables pg_cron with
+`create extension pg_cron with schema pg_catalog`
+([Supabase Cron](https://supabase.com/docs/guides/cron/install)) and schedules jobs with
+`cron.schedule` ([quickstart](https://supabase.com/docs/guides/cron/quickstart)). pg_cron
+runs in one database, `cron.database_name`, which defaults to `postgres`, and a job runs in
+the database where `cron.schedule` was called ([pg_cron](https://github.com/citusdata/pg_cron)).
+So the migration (`0001_purge_expired.sql`) schedules the job, at minute 17 of every hour,
+only in that database, and the per-file test databases skip it. It also revokes `execute` on
+the function from `public`, `anon`, `authenticated` and `service_role`. On 2026-10-31 the job
+was checked on a fresh `supabase/postgres:17.11.0.003` container: scheduled as `postgres` in
+database `postgres`, and a run succeeded. **To confirm in the hosted project (proofs
+slice):** that Supabase Cron is available on the Free plan. The owner says it is; the two
+Supabase Cron pages above do not say.
+
+**Maintenance.** `pnpm --filter @wally/api maintenance` runs the same purge on demand and
+reports how many cleanup jobs are pending; `--cleanup` also drains them. There is no dry
+run: a plain run deletes expired rows. Locally:
 
 ```bash
 docker compose exec api pnpm --filter @wally/api maintenance
-docker compose exec api pnpm --filter @wally/api maintenance --apply
 docker compose exec api pnpm --filter @wally/api maintenance --cleanup
 ```
 
-With the production API image and its existing database identity/configuration, the compiled
-entry point is `node dist/maintenance.js`; the same flags apply. `--cleanup` performs writes
-and drains durable jobs even without `--apply`; `--apply` applies reconciliation repairs.
-The command exits nonzero when requested cleanup remains pending. Run it after any
-`cleanup_pending` outcome and monitor the remaining count; jobs do not expire until completed.
-A repeated deletion request also retries its cleanup while its receipt is retained.
+With the production API image and `DATABASE_URL` from the secret, the compiled entry point
+is `node dist/maintenance.js`, with the same flag. `--apply`, the old role-cache
+reconciliation, is gone: roles and the share-link token are read from their own rows, so
+there is no cache to repair. The command exits nonzero when requested cleanup remains
+pending. Run it after any `cleanup_pending` outcome and monitor the remaining count; jobs do
+not expire until completed. A repeated deletion request also retries its cleanup while its
+receipt is retained.
+
+## Firestore in production until the switch
+
+Production runs v0.11.0 on Cloud Firestore until the release that ships the PostgreSQL API.
+What that means, and what stays until Firestore is decommissioned (RFC-0011 section 6,
+workstream 6):
+
+- **The database is `wally`, in `europe-west3` (Frankfurt).** The project also has a
+  `(default)` database in `nam5` (United States), auto-created and empty. The v0.11.0
+  revision sets `FIRESTORE_DATABASE_ID=wally`; without it, firebase-admin writes to
+  `(default)`. Keep that variable on any v0.11.0 revision you redeploy or roll back to.
+- **Rules, composite indexes and the six TTL policies** were deployed by earlier releases
+  and stay on the `wally` database. The files that declared them (`firestore.rules`,
+  `firestore.indexes.json`) are deleted from the repository, and `firebase.json` now holds
+  Hosting only, so the release no longer touches them. Nothing should change them before
+  decommissioning.
+- **IAM:** the `wally-api` account keeps `roles/datastore.user` (section 9a), and the deploy
+  identity keeps `roles/firebaserules.admin` and `roles/datastore.indexAdmin`, which
+  `scripts/bootstrap-gcp-cicd.sh` grants. Remove them at decommissioning.
+- **Data:** none is carried over. PostgreSQL starts empty, and every user starts with a new
+  account there ([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 1).
 
 ## Account-cleanup worker (retired)
 

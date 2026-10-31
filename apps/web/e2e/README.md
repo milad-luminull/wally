@@ -1,10 +1,10 @@
 # E2E specs
 
-These assume the **full stack** is running (`make up` at the repo root: `api` + `web` +
-`firestore`, seeded via `make seed`) — they are not runnable standalone against `apps/web`
+These assume the **full stack** is running (`make up` at the repo root: `postgres`, the
+one-shot `migrate`, `api` and `web`, seeded via `make seed`) — they are not runnable standalone against `apps/web`
 in isolation, since sign-in goes through a real identity provider (Firebase Authentication by
 default, Auth0 in Auth0 mode) and every board action round-trips through the real API and the
-Firestore emulator. Production signs in with Auth0; CI uses Firebase by the owner's choice
+stack's own PostgreSQL. Production signs in with Auth0; CI uses Firebase by the owner's choice
 until Supabase Auth replaces both, and runs Auth0 mode only on request (below).
 
 Playwright runs on the host, as in CI: `make e2e` from the repo root, or
@@ -42,7 +42,7 @@ data they create (note titles, subtasks) is English.
 
 Set `E2E_AUTH_PROVIDER=auth0` for Playwright and `VITE_AUTH_PROVIDER=auth0` for the
 web container. The API must use `AUTH0_ENABLED=true`, `AUTH0_SIGNUP_ENABLED=false`,
-`FIREBASE_PROJECT_ID=wally-e2e` and the Firestore emulator. Tokens still pass the real
+`FIREBASE_PROJECT_ID=wally-e2e` and the stack's local PostgreSQL. Tokens still pass the real
 Auth0 signature, issuer and REST audience checks. No test authentication endpoint or
 password grant is added.
 
@@ -56,8 +56,10 @@ docker compose exec -T -e E2E_AUTH0_SUBJECT -e E2E_AUTH0_EMAIL api \
   pnpm --filter @wally/api exec tsx src/seed-auth0-e2e.ts
 ```
 
-This binds the identity to `seed-owner` in the emulator only. It refuses other projects,
-missing emulator configuration and Google subjects. It never creates or updates an
+This binds the identity to `seed-owner` in the local database only. It refuses any
+`DATABASE_URL` whose host is not `localhost`, `127.0.0.1`, `[::1]` or the compose service
+`postgres`, any `NODE_ENV=production`, and any subject that is not an Auth0 database
+subject (`auth0|…`). It never creates or updates an
 Auth0 account. `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` feed the actual hosted login
 form; the helper checks the expected login origin before entering credentials.
 Browser traces and video are disabled, including local runs.
@@ -76,7 +78,7 @@ Dependabot runs use a separate test identity: repository variables
 `E2E_AUTH0_USER_PASSWORD` in the **Dependabot** secret store, containing that account's
 password. Missing bot configuration never falls back to the regular CI account.
 The owner uses the `+1` dummy account for ordinary CI and `+2` for Dependabot.
-Both are mapped only into the ephemeral emulator when tests run; the bot does not
+Both are mapped only into the runner's disposable database when tests run; the bot does not
 need a production Wally identity mapping.
 
 The Auth0 CI override serves the existing app/API hostnames over HTTPS, mapped to

@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                                                    | Basis                                       |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                                               | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Firestore, Cloud Run, Firebase Hosting, Cloud Logging, Vertex AI; Firebase Auth for local and CI sign-in, not production) and Auth0 (production sign-in for web and MCP) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                    |                                             |
+| Role          | Who                                                                                                                                                                                                                                                                                        | Basis                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                                                                                                                                   | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Run, Firebase Hosting, Cloud Logging, Secret Manager, Vertex AI; Cloud Firestore until the PostgreSQL release; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP) and, from the PostgreSQL release, Supabase (the database) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                        |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -43,11 +43,20 @@ mitigation is organisational (§8), not technical.
 
 ## 2. Data inventory (Art. 30)
 
-Derived from [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), which is the
-single source of truth for stored shapes. Firestore is schemaless, so this table and that
-file must be kept in step — a new personal-data field is a change to both.
+Derived from the PostgreSQL schema in
+[`apps/api/src/lib/postgres/schema/`](../apps/api/src/lib/postgres/schema/), which is the
+single source of truth for stored shapes; field names are the row types' in
+[`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
+snake_case form. A new personal-data column is a change to the schema and to this table.
 
-### Identity — `users/{uid}`
+**Where the data lives (2026-10-31).** The code stores everything in PostgreSQL, built for a
+Supabase project in Frankfurt that does not exist yet. Production runs v0.11.0, which keeps
+the same fields in Cloud Firestore (database `wally`, `europe-west3`) until the release that
+ships the PostgreSQL API. Nothing is copied across: PostgreSQL starts empty, and the
+Firestore data is deleted when Firestore is decommissioned
+([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 6).
+
+### Identity — `users`
 
 | Field                     | Personal data                                                                                                                                                                                                                                                                 | Source                                               | Deleted when       |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------ |
@@ -57,7 +66,7 @@ file must be kept in step — a new personal-data field is a change to both.
 | `language`                | Yes — a preference tied to a person                                                                                                                                                                                                                                           | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
 | `preferences`             | Yes — UI choices tied to a person: theme, colour palette, free-canvas background, last opened board, per-board view settings (view, grouping, done/mine/priority filters), and whether WallyBot applies its suggestions automatically (`wallybot.autoApply`). No search text. | `PATCH /me`                                          | **Never** (GAP-01) |
 | `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                                                                                                                                                   | Server                                               | **Never** (GAP-01) |
-| document id (`uid`)       | Yes — pseudonymous identifier, referenced everywhere                                                                                                                                                                                                                          | Random id, created at first sign-in                  | **Never** (GAP-01) |
+| row id (`uid`)            | Yes — pseudonymous identifier, referenced everywhere                                                                                                                                                                                                                          | Random id, created at first sign-in                  | **Never** (GAP-01) |
 
 Production signs in with Auth0: the sign-in token is an Auth0 access token whose claims come
 from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs), and the uid is a random
@@ -67,7 +76,7 @@ the first sign-in and links to the Auth0 subject in `authIdentities`. Firebase A
 signs in local development and CI only; there the token is a Firebase ID token and the uid
 is the Firebase uid.
 
-### Membership — `whiteboards/{id}/members/{id}`
+### Membership — `board_members`
 
 | Field                                        | Personal data                                             | Notes                                |
 | -------------------------------------------- | --------------------------------------------------------- | ------------------------------------ |
@@ -75,24 +84,24 @@ is the Firebase uid.
 | `invitedEmail`                               | Yes — **and it may belong to someone who has no account** | See GAP-07                           |
 | `role`, `status`, `invitedAt`, `activatedAt` | Yes, indirectly                                           | Reveals when a person joined a board |
 
-### Boards — `whiteboards/{id}`
+### Boards — `whiteboards`
 
-| Field                     | Personal data                                 | Deleted when                                                             |
-| ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
-| `name`                    | Possibly — free text the owner typed          | The owner deletes the board (`board.delete`)                             |
-| `ownerId`, `memberRoles`  | Yes, pseudonymous                             | The owner deletes the board; a `memberRoles` key when that member leaves |
-| `createdAt` / `updatedAt` | Yes, indirectly                               | The owner deletes the board                                              |
-| `deletedAt`               | No — marks a board whose cleanup is under way | With the board document, when its cleanup job finishes                   |
+| Field                     | Personal data                                 | Deleted when                                      |
+| ------------------------- | --------------------------------------------- | ------------------------------------------------- |
+| `name`                    | Possibly — free text the owner typed          | The owner deletes the board (`board.delete`)      |
+| `ownerId`                 | Yes, pseudonymous                             | The owner deletes the board                       |
+| `createdAt` / `updatedAt` | Yes, indirectly                               | The owner deletes the board                       |
+| `deletedAt`               | No — marks a board whose cleanup is under way | With the board row, when its cleanup job finishes |
 
 Deleting a board removes its notes (with their subtasks and history), its members and its
 share link; the board reads as absent from the commit on, and a durable cleanup job finishes
 the physical deletion.
 
-`whiteboards/{id}.memberRoles` is a denormalised `uid -> role` cache of the same facts. Any
-erasure work has to clear both, in one transaction — the invariant is already documented on
-`WhiteboardDoc.memberRoles` and enforced in [`apps/api/src/lib/members.ts`](../apps/api/src/lib/members.ts).
+A board's member roles are read from `board_members` each time the board loads (`liveBoard`
+in [`apps/api/src/lib/db/records.ts`](../apps/api/src/lib/db/records.ts)). Firestore kept a
+copy on the board document; PostgreSQL keeps none, so erasure has one place to clear.
 
-### Content — `notes/{id}` and subcollections
+### Content — `notes`, `subtasks` and `note_history`
 
 | Field                                          | Personal data                         | Notes                                                                     |
 | ---------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- |
@@ -100,39 +109,44 @@ erasure work has to clear both, in one transaction — the invariant is already 
 | `links`                                        | No                                    | Ids of related notes                                                      |
 | `assigneeId`, `createdById`                    | Yes, pseudonymous                     | Survives the person's removal from the board                              |
 | `visibility`                                   | No                                    | Decides who sees the note; a private note is readable only by its creator |
-| `subtasks/{id}.text`                           | Free text                             |                                                                           |
-| `history/{id}.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                                                |
+| `subtasks.text`                                | Free text                             |                                                                           |
+| `note_history.actorId` + `occurredAt` + `type` | **Yes — a per-person activity trail** | See GAP-08                                                                |
 
 ### Mutation receipts and cleanup jobs
 
-`users/{uid}/boardOperations/{operationId}` stores a command fingerprint, board ID, timestamps,
-committed revision and result for safe retries. Results can include note text, member data or a
-share token; these are personal or access-sensitive data even after the original record is deleted.
-The `expiresAt` Firestore TTL policy targets seven days; physical deletion is asynchronous.
-Any account-erasure routine must recursively remove these user subcollections too.
+`board_operations`, keyed by user and operation ID, stores a command fingerprint, board ID,
+timestamps, committed revision and result for safe retries. Results can include note text,
+member data or a share token; these are personal or access-sensitive data even after the
+original record is deleted. Rows are deleted seven days after creation by the hourly expiry
+purge (below), and with their user (`ON DELETE CASCADE`).
 
-`boardCleanup/{id}` stores only IDs, job kind and creation time. Pending deletion or assignment
-cleanup jobs have **no TTL**: they are removed only after successful cleanup, so receipt expiry
+`board_cleanup` stores only IDs, job kind and creation time. Pending deletion or assignment
+cleanup jobs have **no expiry**: they are removed only after successful cleanup, so receipt expiry
 cannot strand content. Browser drafts and retry state are held in memory and cleared on account
 change. Command outcome logs omit note contents and share tokens; redemption URLs are redacted.
 
 ### Assistant records
 
-Seven collections ([`apps/api/src/lib/db/collections.ts`](../apps/api/src/lib/db/collections.ts);
-shapes in `types.ts`). Five sit under `users/{uid}`, so an account-erasure routine reaches them
-only if it deletes recursively (GAP-01). The TTL policies are in
-[`firestore.indexes.json`](../firestore.indexes.json); removal is asynchronous, usually within
-24 hours after `expiresAt`.
+Seven tables ([`apps/api/src/lib/postgres/schema/assistant.ts`](../apps/api/src/lib/postgres/schema/assistant.ts)
+and `safety.ts`). The five keyed by user are deleted with their user (`ON DELETE CASCADE`);
+`assistant_audit` names users without a foreign key and goes only by expiry.
 
-| Collection                                | Personal data                                                                                                                                                                                                                                       | Deleted when                                                      |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `users/{uid}/assistantConversations/{id}` | **Yes — free text.** The user's questions and the assistant's answers (`entries`), the model's own message log (`messages`, which can hold board content the assistant read), linked note ids and titles, board id, model, token usage, timestamps  | TTL, 30 days after the last turn (`CONVERSATION_RETENTION_DAYS`)  |
-| `users/{uid}/assistantSuggestions/{id}`   | **Yes — free text.** Proposed values for one note with the model's reasons (title, description, subtasks, tags, properties, links, a proposed assignee's user id), the note's previous values after a keep, the decision and its time, model, usage | TTL, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
-| `users/{uid}/assistantTidies/{id}`        | Yes, pseudonymous — note ids and their horizon moves with the model's reasons, the decision and its time, model, usage                                                                                                                              | TTL, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
-| `users/{uid}/assistantAttempts/{id}`      | Yes, indirectly — when the user's model calls ran, their reserved and settled tokens and cost                                                                                                                                                       | TTL, 7 days after creation (`ATTEMPT_RETENTION_DAYS`)             |
-| `users/{uid}/assistantUsage/{YYYY-MM-DD}` | Yes, indirectly — the user's tokens per UTC day, and the ids and start times of calls in flight                                                                                                                                                     | **Never** — no TTL (GAP-04)                                       |
-| `assistantAudit/{operationId}`            | Yes, pseudonymous — actor, board and target note ids, command type, conversation, approval or MCP connection id, revision and time. No contents                                                                                                     | TTL, 30 days after the command (`ASSISTANT_AUDIT_RETENTION_DAYS`) |
-| `assistantSpend/{YYYY-MM}`                | No — the deployment's spend per UTC month                                                                                                                                                                                                           | Never; holds no personal data                                     |
+**Expiry.** The database function `purge_expired()` deletes every row whose `expires_at` has
+passed, and the Supabase Cron (pg_cron) job `wally-purge-expired` runs it every hour, inside
+PostgreSQL; a SQL migration creates both ([DEPLOY.md](DEPLOY.md#board-safety-rollout)). A
+row can outlive its expiry by up to the next run. **To confirm in the hosted project:** that
+Supabase Cron runs on the Free plan. Until production switches, the Firestore TTL policies
+do this job, usually within 24 hours after `expiresAt`.
+
+| Table                             | Personal data                                                                                                                                                                                                                                       | Deleted when                                                        |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `assistant_conversations`         | **Yes — free text.** The user's questions and the assistant's answers (`entries`), the model's own message log (`messages`, which can hold board content the assistant read), linked note ids and titles, board id, model, token usage, timestamps  | Purge, 30 days after the last turn (`CONVERSATION_RETENTION_DAYS`)  |
+| `assistant_suggestions`           | **Yes — free text.** Proposed values for one note with the model's reasons (title, description, subtasks, tags, properties, links, a proposed assignee's user id), the note's previous values after a keep, the decision and its time, model, usage | Purge, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
+| `assistant_tidies`                | Yes, pseudonymous — note ids and their horizon moves with the model's reasons, the decision and its time, model, usage                                                                                                                              | Purge, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
+| `assistant_attempts`              | Yes, indirectly — when the user's model calls ran, their reserved and settled tokens and cost                                                                                                                                                       | Purge, 7 days after creation (`ATTEMPT_RETENTION_DAYS`)             |
+| `assistant_usage` (per UTC day)   | Yes, indirectly — the user's tokens per UTC day, and the ids and start times of calls in flight                                                                                                                                                     | **Never** — no expiry (GAP-04)                                      |
+| `assistant_audit`                 | Yes, pseudonymous — actor, board and target note ids, command type, conversation, approval or MCP connection id, revision and time. No contents                                                                                                     | Purge, 30 days after the command (`ASSISTANT_AUDIT_RETENTION_DAYS`) |
+| `assistant_spend` (per UTC month) | No — the deployment's spend per UTC month                                                                                                                                                                                                           | Never; holds no personal data                                       |
 
 ### Elsewhere
 
@@ -141,7 +155,7 @@ only if it deletes recursively (GAP-01). The TTL policies are in
   fallback. It holds the CI test accounts, and may still hold the credential records of
   accounts created before Auth0 and Google's own sign-in metadata (last login, provider) that
   Wally never reads. Since the v0.11.0 data reset none of them maps to a Wally account. Not
-  checked: whether those records have been deleted. Deleting a Firestore user document
+  checked: whether those records have been deleted. Deleting a `users` row
   touches neither identity store — erasure has to address all three (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
@@ -177,10 +191,13 @@ regression is visible as a change to a named file.
 
 ### Data residency stays in the EU
 
-Firestore is `europe-west3` (Frankfurt) and everything else `europe-west1` (Belgium) —
-[`DEPLOY.md`, Which database this project actually uses](DEPLOY.md#which-database-this-project-actually-uses) and [`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout). No
-third-country transfer to assess under Chapter V, and `DEPLOY.md` already warns that a
-database's location is permanent. _(Art. 44 ff.)_
+The database is planned in Supabase's Frankfurt region ([`DEPLOY.md`, Create the database](DEPLOY.md#4-step-2--create-the-database)),
+the connection-string secret is replicated only in `europe-west1`, and everything else on
+Google Cloud is `europe-west1` (Belgium) ([`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout)).
+Until the PostgreSQL release, production's Firestore is `europe-west3` (Frankfurt)
+([`DEPLOY.md`, Firestore in production until the switch](DEPLOY.md#firestore-in-production-until-the-switch)).
+No third-country transfer to assess under Chapter V. Not yet checked: the region of the
+hosted Supabase project, which does not exist yet. _(Art. 44 ff.)_
 
 Logs are the exception: Cloud Logging creates its default log buckets in the `global`
 location, which Google does not tie to a region (GAP-05).
@@ -197,13 +214,13 @@ cookie header. Board-command lines add the command, operation ID, board ID and o
 
 Paths and command lines do carry resource IDs, and a user's first board has their Wally user
 id as its ID — a pseudonymous identifier, accepted because it identifies no one without the
-`users` collection. _(Art. 5(1)(c))_
+`users` table. _(Art. 5(1)(c))_
 
-### No processors beyond Google and Auth0
+### No processors beyond Google, Auth0 and Supabase
 
 [`apps/web/package.json`](../apps/web/package.json) carries no analytics, tag manager, error
-reporter or session recorder. Google and Auth0 are the only processors, which keeps Art. 28
-to two relationships. _(Art. 28)_
+reporter or session recorder. Google and Auth0 are the only processors today; Supabase joins them with
+the PostgreSQL release, which makes three Art. 28 relationships. _(Art. 28)_
 
 ### No consent banner is required
 
@@ -214,10 +231,16 @@ necessary for a service the user explicitly asked for — outside the consent re
 
 ### The database is closed to direct client access
 
-[`firestore.rules`](../firestore.rules) denies every read and write. The web app holds no
-Firestore client; every request passes the API's role checks in
-[`apps/api/src/lib/authorization.ts`](../apps/api/src/lib/authorization.ts). The rules file says
-in its own comment that this is the intended posture, not a placeholder. _(Art. 32(1)(b))_
+Only the API connects to the database, with the connection string Cloud Run reads from Secret
+Manager. The web app holds no database client; every request passes the API's role checks in
+[`apps/api/src/lib/authorization.ts`](../apps/api/src/lib/authorization.ts). Every table has Row
+Level Security enabled with no policies, which denies every row to any role row security
+applies to ([row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)), and
+Supabase's Data API is to be switched off
+([DEPLOY.md](DEPLOY.md#4-step-2--create-the-database)). **Not yet verified in production:**
+both are settings of a hosted project that does not exist yet. Until the PostgreSQL release,
+production's `firestore.rules`, deployed earlier, deny every direct read and write.
+_(Art. 32(1)(b))_
 
 ### Privilege decisions keyed on email require a verified address
 
@@ -225,7 +248,7 @@ An invite can only be claimed once the sign-in provider (Auth0 in production, Fi
 locally and in CI) confirms the caller controls the address —
 the `emailVerified` check before `activatePendingInvitesForEmail` in
 [`apps/api/src/plugins/auth.ts`](../apps/api/src/plugins/auth.ts), with the reasoning
-recorded on `UserDoc.emailVerified`. Without it, anyone could claim a colleague's pending
+recorded on the `users.emailVerified` column. Without it, anyone could claim a colleague's pending
 invite by typing their address at signup. This is a real unauthorised-disclosure control.
 _(Art. 32(1)(b))_
 
@@ -237,8 +260,9 @@ _(Art. 32)_
 
 ### Deleting a note removes everything under it
 
-`recursiveDelete` takes the subtasks and history subcollections with it — the `note.delete` and
-`board.delete` cleanup in `drainCleanupJob`,
+Subtasks and history are deleted with their note, and a board's members, share link and notes
+with the board (`ON DELETE CASCADE`) — the `note.delete` and `board.delete` cleanup in
+`drainCleanupJob`,
 [`apps/api/src/lib/commands/maintenance.ts`](../apps/api/src/lib/commands/maintenance.ts). No orphaned history
 rows pointing at a person. _(Art. 17(1))_
 
@@ -274,9 +298,9 @@ signed-in users. _(Art. 5(1)(c))_
 
 No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
 can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
-employee's `users/{uid}` document, any board they did not delete, their `createdById` and `assigneeId`
+employee's `users` row, any board they did not delete, their `createdById` and `assigneeId`
 references and their `history.actorId` entries persist forever. Firebase Auth and Auth0 each
-hold a further copy of the identity, independent of Firestore.
+hold a further copy of the identity, independent of the database.
 
 **Status:** a self-service deletion flow was built, then removed in PR #76 because it was
 too complex to maintain. Until it is rebuilt, deletion requests to
@@ -290,8 +314,8 @@ provider.
 
 ### GAP-02 — No data export · **High** · Art. 15, 20
 
-No export endpoint. A subject access request can only be answered today by someone reading
-the Firestore console by hand, which does not scale and is error-prone. A first export
+No export endpoint. A subject access request can only be answered today by someone querying
+the database by hand, which does not scale and is error-prone. A first export
 endpoint was removed in PR #76, to be rebuilt with deletion. Until then, requests to
 privacy@luminull.com are answered by hand.
 
@@ -323,9 +347,8 @@ approval, and it cannot state retention periods until GAP-04 sets them.
 
 ### GAP-04 — No retention policy anywhere · **High** · Art. 5(1)(e)
 
-No user content expires. The six Firestore TTL policies in
-[`firestore.indexes.json`](../firestore.indexes.json) cover only command receipts (§2) and
-assistant records, kept seven or 30 days
+No user content expires. The hourly expiry purge (`purge_expired()`, §2) covers only command
+receipts and assistant records, kept seven or 30 days
 ([`DEPLOY.md`](DEPLOY.md#board-safety-rollout)). Completed notes, history events,
 membership rows, daily assistant usage counters and user profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
 is the clearest possible failure of it.
@@ -333,9 +356,9 @@ is the clearest possible failure of it.
 **Plan.** Agree a retention period per category with the controller (§8), then enforce it in
 code rather than documenting an intention. Suggested starting point: completed notes 24
 months after `completedAt`; history events 12 months after `occurredAt`; PENDING invites 90
-days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). A scheduled
-Cloud Run job is the natural home — there is no scheduler in the stack yet, so this gap
-carries infrastructure work, not just a query.
+days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). Where the
+retention job runs is open: the Supabase Cron job that runs the expiry purge is one place, the
+planned background service another (RFC-0011 workstream 5).
 
 ### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44 · **deferred**
 
@@ -421,8 +444,8 @@ The recitals were read on gdpr-info.eu; the official EUR-Lex page did not load f
 
 ### GAP-06 — Share links never expire and are not auditable · **Medium** · Art. 5(1)(e), 32
 
-`ShareLinkDoc` has no expiry field and no usage record
-([`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts)). A link handed out once grants
+`share_links` has no expiry column and no usage record
+([`apps/api/src/lib/postgres/schema/boards.ts`](../apps/api/src/lib/postgres/schema/boards.ts)). A link handed out once grants
 access until someone remembers to revoke it, and nobody can tell who redeemed it. The token
 itself is strong; the lifecycle around it is not.
 
@@ -431,7 +454,7 @@ itself is strong; the lifecycle around it is not.
 
 ### GAP-07 — Emails of people who never signed up are kept indefinitely · **Medium** · Art. 5(1)(e), 14
 
-`MemberDoc.invitedEmail` stores the address of an invited non-user. That person has no
+`board_members.invitedEmail` stores the address of an invited non-user. That person has no
 account, no way to exercise their rights, and — because the data was not collected from them
 — is owed an Art. 14 notice Wally has no channel to deliver.
 
@@ -553,7 +576,9 @@ why consent was not used. A short written record is enough; the absence of one i
 
 Accept Google's Cloud Data Processing Addendum for the `luminull-wally` project and file it.
 Also add Google to the processor register with the EU regions from §3. This applies to a
-side project exactly as it does to a company — Art. 28 has no size threshold.
+side project exactly as it does to a company — Art. 28 has no size threshold. Supabase needs
+the same review (agreement, region, subprocessors) before the PostgreSQL release, as Auth0
+does below.
 
 ### ORG-03 — Works-council agreement · BetrVG §87(1)(6) · **not applicable**
 
@@ -597,7 +622,7 @@ incident, so it is worth writing down who notices one, who decides, and who repo
 
 Production signs users in through Auth0 ([AUTH0.md](AUTH0.md)).
 
-**`authIdentities`:**
+**`auth_identities`:**
 
 - Holds the issuer, the provider subject, the stable Wally user ID and a creation
   timestamp.
@@ -609,11 +634,11 @@ Production signs users in through Auth0 ([AUTH0.md](AUTH0.md)).
 **Auth0 as a processor:** Auth0 holds a copy of every user's login identity. Its DPA,
 tenant region, subprocessors and retention still need review, as for Google in ORG-02.
 
-MCP adds private `users/{uid}/mcpConnections` records containing client identifier, access
+MCP adds private `mcp_connections` rows containing client identifier, access
 scope ceiling, creation time and revocation time. Connections use current Wally permissions
 across all accessible boards. No selected-board list or board-level MCP policy is stored. A bounded rolling
-`users/{uid}/mcpLimits/writes` counter supports shared write limits; a second
-`mcpLimits/requests` counter bounds authenticated requests across API instances. Command audit entries
+`mcp_limits` row of kind `writes` supports shared write limits; a second, of kind
+`requests`, bounds authenticated requests across API instances. Command audit entries
 identify the MCP connection. No access/refresh tokens are stored in these records.
 These records require inclusion in account/board erasure and export procedures; revoked
 connection retention still needs an operational policy; MCP is live in production.

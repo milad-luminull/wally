@@ -1,8 +1,9 @@
 # Platform migration: Supabase, Supabase Auth and Cloudflare
 
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
-  (section 8); planning, nothing migrated yet.
-- **Date:** 2026-10-26, updated 2026-10-27
+  (section 8). Workstreams 1 and 2 are built (2026-10-31), not released: production still
+  runs on Firestore. See section 4.
+- **Date:** 2026-10-26, updated 2026-10-27 and 2026-10-31
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
@@ -102,6 +103,19 @@ and its own E2E specs. Plans are not stacked.
 | 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting         | none (smallest; can go first) | ADR-0022                                          |
 | 5   | **Background service, Realtime notifications, Resend**                    | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
 | 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0     | all, plus rollback windows    | Section 6                                         |
+
+**Status (2026-10-31):**
+
+- Workstream 1 is built.
+- Workstream 2 is built in PR #87: the API reads and writes only PostgreSQL, and Firestore
+  is gone from the API, compose, CI and the release
+  ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)). The release applies the
+  migrations and gives Cloud Run `DATABASE_URL` from Secret Manager, but has never run
+  against a hosted database.
+- PR #87 stays open, unmerged, until the hosted Supabase project and the proofs it depends
+  on exist: connectivity from Cloud Run, the Data API switched off, and backups (owner,
+  2026-10-31).
+- No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
 production and needs no Supabase account, so it is built before the proofs. Each proof

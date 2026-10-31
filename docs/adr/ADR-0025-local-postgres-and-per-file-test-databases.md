@@ -3,7 +3,7 @@
 - **Status:** accepted
 - **Date:** 2026-10-27
 - **Deciders:** Milad Rezazadeh
-- **Supersedes:** [ADR-0009](ADR-0009-docker-compose-with-firestore-emulator-and-real-auth.md), in part: the Firestore emulator as the only local database
+- **Supersedes:** [ADR-0009](ADR-0009-docker-compose-with-firestore-emulator-and-real-auth.md), in part: the Firestore emulator as the local database and its per-project test isolation. The emulator ran beside PostgreSQL until workstream 2 of [RFC-0011](../rfcs/RFC-0011-platform-migration.md) removed it from compose and CI (2026-10-31)
 
 ## Context and problem statement
 
