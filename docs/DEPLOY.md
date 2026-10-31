@@ -233,9 +233,10 @@ Firestore is decommissioned ([Firestore in production until the switch](#firesto
 
 ## 7. Step 5 — Store the connection string and apply the migrations
 
-**Secret done, migrations not yet (2026-10-31).** The owner created `wally-database-url`
-(version 1, replicated only in `europe-west3`) and ran the bootstrap script, which granted
-the two identities below; no one else can read it. No migration has been applied yet.
+**Done (2026-10-31).** The owner created `wally-database-url` (version 1, replicated only in
+`europe-west3`) and ran the bootstrap script, which granted the two identities below; no one
+else can read it. The owner then applied both migrations by hand through the pooler (RFC-0011
+section 8); later migrations come with the releases.
 
 Store the transaction pooler URL from section 4 as the secret `wally-database-url`,
 replicated only in the EU. `read -rs` keeps the password out of your shell history:

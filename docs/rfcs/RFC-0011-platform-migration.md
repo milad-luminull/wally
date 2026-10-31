@@ -289,8 +289,17 @@ Decided on 2026-10-31:
   creation; the project was empty, and the owner chose to keep it. The data stays in the EU.
 - **Data API:** switched off by the owner. Checked from outside on 2026-10-31 with the
   publishable key: `/rest/v1/<table>` and `/graphql/v1` answer 503 (`PGRST002`) every time,
-  so they serve nothing, while `/auth/v1/health` answers 200. Repeat the check once the
-  tables exist; Realtime with the Data API off is still unproven (section 5, item 3).
+  so they serve nothing, while `/auth/v1/health` answers 200. Repeated after the schema was
+  applied, against real tables and `rpc/purge_expired`: still 503. Realtime with the Data
+  API off is still unproven (section 5, item 3).
+- **Schema applied:** the owner ran `migrate-cli --require-purge-job` on 2026-10-31 from
+  their machine through the transaction pooler, so Drizzle's migrator and the pg_cron
+  setup work through it. Checked afterwards: both migrations recorded, 19 tables with RLS
+  and no policies, `wally-purge-expired` active hourly as `postgres`, and the Data API roles
+  cannot execute `purge_expired`. The security advisor reports only the intended "RLS
+  enabled, no policy" notice. A GitHub runner cannot run this before the release: the
+  deploy identity is bound to the `production` environment and its `v*` tag policy, so the
+  first release proves that part.
 - **Expiry:** Supabase Cron (pg_cron) runs the purge. Checked on the hosted project on
   2026-10-31: pg_cron 1.6.4 is available on the Free plan and preloaded, and jobs run in the
   `postgres` database.
