@@ -333,10 +333,12 @@ jobs:
           set -euo pipefail
           URL="${{ steps.run_deploy.outputs.candidate_url }}"
           [ -n "$URL" ] || { echo "::error::no candidate URL"; exit 1; }
-          # /health reports the assistant's switch and model next to the status; check the
-          # fields, not the exact body, and log the configuration the candidate booted with.
+          # /health runs one query (a candidate that cannot reach its database answers 503)
+          # and reports the assistant's switch and model; check the fields, not the exact
+          # body, and log the configuration the candidate booted with.
           health=$(curl -fsS --retry 5 --retry-all-errors --retry-delay 3 "$URL/health")
           jq -e '.status == "ok"
+                 and .database == "ok"
                  and (.assistant.enabled | type == "boolean")
                  and (.assistant.model | type == "string" and test("^[a-z-]+:[^:]+$"))' \
             <<<"$health" > /dev/null \

@@ -4,6 +4,7 @@ import { INITIAL_BOARD_NAME } from '@wally/shared';
 import type { NoteColour, NoteHorizon, NotePriority, NoteStatus } from '@wally/shared';
 import { loadEnv } from './env.js';
 import { newId } from './lib/db/ids.js';
+import { assertLocalDatabase } from './lib/db/local.js';
 import { createDatabase, type Database } from './lib/postgres/client.js';
 import { withTransaction, type Transaction } from './lib/postgres/transaction.js';
 import {
@@ -409,6 +410,8 @@ export async function seedDemo(db: Database): Promise<string> {
 }
 
 async function main() {
+  // Demo data belongs in a local database only, never in a hosted one.
+  assertLocalDatabase(process.env, 'The demo seed');
   const { db, close } = createDatabase(loadEnv().DATABASE_URL);
   try {
     const shareLinkToken = await seedDemo(db);

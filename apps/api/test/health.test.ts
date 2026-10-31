@@ -19,8 +19,22 @@ describe('GET /health', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       status: 'ok',
+      database: 'ok',
       assistant: { enabled: false, model: 'vertex:gemini-3.8-flash' },
     });
+  });
+
+  it('answers 503 when the database cannot be reached, so a release candidate fails its smoke test', async () => {
+    const spy = vi
+      .spyOn(ctx.db, 'execute')
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    try {
+      const res = await ctx.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(503);
+      expect(res.json()).toEqual({ status: 'unavailable', database: 'unreachable' });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   afterAll(async () => {

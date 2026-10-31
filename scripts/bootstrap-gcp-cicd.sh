@@ -79,7 +79,7 @@ gcloud services enable \
   serviceusage.googleapis.com \
   firebase.googleapis.com \
   firebasehosting.googleapis.com \
-  firebaserules.googleapis.com
+  secretmanager.googleapis.com
 
 # ─── 2. deployer service account ─────────────────────────────────────────────────────
 say "Deployer service account"
@@ -165,13 +165,24 @@ gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA}" \
 for ROLE in \
   roles/run.developer \
   roles/firebasehosting.admin \
-  roles/firebaserules.admin \
-  roles/datastore.indexAdmin \
   roles/serviceusage.serviceUsageConsumer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="${MEMBER}" --role="${ROLE}" --condition=None >/dev/null
   echo "  granted ${ROLE}"
 done
+
+# The database URL secret: the release reads it to run migrations, Cloud Run reads it for
+# DATABASE_URL. Granted on the one secret, not the project. The secret itself is created by
+# hand with the Supabase connection string (docs/DEPLOY.md section 7).
+if gcloud secrets describe wally-database-url >/dev/null 2>&1; then
+  for SA in "${DEPLOY_SA}" "${RUNTIME_SA}"; do
+    gcloud secrets add-iam-policy-binding wally-database-url \
+      --member="serviceAccount:${SA}" --role="roles/secretmanager.secretAccessor" >/dev/null
+    echo "  granted secretAccessor on wally-database-url to ${SA}"
+  done
+else
+  echo "  wally-database-url does not exist yet; create it, then rerun this script"
+fi
 
 # ─── 6. GitHub side ──────────────────────────────────────────────────────────────────
 say "GitHub repository variables"
