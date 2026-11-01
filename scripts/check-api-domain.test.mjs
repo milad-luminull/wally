@@ -5,26 +5,17 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 
-const mapping = {
-  metadata: { name: 'api.wally.luminull.com', generation: 1 },
-  spec: { routeName: 'wally-api' },
-  status: {
-    observedGeneration: 1,
-    mappedRouteName: 'wally-api',
-    conditions: [{ type: 'Ready', status: 'True' }],
-  },
-};
+const PREVIEW = 'https://3f7c7cd4-wally-api-proxy.luminull.workers.dev';
 function run(overrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'api-domain-'));
   const log = join(dir, 'calls');
   const fake = `#!${process.execPath}
 import { appendFileSync } from 'node:fs';
 const args = process.argv.slice(2);
-appendFileSync(process.env.CALL_LOG, JSON.stringify(args) + '\\n');
-if (process.argv[1].endsWith('gcloud')) {
-  if (process.env.GCLOUD_FAIL) process.exit(1);
-  process.stdout.write(process.env.MAPPING);
-} else if (args.includes('-X')) {
+const name = process.argv[1].split('/').at(-1);
+appendFileSync(process.env.CALL_LOG, JSON.stringify([name, ...args]) + '\\n');
+if (name === 'gcloud') process.exit(1);
+else if (args.includes('-X')) {
   if (process.env.CORS_RESPONSE) { process.stdout.write(process.env.CORS_RESPONSE); process.exit(0); }
   process.stdout.write('HTTP/2 ' + (process.env.CORS_STATUS || '204') + '\\r\\nAccess-Control-Allow-Origin: ' + (process.env.ALLOW_ORIGIN || process.env.WEB_ORIGIN) + '\\r\\nAccess-Control-Allow-Methods: GET, POST, PATCH, DELETE\\r\\nAccess-Control-Allow-Headers: authorization, content-type\\r\\n\\r\\n');
 } else if (args.at(-1).endsWith('/health')) {
@@ -44,9 +35,6 @@ if (process.argv[1].endsWith('gcloud')) {
       CALL_LOG: log,
       API_BASE_URL: 'https://api.wally.luminull.com',
       WEB_ORIGIN: 'https://wally.luminull.com',
-      GCP_PROJECT_ID: 'luminull-wally',
-      GCP_REGION: 'europe-west1',
-      MAPPING: JSON.stringify(mapping),
       ...overrides,
     },
   });
@@ -59,21 +47,48 @@ if (process.argv[1].endsWith('gcloud')) {
   rmSync(dir, { recursive: true, force: true });
   return { ...result, calls };
 }
-test('accepts ready mapping with healthy API and intended CORS origin', () => {
+const urls = (calls) => calls.map((call) => call.at(-1));
+
+test('passes on health, 401 and CORS without reading any domain mapping', () => {
   const result = run();
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(result.calls[0], [
-    'beta',
-    'run',
-    'domain-mappings',
-    'describe',
-    '--domain=api.wally.luminull.com',
-    '--project=luminull-wally',
-    '--region=europe-west1',
-    '--format=json',
+  assert.match(result.stdout, /API health, authentication and CORS checks passed/);
+  assert.ok(result.calls.every(([name]) => name === 'curl'));
+  assert.deepEqual(urls(result.calls), [
+    'https://api.wally.luminull.com/health',
+    'https://api.wally.luminull.com/whiteboards',
+    'https://api.wally.luminull.com/whiteboards',
   ]);
-  assert.equal(result.calls.length, 4);
 });
+test('needs no Google Cloud project or region', () => {
+  const result = run({ GCP_PROJECT_ID: '', GCP_REGION: '' });
+  assert.equal(result.status, 0, result.stderr);
+});
+test('probes CHECK_URL when set, still requiring the canonical API_BASE_URL', () => {
+  const result = run({ CHECK_URL: PREVIEW });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(urls(result.calls), [
+    `${PREVIEW}/health`,
+    `${PREVIEW}/whiteboards`,
+    `${PREVIEW}/whiteboards`,
+  ]);
+  const wrongBase = run({ CHECK_URL: PREVIEW, API_BASE_URL: 'https://old.run.app' });
+  assert.notEqual(wrongBase.status, 0);
+  assert.equal(wrongBase.calls.length, 0);
+});
+for (const url of [
+  'http://3f7c7cd4-wally-api-proxy.luminull.workers.dev',
+  `${PREVIEW}/`,
+  `${PREVIEW}/path`,
+  `${PREVIEW}?x=1`,
+  '$(touch /tmp/injected)',
+]) {
+  test(`rejects CHECK_URL ${url} before calling commands`, () => {
+    const result = run({ CHECK_URL: url });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.calls.length, 0);
+  });
+}
 for (const url of [
   'https://api.wally.luminull.com/',
   'http://api.wally.luminull.com',
@@ -90,31 +105,6 @@ for (const url of [
 }
 for (const [name, overrides] of Object.entries({
   'wrong web origin': { WEB_ORIGIN: 'https://luminull-wally.web.app' },
-  'missing project': { GCP_PROJECT_ID: '' },
-  'missing region': { GCP_REGION: '' },
-  'missing mapping': { GCLOUD_FAIL: '1' },
-  'wrong service': { MAPPING: JSON.stringify({ ...mapping, spec: { routeName: 'other' } }) },
-  'wrong current route': {
-    MAPPING: JSON.stringify({
-      ...mapping,
-      status: { ...mapping.status, mappedRouteName: 'other' },
-    }),
-  },
-  'wrong domain': {
-    MAPPING: JSON.stringify({
-      ...mapping,
-      metadata: { ...mapping.metadata, name: 'other.example' },
-    }),
-  },
-  'not ready': {
-    MAPPING: JSON.stringify({
-      ...mapping,
-      status: { ...mapping.status, conditions: [{ type: 'Ready', status: 'False' }] },
-    }),
-  },
-  'stale readiness': {
-    MAPPING: JSON.stringify({ ...mapping, status: { ...mapping.status, observedGeneration: 0 } }),
-  },
   'bad health': { HEALTH: '{"status":"bad"}' },
   'invalid health JSON': { HEALTH: '<html>error</html>' },
   'TLS failure': { CURL_FAIL: '1' },
@@ -131,8 +121,6 @@ for (const [name, overrides] of Object.entries({
     CORS_RESPONSE:
       'HTTP/2 204\r\nAccess-Control-Allow-Origin: https://wally.luminull.com\r\nAccess-Control-Allow-Methods: GET\r\nAccess-Control-Allow-Headers: content-type\r\n\r\n',
   },
-  'missing mapping status': { MAPPING: JSON.stringify({ ...mapping, status: {} }) },
-  'invalid mapping response': { MAPPING: '{}' },
 })) {
   test(`rejects ${name}`, () => {
     const result = run(overrides);
