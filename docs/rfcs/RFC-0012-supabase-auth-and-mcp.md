@@ -21,6 +21,13 @@
   - Wally user IDs, board permissions and verified-email invites.
   - Private notes, MCP connection records, Disconnect and Reconnect.
   - Request and write budgets, and audit provenance.
+- **One account, several sign-in methods (owner, 2026-11-01):** a person who signed up with
+  email and password and later chooses Google with the same address must reach the same
+  Wally account. Under Auth0 that second identity is refused with `403 IDENTITY_NOT_LINKED`,
+  because `resolveOrCreateIdentity` never picks an account by email; the owner left the fix
+  to this workstream, where Supabase Auth links identities that share a verified email
+  (section 3). The same applies to an address an unverified signup holds: the verified
+  owner must not stay locked out.
 
 ## 2. What stays Wally's
 

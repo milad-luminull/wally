@@ -102,6 +102,17 @@ credit card); Google describes the steps in
 [enable, disable, or change billing for a project](https://cloud.google.com/billing/docs/how-to/modify-project).
 This project was set up through Firebase as the Blaze plan, which is the same thing.
 
+> **Never unlink billing, and never switch the Firebase plan from Blaze to Spark.** The
+> Firebase plan is this project's billing link. Switching to Spark on 2026-11-01 (20:49 UTC)
+> unlinked the billing account, and Cloud Run stopped serving at once: the API answered 500
+> ("billing is disabled for this project"), then 429 and 503. Re-linking the account
+> (`gcloud billing projects link luminull-wally --billing-account=<id>`) brought it back
+> after about 28 minutes, within Google's documented delay: after billing is re-enabled,
+> Cloud Run resources "might experience a delay of up to 30 minutes" before they serve
+> again, and "there is no manual workaround"
+> ([Cloud Run known issues](https://docs.cloud.google.com/run/docs/known-issues)). A release
+> during that window fails its first check.
+
 Billing is pay-as-you-go, not a subscription. It keeps the same free allowances on top — see
 [section 14](#14-what-this-will-cost) for what Wally realistically uses. **Set a budget
 alert while you are here**: Google Cloud console → **Billing → Budgets & alerts → Create
@@ -215,8 +226,8 @@ gcloud services enable \
   secretmanager.googleapis.com
 ```
 
-The Firebase APIs this project once used are disabled in group B of the
-[Firebase retirement](#firebase-retired).
+The Firebase APIs this project once used were disabled on 2026-11-01
+([Firebase retired](#firebase-retired)).
 
 ---
 
@@ -1160,13 +1171,19 @@ above, run a release, then delete the old token. Record the new expiry date here
 These settings apply to every hostname on the zone, not only Wally's. As found on
 2026-11-01, and kept:
 
-- **Bot Fight Mode: on.** Cloudflare
+- **Bot Fight Mode: off** (since 2026-11-01). Cloudflare
   [warns](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/) it "may
-  challenge API or mobile app traffic", and no rule can exempt a path from it. The Worker
-  proof saw no challenge with it on, from a home IP, and ChatGPT's real read at the cutover
-  (2026-11-01, from its data centres) was not challenged either. **If a later ChatGPT call
-  is challenged, switch it off** (Security → Bots).
-- **Browser Integrity Check: on. Security Level: medium.** No challenge in the proof.
+  challenge API or mobile app traffic", and it cannot be skipped by WAF custom rules or Page
+  Rules. The Worker proof saw no challenge from a home IP, but the first release through
+  Cloudflare (v0.14.0) did: Bot Fight Mode answered the GitHub runner's
+  `curl https://api.wally.luminull.com/health` (Microsoft network, AS8075) with a managed
+  challenge, rule `bot_fight_mode`, and the release stopped at its domain check. Every caller
+  of the API is a program (the web app, MCP clients such as ChatGPT, the release), and the API
+  needs an Auth0 token on every route and has its own rate limits, so it stays off. Bot
+  filtering with exceptions would need Super Bot Fight Mode, which supports Skip rules but
+  needs a paid plan (not checked; the owner decides).
+- **Browser Integrity Check: on. Security Level: medium.** No challenge in the proof or in
+  the v0.14.0 release.
 - **AI bot policies (Search, Training, Agents): Allow**, which the dashboard marks as
   recommended. **Agents must stay allowed:** that category covers assistants fetching on a
   person's behalf.
@@ -1259,26 +1276,34 @@ with the rest of Firebase ([Firebase retired](#firebase-retired)).
 
 Wally no longer uses Firebase (RFC-0011 workstream 6, part 1;
 [design](superpowers/specs/2026-11-01-retire-firebase-design.md)). Data has been on Supabase
-PostgreSQL since v0.12.0 and the web app on Cloudflare since v0.13.0; the release after v0.13.0
-removes Firebase Authentication, the local and CI sign-in, so Auth0 signs in everywhere. Nothing
+PostgreSQL since v0.12.0 and the web app on Cloudflare since v0.13.0. v0.14.0 (2026-11-01)
+removed Firebase Authentication, the local and CI sign-in, so Auth0 signs in everywhere. Nothing
 was carried over from Firestore: PostgreSQL started empty
 ([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 1).
 
-The owner deletes the resources in three groups, each checked read-only afterwards; the
-table records the date each was done and checked. The design holds the exact commands.
+The owner deleted the resources in three groups, each checked read-only afterwards. The
+design holds the exact commands.
 
-| Group                | Resource                                                                                                                                                                                                                                                                 | Action                           | Done and checked |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ---------------- |
-| A, any time          | Firestore database `wally` (`europe-west3`), with its indexes and TTL policies                                                                                                                                                                                           | deleted                          | 2026-11-01       |
-| A                    | Hosting custom domain `wally.luminull.com`                                                                                                                                                                                                                               | deleted (restorable for 30 days) | 2026-11-01       |
-| A                    | Hosting default site `luminull-wally`                                                                                                                                                                                                                                    | disabled                         | 2026-11-01       |
-| A                    | `roles/firebaserules.admin` and `roles/datastore.indexAdmin` on `github-deployer`; `roles/datastore.user` on `wally-api`                                                                                                                                                 | removed                          | 2026-11-01       |
-| B, after the merge   | Firebase Auth accounts, email/password and Google sign-in                                                                                                                                                                                                                | deleted, turned off              | pending          |
-| B                    | Web app registration and its browser API key                                                                                                                                                                                                                             | removed (restorable for 30 days) | pending          |
-| B                    | Service account `firebase-adminsdk-fbsvc`, its user-managed key and roles                                                                                                                                                                                                | deleted                          | pending          |
-| B                    | Firebase product APIs (`identitytoolkit`, `securetoken`, `firebasehosting`, `firebaserules`, `firestore`, `datastore`, `fcm`, `fcmregistrations`, `firebaseinstallations`, `firebaseremoteconfig`, `firebaseremoteconfigrealtime`, `firebaseappdistribution`, `testing`) | disabled                         | pending          |
-| B                    | GitHub variables `FIREBASE_PROJECT_ID` and `VITE_FIREBASE_*`, secrets `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` (repository and Dependabot), label `auth0-validation`                                                                                                     | deleted                          | pending          |
-| C, after the release | Production variables `AUTH0_ENABLED` and `VITE_AUTH_PROVIDER`                                                                                                                                                                                                            | deleted                          | pending          |
+| Group                | Resource                                                                                                                                                                                                                                                    | Action                           | Done and checked |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ---------------- |
+| A, any time          | Firestore database `wally` (`europe-west3`), with its indexes and TTL policies                                                                                                                                                                              | deleted                          | 2026-11-01       |
+| A                    | Hosting custom domain `wally.luminull.com`                                                                                                                                                                                                                  | deleted (restorable for 30 days) | 2026-11-01       |
+| A                    | Hosting default site `luminull-wally`                                                                                                                                                                                                                       | disabled                         | 2026-11-01       |
+| A                    | `roles/firebaserules.admin` and `roles/datastore.indexAdmin` on `github-deployer`; `roles/datastore.user` on `wally-api`                                                                                                                                    | removed                          | 2026-11-01       |
+| B, after the merge   | Firebase Auth accounts, email/password and Google sign-in                                                                                                                                                                                                   | deleted, turned off              | 2026-11-01 ¹     |
+| B                    | Web app registration and its browser API key                                                                                                                                                                                                                | removed (restorable for 30 days) | 2026-11-01       |
+| B                    | Service account `firebase-adminsdk-fbsvc`, its user-managed key and roles                                                                                                                                                                                   | deleted                          | 2026-11-01       |
+| B                    | Firebase product APIs (`identitytoolkit`, `securetoken`, `firebasehosting`, `firebaserules`, `firestore`, `fcm`, `fcmregistrations`, `firebaseinstallations`, `firebaseremoteconfig`, `firebaseremoteconfigrealtime`, `firebaseappdistribution`, `testing`) | disabled                         | 2026-11-01       |
+| B                    | GitHub variables `FIREBASE_PROJECT_ID` and `VITE_FIREBASE_*`, secrets `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` (repository and Dependabot), label `auth0-validation`                                                                                        | deleted                          | 2026-11-01       |
+| C, after the release | Production variables `AUTH0_ENABLED` and `VITE_AUTH_PROVIDER`                                                                                                                                                                                               | deleted                          | 2026-11-01       |
+
+¹ Confirmed by the owner. It could not be read back: Identity Toolkit was already disabled
+when it was checked.
+
+The browser API key refused deletion because it had been used in the last 7 days (by local
+development and CI, until the merge); `gcloud services api-keys delete` with
+`--no-check-existing-usage` deleted it. The deleted service account also held
+`roles/aiplatform.user` and `roles/iam.serviceAccountTokenCreator`; both grants were removed.
 
 **What stays, by necessity:**
 
@@ -1293,14 +1318,21 @@ table records the date each was done and checked. The design holds the exact com
   site" ([multiple sites](https://firebase.google.com/docs/hosting/multisites)). A
   `SITE_DISABLE` release makes Hosting act as if the site never existed; its old versions,
   the public web bundle, stay stored.
+- **`datastore.googleapis.com`, enabled.** Disabling it fails: Google's `cloudapis.googleapis.com`
+  bundle depends on it, and forcing it would disable that bundle too. It serves nothing: the
+  Firestore database is deleted and no account holds a Datastore role.
+- **Two Google-managed role grants,** `roles/firebase.managementServiceAgent` and
+  `roles/firebaserules.system`. They belong to Google's own service agents, which came with
+  adding Firebase, not to any of Wally's accounts.
+- **The billing link.** Cloud Run, Artifact Registry, Secret Manager and Vertex AI need it
+  (section 3).
 
 **Rolling back the API by Cloud Run revision still works,** because earlier revisions carry
-their own environment, but such a revision accepts Firebase ID tokens again, and creates a
-Wally user straight from a Firebase uid. That stays possible until group B turns Firebase
-sign-in off and deletes its accounts; after that no Firebase token can be issued. Rolling
-back past v0.12.0 was already ruled out (section 13). Whether the old path was ever used in
-production shows in the database: a Firebase uid is 28 characters, while every Auth0 signup
-gets a UUID, so this count should be 0:
+their own environment. A revision older than v0.14.0 would accept Firebase ID tokens again,
+but none can be issued any more: Firebase sign-in is off and its accounts are deleted.
+Rolling back past v0.12.0 was already ruled out (section 13). The old path was never used in
+production: a Firebase uid is 28 characters, while every Auth0 signup gets a UUID, and this
+count returned 0 on 2026-11-01:
 
 ```sql
 select count(*) from users
