@@ -78,7 +78,6 @@ gcloud services enable \
   cloudresourcemanager.googleapis.com \
   serviceusage.googleapis.com \
   firebase.googleapis.com \
-  firebasehosting.googleapis.com \
   secretmanager.googleapis.com
 
 # ─── 2. deployer service account ─────────────────────────────────────────────────────
@@ -155,16 +154,14 @@ gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA}" \
 # i.e. --no-invoker-iam-check. That is a one-off human action and the setting already
 # persists across revisions, so CI never needs the power to change a service's IAM policy.
 #
-# firebasehosting.admin, not firebase.admin: the narrow role carries firebase.projects.get
-# (the CLI's base permission) plus firebasehosting.sites.update, which is all `deploy --only
-# hosting` preflights. firebase.admin is ~780 permissions including full Firestore data
-# access.
+# No Firebase Hosting role: the web app is deployed to Cloudflare with its own token
+# (docs/DEPLOY.md, Cloudflare: setup, cutover and after).
 #
-# serviceUsageConsumer is genuinely required: the CLI's ensureApiEnabled() sends
-# x-goog-user-project and does not swallow a permission error.
+# serviceUsageConsumer was added for the Firebase CLI, whose ensureApiEnabled() sends
+# x-goog-user-project. The release no longer runs that CLI; the role stays until a release
+# shows gcloud alone does not need it.
 for ROLE in \
   roles/run.developer \
-  roles/firebasehosting.admin \
   roles/serviceusage.serviceUsageConsumer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="${MEMBER}" --role="${ROLE}" --condition=None >/dev/null

@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Forwards every request on api.wally.luminull.com to Cloud Run, unchanged (ADR-0022).
+  // The Custom Domain is added in the dashboard at cutover, so no routes are declared here.
+  "name": "wally-api-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-26",
+  // Each uploaded version gets a preview URL, which the release smoke-tests before deploying.
+  "workers_dev": true,
+  "preview_urls": true,
+  // Off: request URLs can carry share-link tokens, which the API redacts in its own logs.
+  "observability": { "enabled": false },
+  // No usage telemetry, and no list of npm dependencies sent with each upload.
+  "send_metrics": false,
+  "dependencies_instrumentation": { "enabled": false },
+  "vars": {
+    // The Cloud Run service URL. Public, not a secret; the release checks it still matches.
+    "ORIGIN": "https://wally-api-d5xbuta4ya-ew.a.run.app",
+  },
+}

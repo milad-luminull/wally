@@ -9,12 +9,11 @@ permissions:
 
 concurrency:
   # NEVER cancel a release in progress: a half-cancelled run can leave the API deployed and
-  # Hosting stale. Releases queue instead.
+  # the Workers stale. Releases queue instead.
   group: release-production
   cancel-in-progress: false
 
 env:
-  FIREBASE_TOOLS_VERSION: '15.30.2'
   API_BASE_URL: ${{ vars.API_BASE_URL }}
   WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -97,6 +96,11 @@ jobs:
     permissions:
       contents: read
       id-token: write # required for the OIDC token; granted on this job only
+    env:
+      # A variable on the production environment, so it is read here, in the job that
+      # declares the environment. Not a secret. Wrangler reads it, and CLOUDFLARE_API_TOKEN,
+      # from the environment; the token is passed only to the steps that call Cloudflare.
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -131,12 +135,9 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOY_SA }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        with:
-          # The canonical-domain guard uses gcloud beta run domain-mappings.
-          install_components: beta
 
-      # status.url is Cloud Run's native hostname even when a custom domain is mapped.
-      # Validate the mapping and canonical public endpoint before making any changes.
+      # Validate the canonical public endpoint before making any changes. The check is by
+      # behaviour, so it passes whichever edge serves the hostname.
       - name: Verify the canonical API domain and CORS
         run: node scripts/check-api-domain.mjs
 
@@ -175,17 +176,30 @@ jobs:
             esac
           done
 
+      - name: Validate the Cloudflare configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] \
+            || { echo "::error::CLOUDFLARE_ACCOUNT_ID must be a 32-character account ID"; exit 1; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] \
+            || { echo "::error::the CLOUDFLARE_API_TOKEN secret is not set on the production environment"; exit 1; }
+
       # Also emits the API runtime configuration (run_env, service_account) that the deploy
       # uses and the post-deploy check asserts, so it is defined once.
       - name: Resolve the candidate configuration and any image to reuse
         id: existing
         run: node scripts/resolve-release-image.mjs
 
-      # Record what to go back to. Captured BEFORE anything changes: at failure time the
-      # release list has already shifted and index [1] would be the wrong one. Refuses when
-      # production already serves this release's candidate (a rerun after failed recovery).
+      # Record what to go back to: the serving Cloud Run revision and each Worker's active
+      # version. Captured BEFORE anything changes. Refuses when production already serves this
+      # release's candidate (a rerun after failed recovery), and when a Worker does not exist
+      # yet (docs/DEPLOY.md, Cloudflare setup).
       - name: Capture the current production state
         id: prev
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node scripts/release-state.mjs snapshot release-state.json
 
       - name: Preserve recovery state before mutations
@@ -350,7 +364,7 @@ jobs:
 
       # ---------------------------------------------------------------------------------
       # 4. Web bundle. Built HERE, not downloaded from the CI job: the CI build ran with
-      #    VITE_API_BASE_URL pointing at localhost and must never reach Hosting.
+      #    VITE_API_BASE_URL pointing at localhost and must never be deployed.
       # ---------------------------------------------------------------------------------
       - name: Build the web bundle for production
         env:
@@ -380,22 +394,99 @@ jobs:
             echo "::error::the bundle contains localhost:4000"; exit 1
           fi
 
-      # Prepare and validate BOTH artifacts before enforcing the new API contract.
+      # ---------------------------------------------------------------------------------
+      # 5. Workers, as versions that serve no traffic yet. Each version gets its own preview
+      #    URL, smoke-tested before anything shifts. The proxy forwards to the service URL,
+      #    which still serves the old revision here; the proxy does not depend on the revision.
+      # ---------------------------------------------------------------------------------
+      - name: Upload the Workers as versions (no traffic)
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The proxy forwards to the ORIGIN in its wrangler.jsonc. Refuse to ship one that no
+          # longer names this service.
+          origin=$(sed -nE 's/^ *"ORIGIN": *"([^"]+)".*/\1/p' apps/api-proxy/wrangler.jsonc)
+          service=$(gcloud run services describe wally-api --region="${GCP_REGION}" --format='value(status.url)')
+          [ -n "$origin" ] && [ "$origin" = "$service" ] \
+            || { echo "::error::apps/api-proxy/wrangler.jsonc ORIGIN '${origin}' is not the service URL '${service}'"; exit 1; }
+          upload() { # package, output prefix, Worker name
+            local out="$RUNNER_TEMP/$2-upload.ndjson" line version preview
+            rm -f "$out"
+            WRANGLER_OUTPUT_FILE_PATH="$out" \
+              pnpm --filter "$1" exec wrangler versions upload --message "${GITHUB_REF_NAME}"
+            line=$(grep -h '"type":"version-upload"' "$out" | tail -n 1 || true)
+            [ -n "$line" ] || line='{}'
+            version=$(jq -r '.version_id // empty' <<<"$line")
+            preview=$(jq -r '.preview_url // empty' <<<"$line")
+            # Without a preview URL there is nothing safe to smoke-test: stop before traffic moves.
+            [[ "$version" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+              || { echo "::error::the $1 upload reported no version ID"; exit 1; }
+            # A version's preview URL starts with the version ID's first 8 characters. The
+            # Worker's own workers.dev URL serves the deployed version, not this one.
+            [[ "$preview" =~ ^https://${version:0:8}-${3}\.[a-z0-9-]+\.workers\.dev$ ]] \
+              || { echo "::error::the $1 upload reported no preview URL"; exit 1; }
+            echo "${2}_version=${version}" >> "$GITHUB_OUTPUT"
+            echo "${2}_preview=${preview}" >> "$GITHUB_OUTPUT"
+            echo "$1: version ${version}, preview ${preview}"
+          }
+          upload @wally/api-proxy proxy wally-api-proxy
+          upload @wally/web web wally-web
+
+      - name: Smoke-test the Worker previews
+        env:
+          PROXY: ${{ steps.upload.outputs.proxy_preview }}
+          WEB: ${{ steps.upload.outputs.web_preview }}
+        run: |
+          set -euo pipefail
+          retry=(--retry 5 --retry-all-errors --retry-delay 3)
+          health=$(curl -fsS "${retry[@]}" "$PROXY/health")
+          jq -e '.status == "ok" and .database == "ok"' <<<"$health" > /dev/null \
+            || { echo "::error::the proxy preview's /health returned: $health"; exit 1; }
+          CHECK_URL="$PROXY" node scripts/check-api-domain.mjs
+          # No token: 401 with the OAuth challenge, which ChatGPT needs to find the sign-in.
+          mcp=$(curl -sS -D - -o /dev/null -X POST -H 'Content-Type: application/json' \
+                  --data '{}' "$PROXY/mcp")
+          code=$(sed -nE '1s/^HTTP\/[0-9.]+ ([0-9]{3}).*/\1/p' <<<"$mcp")
+          [ "$code" = 401 ] && grep -qiE '^www-authenticate:.*resource_metadata=' <<<"$mcp" \
+            || { echo "::error::the proxy preview's /mcp answered $code without the OAuth challenge"; exit 1; }
+
+          # -f makes curl treat a 404 as an error, so a preview that is still propagating is retried.
+          [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/")" = "200" ]
+          [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
+          index=$(curl -fsS "$WEB/")
+          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p || true)
+          [ -n "$asset" ] || { echo "::error::could not find the entry bundle in the preview's index.html"; exit 1; }
+          bundle=$(curl -fsS "$WEB$asset")
+          grep -qF "${API_BASE_URL#https://}" <<<"$bundle" \
+            || { echo "::error::the preview's bundle does not reference $API_BASE_URL"; exit 1; }
+          headers=$(curl -fsSI "$WEB$asset")
+          grep -qiE '^cache-control:.*immutable' <<<"$headers" \
+            || { echo "::error::the preview does not serve /assets/* as immutable"; exit 1; }
+          echo "Worker previews OK"
+
+      # Prepare and validate ALL artifacts before enforcing the new API contract.
       # Existing tabs fail safely with 428 until refreshed during this short handover.
       - name: Shift all traffic to the new revision
         id: shift
         run: gcloud run services update-traffic wally-api --region="${GCP_REGION}" --to-revisions="wally-api-rel-${{ steps.ver.outputs.short }}=100"
 
-      - name: Deploy Firebase Hosting
-        id: hosting
+      - name: Deploy the Workers
+        id: workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PROXY_VERSION: ${{ steps.upload.outputs.proxy_version }}
+          WEB_VERSION: ${{ steps.upload.outputs.web_version }}
         run: |
-          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
-            --only hosting \
-            --project "${GCP_PROJECT_ID}" \
-            --non-interactive
+          set -euo pipefail
+          pnpm --filter @wally/api-proxy exec wrangler versions deploy "${PROXY_VERSION}@100%" \
+            --message "${GITHUB_REF_NAME}" -y
+          pnpm --filter @wally/web exec wrangler versions deploy "${WEB_VERSION}@100%" \
+            --message "${GITHUB_REF_NAME}" -y
 
       # ---------------------------------------------------------------------------------
-      # 5. Post-deploy smoke. Read-only on purpose: the full E2E suite writes real notes and
+      # 6. Post-deploy smoke. Read-only on purpose: the full E2E suite writes real notes and
       #    real invites, which is why it runs pre-merge against the emulator instead.
       # ---------------------------------------------------------------------------------
       - name: Smoke-test production
@@ -409,11 +500,11 @@ jobs:
           # Proves the SPA rewrite works for a deep link, not just the index.
           [ "$(curl -s -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
 
-          # Prove the bundle actually SERVED by Hosting points at the right API.
+          # Prove the bundle actually SERVED at the web origin points at the right API.
           # Download first, then search: piping curl into an early-exiting reader (grep -q,
           # head) can kill curl with SIGPIPE, and pipefail then fails a check that matched.
           index=$(curl -fsS "$WEB/")
-          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p)
+          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p || true)
           [ -n "$asset" ] || { echo "::error::could not find the entry bundle in index.html"; exit 1; }
           bundle=$(curl -fsS "$WEB$asset")
           grep -qF "${API#https://}" <<<"$bundle" \
@@ -424,9 +515,14 @@ jobs:
       # Rollback. Only reached if something above failed after traffic moved. A failure
       # before that point needs no rollback: production never served the candidate.
       # ---------------------------------------------------------------------------------
+      # If this step fails too, production may be mixed: follow "When a release fails" in
+      # docs/DEPLOY.md before rerunning. The snapshot of a rerun refuses until it is fixed.
       - name: Restore captured release state after partial failure
+        id: restore
         if: (failure() || cancelled()) && steps.shift.outcome != 'skipped'
-        run: node scripts/release-state.mjs apply release-state.json ${{ steps.hosting.outcome != 'skipped' && '--hosting' || '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/release-state.mjs apply release-state.json ${{ steps.workers.outcome != 'skipped' && '--workers' || '' }}
 
       - name: Summary
         if: always()
@@ -439,6 +535,9 @@ jobs:
             echo "| Commit | \`${GITHUB_SHA}\` |"
             echo "| Image digest | \`${{ steps.image.outputs.digest }}\` |"
             echo "| Previous revision | \`${{ steps.prev.outputs.revision }}\` |"
+            echo "| wally-api-proxy version | \`${{ steps.upload.outputs.proxy_version }}\` |"
+            echo "| wally-web version | \`${{ steps.upload.outputs.web_version }}\` |"
+            echo "| Recovery | ${{ steps.restore.outcome == 'skipped' && 'not needed' || steps.restore.outcome }} |"
             echo "| Web | ${WEB_ORIGIN} |"
             echo "| API | ${API_BASE_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"

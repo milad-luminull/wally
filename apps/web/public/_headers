@@ -1,0 +1,4 @@
+# Hashed build output never changes under its name; everything else keeps the default
+# (max-age=0, must-revalidate), so a release is seen on the next load.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

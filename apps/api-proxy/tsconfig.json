@@ -1,0 +1,12 @@
+{
+  "extends": "@wally/config/tsconfig.base.json",
+  "compilerOptions": {
+    // The Worker uses only the standard fetch, Request, Response and Headers, so the web
+    // worker library is enough; no Cloudflare type package is needed.
+    "lib": ["ES2022", "WebWorker", "WebWorker.Iterable"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["src", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

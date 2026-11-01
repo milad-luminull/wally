@@ -1,4 +1,7 @@
-// Read-only production release guard. Values enter as environment data, never shell code.
+// Read-only production release guard: the API answers health, authentication and CORS
+// correctly, whichever edge serves it (Cloudflare or, before the cutover, the Cloud Run domain
+// mapping). CHECK_URL probes another base URL, such as a Worker version's preview URL, with the
+// same checks. Values enter as environment data, never shell code.
 import { execFileSync } from 'node:child_process';
 
 function requireCheck(condition, message) {
@@ -8,51 +11,25 @@ function command(name, args) {
   return execFileSync(name, args, { encoding: 'utf8', timeout: 120_000 });
 }
 try {
-  const {
-    API_BASE_URL: api,
-    WEB_ORIGIN: web,
-    GCP_PROJECT_ID: project,
-    GCP_REGION: region,
-  } = process.env;
+  const { API_BASE_URL: canonical, WEB_ORIGIN: web, CHECK_URL: checkUrl } = process.env;
   requireCheck(
-    api === 'https://api.wally.luminull.com',
+    canonical === 'https://api.wally.luminull.com',
     'API_BASE_URL must be exactly https://api.wally.luminull.com (no trailing slash)',
   );
   requireCheck(
     web === 'https://wally.luminull.com',
     'WEB_ORIGIN must be exactly https://wally.luminull.com (no trailing slash)',
   );
-  requireCheck(project && region, 'GCP_PROJECT_ID and GCP_REGION are required');
-  const mapping = JSON.parse(
-    command('gcloud', [
-      'beta',
-      'run',
-      'domain-mappings',
-      'describe',
-      '--domain=api.wally.luminull.com',
-      `--project=${project}`,
-      `--region=${region}`,
-      '--format=json',
-    ]),
-  );
+  const api = checkUrl ?? canonical;
+  let origin;
+  try {
+    origin = new URL(api).origin;
+  } catch {
+    // Not a URL; rejected below.
+  }
   requireCheck(
-    mapping.metadata?.name === 'api.wally.luminull.com',
-    'Unexpected domain mapping name',
-  );
-  requireCheck(
-    mapping.spec?.routeName === 'wally-api' && mapping.status?.mappedRouteName === 'wally-api',
-    'Domain mapping must point to wally-api',
-  );
-  requireCheck(
-    mapping.status?.conditions?.some(
-      (condition) => condition.type === 'Ready' && condition.status === 'True',
-    ),
-    'Domain mapping is not Ready',
-  );
-  requireCheck(
-    mapping.metadata?.generation != null &&
-      String(mapping.status?.observedGeneration) === String(mapping.metadata.generation),
-    'Domain mapping readiness is stale',
+    api.startsWith('https://') && origin === api,
+    'CHECK_URL must be an https origin with no path, query or trailing slash',
   );
 
   // No redirects or insecure TLS: the canonical hostname itself must answer correctly.
@@ -115,7 +92,7 @@ try {
     ['authorization', 'content-type'].every((header) => allowedHeaders.includes(header)),
     'CORS must allow authorization and content-type',
   );
-  console.log('Canonical API domain mapping, health, authentication and CORS checks passed');
+  console.log(`API health, authentication and CORS checks passed for ${api}`);
 } catch (error) {
   console.error(`API domain check failed: ${error.message}`);
   process.exitCode = 1;

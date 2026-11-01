@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                                                                                                                                                        | Basis                                       |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                                                                                                                                                   | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Run, Firebase Hosting, Cloud Logging, Secret Manager, Vertex AI; Cloud Firestore until the PostgreSQL release; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP) and, from the PostgreSQL release, Supabase (the database) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                        |                                             |
+| Role          | Who                                                                                                                                                                                                                                                                                                                                                                                                                       | Basis                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                                                                                                                                                                                                                                                                  | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI; Firebase Hosting until the Cloudflare cutover; Cloud Firestore, unused since v0.12.0, until it is decommissioned; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP), Supabase (the database, since v0.12.0) and, from the Cloudflare cutover, Cloudflare (serves the web app and forwards all API traffic) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                                                                                                                                                       |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -49,11 +49,10 @@ single source of truth for stored shapes; field names are the row types' in
 [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
-**Where the data lives (2026-10-31).** The code stores everything in PostgreSQL, built for the
-Supabase project in Ireland (`eu-west-1`), which exists but holds nothing yet. Production runs v0.11.0, which keeps
-the same fields in Cloud Firestore (database `wally`, `europe-west3`) until the release that
-ships the PostgreSQL API. Nothing is copied across: PostgreSQL starts empty, and the
-Firestore data is deleted when Firestore is decommissioned
+**Where the data lives (2026-11-01).** Production runs v0.12.0, which stores everything in
+PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Whatever v0.11.0 wrote stays in
+Cloud Firestore (database `wally`, `europe-west3`), unused. Nothing was copied across:
+PostgreSQL started empty, and the Firestore data is deleted when Firestore is decommissioned
 ([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 6).
 
 ### Identity — `users`
@@ -134,9 +133,8 @@ and `safety.ts`). The five keyed by user are deleted with their user (`ON DELETE
 **Expiry.** The database function `purge_expired()` deletes every row whose `expires_at` has
 passed, and the Supabase Cron (pg_cron) job `wally-purge-expired` runs it every hour, inside
 PostgreSQL; a SQL migration creates both ([DEPLOY.md](DEPLOY.md#board-safety-rollout)). A
-row can outlive its expiry by up to the next run. **To confirm in the hosted project:** that
-Supabase Cron runs on the Free plan. Until production switches, the Firestore TTL policies
-do this job, usually within 24 hours after `expiresAt`.
+row can outlive its expiry by up to the next run. The job ran in the hosted project, on the
+Free plan, on 2026-10-31.
 
 | Table                             | Personal data                                                                                                                                                                                                                                       | Deleted when                                                        |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -194,10 +192,16 @@ regression is visible as a change to a named file.
 The database is in Supabase's Ireland region, `eu-west-1` ([`DEPLOY.md`, Create the database](DEPLOY.md#4-step-2--create-the-database)),
 the connection-string secret is replicated only in `europe-west3` (Frankfurt), and everything else on
 Google Cloud is `europe-west1` (Belgium) ([`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout)).
-Until the PostgreSQL release, production's Firestore is `europe-west3` (Frankfurt)
-([`DEPLOY.md`, Firestore in production until the switch](DEPLOY.md#firestore-in-production-until-the-switch)).
-No third-country transfer to assess under Chapter V. Not yet checked: the region of the
-hosted Supabase project, which does not exist yet. _(Art. 44 ff.)_
+The unused Firestore database is `europe-west3` (Frankfurt)
+([`DEPLOY.md`, Firestore after the switch](DEPLOY.md#firestore-after-the-switch)).
+_(Art. 44 ff.)_
+
+Cloudflare is the other exception, from the cutover on. It answers each request in whichever
+of its data centres is nearest the caller, and it terminates TLS there: it sees client IP
+addresses, bearer tokens and note text in transit. Wally's Workers store nothing; what
+Cloudflare itself retains about requests is not verified first-hand (GAP-05, ORG-08).
+Cloudflare is a US company. Whether its agreement and transfer mechanism cover this is not
+yet checked (ORG-08).
 
 Logs are the exception: Cloud Logging creates its default log buckets in the `global`
 location, which Google does not tie to a region (GAP-05).
@@ -216,11 +220,11 @@ Paths and command lines do carry resource IDs, and a user's first board has thei
 id as its ID — a pseudonymous identifier, accepted because it identifies no one without the
 `users` table. _(Art. 5(1)(c))_
 
-### No processors beyond Google, Auth0 and Supabase
+### No processors beyond Google, Auth0, Supabase and Cloudflare
 
 [`apps/web/package.json`](../apps/web/package.json) carries no analytics, tag manager, error
-reporter or session recorder. Google and Auth0 are the only processors today; Supabase joins them with
-the PostgreSQL release, which makes three Art. 28 relationships. _(Art. 28)_
+reporter or session recorder. Google, Auth0 and Supabase are the processors today; Cloudflare
+joins them at the cutover, which makes four Art. 28 relationships. _(Art. 28)_
 
 ### No consent banner is required
 
@@ -381,8 +385,9 @@ Cloud.
 - The `_Default` and `_Required` buckets "are in the `global` location", and "You can't change
   the location of existing buckets" ([regionalized logs](https://docs.cloud.google.com/logging/docs/regionalized-logs)). Google does not say where
   `global` data is stored, so the EU-only statement in §3 does not cover logs.
-- Firebase Hosting can export its request logs, with client IP, city and country, but only
-  once the integration is linked in the Firebase console ([Hosting logs](https://firebase.google.com/docs/hosting/web-request-logs-and-metrics)).
+- Wally's two Cloudflare Workers keep no logs: Workers Logs are off on both
+  (`observability.enabled: false` in each `wrangler.jsonc`), because request URLs can carry
+  share-link tokens. The dashboard shows only aggregate request counts, errors and CPU time.
 - The rate limiter keys requests without a signed-in user by IP address, in process memory, per
   instance, for its one-minute window; it stores and logs nothing (`buildApp`).
 
@@ -394,7 +399,8 @@ request logs with client IP addresses are kept 30 days, in the `global` location
 gcloud logging buckets describe _Default --location=global --project=luminull-wally
 ```
 
-**Not verified first-hand:** whether Firebase Hosting request logs are linked to Cloud Logging.
+**Not verified first-hand:** what Cloudflare itself records about each request for its own
+security and analytics features on the Free plan, and for how long.
 
 **Deferred** by the controller on 2026-10-14, to be done later. Until then, Cloud Run's request
 logs, with client IP addresses, are kept 30 days in the `global` bucket. Nothing else in this
@@ -576,9 +582,9 @@ why consent was not used. A short written record is enough; the absence of one i
 
 Accept Google's Cloud Data Processing Addendum for the `luminull-wally` project and file it.
 Also add Google to the processor register with the EU regions from §3. This applies to a
-side project exactly as it does to a company — Art. 28 has no size threshold. Supabase needs
-the same review (agreement, region, subprocessors) before the PostgreSQL release, as Auth0
-does below.
+side project exactly as it does to a company — Art. 28 has no size threshold. Supabase, live
+since v0.12.0, needs the same review (agreement, region, subprocessors), as Auth0 does below
+and Cloudflare does in ORG-08.
 
 ### ORG-03 — Works-council agreement · BetrVG §87(1)(6) · **not applicable**
 
@@ -615,6 +621,13 @@ incident, so it is worth writing down who notices one, who decides, and who repo
 ### ORG-07 — Add Wally to the record of processing · Art. 30
 
 §2 is the inventory. It needs to land in the controller's central register, not only here.
+
+### ORG-08 — Cloudflare as a processor · Art. 28, Chapter V
+
+From the cutover, Cloudflare serves the web app and carries every API request, with TLS
+ending at its edge (§3). Review its data processing agreement, the transfer mechanism for a US
+company, its subprocessors, and what it retains about requests on the Free plan, then add it
+to the processor register.
 
 ---
 

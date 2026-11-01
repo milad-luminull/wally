@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // The web app as static files, with no script: asset requests on Workers Free are free and
+  // unlimited only while no script runs first (ADR-0022). The Custom Domain
+  // wally.luminull.com is added in the dashboard at cutover, so no routes are declared here.
+  "name": "wally-web",
+  "compatibility_date": "2026-10-26",
+  "assets": {
+    "directory": "./dist",
+    // Unknown paths answer 200 with index.html, so deep links like /boards/<id> load the app.
+    "not_found_handling": "single-page-application",
+  },
+  // Each uploaded version gets a preview URL, which the release smoke-tests before deploying.
+  "workers_dev": true,
+  "preview_urls": true,
+  "observability": { "enabled": false },
+  // No usage telemetry, and no list of npm dependencies sent with each upload.
+  "send_metrics": false,
+  "dependencies_instrumentation": { "enabled": false },
+}

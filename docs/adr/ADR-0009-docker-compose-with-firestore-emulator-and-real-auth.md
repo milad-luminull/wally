@@ -20,7 +20,7 @@ Chosen option: **Docker Compose, Firestore emulated, Auth real.**
 
 - [`docker-compose.yml`](../../docker-compose.yml) runs `firestore` (built from [`infra/firebase-emulator.Dockerfile`](../../infra/firebase-emulator.Dockerfile)), `api` and `web`, with the repository bind-mounted for hot reload. [`Makefile`](../../Makefile) is the only interface; `make up` is the one command a new developer needs.
 - Compose sets `FIRESTORE_EMULATOR_HOST` on the API; the Admin SDK routes Firestore traffic there and boots without a credential (`getFirebaseApp` in [`apps/api/src/lib/firebase-app.ts`](../../apps/api/src/lib/firebase-app.ts)). Firebase Auth is not redirected; ID tokens are verified against the real project, which is why the `FIREBASE_*` values in `.env` matter locally.
-- Each API test file creates its own emulator project through `createNamedDb` in [`apps/api/src/lib/db/client.ts`](../../apps/api/src/lib/db/client.ts); `singleProjectMode: false` in [`firebase.json`](../../firebase.json) allows it. Files are isolated and run in parallel.
+- Each API test file creates its own emulator project through `createNamedDb` in [`apps/api/src/lib/db/client.ts`](../../apps/api/src/lib/db/client.ts); `singleProjectMode: false` in `firebase.json` (deleted with Firebase Hosting in RFC-0011 workstream 4) allowed it. Files are isolated and run in parallel.
 - `loadEnv` in [`apps/api/src/env.ts`](../../apps/api/src/env.ts) refuses to start a production process with an emulator host set.
 - CI ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) runs the unit and integration suites under `firebase emulators:exec`, and the Playwright suite on the full compose stack, with a guard that fails if the suite was vacuously green.
 

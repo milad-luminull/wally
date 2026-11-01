@@ -12,7 +12,6 @@ coverage/
 playwright-report/
 test-results/
 .vite/
-.firebase/
 *.tsbuildinfo
 .pnpm-store/
 # Third-party agent skills, installed locally; not part of the repo.
@@ -20,3 +19,6 @@ test-results/
 skills-lock.json
 # SDD orchestration scratch used by local agents.
 .superpowers/
+# Wrangler's local state and local secrets.
+.wrangler/
+.dev.vars
