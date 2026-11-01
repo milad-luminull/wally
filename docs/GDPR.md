@@ -198,7 +198,8 @@ _(Art. 44 ff.)_
 
 Cloudflare is the other exception, from the cutover on. It answers each request in whichever
 of its data centres is nearest the caller, and it terminates TLS there: it sees client IP
-addresses, bearer tokens and note text in transit, though it stores none of Wally's data.
+addresses, bearer tokens and note text in transit. Wally's Workers store nothing; what
+Cloudflare itself retains about requests is not verified first-hand (GAP-05, ORG-08).
 Cloudflare is a US company. Whether its agreement and transfer mechanism cover this is not
 yet checked (ORG-08).
 

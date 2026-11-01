@@ -14,10 +14,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Not a secret. Wrangler reads it, and CLOUDFLARE_API_TOKEN, from the environment; the token
-  # is passed only to the steps that call Cloudflare.
-  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-  WRANGLER_SEND_METRICS: 'false'
   API_BASE_URL: ${{ vars.API_BASE_URL }}
   WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -100,6 +96,12 @@ jobs:
     permissions:
       contents: read
       id-token: write # required for the OIDC token; granted on this job only
+    env:
+      # A variable on the production environment, so it is read here, in the job that
+      # declares the environment. Not a secret. Wrangler reads it, and CLOUDFLARE_API_TOKEN,
+      # from the environment; the token is passed only to the steps that call Cloudflare.
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -410,7 +412,7 @@ jobs:
           service=$(gcloud run services describe wally-api --region="${GCP_REGION}" --format='value(status.url)')
           [ -n "$origin" ] && [ "$origin" = "$service" ] \
             || { echo "::error::apps/api-proxy/wrangler.jsonc ORIGIN '${origin}' is not the service URL '${service}'"; exit 1; }
-          upload() { # package, output prefix
+          upload() { # package, output prefix, Worker name
             local out="$RUNNER_TEMP/$2-upload.ndjson" line version preview
             rm -f "$out"
             WRANGLER_OUTPUT_FILE_PATH="$out" \
@@ -422,14 +424,16 @@ jobs:
             # Without a preview URL there is nothing safe to smoke-test: stop before traffic moves.
             [[ "$version" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
               || { echo "::error::the $1 upload reported no version ID"; exit 1; }
-            [[ "$preview" =~ ^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$ ]] \
+            # A version's preview URL starts with the version ID's first 8 characters. The
+            # Worker's own workers.dev URL serves the deployed version, not this one.
+            [[ "$preview" =~ ^https://${version:0:8}-${3}\.[a-z0-9-]+\.workers\.dev$ ]] \
               || { echo "::error::the $1 upload reported no preview URL"; exit 1; }
             echo "${2}_version=${version}" >> "$GITHUB_OUTPUT"
             echo "${2}_preview=${preview}" >> "$GITHUB_OUTPUT"
             echo "$1: version ${version}, preview ${preview}"
           }
-          upload @wally/api-proxy proxy
-          upload @wally/web web
+          upload @wally/api-proxy proxy wally-api-proxy
+          upload @wally/web web wally-web
 
       - name: Smoke-test the Worker previews
         env:
@@ -453,8 +457,9 @@ jobs:
             [ "$code" = 503 ] || { echo "::error::the proxy preview's /mcp answered $code, expected 503"; exit 1; }
           fi
 
-          [ "$(curl -s "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/")" = "200" ]
-          [ "$(curl -s "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
+          # -f makes curl treat a 404 as an error, so a preview that is still propagating is retried.
+          [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/")" = "200" ]
+          [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
           index=$(curl -fsS "$WEB/")
           asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p)
           [ -n "$asset" ] || { echo "::error::could not find the entry bundle in the preview's index.html"; exit 1; }
