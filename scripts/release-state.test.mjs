@@ -3,12 +3,16 @@ import { test } from 'node:test';
 import { applyState, snapshotState, validateTargets } from './release-state.mjs';
 
 const env = { GCP_PROJECT_ID: 'fixture', GCP_REGION: 'europe-west1', GITHUB_SHA: 'abcdef0123456' };
+const PROXY_OLD = '11111111-1111-4111-8111-111111111111';
+const WEB_OLD = '22222222-2222-4222-8222-222222222222';
+const PROXY_NEW = '33333333-3333-4333-8333-333333333333';
+const WEB_NEW = '44444444-4444-4444-8444-444444444444';
 const state = {
-  version: 1,
+  version: 2,
   project: 'fixture',
   region: 'europe-west1',
   revision: 'wally-api-old',
-  hostingVersion: 'sites/fixture/versions/old',
+  workers: { 'wally-api-proxy': PROXY_OLD, 'wally-web': WEB_OLD },
 };
 const service = {
   status: {
@@ -18,23 +22,48 @@ const service = {
     ],
   },
 };
-const hosting = { releases: [{ version: { name: 'sites/fixture/versions/old' } }] };
 
-function snapshotRunner(serving = service) {
+/** `wrangler deployments status --json` for one Worker serving one version. */
+const deployment = (versionId) =>
+  JSON.stringify({ id: 'd', versions: [{ version_id: versionId, percentage: 100 }] });
+
+/** The Worker a Wrangler call names: `pnpm --filter <pkg> exec wrangler ... --name <name>`. */
+const workerOf = (args) => args[args.indexOf('--name') + 1];
+
+const missingWorker = () => {
+  const error = new Error('Command failed: pnpm --filter @wally/web exec wrangler');
+  error.stderr = 'This Worker does not exist on your account. [code: 10007]';
+  return error;
+};
+
+function snapshotRunner({
+  serving = service,
+  workers = { 'wally-api-proxy': PROXY_OLD, 'wally-web': WEB_OLD },
+} = {}) {
   const calls = [];
   return {
     calls,
     run(cmd, args) {
       calls.push([cmd, ...args]);
-      if (cmd === 'gcloud' && args.includes('describe')) return JSON.stringify(serving);
-      if (cmd === 'gcloud') return 'token\n';
-      return JSON.stringify(hosting);
+      if (cmd === 'gcloud') return JSON.stringify(serving);
+      const name = workerOf(args);
+      if (!workers[name]) throw missingWorker();
+      return deployment(workers[name]);
     },
   };
 }
 
-function applyRunner(fail) {
+/**
+ * Wrangler as apply sees it: each Worker serves `active[name]` until a rollback moves it.
+ * `fail` makes a call throw; `ignoreRollback` makes a rollback report success but change nothing.
+ */
+function applyRunner({
+  active = { 'wally-api-proxy': PROXY_NEW, 'wally-web': WEB_NEW },
+  fail,
+  ignoreRollback,
+} = {}) {
   const calls = [];
+  const serving = { ...active };
   return {
     calls,
     run(cmd, args) {
@@ -44,22 +73,37 @@ function applyRunner(fail) {
         return JSON.stringify({
           status: { traffic: [{ revisionName: state.revision, percent: 100 }] },
         });
-      if (cmd === 'curl' && !args.includes('POST'))
-        return JSON.stringify({ releases: [{ version: { name: state.hostingVersion } }] });
-      return '';
+      if (cmd === 'gcloud') return '';
+      if (args.includes('rollback')) {
+        if (!ignoreRollback) serving[workerOf(args)] = args[args.indexOf('rollback') + 1];
+        return '';
+      }
+      return deployment(serving[workerOf(args)]);
     },
   };
 }
+const rollbacks = (calls) => calls.filter((c) => c.includes('rollback')).map(workerOf);
 
-test('snapshot records the serving revision and Hosting version', () =>
-  assert.deepEqual(snapshotState(env, snapshotRunner().run), { ...state, commit: env.GITHUB_SHA }));
+test('snapshot records the serving revision and each Worker version', () =>
+  assert.deepEqual(snapshotState(env, snapshotRunner().run), {
+    ...state,
+    commit: env.GITHUB_SHA,
+  }));
+test('snapshot reads each Worker through its own package', () => {
+  const r = snapshotRunner();
+  snapshotState(env, r.run);
+  const reads = r.calls.filter((c) => c[0] === 'pnpm');
+  assert.deepEqual(
+    reads.map((c) => c.slice(0, 5)),
+    [
+      ['pnpm', '--filter', '@wally/api-proxy', 'exec', 'wrangler'],
+      ['pnpm', '--filter', '@wally/web', 'exec', 'wrangler'],
+    ],
+  );
+  assert.ok(reads.every((c) => c.includes('deployments') && c.includes('--json')));
+});
 test('snapshot ignores no-traffic candidate tags', () =>
-  assert.equal(
-    validateTargets(service, hosting, 'fixture', 'wally-api-rel-abcdef0').revision,
-    'wally-api-old',
-  ));
-test('snapshot rejects empty Hosting releases', () =>
-  assert.throws(() => validateTargets(service, { releases: [] }, 'fixture', 'x'), /Hosting/));
+  assert.equal(validateTargets(service, 'wally-api-rel-abcdef0').revision, 'wally-api-old'));
 test('snapshot rejects split traffic', () =>
   assert.throws(
     () =>
@@ -72,8 +116,6 @@ test('snapshot rejects split traffic', () =>
             ],
           },
         },
-        hosting,
-        'fixture',
         'x',
       ),
     /single/,
@@ -82,7 +124,7 @@ test('snapshot refuses when production already serves the candidate', () => {
   const serving = {
     status: { traffic: [{ revisionName: 'wally-api-rel-abcdef0', percent: 100 }] },
   };
-  assert.throws(() => snapshotState(env, snapshotRunner(serving).run), /already serves/);
+  assert.throws(() => snapshotState(env, snapshotRunner({ serving }).run), /already serves/);
 });
 test('snapshot needs the commit to name the candidate', () =>
   assert.throws(
@@ -102,43 +144,79 @@ test('denied snapshot read stops immediately without mutations', () => {
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(0, 3), ['run', 'services', 'describe']);
 });
-test('snapshot no longer lists Firestore indexes', () => {
-  const r = snapshotRunner();
-  snapshotState(env, r.run);
-  assert.ok(!r.calls.some((c) => c.includes('indexes')));
-});
-
-test('apply restores both targets when Hosting was deployed', () => {
-  const r = applyRunner();
-  applyState(state, r.run, { hosting: true });
-  assert.ok(r.calls.some((c) => c.includes('--to-revisions=wally-api-old=100')));
-  assert.ok(r.calls.some((c) => c.includes('POST')));
-});
-test('apply leaves Hosting alone when Hosting was never deployed', () => {
-  const r = applyRunner();
-  assert.match(applyState(state, r.run, { hosting: false }), /API restored/);
-  assert.ok(r.calls.some((c) => c.includes('--to-revisions=wally-api-old=100')));
-  assert.ok(!r.calls.some((c) => c[0] === 'curl'));
-});
-test('failed API recovery still attempts Hosting recovery and reports failure', () => {
-  const r = applyRunner((cmd, args) => args.includes('update-traffic'));
-  assert.throws(() => applyState(state, r.run, { hosting: true }), /restore API/);
-  assert.ok(r.calls.some((c) => c.includes('POST')));
-});
-test('invalid snapshot performs no mutations', () => {
-  const r = applyRunner();
-  assert.throws(() => applyState({ ...state, hostingVersion: '' }, r.run, { hosting: true }));
-  assert.equal(r.calls.length, 0);
-});
-test('unexpected Hosting readback cannot report recovery success', () => {
-  const r = applyRunner();
+test('snapshot refuses, naming the setup step, when a Worker does not exist', () =>
+  assert.throws(
+    () => snapshotState(env, snapshotRunner({ workers: { 'wally-api-proxy': PROXY_OLD } }).run),
+    /wally-web does not exist.*DEPLOY/s,
+  ));
+test('snapshot stops when a Worker read fails for any other reason', () =>
   assert.throws(
     () =>
-      applyState(
-        state,
-        (cmd, args) => (cmd === 'curl' && !args.includes('POST') ? '{}' : r.run(cmd, args)),
-        { hosting: true },
+      snapshotState(env, (cmd) => {
+        if (cmd === 'gcloud') return JSON.stringify(service);
+        throw new Error('Authentication error [code: 10000]');
+      }),
+    /Authentication error/,
+  ));
+test('snapshot rejects a Worker that is not on exactly one version', () =>
+  assert.throws(
+    () =>
+      snapshotState(env, (cmd) =>
+        cmd === 'gcloud'
+          ? JSON.stringify(service)
+          : JSON.stringify({
+              versions: [
+                { version_id: PROXY_OLD, percentage: 50 },
+                { version_id: PROXY_NEW, percentage: 50 },
+              ],
+            }),
       ),
-    /not verified/,
-  );
+    /single/,
+  ));
+
+test('apply rolls back each Worker whose active version changed', () => {
+  const r = applyRunner();
+  assert.match(applyState(state, r.run, { workers: true }), /API restored/);
+  assert.ok(r.calls.some((c) => c.includes('--to-revisions=wally-api-old=100')));
+  assert.deepEqual(rollbacks(r.calls), ['wally-api-proxy', 'wally-web']);
+  const proxyRollback = r.calls.find((c) => c.includes('rollback'));
+  assert.equal(proxyRollback[proxyRollback.indexOf('rollback') + 1], PROXY_OLD);
+  assert.ok(proxyRollback.includes('-y'));
+});
+test('apply skips a Worker still on its snapshot version', () => {
+  const r = applyRunner({ active: { 'wally-api-proxy': PROXY_NEW, 'wally-web': WEB_OLD } });
+  assert.match(applyState(state, r.run, { workers: true }), /wally-web was not changed/);
+  assert.deepEqual(rollbacks(r.calls), ['wally-api-proxy']);
+});
+test('apply leaves Workers alone without --workers', () => {
+  const r = applyRunner();
+  assert.match(applyState(state, r.run, { workers: false }), /Workers were never deployed/);
+  assert.ok(!r.calls.some((c) => c[0] === 'pnpm'));
+});
+test('failed API recovery still attempts Worker recovery and reports failure', () => {
+  const r = applyRunner({ fail: (cmd, args) => args.includes('update-traffic') });
+  assert.throws(() => applyState(state, r.run, { workers: true }), /restore API/);
+  assert.deepEqual(rollbacks(r.calls), ['wally-api-proxy', 'wally-web']);
+});
+test('a failed Worker rollback still attempts the other and reports failure', () => {
+  const r = applyRunner({
+    fail: (cmd, args) => args.includes('rollback') && workerOf(args) === 'wally-api-proxy',
+  });
+  assert.throws(() => applyState(state, r.run, { workers: true }), /restore wally-api-proxy/);
+  assert.ok(rollbacks(r.calls).includes('wally-web'));
+});
+test('unexpected Worker readback cannot report recovery success', () => {
+  const r = applyRunner({ ignoreRollback: true });
+  assert.throws(() => applyState(state, r.run, { workers: true }), /not verified/);
+});
+test('invalid snapshot performs no mutations', () => {
+  for (const bad of [
+    { ...state, version: 1, hostingVersion: 'sites/fixture/versions/old' },
+    { ...state, workers: { ...state.workers, 'wally-web': 'not-a-version' } },
+    { ...state, workers: { 'wally-api-proxy': PROXY_OLD } },
+  ]) {
+    const r = applyRunner();
+    assert.throws(() => applyState(bad, r.run, { workers: true }), /Invalid recovery snapshot/);
+    assert.equal(r.calls.length, 0);
+  }
 });
