@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV3, MockLanguageModelV4 } from 'ai/test';
 import { z } from 'zod';
 import { createTurnRunner, ELIDED_TOOL_RESULT, toolDefinitionsJson } from './runTurn.js';
 import type { AttemptInfo, TurnInput, TurnTool, TurnUsage } from './types.js';
@@ -203,6 +203,17 @@ describe('createTurnRunner', () => {
     });
     expect(out.pendingApprovals[0]!.approvalId).toEqual(expect.any(String));
     expect(out.finishReason).toBe('tool-calls');
+  });
+
+  it('reports a reply that ended without its completion signal as cut short', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        { ...text('Two notes are op'), finishReason: { unified: 'interrupted', raw: undefined } },
+      ],
+    });
+    const out = await createTurnRunner(model)(input({}));
+    expect(out.text).toBe('Two notes are op');
+    expect(out.finishReason).toBe('length');
   });
 
   it('executes the write on the continuation that approves it', async () => {

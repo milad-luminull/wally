@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { APICallError } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV3, MockLanguageModelV4 } from 'ai/test';
 import { createGoogleVertex } from '@ai-sdk/google-vertex';
 import { GEMINI_3_SUGGESTION_THINKING_TOKENS, suggestionCallSettings } from './config.js';
 import { createSuggestionRunner, modelSuggestionSchema, suggestionSchemaJson } from './suggest.js';
@@ -69,6 +69,22 @@ describe('createSuggestionRunner', () => {
     const a = attempts();
     const out = await createSuggestionRunner(model)(input(a.onAttempt));
     expect(out.fields).toBeNull();
+    expect(a.settled).toHaveLength(1);
+  });
+
+  it('returns no fields, cut short, when the reply ended without its completion signal', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        {
+          ...reply('{"dueDate": {"value": "2026-'),
+          finishReason: { unified: 'interrupted', raw: undefined },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createSuggestionRunner(model)(input(a.onAttempt));
+    expect(out.fields).toBeNull();
+    expect(out.finishReason).toBe('length');
     expect(a.settled).toHaveLength(1);
   });
 

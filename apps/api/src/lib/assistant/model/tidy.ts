@@ -16,6 +16,7 @@ import {
   type SuggestionCallSettings,
 } from './config.js';
 import type { TidyInput, TidyOutput, TidyRunner } from './types.js';
+import { toFinishReason } from './finishReason.js';
 import { toUsage } from './usage.js';
 
 const confidence = z.number().min(0).max(1);
@@ -113,13 +114,13 @@ export function createTidyRunner(
       // No usage reported: the reservation stays charged, the slot is freed (R7).
       if (usage) await lease.settle(usage);
       else await lease.release();
-      return { moves: result.output, usage, finishReason: result.finishReason };
+      return { moves: result.output, usage, finishReason: toFinishReason(result.finishReason) };
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
         const usage = error.usage ? toUsage(error.usage) : null;
         if (usage) await lease.settle(usage);
         else await lease.release();
-        return { moves: null, usage, finishReason: error.finishReason ?? 'other' };
+        return { moves: null, usage, finishReason: toFinishReason(error.finishReason ?? 'other') };
       }
       // The provider answered with an error status (busy, a fault): nothing was processed or
       // billed, so the attempt settles at zero. A dropped connection or an aborted call leaves
