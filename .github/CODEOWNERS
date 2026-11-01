@@ -5,8 +5,6 @@
 /.github/               @milad-luminull
 /scripts/               @milad-luminull
 /infra/                 @milad-luminull
-/firestore.rules        @milad-luminull
-/firestore.indexes.json @milad-luminull
 /apps/api-proxy/        @milad-luminull
 /apps/web/wrangler.jsonc @milad-luminull
 /cloudbuild.yaml        @milad-luminull

@@ -23,8 +23,6 @@ services:
       target: dev
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
-      # env.ts requires it; migrating verifies no token.
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-wally-local}
     command: ['pnpm', '--filter', '@wally/api', 'db:migrate']
     volumes:
       - .:/app
@@ -45,11 +43,10 @@ services:
     env_file:
       - .env
     environment:
-      # ID tokens are verified against the real Firebase project, which is why
-      # FIREBASE_PROJECT_ID in .env still matters (there is no service-account key).
+      # Sign-in is Auth0's (docs/AUTH0.md): access tokens are verified against its public
+      # keys, so no credential is needed here.
       PORT: 4000
       CORS_ORIGIN: http://localhost:5174
-      AUTH0_ENABLED: ${AUTH0_ENABLED:-false}
       AUTH0_SIGNUP_ENABLED: ${AUTH0_SIGNUP_ENABLED:-false}
       MCP_ENABLED: ${MCP_ENABLED:-false}
       MCP_WRITES_ENABLED: ${MCP_WRITES_ENABLED:-false}
@@ -89,7 +86,6 @@ services:
       - .env
     environment:
       VITE_API_BASE_URL: http://localhost:4000
-      VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-firebase}
       VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID:-}
     ports:
       # Host 5173 is already taken by another project on this machine — publish on 5174

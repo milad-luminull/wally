@@ -8,11 +8,9 @@ vi.mock('./auth0Session', async (importOriginal) => ({
 
 import { getFreshIdToken } from './AuthProvider';
 
-it('gets the API token from the Auth0 session, with no provider setting', async () => {
-  vi.stubEnv('VITE_AUTH_PROVIDER', '');
+it('gets the API token from the Auth0 session', async () => {
   getAuth0AccessToken.mockResolvedValue('auth0-access-token');
 
   expect(await getFreshIdToken(true)).toBe('auth0-access-token');
   expect(getAuth0AccessToken).toHaveBeenCalledWith(true);
-  vi.unstubAllEnvs();
 });

@@ -9,12 +9,12 @@ services:
     environment:
       NODE_ENV: development
       PORT: 4502
-      FIREBASE_PROJECT_ID: wally-mcp-local
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
       CORS_ORIGIN: http://localhost:5174
-      AUTH0_ENABLED: 'true'
       AUTH0_SIGNUP_ENABLED: 'true'
       ASSISTANT_ENABLED: 'true'
+      # Required with the assistant on; a placeholder, as this stack makes no model calls.
+      ASSISTANT_VERTEX_PROJECT: wally-mcp-local
       MCP_ENABLED: 'true'
       MCP_WRITES_ENABLED: 'true'
       MCP_CLIENT_ID: tpc_oR2NUn5BAcms9r5Z5MhHVf
@@ -40,7 +40,6 @@ services:
       target: dev
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
-      FIREBASE_PROJECT_ID: wally-mcp-local
     command: ['pnpm', '--filter', '@wally/api', 'db:migrate']
     volumes:
       - .:/app
@@ -68,7 +67,6 @@ services:
       target: dev
     environment:
       VITE_API_BASE_URL: http://localhost:4502
-      VITE_AUTH_PROVIDER: auth0
       VITE_AUTH0_CLIENT_ID: Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp
     ports:
       - '127.0.0.1:5174:5173'
