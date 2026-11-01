@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { applyState, snapshotState, validateTargets } from './release-state.mjs';
 
-const env = { GCP_PROJECT_ID: 'fixture', GCP_REGION: 'europe-west1', GITHUB_SHA: 'abcdef0123456' };
+const env = {
+  GCP_PROJECT_ID: 'fixture',
+  GCP_REGION: 'europe-west1',
+  GITHUB_SHA: 'abcdef0123456',
+  GITHUB_REF_NAME: 'v0.13.0',
+};
 const PROXY_OLD = '11111111-1111-4111-8111-111111111111';
 const WEB_OLD = '22222222-2222-4222-8222-222222222222';
 const PROXY_NEW = '33333333-3333-4333-8333-333333333333';
@@ -24,8 +29,12 @@ const service = {
 };
 
 /** `wrangler deployments status --json` for one Worker serving one version. */
-const deployment = (versionId) =>
-  JSON.stringify({ id: 'd', versions: [{ version_id: versionId, percentage: 100 }] });
+const deployment = (versionId, message = 'v0.12.0') =>
+  JSON.stringify({
+    id: 'd',
+    annotations: { 'workers/message': message },
+    versions: [{ version_id: versionId, percentage: 100 }],
+  });
 
 /** The Worker a Wrangler call names: `pnpm --filter <pkg> exec wrangler ... --name <name>`. */
 const workerOf = (args) => args[args.indexOf('--name') + 1];
@@ -39,6 +48,7 @@ const missingWorker = () => {
 function snapshotRunner({
   serving = service,
   workers = { 'wally-api-proxy': PROXY_OLD, 'wally-web': WEB_OLD },
+  messages = {},
 } = {}) {
   const calls = [];
   return {
@@ -48,7 +58,7 @@ function snapshotRunner({
       if (cmd === 'gcloud') return JSON.stringify(serving);
       const name = workerOf(args);
       if (!workers[name]) throw missingWorker();
-      return deployment(workers[name]);
+      return deployment(workers[name], messages[name]);
     },
   };
 }
@@ -143,6 +153,18 @@ test('denied snapshot read stops immediately without mutations', () => {
   );
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(0, 3), ['run', 'services', 'describe']);
+});
+test('snapshot refuses when a Worker still serves this release after a failed recovery', () => {
+  // The release deploys each Worker with its tag as the message, and a rollback replaces it.
+  // A rerun that recorded the failed release's version would roll back to it.
+  const r = snapshotRunner({ messages: { 'wally-web': 'v0.13.0' } });
+  assert.throws(() => snapshotState(env, r.run), /wally-web already serves v0\.13\.0.*artifact/s);
+});
+test('snapshot accepts a Worker another release or a rollback deployed', () => {
+  const r = snapshotRunner({
+    messages: { 'wally-api-proxy': 'Release rollback', 'wally-web': 'v0.12.0' },
+  });
+  assert.equal(snapshotState(env, r.run).workers['wally-web'], WEB_OLD);
 });
 test('snapshot refuses, naming the setup step, when a Worker does not exist', () =>
   assert.throws(

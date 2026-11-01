@@ -12,7 +12,6 @@ coverage/
 playwright-report/
 test-results/
 .vite/
-.firebase/
 *.tsbuildinfo
 .pnpm-store/
 # Third-party agent skills, installed locally; not part of the repo.

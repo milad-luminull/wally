@@ -10,6 +10,9 @@
   "preview_urls": true,
   // Off: request URLs can carry share-link tokens, which the API redacts in its own logs.
   "observability": { "enabled": false },
+  // No usage telemetry, and no list of npm dependencies sent with each upload.
+  "send_metrics": false,
+  "dependencies_instrumentation": { "enabled": false },
   "vars": {
     // The Cloud Run service URL. Public, not a secret; the release checks it still matches.
     "ORIGIN": "https://wally-api-d5xbuta4ya-ew.a.run.app",

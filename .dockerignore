@@ -16,6 +16,11 @@ playwright-report
 test-results
 .vite
 .pnpm-store
+# Wrangler's local state and local secrets.
+.wrangler
+**/.wrangler
+.dev.vars
+**/.dev.vars
 # Not needed by any image: documentation, and local agent skills and scratch.
 docs
 .agents

@@ -101,7 +101,6 @@ jobs:
       # declares the environment. Not a secret. Wrangler reads it, and CLOUDFLARE_API_TOKEN,
       # from the environment; the token is passed only to the steps that call Cloudflare.
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -446,22 +445,18 @@ jobs:
           jq -e '.status == "ok" and .database == "ok"' <<<"$health" > /dev/null \
             || { echo "::error::the proxy preview's /health returned: $health"; exit 1; }
           CHECK_URL="$PROXY" node scripts/check-api-domain.mjs
-          # No token: 401 with the OAuth challenge when MCP is on, 503 when it is off.
-          mcp=$(curl -sS "${retry[@]}" -D - -o /dev/null -X POST -H 'Content-Type: application/json' \
+          # No token: 401 with the OAuth challenge, which ChatGPT needs to find the sign-in.
+          mcp=$(curl -sS -D - -o /dev/null -X POST -H 'Content-Type: application/json' \
                   --data '{}' "$PROXY/mcp")
           code=$(sed -nE '1s/^HTTP\/[0-9.]+ ([0-9]{3}).*/\1/p' <<<"$mcp")
-          if [ "$MCP_ENABLED" = true ]; then
-            [ "$code" = 401 ] && grep -qiE '^www-authenticate:.*resource_metadata=' <<<"$mcp" \
-              || { echo "::error::the proxy preview's /mcp answered $code without the OAuth challenge"; exit 1; }
-          else
-            [ "$code" = 503 ] || { echo "::error::the proxy preview's /mcp answered $code, expected 503"; exit 1; }
-          fi
+          [ "$code" = 401 ] && grep -qiE '^www-authenticate:.*resource_metadata=' <<<"$mcp" \
+            || { echo "::error::the proxy preview's /mcp answered $code without the OAuth challenge"; exit 1; }
 
           # -f makes curl treat a 404 as an error, so a preview that is still propagating is retried.
           [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/")" = "200" ]
           [ "$(curl -fsS "${retry[@]}" -o /dev/null -w '%{http_code}' "$WEB/boards/smoke-test")" = "200" ]
           index=$(curl -fsS "$WEB/")
-          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p)
+          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p || true)
           [ -n "$asset" ] || { echo "::error::could not find the entry bundle in the preview's index.html"; exit 1; }
           bundle=$(curl -fsS "$WEB$asset")
           grep -qF "${API_BASE_URL#https://}" <<<"$bundle" \
@@ -509,7 +504,7 @@ jobs:
           # Download first, then search: piping curl into an early-exiting reader (grep -q,
           # head) can kill curl with SIGPIPE, and pipefail then fails a check that matched.
           index=$(curl -fsS "$WEB/")
-          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p)
+          asset=$(grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' <<<"$index" | sed -n 1p || true)
           [ -n "$asset" ] || { echo "::error::could not find the entry bundle in index.html"; exit 1; }
           bundle=$(curl -fsS "$WEB$asset")
           grep -qF "${API#https://}" <<<"$bundle" \
@@ -520,7 +515,10 @@ jobs:
       # Rollback. Only reached if something above failed after traffic moved. A failure
       # before that point needs no rollback: production never served the candidate.
       # ---------------------------------------------------------------------------------
+      # If this step fails too, production may be mixed: follow "When a release fails" in
+      # docs/DEPLOY.md before rerunning. The snapshot of a rerun refuses until it is fixed.
       - name: Restore captured release state after partial failure
+        id: restore
         if: (failure() || cancelled()) && steps.shift.outcome != 'skipped'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -539,6 +537,7 @@ jobs:
             echo "| Previous revision | \`${{ steps.prev.outputs.revision }}\` |"
             echo "| wally-api-proxy version | \`${{ steps.upload.outputs.proxy_version }}\` |"
             echo "| wally-web version | \`${{ steps.upload.outputs.web_version }}\` |"
+            echo "| Recovery | ${{ steps.restore.outcome == 'skipped' && 'not needed' || steps.restore.outcome }} |"
             echo "| Web | ${WEB_ORIGIN} |"
             echo "| API | ${API_BASE_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -14,4 +14,7 @@
   "workers_dev": true,
   "preview_urls": true,
   "observability": { "enabled": false },
+  // No usage telemetry, and no list of npm dependencies sent with each upload.
+  "send_metrics": false,
+  "dependencies_instrumentation": { "enabled": false },
 }

@@ -18,8 +18,8 @@ const VERSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const wrangler = (run, name, ...args) =>
   run('pnpm', ['--filter', WORKERS[name], 'exec', 'wrangler', ...args, '--name', name]);
 
-/** The one version a Worker serves to all its traffic. */
-function activeVersion(run, name) {
+/** The one version a Worker serves to all its traffic, and the message it was deployed with. */
+function activeDeployment(run, name) {
   let status;
   try {
     status = JSON.parse(wrangler(run, name, 'deployments', 'status', '--json'));
@@ -40,8 +40,9 @@ function activeVersion(run, name) {
     !VERSION_ID.test(serving[0].version_id)
   )
     throw new Error(`No single active version for ${name}`);
-  return serving[0].version_id;
+  return { version: serving[0].version_id, message: status.annotations?.['workers/message'] };
 }
+const activeVersion = (run, name) => activeDeployment(run, name).version;
 
 export function validateTargets(service, candidate) {
   const traffic = service.status?.traffic?.filter((t) => (t.percent ?? 0) > 0);
@@ -58,7 +59,12 @@ export function validateTargets(service, candidate) {
 }
 
 export function snapshotState(env, run = defaultRun) {
-  const { GCP_PROJECT_ID: project, GCP_REGION: region, GITHUB_SHA: sha } = env;
+  const {
+    GCP_PROJECT_ID: project,
+    GCP_REGION: region,
+    GITHUB_SHA: sha,
+    GITHUB_REF_NAME: tag,
+  } = env;
   if (!project || !region) throw new Error('Missing project/region');
   if (!sha) throw new Error('Missing GITHUB_SHA');
   const service = JSON.parse(
@@ -74,7 +80,18 @@ export function snapshotState(env, run = defaultRun) {
   );
   const { revision } = validateTargets(service, `wally-api-rel-${sha.slice(0, 7)}`);
   const workers = Object.fromEntries(
-    Object.keys(WORKERS).map((name) => [name, activeVersion(run, name)]),
+    Object.keys(WORKERS).map((name) => {
+      const { version, message } = activeDeployment(run, name);
+      // The release deploys each Worker with its tag as the message, and a rollback replaces
+      // it. Still seeing this tag means an earlier run's recovery failed for this Worker;
+      // recording its version now would make that failed version the rollback target.
+      if (tag && message === tag)
+        throw new Error(
+          `${name} already serves ${tag}. Roll it back to the version in the earlier run's ` +
+            'release-state artifact before rerunning (docs/DEPLOY.md, When a release fails).',
+        );
+      return [name, version];
+    }),
   );
   return { version: 2, project, region, revision, workers, commit: sha };
 }
