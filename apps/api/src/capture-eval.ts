@@ -1,6 +1,6 @@
 /**
  * Scores the capture call on the sample notes in `lib/assistant/eval/captureFixtures.ts`
- * against the configured model, with no Firestore: the same seam the route uses builds each
+ * against the configured model, with no database: the same seam the route uses builds each
  * call and filters each answer. Prints per-field counts, every anti-goal failure and any
  * fixture whose call failed (not scored); exits 1 when either list is not empty. It calls the
  * real model and charges the deployment's Vertex project, so the owner runs it, from the API
