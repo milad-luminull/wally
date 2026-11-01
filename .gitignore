@@ -20,3 +20,6 @@ test-results/
 skills-lock.json
 # SDD orchestration scratch used by local agents.
 .superpowers/
+# Wrangler's local state and local secrets.
+.wrangler/
+.dev.vars
