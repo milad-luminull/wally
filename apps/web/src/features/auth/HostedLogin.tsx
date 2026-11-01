@@ -38,7 +38,7 @@ export function HostedLogin({ signup = false }: { signup?: boolean }) {
       <Button
         size="lg"
         disabled={pending || status === 'loading'}
-        onClick={() => void run(() => hostedLogin!(signup, readReturnPath(location.state)))}
+        onClick={() => void run(() => hostedLogin(signup, readReturnPath(location.state)))}
       >
         {t(
           pending || status === 'loading'

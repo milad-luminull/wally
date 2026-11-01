@@ -157,19 +157,9 @@ export function Auth0SessionProvider({
         status,
         signedOut,
         expired,
-        verificationSendFailed: false,
         authError,
         hostedLogin,
         signOut,
-        signInWithEmail: () => hostedLogin(false, null),
-        signUpWithEmail: () => hostedLogin(true, null),
-        signInWithGoogle: () =>
-          session.client.loginWithRedirect({
-            appState: { returnPath: null },
-            authorizationParams: { connection: 'google-oauth2' },
-          }),
-        // Hosted login owns verification/recovery; legacy password forms are hidden in Auth0 mode.
-        resendVerificationEmail: () => hostedLogin(false, null),
         refreshUser: () => load(true),
       }}
     >
