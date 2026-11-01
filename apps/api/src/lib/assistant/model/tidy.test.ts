@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TIDY_MAX_UNDATED } from '@wally/shared';
 import { APICallError, zodSchema } from 'ai';
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV3, MockLanguageModelV4 } from 'ai/test';
 import { createTidyRunner, modelTidySchema, modelTidyWireSchema, tidySchemaJson } from './tidy.js';
 import { fakeReply as reply, recordAttempts as attempts } from './testing.js';
 import type { TidyInput } from './types.js';
@@ -86,6 +86,22 @@ describe('createTidyRunner', () => {
     const a = attempts();
     const out = await createTidyRunner(model)(input(a.onAttempt));
     expect(out.moves).toBeNull();
+    expect(a.settled).toHaveLength(1);
+  });
+
+  it('returns no moves, cut short, when the reply ended without its completion signal', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        {
+          ...reply('{"moves": [{"noteId": "n1", "hor'),
+          finishReason: { unified: 'interrupted', raw: undefined },
+        },
+      ],
+    });
+    const a = attempts();
+    const out = await createTidyRunner(model)(input(a.onAttempt));
+    expect(out.moves).toBeNull();
+    expect(out.finishReason).toBe('length');
     expect(a.settled).toHaveLength(1);
   });
 

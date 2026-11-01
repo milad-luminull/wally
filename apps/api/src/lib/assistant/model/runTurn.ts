@@ -26,6 +26,7 @@ import type {
   TurnTool,
   TurnUsage,
 } from './types.js';
+import { toFinishReason } from './finishReason.js';
 import { toUsage } from './usage.js';
 
 /**
@@ -190,7 +191,7 @@ export function createTurnRunner(
       usage: sum(settled),
       unsettledSteps,
       steps: result.steps.length,
-      finishReason: result.finishReason,
+      finishReason: toFinishReason(result.finishReason),
       messages: [...messages, ...result.responseMessages],
     };
   };

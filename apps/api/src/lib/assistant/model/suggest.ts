@@ -28,6 +28,7 @@ import {
   type SuggestionCallSettings,
 } from './config.js';
 import type { SuggestionInput, SuggestionOutput, SuggestionRunner } from './types.js';
+import { toFinishReason } from './finishReason.js';
 import { toUsage } from './usage.js';
 
 const confidence = z.number().min(0).max(1);
@@ -304,14 +305,14 @@ export function createSuggestionRunner(
       return {
         fields: result.output,
         usage,
-        finishReason: result.finishReason,
+        finishReason: toFinishReason(result.finishReason),
       };
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
         const usage = error.usage ? toUsage(error.usage) : null;
         if (usage) await lease.settle(usage);
         else await lease.release();
-        return { fields: null, usage, finishReason: error.finishReason ?? 'other' };
+        return { fields: null, usage, finishReason: toFinishReason(error.finishReason ?? 'other') };
       }
       // The provider answered with an error status (busy, a fault): nothing was processed or
       // billed, so the attempt settles at zero. A dropped connection or an aborted call leaves
