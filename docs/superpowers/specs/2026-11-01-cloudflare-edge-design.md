@@ -389,19 +389,23 @@ because production has no users or data yet).
 **Before the cutover, zone security** (owner, 2026-11-01: keep protection where it is
 recommended):
 
-- **AI training crawlers stay blocked.**
-  [Cloudflare's AI-bot blocking](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/)
-  targets bots "crawling for the purpose of AI training", not assistants acting for a user, so
-  it does not affect Wally.
-  - The "Agent" policy (chat fetch bots and browser-use agents) must not block on all pages.
-  - "Block on pages with ads" is harmless, since Wally shows no ads.
-- **Bot Fight Mode is switched off** for `luminull.com`.
-  - [Cloudflare's page](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/) says
-    it "may challenge API or mobile app traffic".
-  - It covers the whole domain, and Skip, Bypass and Allow rules have no effect on it.
+- **AI bot policies stay as they are.** On 2026-11-01 `luminull.com` allowed all three
+  categories (Search, Training, Agents), and the dashboard marks "Allow (do not block)" as
+  recommended for each. Under the owner's rule, nothing changes.
+  - [Training blocking](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/)
+    targets bots "crawling for the purpose of AI training", not assistants acting for a user,
+    so it would not affect Wally either way. It covers every hostname on `luminull.com`, which
+    makes it the owner's choice for the whole domain, not this workstream's.
+  - **Agents must stay allowed.** That category covers chat fetch bots and browser-use agents.
+- **Bot Fight Mode** was on during the proof's check 10, with Browser Integrity Check on and
+  Security Level "medium", and nothing was challenged. So it stays on, and the cutover's
+  ChatGPT call is the last check. If that call is challenged, it is switched off.
+  - Why it is watched:
+    [Cloudflare's page](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/)
+    says it "may challenge API or mobile app traffic". It covers the whole domain, and Skip,
+    Bypass and Allow rules have no effect on it.
   - Almost all of Wally's traffic is API traffic: the web app's calls and ChatGPT's MCP calls.
-  - If check 10 of the proof shows no challenge with it on, the owner may keep it. The cutover's
-    ChatGPT call is then the last check.
+    The proof's requests came from a residential IP; ChatGPT's come from data centres.
 
 **Procedure.** One sitting; the API first, then the web app. The exact clicks go in DEPLOY.
 
@@ -482,9 +486,9 @@ The Firebase Hosting site itself goes with the rest of Firebase in workstream 6.
      registrar, and a short "Pending" period in which Cloudflare does not proxy.
    - Doing it later also means moving the two Workers, their Custom Domains and the token. It
      is not part of this workstream.
-4. **Zone security:** keep the protection that is recommended. AI training crawlers stay
-   blocked; Bot Fight Mode goes off, because it can challenge API traffic and cannot be scoped
-   (Part 5).
+4. **Zone security:** keep the protection that is recommended. Applied to what the proof found
+   (Part 5): the AI bot policies stay "Allow", which Cloudflare marks as recommended. Bot Fight
+   Mode stays on unless the cutover's ChatGPT call is challenged.
 
 ## Risks
 
