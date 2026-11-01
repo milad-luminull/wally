@@ -16,7 +16,7 @@ import { cn } from '@/lib/cn';
 import { toast } from '@/lib/toast';
 import { useCreateInvite } from '../hooks/mutations/useCreateInvite';
 
-/** Message is a catalogue key, resolved at render — see the note in SignInForm. */
+/** Message is a catalogue key, resolved at render, so it follows a language switch. */
 const emailSchema = z.string().trim().toLowerCase().email('validation.email.invalid');
 
 export function InviteByEmailForm({ boardId, boardName }: { boardId: string; boardName: string }) {

@@ -342,13 +342,7 @@ export function suggestionSchemaJson(): Promise<string> {
 
 /** The runner for the deployment's configured model. */
 export function createConfiguredSuggestionRunner(
-  env: Pick<
-    Env,
-    | 'ASSISTANT_MODEL'
-    | 'ASSISTANT_VERTEX_LOCATION'
-    | 'ASSISTANT_VERTEX_PROJECT'
-    | 'FIREBASE_PROJECT_ID'
-  >,
+  env: Pick<Env, 'ASSISTANT_MODEL' | 'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT'>,
 ): SuggestionRunner {
   const ref = parseModelRef(env.ASSISTANT_MODEL);
   return createSuggestionRunner(resolveLanguageModel(ref, env), suggestionCallSettings(ref));

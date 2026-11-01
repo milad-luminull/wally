@@ -7,27 +7,26 @@ A personal digital whiteboard for managing to-dos as movable notes. Notes live o
 pnpm workspaces + Turborepo monorepo:
 
 ```
-apps/api          Fastify + PostgreSQL (Drizzle) — REST API and MCP endpoint, Auth0 or Firebase-token auth
+apps/api          Fastify + PostgreSQL (Drizzle) — REST API and MCP endpoint, Auth0 access-token auth
 apps/web          Vite + React 19 + TanStack Query + shadcn/ui + dnd-kit
 packages/shared   Zod schemas, enums, constants shared by both apps
 packages/config   Shared eslint/tsconfig/prettier
 ```
 
-In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.com` and the web app is served at `wally.luminull.com`. The API reads and writes only **PostgreSQL**, through Drizzle, in a Supabase project in Ireland ([ADR-0020](docs/adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)); production has run it since v0.12.0 (2026-11-01). Cloudflare serves both hostnames since v0.13.0 (2026-11-01) ([ADR-0022](docs/adr/ADR-0022-cloudflare-pages-and-api-proxy.md)): the web app as a Worker serving static files, and the API behind a Worker that forwards every request to Cloud Run unchanged. The release deploys both Workers ([`docs/DEPLOY.md`](docs/DEPLOY.md)). **Auth0** signs users in, for the web app and for MCP clients such as ChatGPT ([`docs/AUTH0.md`](docs/AUTH0.md)); Firebase Authentication is the local and CI default, not a production fallback: since the ADR-0024 data reset every account is an Auth0 signup with a random Wally id, so switching production back to Firebase would give every user a new, empty account. Only the API talks to the database, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against a PostgreSQL container. The decided move to Supabase and Cloudflare is planned in [`docs/rfcs/RFC-0011-platform-migration.md`](docs/rfcs/RFC-0011-platform-migration.md); workstreams 1 and 2 (the API on PostgreSQL) and 4 (the Cloudflare edge) are live, and the rest has not started. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions and working rules this repo follows, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
+In production, the API runs on Cloud Run (europe-west1) at `api.wally.luminull.com` and the web app is served at `wally.luminull.com`. The API reads and writes only **PostgreSQL**, through Drizzle, in a Supabase project in Ireland ([ADR-0020](docs/adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)); production has run it since v0.12.0 (2026-11-01). Cloudflare serves both hostnames since v0.13.0 (2026-11-01) ([ADR-0022](docs/adr/ADR-0022-cloudflare-pages-and-api-proxy.md)): the web app as a Worker serving static files, and the API behind a Worker that forwards every request to Cloud Run unchanged. The release deploys both Workers ([`docs/DEPLOY.md`](docs/DEPLOY.md)). **Auth0** signs users in everywhere, in production, local development and CI, for the web app and for MCP clients such as ChatGPT ([`docs/AUTH0.md`](docs/AUTH0.md)). Wally no longer uses Firebase ([`docs/DEPLOY.md`](docs/DEPLOY.md#firebase-retired)). Only the API talks to the database, and the web app reaches data solely through the REST API, so the whiteboard role checks always apply. Everything runs in Docker locally against a PostgreSQL container. The decided move to Supabase and Cloudflare is planned in [`docs/rfcs/RFC-0011-platform-migration.md`](docs/rfcs/RFC-0011-platform-migration.md); workstreams 1 and 2 (the API on PostgreSQL) and 4 (the Cloudflare edge) are live, Firebase is gone from the code (workstream 6, part 1), and the rest has not started. Start at [`docs/README.md`](docs/README.md) for the architecture overview and the decision records. See [`docs/SETUP.md`](docs/SETUP.md) for the conventions and working rules this repo follows, and [`docs/GDPR.md`](docs/GDPR.md) for what the app does with personal data and which obligations are still open.
 
 ## Prerequisites
 
 - Docker + Docker Compose
 - `make`
-- A Firebase project (see [Firebase setup](#firebase-setup) below) — the app won't start without one
+- An Auth0 account to sign in with (see [Sign-in](#sign-in) below)
 
-Nothing else needs to be installed on the host to run the stack and the Vitest suites; those commands run inside Docker. `make format` and `make e2e` run on the host and need Node and pnpm.
+Nothing else needs to be installed on the host to run the stack and the Vitest suites; those commands run inside Docker. `make format` runs on the host and needs Node and pnpm.
 
 ## Getting started
 
 ```bash
 cp .env.example .env
-# fill in the Firebase values in .env — see "Firebase setup" below
 
 make up        # builds and starts PostgreSQL, applies the migrations, starts api and web
 make seed      # loads demo data (a sample board, notes, and members)
@@ -46,26 +45,24 @@ The database lives in the `postgres-data` volume, so it survives `make down`.
 `docker compose down -v` deletes it; `make up && make seed` then gives a fresh database with
 the demo board. `make seed` is idempotent and keeps the same share-link token across runs.
 
-## Firebase setup
+## Sign-in
 
-Locally and in CI, the backend verifies Firebase ID tokens and the frontend signs users in with the Firebase Web SDK (production uses Auth0). You need one Firebase project supplying both:
+Locally, as in production, you sign in through Auth0's hosted login page with Google or an email and password. Nothing needs configuring: the web app uses Wally's public Auth0 SPA client, whose allowed callbacks include `http://localhost:5174/login`, and `.env.example` turns on `AUTH0_SIGNUP_ENABLED`, so your first sign-in creates your account in the local database. Two things differ from production ([`docs/AUTH0.md`](docs/AUTH0.md)):
 
-1. **Enable sign-in methods**: Firebase console → Authentication → Sign-in method → enable Email/Password and Google.
-1. **Web app config** (`VITE_FIREBASE_*` in `.env`): Project Settings → General → Your apps → Web app → copy `apiKey`, `authDomain`, `projectId`, `appId`.
-1. **Project id** (`FIREBASE_PROJECT_ID` in `.env`): the only server-side Firebase value. There is no service-account key: verifying an ID token needs only the project id. The local API's database is the compose `postgres` service, whose `DATABASE_URL` compose sets itself.
+- On `http://localhost`, Auth0 asks you to confirm the login again after a page reload.
+- A second copy of the web app on another port cannot sign in until that port is registered in the Auth0 SPA client.
 
 ## Commands
 
-| Command          | Purpose                                                  |
-| ---------------- | -------------------------------------------------------- |
-| `make up`        | Build and start PostgreSQL, the migrations, api, web     |
-| `make down`      | Stop and remove containers                               |
-| `make logs`      | Follow logs of all services                              |
-| `make test`      | Run all tests (backend + frontend, via Turbo)            |
-| `make lint`      | Run lint across the workspace                            |
-| `make typecheck` | Type-check across the workspace                          |
-| `make seed`      | Load development seed data (idempotent)                  |
-| `make e2e`       | Run Playwright on the host against the stack (see below) |
+| Command          | Purpose                                              |
+| ---------------- | ---------------------------------------------------- |
+| `make up`        | Build and start PostgreSQL, the migrations, api, web |
+| `make down`      | Stop and remove containers                           |
+| `make logs`      | Follow logs of all services                          |
+| `make test`      | Run all tests (backend + frontend, via Turbo)        |
+| `make lint`      | Run lint across the workspace                        |
+| `make typecheck` | Type-check across the workspace                      |
+| `make seed`      | Load development seed data (idempotent)              |
 
 ## Ports
 
@@ -81,7 +78,7 @@ Adjust `docker-compose.yml` if your environment doesn't have that conflict.
 - Backend: Vitest — unit tests for business logic, integration tests against the compose PostgreSQL. Each test file clones its own database from a template migrated once per run ([ADR-0025](docs/adr/ADR-0025-local-postgres-and-per-file-test-databases.md)), which keeps them isolated and lets them run in parallel.
 - Frontend: Vitest + React Testing Library for stateful components; Playwright for end-to-end flows (`apps/web/e2e/`, see its `README.md` for what each spec needs).
 
-`make test` runs everything non-interactively inside the api container and starts PostgreSQL on its own. `make e2e` runs Playwright from the host, as CI does: it needs `make up && make seed`, the Playwright browsers and a test account's credentials (see [`apps/web/e2e/README.md`](apps/web/e2e/README.md)). CI is the proof that E2E passes.
+`make test` runs everything non-interactively inside the api container and starts PostgreSQL on its own. The Playwright suite runs in CI only, because Auth0 asks to confirm the login after every reload on a plain `localhost` origin ([`apps/web/e2e/README.md`](apps/web/e2e/README.md)). CI is the proof that E2E passes.
 
 ## Deploying
 

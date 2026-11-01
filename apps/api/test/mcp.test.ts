@@ -54,8 +54,8 @@ async function makeApp(overrides: McpRouteOptions = {}) {
   const app = await buildApp({
     db,
     logger: false,
-    authVerifier: {
-      async verifyIdToken() {
+    auth0Verifier: {
+      async verify() {
         throw new Error('REST verifier must not handle MCP');
       },
     },
@@ -607,10 +607,6 @@ describe('stateless MCP HTTP boundary', () => {
       expect(await db.$count(notes)).toBe(replay ? 1 : 0);
     },
   );
-  it('keeps the production Auth0 switch mandatory without a verifier test override', async () => {
-    const app = await makeApp({ verifier: undefined });
-    expect((await rpc(app, 'tools/list')).statusCode).toBe(503);
-  });
   it('shares write budgets across application instances and limits both user and connection', async () => {
     const a = await makeApp({ writeLimits: { user: 3, connection: 1 } });
     const b = await makeApp({ writeLimits: { user: 3, connection: 1 } });

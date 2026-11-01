@@ -19,7 +19,7 @@ export const en = {
       'We process your email address, display name, login identifiers, preferences, boards, cards, membership and activity records to provide Wally. People with access to a shared board can see its shared content and member details. Private cards remain visible only to their author. Service data is processed to provide your account; limited security and operational records protect the service.',
     providersTitle: 'Login, hosting and AI',
     providers:
-      'Auth0 (Okta) handles login, signup and recovery. Google provides hosting, database and legacy Firebase login infrastructure. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider. When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
+      'Auth0 (Okta) handles login, signup and recovery. Supabase stores Wally’s data. Google runs the Wally server. Cloudflare serves the web app and forwards requests to the server. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider, currently Google (Vertex AI). When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
     retentionTitle: 'Retention and account controls',
     retention:
       'Your boards and cards do not expire automatically. To receive a copy of your data or have your account deleted, email privacy@luminull.com. Self-service export and deletion in Account and data are coming soon. Operational history and provider backups may follow separate retention schedules; contact us for details.',
@@ -462,48 +462,21 @@ export const en = {
       'Your session ended, and {{count}} unsaved change couldn’t be kept. Sign in again to carry on.',
     sessionEndedUnsaved_other:
       'Your session ended, and {{count}} unsaved changes couldn’t be kept. Sign in again to carry on.',
-    emailLabel: 'Email',
-    passwordLabel: 'Password',
-    passwordConfirmLabel: 'Confirm password',
-    google: 'Sign in with Google',
-    googlePending: 'Connecting…',
     signIn: {
-      submit: 'Sign in',
-      pending: 'Signing in…',
       noAccount: 'No account yet?',
       toSignUp: 'Sign up',
     },
     signUp: {
-      submit: 'Sign up',
-      pending: 'Signing up…',
       haveAccount: 'Already have an account?',
       toSignIn: 'Sign in',
     },
     verify: {
-      title: 'Confirm your email address',
-      sentTo:
-        'An email is on its way to <strong>{{email}}</strong>. Until you confirm it, you cannot be added to a board you have been invited to.',
-      resend: 'Resend email',
-      resending: 'Sending…',
-      resendIn: 'Resend in {{seconds}}s',
       confirm: "I've confirmed",
       confirming: 'Checking…',
       unlocked: 'Email confirmed. You now have access to “{{name}}”.',
       openBoard: 'Open board',
-      sent: 'Email sent. Check your spam folder too.',
       notYet: 'Not confirmed yet. Follow the link in the email first.',
-      tooMany: 'Too many attempts. Wait a moment, then try again.',
-      sendFailed: 'Couldn’t send the email. Try again.',
       confirmFailed: 'Couldn’t check that. Try again.',
-    },
-    errors: {
-      invalidCredential: 'That email or password is wrong.',
-      tooManyRequests: 'Too many attempts. Try again later.',
-      popupClosed: 'Sign-in cancelled.',
-      signInFailed: 'Couldn’t sign in. Try again.',
-      emailInUse: 'An account already exists for this email address.',
-      weakPassword: 'That password is too weak.',
-      signUpFailed: 'Couldn’t sign up. Try again.',
     },
   },
   errors: {

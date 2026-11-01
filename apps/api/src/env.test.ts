@@ -8,7 +8,6 @@ describe('the assistant model defaults', () => {
   // on the EU multi-region endpoint (`eu`), verified 2026-10-19 (the error handling spec).
   it('default to Gemini 3.8 Flash on the EU multi-region endpoint, with a price', () => {
     const env = loadEnv({
-      FIREBASE_PROJECT_ID: 'p',
       DATABASE_URL: 'postgres://localhost/wally',
       CORS_ORIGIN: 'http://localhost',
     });
@@ -21,7 +20,24 @@ describe('the assistant model defaults', () => {
 describe('the database connection', () => {
   it('is required', () => {
     _resetEnvCacheForTests();
-    expect(() => loadEnv({ FIREBASE_PROJECT_ID: 'p' })).toThrow(/DATABASE_URL/);
+    expect(() => loadEnv({})).toThrow(/DATABASE_URL/);
+    _resetEnvCacheForTests();
+  });
+});
+
+describe('the assistant project', () => {
+  it('is required when the assistant is enabled', () => {
+    _resetEnvCacheForTests();
+    expect(() =>
+      loadEnv({ DATABASE_URL: 'postgres://localhost/wally', ASSISTANT_ENABLED: 'true' }),
+    ).toThrow(/ASSISTANT_VERTEX_PROJECT/);
+    _resetEnvCacheForTests();
+  });
+  it('is not needed to boot without the assistant, and no Firebase setting exists', () => {
+    _resetEnvCacheForTests();
+    const env = loadEnv({ DATABASE_URL: 'postgres://localhost/wally' });
+    expect(env).not.toHaveProperty('FIREBASE_PROJECT_ID');
+    expect(env).not.toHaveProperty('AUTH0_ENABLED');
     _resetEnvCacheForTests();
   });
 });
@@ -31,7 +47,6 @@ describe('local MCP transport configuration', () => {
     _resetEnvCacheForTests();
     expect(() =>
       loadEnv({
-        FIREBASE_PROJECT_ID: 'p',
         DATABASE_URL: 'postgres://localhost/wally',
         NODE_ENV: 'development',
         MCP_LOCAL_URL: 'http://localhost:4502/mcp',
@@ -50,7 +65,6 @@ describe('local MCP transport configuration', () => {
     _resetEnvCacheForTests();
     expect(() =>
       loadEnv({
-        FIREBASE_PROJECT_ID: 'p',
         MCP_LOCAL_URL: 'http://localhost:4502/mcp',
         ...environment,
       }),
@@ -66,7 +80,6 @@ describe('local MCP transport configuration', () => {
     _resetEnvCacheForTests();
     expect(() =>
       loadEnv({
-        FIREBASE_PROJECT_ID: 'p',
         DATABASE_URL: 'postgres://localhost/wally',
         NODE_ENV: 'development',
         MCP_LOCAL_URL: url,
@@ -78,7 +91,7 @@ describe('local MCP transport configuration', () => {
 
 describe('the fixed Auth0 values', () => {
   it('accepts AUTH0_ISSUER and AUTH0_AUDIENCE only with the values the API uses', () => {
-    const base = { FIREBASE_PROJECT_ID: 'p', DATABASE_URL: 'postgres://localhost/wally' };
+    const base = { DATABASE_URL: 'postgres://localhost/wally' };
     _resetEnvCacheForTests();
     expect(() => loadEnv({ ...base, AUTH0_ISSUER, AUTH0_AUDIENCE })).not.toThrow();
     for (const other of [

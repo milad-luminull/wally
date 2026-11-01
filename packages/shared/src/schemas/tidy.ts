@@ -9,7 +9,7 @@ export const TIDY_MAX_MOVES = 60;
 /** Below this the model's placing of an undated note is dropped. */
 export const TIDY_MIN_CONFIDENCE = 0.6;
 
-const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
+const recordId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 
 /** POST /whiteboards/:id/assistant/tidies: the browser's date and zone, and what it shows. */
 export const tidyRequestSchema = z
@@ -21,7 +21,7 @@ export const tidyRequestSchema = z
      * never proposed. Omitted means every note.
      */
     only: z
-      .array(firestoreId)
+      .array(recordId)
       .max(TIDY_MAX_MOVES * 4)
       .optional(),
   })
@@ -71,7 +71,7 @@ export const tidyDecisionSchema = z
   .object({
     decision: z.enum(['keep', 'discard', 'undo']),
     /** For `keep`: the notes still in the batch; omitted means every proposed move. */
-    noteIds: z.array(firestoreId).max(TIDY_MAX_MOVES).optional(),
+    noteIds: z.array(recordId).max(TIDY_MAX_MOVES).optional(),
     source: tidyDecisionSourceSchema,
   })
   .strict();

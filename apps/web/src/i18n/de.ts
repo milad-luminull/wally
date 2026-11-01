@@ -25,7 +25,7 @@ export const de = {
       'Wir verarbeiten E-Mail-Adresse, Anzeigename, Anmeldekennungen, Einstellungen, Boards, Karten, Mitgliedschaften und Aktivitätsdaten, um Wally bereitzustellen. Personen mit Board-Zugriff sehen geteilte Inhalte und Mitgliederdaten. Private Karten sind nur für ihre Ersteller sichtbar. Dienstdaten dienen der Bereitstellung deines Kontos; begrenzte Sicherheits- und Betriebsdaten schützen den Dienst.',
     providersTitle: 'Anmeldung, Hosting und KI',
     providers:
-      'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Google stellt Hosting, Datenbank und die bisherige Firebase-Anmeldung bereit. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter. Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
+      'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Supabase speichert die Daten von Wally. Google betreibt den Wally-Server. Cloudflare liefert die Web-App aus und leitet Anfragen an den Server weiter. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter, derzeit Google (Vertex AI). Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
     retentionTitle: 'Aufbewahrung und Kontofunktionen',
     retention:
       'Boards und Karten laufen nicht automatisch ab. Für eine Kopie deiner Daten oder die Löschung deines Kontos schreib an privacy@luminull.com. Herunterladen und Löschen unter Konto und Daten kommen bald. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere uns für Details.',
@@ -480,50 +480,21 @@ export const de = {
       'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderung ging verloren. Melde dich erneut an, um weiterzumachen.',
     sessionEndedUnsaved_other:
       'Deine Sitzung ist abgelaufen, {{count}} nicht gespeicherte Änderungen gingen verloren. Melde dich erneut an, um weiterzumachen.',
-    emailLabel: 'E-Mail',
-    passwordLabel: 'Passwort',
-    passwordConfirmLabel: 'Passwort bestätigen',
-    google: 'Mit Google anmelden',
-    googlePending: 'Verbinde…',
     signIn: {
-      submit: 'Anmelden',
-      pending: 'Anmelden…',
       noAccount: 'Noch kein Konto?',
       toSignUp: 'Registrieren',
     },
     signUp: {
-      submit: 'Registrieren',
-      pending: 'Registrieren…',
       haveAccount: 'Schon ein Konto?',
       toSignIn: 'Anmelden',
     },
     verify: {
-      title: 'Bestätige deine E-Mail-Adresse',
-      // <strong> travels WITH the words: in English the address lands in a different clause,
-      // so the markup cannot be hard-coded around a bare interpolation.
-      sentTo:
-        'Eine E-Mail ist an <strong>{{email}}</strong> unterwegs. Erst nach der Bestätigung kannst du zu einer Wand hinzugefügt werden, zu der du eingeladen wurdest.',
-      resend: 'E-Mail erneut senden',
-      resending: 'Sende…',
-      resendIn: 'Erneut senden in {{seconds}}s',
       confirm: 'Ich habe bestätigt',
       confirming: 'Prüfe…',
       unlocked: 'E-Mail bestätigt. Du hast jetzt Zugriff auf „{{name}}“.',
       openBoard: 'Wand öffnen',
-      sent: 'E-Mail gesendet. Schau auch im Spam-Ordner nach.',
       notYet: 'Noch nicht bestätigt. Klicke zuerst den Link in der E-Mail.',
-      tooMany: 'Zu viele Versuche. Warte einen Moment und versuch es dann erneut.',
-      sendFailed: 'Konnte die E-Mail nicht senden. Versuch es erneut.',
       confirmFailed: 'Konnte das nicht prüfen. Versuch es erneut.',
-    },
-    errors: {
-      invalidCredential: 'E-Mail oder Passwort ist falsch.',
-      tooManyRequests: 'Zu viele Versuche. Versuch es später erneut.',
-      popupClosed: 'Anmeldung abgebrochen.',
-      signInFailed: 'Konnte dich nicht anmelden. Versuch es erneut.',
-      emailInUse: 'Für diese E-Mail-Adresse besteht bereits ein Konto.',
-      weakPassword: 'Das Passwort ist zu schwach.',
-      signUpFailed: 'Konnte dich nicht registrieren. Versuch es erneut.',
     },
   },
   errors: {
@@ -1066,7 +1037,7 @@ export const de = {
   },
   enums: {
     /**
-     * Leaves are the raw persisted value, not a slug — Firestore stores these exact strings,
+     * Leaves are the raw persisted value, not a slug — the database stores these exact strings,
      * so keeping them visible here is what ties a label to the value it renders, and what
      * makes the `satisfies Record<Enum, string>` check in enumLabels.ts meaningful.
      */

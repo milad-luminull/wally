@@ -25,8 +25,8 @@ export default defineConfig({
   // bucket, which is keyed on the user id. Serialise in CI; keep the local run parallel.
   workers: isCI ? 1 : undefined,
 
-  // A real Firebase Auth round trip plus a cold Firestore emulator does not reliably fit
-  // in Playwright's 30s default. The Vitest suites already use 20s for the same reason.
+  // A real Auth0 hosted-login round trip plus a cold stack does not reliably fit in
+  // Playwright's 30s default. The Vitest suites already use 20s for the same reason.
   timeout: isCI ? 60_000 : 30_000,
 
   reporter: isCI
@@ -46,8 +46,8 @@ export default defineConfig({
     // This repository is PUBLIC, so Actions
     // artifacts are downloadable by anyone holding the run URL. A Playwright trace records
     // every action's input value verbatim — including e2e/support.ts's
-    // `getByLabel('Passwort').fill(PASSWORD)` — along with full request bodies, so it would
-    // publish the E2E account's password and its Firebase ID tokens. GitHub's log masking
+    // password `fill(PASSWORD)` — along with full request bodies, so it would publish the E2E
+    // account's password and its Auth0 tokens. GitHub's log masking
     // does not apply to artifact contents. Screenshots are safe: the password field renders
     // masked.
     trace: 'off',
@@ -56,7 +56,7 @@ export default defineConfig({
 
     // These specs assert German copy. The app falls back to navigator.language when nothing
     // is stored, and Playwright's device presets report en-US — without this pin every spec
-    // would silently render in English and fail on the first getByLabel('E-Mail').
+    // would silently render in English and fail on the first German label.
     locale: 'de-DE',
     // Runners are UTC; the app renders relative dates. Pin to match the locale.
     timezoneId: 'Europe/Berlin',

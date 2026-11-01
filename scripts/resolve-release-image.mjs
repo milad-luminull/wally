@@ -11,13 +11,12 @@ import { pathToFileURL } from 'node:url';
 // and both the retry check and the post-deploy check compare the revision against it.
 export function apiConfig(env) {
   const values = {
-    FIREBASE_PROJECT_ID: env.GCP_PROJECT_ID,
     NODE_ENV: 'production',
     CORS_ORIGIN: env.WEB_ORIGIN,
     ASSISTANT_ENABLED: env.ASSISTANT_ENABLED,
     ASSISTANT_MODEL: env.ASSISTANT_MODEL,
     ASSISTANT_VERTEX_LOCATION: env.ASSISTANT_VERTEX_LOCATION,
-    AUTH0_ENABLED: env.AUTH0_ENABLED,
+    ASSISTANT_VERTEX_PROJECT: env.GCP_PROJECT_ID,
     AUTH0_SIGNUP_ENABLED: env.AUTH0_SIGNUP_ENABLED,
     MCP_ENABLED: env.MCP_ENABLED,
     MCP_WRITES_ENABLED: env.MCP_WRITES_ENABLED,

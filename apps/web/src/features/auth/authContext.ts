@@ -13,14 +13,9 @@ export interface AuthContextValue {
   emailVerified: boolean;
   signedOut: boolean;
   expired: { unsaved: number } | null;
-  verificationSendFailed: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  resendVerificationEmail: () => Promise<void>;
   refreshUser: () => Promise<boolean>;
-  hostedLogin?: (signup: boolean, returnPath: string | null) => Promise<void>;
+  hostedLogin: (signup: boolean, returnPath: string | null) => Promise<void>;
   authError?: 'migration' | 'unavailable' | null;
 }
 export const AuthContext = createContext<AuthContextValue | null>(null);

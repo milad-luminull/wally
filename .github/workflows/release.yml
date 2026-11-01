@@ -21,12 +21,10 @@ env:
   ASSISTANT_ENABLED: ${{ vars.ASSISTANT_ENABLED || 'false' }}
   ASSISTANT_MODEL: ${{ vars.ASSISTANT_MODEL || 'vertex:gemini-3.8-flash' }}
   ASSISTANT_VERTEX_LOCATION: ${{ vars.ASSISTANT_VERTEX_LOCATION || 'eu' }}
-  AUTH0_ENABLED: ${{ vars.AUTH0_ENABLED || 'false' }}
   AUTH0_SIGNUP_ENABLED: ${{ vars.AUTH0_SIGNUP_ENABLED || 'false' }}
   MCP_ENABLED: ${{ vars.MCP_ENABLED || 'false' }}
   MCP_WRITES_ENABLED: ${{ vars.MCP_WRITES_ENABLED || 'false' }}
   MCP_CLIENT_ID: ${{ vars.MCP_CLIENT_ID }}
-  VITE_AUTH_PROVIDER: ${{ vars.VITE_AUTH_PROVIDER || 'firebase' }}
   VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
 
 jobs:
@@ -144,26 +142,17 @@ jobs:
       - name: Validate authentication and MCP rollout switches
         run: |
           set -euo pipefail
-          for flag in AUTH0_ENABLED AUTH0_SIGNUP_ENABLED MCP_ENABLED MCP_WRITES_ENABLED ASSISTANT_ENABLED; do
+          for flag in AUTH0_SIGNUP_ENABLED MCP_ENABLED MCP_WRITES_ENABLED ASSISTANT_ENABLED; do
             case "${!flag}" in
               true|false) ;;
               *) echo "::error::$flag must be true or false"; exit 1 ;;
             esac
           done
-          case "$VITE_AUTH_PROVIDER" in
-            firebase) ;;
-            auth0)
-              [ "$AUTH0_ENABLED" = true ] && [ -n "$VITE_AUTH0_CLIENT_ID" ] \
-                || { echo "::error::Auth0 web login requires AUTH0_ENABLED=true and VITE_AUTH0_CLIENT_ID"; exit 1; }
-              ;;
-            *) echo "::error::VITE_AUTH_PROVIDER must be firebase or auth0"; exit 1 ;;
-          esac
-          if [ "$AUTH0_SIGNUP_ENABLED" = true ] && [ "$AUTH0_ENABLED" != true ]; then
-            echo "::error::AUTH0_SIGNUP_ENABLED requires AUTH0_ENABLED=true"; exit 1
-          fi
-          if [ "$MCP_ENABLED" = true ]; then
-            [ "$AUTH0_ENABLED" = true ] && [ -n "$MCP_CLIENT_ID" ] \
-              || { echo "::error::MCP requires AUTH0_ENABLED=true and MCP_CLIENT_ID"; exit 1; }
+          # Auth0 is the only sign-in, so the web bundle always needs its public SPA client.
+          [ -n "$VITE_AUTH0_CLIENT_ID" ] \
+            || { echo "::error::VITE_AUTH0_CLIENT_ID is required"; exit 1; }
+          if [ "$MCP_ENABLED" = true ] && [ -z "$MCP_CLIENT_ID" ]; then
+            echo "::error::MCP requires MCP_CLIENT_ID"; exit 1
           fi
           if [ "$MCP_WRITES_ENABLED" = true ] && [ "$MCP_ENABLED" != true ]; then
             echo "::error::MCP_WRITES_ENABLED requires MCP_ENABLED=true"; exit 1
@@ -280,7 +269,7 @@ jobs:
                            --secret=wally-database-url --project="${GCP_PROJECT_ID}")
           echo "::add-mask::${DATABASE_URL}"
           export DATABASE_URL
-          docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID="${GCP_PROJECT_ID}" \
+          docker run --rm -e DATABASE_URL \
             "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/wally/wally-api@${DIGEST}" \
             node dist/migrate-cli.js --require-purge-job
 
@@ -369,14 +358,9 @@ jobs:
       - name: Build the web bundle for production
         env:
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
-          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
         run: |
           set -euo pipefail
-          for v in VITE_API_BASE_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN \
-                   VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
+          for v in VITE_API_BASE_URL VITE_AUTH0_CLIENT_ID; do
             [ -n "${!v:-}" ] || { echo "::error::$v is empty — the bundle would ship broken"; exit 1; }
           done
           # --force with a cold cache dir. turbo.json declares env: ["VITE_*"] on build so

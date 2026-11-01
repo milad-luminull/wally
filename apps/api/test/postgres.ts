@@ -22,8 +22,7 @@ export type TestDatabase = {
 /**
  * A database of this test file's own, cloned from the run's migrated template.
  *
- * Files run in parallel, as they do on the Firestore emulator with a project id each:
- * no file can see or wipe another's rows. Call drop() in afterAll.
+ * Files run in parallel: no file can see or wipe another's rows. Call drop() in afterAll.
  */
 export async function createTestDatabase(options: { max?: number } = {}): Promise<TestDatabase> {
   const url = process.env.DATABASE_URL;

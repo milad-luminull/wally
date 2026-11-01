@@ -3,13 +3,7 @@ import { buildApp } from '../src/app.js';
 import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 import { eq } from 'drizzle-orm';
-import {
-  createFakeAuthVerifier,
-  createTestDatabase,
-  createTestUser,
-  resetDatabase,
-  type TestDatabase,
-} from './helpers.js';
+import { createTestDatabase, createTestUser, resetDatabase, type TestDatabase } from './helpers.js';
 import type { Database } from '../src/lib/postgres/client.js';
 import { users, whiteboards } from '../src/lib/postgres/schema/index.js';
 
@@ -23,7 +17,6 @@ const identity: VerifiedIdentity = {
   name: 'Existing',
 };
 const auth0Token = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iss: identity.issuer })).toString('base64url')}.signature`;
-const firebase = createFakeAuthVerifier();
 let app: Awaited<ReturnType<typeof buildApp>>;
 beforeAll(async () => {
   handle = await createTestDatabase();
@@ -31,7 +24,6 @@ beforeAll(async () => {
   app = await buildApp({
     db,
     logger: false,
-    authVerifier: firebase.verifier,
     auth0Verifier: {
       async verify(token) {
         if (token !== auth0Token) throw new Error('Invalid proof');
@@ -42,7 +34,6 @@ beforeAll(async () => {
 });
 afterEach(async () => {
   await resetDatabase(db);
-  firebase.tokens.clear();
 });
 afterAll(async () => {
   await app?.close();
@@ -52,34 +43,8 @@ const getMe = (token = auth0Token) =>
   app.inject({ method: 'GET', url: '/me', headers: { authorization: `Bearer ${token}` } });
 
 describe('Auth0 REST identity resolution', () => {
-  it('rejects Auth0 tokens when the feature is disabled, without Firebase fallback', async () => {
-    firebase.tokens.set(auth0Token, {
-      uid: 'must-not-provision',
-      email: identity.email,
-      emailVerified: true,
-      name: null,
-    });
-    const disabled = await buildApp({ db, logger: false, authVerifier: firebase.verifier });
-    try {
-      const result = await disabled.inject({
-        method: 'GET',
-        url: '/me',
-        headers: { authorization: `Bearer ${auth0Token}` },
-      });
-      expect(result.statusCode).toBe(401);
-      expect(await db.$count(users)).toBe(0);
-    } finally {
-      await disabled.close();
-    }
-  });
-  it('does not fall back to Firebase after Auth0 verification fails', async () => {
+  it('rejects a token that fails verification without writing anything', async () => {
     const invalid = auth0Token.replace('.signature', '.invalid-signature');
-    firebase.tokens.set(invalid, {
-      uid: 'must-not-provision',
-      email: identity.email,
-      emailVerified: true,
-      name: null,
-    });
     expect((await getMe(invalid)).statusCode).toBe(401);
     expect(await db.$count(users)).toBe(0);
   });
@@ -153,14 +118,7 @@ describe('Auth0 REST identity resolution', () => {
     expect((await getMe()).statusCode).toBe(403);
     expect(await db.$count(users)).toBe(0);
   });
-  it('retains Firebase access and returns 401 for invalid credentials', async () => {
-    firebase.tokens.set('firebase-token', {
-      uid: 'firebase-user',
-      email: identity.email,
-      emailVerified: false,
-      name: null,
-    });
-    expect((await getMe('firebase-token')).json().id).toBe('firebase-user');
+  it('returns 401 for credentials that are not an access token', async () => {
     expect((await getMe('invalid-token')).statusCode).toBe(401);
   });
 });

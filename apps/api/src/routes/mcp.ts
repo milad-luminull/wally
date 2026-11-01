@@ -42,8 +42,7 @@ export interface McpRouteOptions {
 export default async function mcpRoutes(app: FastifyInstance, options: McpRouteOptions) {
   const env = loadEnv();
   const resource = env.MCP_LOCAL_URL ?? MCP_RESOURCE;
-  const enabled =
-    (options.enabled ?? env.MCP_ENABLED) && (env.AUTH0_ENABLED || Boolean(options.verifier));
+  const enabled = options.enabled ?? env.MCP_ENABLED;
   const writesEnabled = options.writesEnabled ?? env.MCP_WRITES_ENABLED;
   const clientId = options.clientId ?? env.MCP_CLIENT_ID;
   const verifier =

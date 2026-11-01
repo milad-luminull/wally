@@ -10,7 +10,6 @@ import {
 const env: Parameters<typeof resolveLanguageModel>[1] = {
   ASSISTANT_VERTEX_LOCATION: 'europe-west1',
   ASSISTANT_VERTEX_PROJECT: 'wally-test',
-  FIREBASE_PROJECT_ID: 'wally-test',
 };
 
 describe('parseModelRef', () => {
@@ -40,12 +39,13 @@ describe('resolveLanguageModel', () => {
     expect(model.modelId).toBe('gemini-3.8-flash');
     expect(model.provider).toContain('vertex');
   });
-  it('falls back to the Firebase project id', () => {
-    const model = resolveLanguageModel(
-      { provider: 'vertex', model: 'gemini-3.8-flash' },
-      { ...env, ASSISTANT_VERTEX_PROJECT: undefined },
-    );
-    expect(model.modelId).toBe('gemini-3.8-flash');
+  it('refuses to build a model without a Vertex project', () => {
+    expect(() =>
+      resolveLanguageModel(
+        { provider: 'vertex', model: 'gemini-3.8-flash' },
+        { ...env, ASSISTANT_VERTEX_PROJECT: undefined },
+      ),
+    ).toThrow(/ASSISTANT_VERTEX_PROJECT/);
   });
 });
 

@@ -27,8 +27,8 @@ interface CustomFieldEditorProps {
  * Free-form key/value properties on a note, replacing the old fixed reference field.
  *
  * Rows are sorted by key, for the reader's language, so the panel does not reshuffle when a
- * property is edited — Firestore returns map keys in its own order, which is not the
- * insertion order.
+ * property is edited — the stored JSON object (a PostgreSQL `jsonb` column) keeps its keys in
+ * its own order, which is not the insertion order.
  */
 export function CustomFieldEditor({
   fields,

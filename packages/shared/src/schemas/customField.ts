@@ -5,21 +5,18 @@ import { FIELD_KEY_MAX_LENGTH, FIELD_VALUE_MAX_LENGTH, MAX_FIELDS_PER_NOTE } fro
  * Free-form key/value properties on a note ("Customer: Müller GmbH", "Contract number: 4711"),
  * replacing the old fixed reference field.
  *
- * Stored as a MAP rather than an array of {key, value} objects. Firestore auto-indexes map
- * subfields, so `where('customFields.Customer', '==', 'Müller GmbH')` stays available without a
- * composite index; nothing inside an array of objects is queryable at all. The note list
- * route filters in memory today, so nothing depends on that yet — it just keeps the door
- * open. (The flip side: free-form keys mean unbounded auto-indexed field paths. If that ever
- * bites, exempt `notes.customFields` via a fieldOverrides entry in firestore.indexes.json.)
+ * Stored as a MAP (a JSON object in the notes' `jsonb` column) rather than an array of
+ * {key, value} objects, so one property is addressable by its key. The note list route
+ * filters in memory today, so nothing depends on that yet — it just keeps the door open.
  */
 
 /**
  * Keys are stored as typed — capitalisation carries meaning ("VAT ID") — but
  * trimmed, with runs of inner whitespace collapsed.
  *
- * The rejected characters are Firestore field-path metacharacters. Storing a key containing
- * one would make the map subfield unaddressable in a query without escaping, so they are
- * refused at the edge instead.
+ * The rejected characters were Firestore field-path metacharacters, refused at the edge so a
+ * key never needed escaping in a query. The rule stays, so every stored key keeps the one
+ * alphabet clients already know.
  */
 export const customFieldKeySchema = z
   .string()

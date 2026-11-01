@@ -12,7 +12,8 @@ Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 > `wally-api-proxy` forwards `api.wally.luminull.com` to Cloud Run. The release deploys both
 > Workers. The hostnames moved to them once, by hand, on 2026-11-01
 > ([Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after)), and the
-> Cloud Run domain mapping is deleted. Firebase Hosting no longer serves Wally.
+> Cloud Run domain mapping is deleted. Firebase is retired
+> ([Firebase retired](#firebase-retired)).
 
 ---
 
@@ -27,14 +28,11 @@ Wally is three separate things, and they go to three different places:
 | `apps/api`       | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you), reached through `wally-api-proxy` |
 | Your data        | Notes, boards, members                                     | **Supabase PostgreSQL** (Ireland, `eu-west-1`), reached only by the API     |
 
-Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
-see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and the
-**database migrations** in `apps/api/drizzle/`, which ship inside the API image and run
-from it at release. Firebase Auth is not a production fallback: since
-the [ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
-account is an Auth0 signup with a random Wally id and no Firebase mapping, so switching
-production back to Firebase would give every user a new, empty account. The planned move to Supabase and Cloudflare
-is in [RFC-0011](rfcs/RFC-0011-platform-migration.md).
+Plus configuration rather than code: **Auth0** (the only sign-in, for web and MCP, in
+production, local development and CI; see [AUTH0.md](AUTH0.md)) and the **database
+migrations** in `apps/api/drizzle/`, which ship inside the API image and run from it at
+release. The planned move to Supabase and Cloudflare is in
+[RFC-0011](rfcs/RFC-0011-platform-migration.md).
 
 The flow once deployed:
 
@@ -86,7 +84,7 @@ ever stand up a second environment.
 
 | Name       | Meaning                                            | Value            |
 | ---------- | -------------------------------------------------- | ---------------- |
-| Project ID | The Firebase project ID (not the display name)     | `luminull-wally` |
+| Project ID | The Google Cloud project ID (not the display name) | `luminull-wally` |
 | Region     | The Google Cloud region everything is deployed to  | `europe-west1`   |
 | Repo       | Artifact Registry repository holding the API image | `wally`          |
 
@@ -96,16 +94,15 @@ supported by every service used here.
 
 ---
 
-## 3. Step 1 — Put the project on the Blaze plan
+## 3. Step 1 — Put the project on billing
 
-The free Spark plan does not cover **Cloud Run and Cloud Build**. You must
-enable billing.
+**Cloud Run and Cloud Build** need a project with billing enabled. In the Google Cloud
+console, open **Billing**, select the project and link a billing account (you will need a
+credit card); Google describes the steps in
+[enable, disable, or change billing for a project](https://cloud.google.com/billing/docs/how-to/modify-project).
+This project was set up through Firebase as the Blaze plan, which is the same thing.
 
-1. Open the [Firebase console](https://console.firebase.google.com/), select your project.
-2. Bottom-left, click the plan name (**Spark**) → **Upgrade** → **Blaze**.
-3. Attach a billing account (you will need a credit card).
-
-Blaze is pay-as-you-go, not a subscription. It keeps the same free allowances on top — see
+Billing is pay-as-you-go, not a subscription. It keeps the same free allowances on top — see
 [section 14](#14-what-this-will-cost) for what Wally realistically uses. **Set a budget
 alert while you are here**: Google Cloud console → **Billing → Budgets & alerts → Create
 budget**. Set something small like €10/month so you find out early if something misbehaves.
@@ -182,16 +179,14 @@ with them: Cloud Run hands the API its `DATABASE_URL` from Secret Manager (secti
 
 This is already handled in the code — no edits needed before you deploy:
 
-- **`apps/api/src/lib/firebase-app.ts`** — `getFirebaseApp()` uses `applicationDefault()`
-  when running on Cloud Run, detected via `runsOnGoogleCloud()` (checks the `K_SERVICE` env
-  var Cloud Run sets). Anywhere else it is initialized with the project id alone.
-- **`apps/api/src/plugins/firebase.ts`** — firebase-admin is left only to verify Firebase ID
-  tokens, and that needs no credential: it checks the signature against Google's public
-  certificates and compares `aud`/`iss` to the project id. So the same code runs on Cloud
-  Run, in compose and in CI without a key. It no longer refuses to start outside Google
-  Cloud; that guard protected Firestore, which the API no longer uses.
-- **`apps/api/src/env.ts`** requires `DATABASE_URL` and refuses to boot without it.
-  `FIRESTORE_EMULATOR_HOST` and `FIRESTORE_DATABASE_ID` no longer exist.
+- **`apps/api/src/lib/assistant/model/config.ts`** — the Vertex provider is created with
+  no credentials, so it uses ADC: the Cloud Run runtime account, or a developer's
+  `gcloud auth application-default login`.
+- **`apps/api/src/lib/auth/auth0.ts`** — sign-in needs no Google credential: Auth0 access
+  tokens are checked against Auth0's public keys. So the same code runs on Cloud Run, in
+  compose and in CI without a key.
+- **`apps/api/src/env.ts`** requires `DATABASE_URL`, and `ASSISTANT_VERTEX_PROJECT` when the
+  assistant is on, and refuses to boot without them.
 
 To double-check it still compiles:
 
@@ -207,11 +202,7 @@ From the repo root:
 
 ```bash
 gcloud config set project luminull-wally
-firebase use --add
 ```
-
-`firebase use --add` will list your projects — pick yours and give it the alias `default`.
-This writes a `.firebaserc` file, which you should commit.
 
 Now enable the Google Cloud APIs you are about to use. This takes a minute and is a
 one-time thing per project:
@@ -224,8 +215,8 @@ gcloud services enable \
   secretmanager.googleapis.com
 ```
 
-`firestore.googleapis.com` was enabled for the Firestore database. It stays on until
-Firestore is decommissioned ([Firestore after the switch](#firestore-after-the-switch)).
+The Firebase APIs this project once used are disabled in group B of the
+[Firebase retirement](#firebase-retired).
 
 ---
 
@@ -277,12 +268,10 @@ you are about to deploy:
 
 ```bash
 read -rs DATABASE_URL && export DATABASE_URL
-docker run --rm -e DATABASE_URL -e FIREBASE_PROJECT_ID=luminull-wally \
+docker run --rm -e DATABASE_URL \
   europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api@<digest> \
   node dist/migrate-cli.js --require-purge-job
 ```
-
-`FIREBASE_PROJECT_ID` is there only because `env.ts` requires it; migrating verifies no token.
 
 **Every migration must keep working with the revision still serving.** The schema changes
 before the new revision serves, and a failed release rolls back the API, never the schema:
@@ -374,9 +363,8 @@ gcloud iam service-accounts create wally-api \
   --display-name="Wally API runtime"
 ```
 
-The account also holds `roles/datastore.user`, granted when the API used Firestore. Only a
-rollback to v0.11.0 would need it; it goes when Firestore is decommissioned
-([Firestore after the switch](#firestore-after-the-switch)).
+It once held `roles/datastore.user`, for Firestore; that grant was removed on 2026-11-01
+([Firebase retired](#firebase-retired)).
 
 > IAM changes take up to 5 minutes to take effect. If your first request fails with a
 > permission error, wait and retry before assuming something is broken.
@@ -385,20 +373,20 @@ rollback to v0.11.0 would need it; it goes when Firestore is decommissioned
 
 `--set-env-vars` **replaces** the service's whole set of variables, and production needs
 every one that `apiConfig` in [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs)
-defines: `FIREBASE_PROJECT_ID`, `NODE_ENV`, `CORS_ORIGIN`,
-`ASSISTANT_ENABLED`, `ASSISTANT_MODEL`, `ASSISTANT_VERTEX_LOCATION`, `AUTH0_ENABLED`,
-`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`.
-A hand-typed list drops one easily, and a dropped `AUTH0_ENABLED` turns production sign-in
-off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the functions the
+defines: `NODE_ENV`, `CORS_ORIGIN`, `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`,
+`ASSISTANT_VERTEX_LOCATION`, `ASSISTANT_VERTEX_PROJECT`, `AUTH0_SIGNUP_ENABLED`,
+`MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A hand-typed list drops
+one easily, and a dropped `AUTH0_SIGNUP_ENABLED` turns production signup off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the functions the
 release uses.
-The values below are what production ran on 2026-10-27 (release v0.11.0). Compare them with
+The values below are what production ran on 2026-11-01 (release v0.13.0), without the
+switch the Firebase retirement removed. Compare them with
 `gh variable list` and `gh variable list --env production` (which overrides it) before you
 deploy, and change any that differ:
 
 ```bash
 export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
   ASSISTANT_ENABLED=true ASSISTANT_MODEL=vertex:gemini-3.8-flash ASSISTANT_VERTEX_LOCATION=eu \
-  AUTH0_ENABLED=true AUTH0_SIGNUP_ENABLED=true MCP_ENABLED=true MCP_WRITES_ENABLED=true \
+  AUTH0_SIGNUP_ENABLED=true MCP_ENABLED=true MCP_WRITES_ENABLED=true \
   MCP_CLIENT_ID="$(gh variable get MCP_CLIENT_ID --env production)"
 RUN_ENV=$(node --input-type=module -e "
   const { apiConfig, runEnvFlag } = await import('./scripts/resolve-release-image.mjs');
@@ -487,7 +475,7 @@ Cloud Run puts **two independent gates** in front of the container:
    `--allow-unauthenticated` is just shorthand for granting that role to the special
    `allUsers` principal.
 2. **Wally's own authentication** — every route goes through the auth preHandler, which
-   verifies an Auth0 access token (or, locally and in CI, a Firebase ID token) and 401s
+   verifies an Auth0 access token and 401s
    without one.
 
 Wally deliberately relies on gate 2. Gate 1 exists for service-to-service auth and is
@@ -575,23 +563,13 @@ console.
 Create `apps/web/.env.production`:
 
 ```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=luminull-wally.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=luminull-wally
-VITE_FIREBASE_APP_ID=...
 VITE_API_BASE_URL=https://api.wally.luminull.com
-VITE_AUTH_PROVIDER=auth0
 VITE_AUTH0_CLIENT_ID=...
 ```
 
-Production signs in with Auth0: without the last two lines the bundle falls back to the
-Firebase sign-in, which production does not use. `VITE_AUTH0_CLIENT_ID` is the public SPA
-client id (the `VITE_AUTH0_CLIENT_ID` repository variable), never a client secret.
-
-The four `VITE_FIREBASE_*` values come from Firebase console → **Project settings → General → Your apps → SDK
-setup and configuration**. They are the same values already in your root `.env`. These are
-public identifiers, not secrets — safe to ship to the browser, because access is enforced by
-Auth and by the API, not by hiding them.
+`VITE_AUTH0_CLIENT_ID` is the public SPA client id (the `VITE_AUTH0_CLIENT_ID` repository
+variable), never a client secret. It is a public identifier — safe to ship to the browser,
+because access is enforced by Auth0 and by the API, not by hiding it.
 
 `VITE_API_BASE_URL` is the canonical API URL, `https://api.wally.luminull.com`, **with no trailing slash**.
 
@@ -599,7 +577,7 @@ This file contains no secrets, but it is environment-specific — and it **is** 
 `.gitignore` covers `.env.*`, which matches `.env.production`. (`.dockerignore` excludes it
 too, so the `apps/web` Docker `prod` stage cannot see it either.)
 
-Do not commit it. CI does not use it at all: the release workflow supplies the same seven
+Do not commit it. CI does not use it at all: the release workflow supplies the same two
 values from GitHub repository _variables_ — they are public identifiers baked into a public
 bundle, so they are variables rather than secrets — and asserts afterwards that the built
 bundle really does contain the production API URL and not `localhost:4000`.
@@ -650,23 +628,14 @@ grep -c "localhost:4000" apps/web/dist/assets/*.js                      # expect
 
 ---
 
-## 11. Step 9 — Let Firebase Auth trust your new domain
+## 11. Step 9 — Let Auth0 accept your web address
 
-Sign-in fails with `auth/unauthorized-domain` if the serving domain is not on the list.
-
-Already correct for this project — `localhost`, `luminull-wally.firebaseapp.com` and
-`luminull-wally.web.app` are authorized, and both Email/Password and Google sign-in are
-enabled. Add any custom domain you later attach: Firebase console → **Authentication →
-Settings → Authorized domains**.
-
-To check the current state without clicking through the console:
-
-```bash
-curl -s "https://identitytoolkit.googleapis.com/admin/v2/projects/luminull-wally/config" \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-  -H "X-Goog-User-Project: luminull-wally" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['authorizedDomains'])"
-```
+Auth0's hosted login sends people back only to addresses listed on the SPA client. Already
+correct for this project: the client allows the callback, web origin and logout URL of
+`https://wally.luminull.com` and of `http://localhost:5174`
+([AUTH0.md](AUTH0.md#configuration)). Any other address you serve the web app from — another
+domain, or a second local copy on another port — has to be added to the SPA client in the
+Auth0 dashboard first, or sign-in stops at Auth0 with a callback error.
 
 ### Check CORS matches
 
@@ -773,8 +742,9 @@ pnpm --filter @wally/web exec wrangler rollback <version-id> --message "rollback
 ```
 
 The same commands with `--filter @wally/api-proxy` roll back the proxy. **There is no
-rollback window to Firebase Hosting:** the owner chose none (2026-11-01), because production
-had no users or data yet.
+rollback to Firebase Hosting:** the owner chose no window (2026-11-01), because production
+had no users or data yet, and the Hosting site is now disabled
+([Firebase retired](#firebase-retired)).
 
 ### When a release fails
 
@@ -901,7 +871,7 @@ proof measured 0–2 ms). Over the limit, requests fail with error 1027; whether
 Workers Paid ($5/month).
 
 The thing that would actually cost money is a runaway loop on Cloud Run or the assistant. That is
-exactly what the budget alert in [section 3](#3-step-1--put-the-project-on-the-blaze-plan)
+exactly what the budget alert in [section 3](#3-step-1--put-the-project-on-billing)
 is for.
 
 ---
@@ -923,13 +893,13 @@ direct connection (section 4).
 check the revision with
 `gcloud run services describe wally-api --region=europe-west1 --format="value(spec.template.spec.containers[0].env)"`.
 
-**White screen, console shows `auth/invalid-api-key`**
+**The app calls `localhost:4000`, or signs in against the wrong Auth0 client**
 The `VITE_*` variables were not present when you built. Confirm `apps/web/.env.production`
 exists, then rebuild — the values are compiled in, so editing the file without rebuilding
 changes nothing.
 
-**`auth/unauthorized-domain` when signing in**
-Section 11 — add the domain to Firebase Auth's authorized domains.
+**Auth0 shows a callback URL mismatch when signing in**
+Section 11 — add the address to the Auth0 SPA client.
 
 **CORS errors in the browser console**
 `CORS_ORIGIN` on Cloud Run does not exactly match the origin the browser is using. Compare
@@ -1011,8 +981,8 @@ pushes to `main`, in six jobs:
 **It runs against the stack's own database, not production.** Every spec writes real data,
 and `share.spec.ts` creates an invite on each run. Against production those records would
 accumulate in the live database forever. The compose stack runs its own PostgreSQL, created
-fresh on the runner, while sign-in still goes through real Firebase Auth (or real Auth0, on
-the opt-in path), so the coverage is genuine and the data is disposable. Production only ever gets read-only smoke checks.
+fresh on the runner, while sign-in still goes through real Auth0, so the coverage is genuine
+and the data is disposable. Production only ever gets read-only smoke checks.
 
 **A green E2E job is not automatically a meaningful one.** Every spec opens with
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
@@ -1046,30 +1016,27 @@ Set once, by [`scripts/bootstrap-gcp-cicd.sh`](../scripts/bootstrap-gcp-cicd.sh)
 that anyone can download, so hiding them would buy nothing:
 
 `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`, `API_BASE_URL`,
-`WEB_ORIGIN`, `FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
-`VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`.
+`WEB_ORIGIN`, `VITE_AUTH0_CLIENT_ID`, and the E2E account variables `E2E_AUTH0_SUBJECT`,
+`E2E_AUTH0_EMAIL`, `E2E_AUTH0_DEPENDABOT_SUBJECT` and `E2E_AUTH0_DEPENDABOT_EMAIL`.
 
-**Auth0/MCP variables:** production runs with `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`,
-`MCP_ENABLED` and `MCP_WRITES_ENABLED` set to `true`, `VITE_AUTH_PROVIDER=auth0`, and
-`VITE_AUTH0_CLIENT_ID` and `MCP_CLIENT_ID` set to the public SPA and MCP client IDs.
-Unset, the switches default to `false` and the provider to `firebase`. Both client IDs are
+**Auth0/MCP variables:** production runs with `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED` and
+`MCP_WRITES_ENABLED` set to `true`, and `VITE_AUTH0_CLIENT_ID` and `MCP_CLIENT_ID` set to
+the public SPA and MCP client IDs. Unset, the switches default to `false`; the release
+refuses to build without `VITE_AUTH0_CLIENT_ID`. Both client IDs are
 public identifiers, never client secrets. The release validates combinations before any
 deployment and reads the exact API flags and client ID back after deployment. Missing
 MCP client IDs are omitted from Cloud Run rather than deployed as empty strings.
 
 The issuer `https://login.luminull.com/` and REST audience
 `https://api.wally.luminull.com` are fixed in the API (`apps/api/src/lib/auth/constants.ts`), not set by the release.
-The web bundle receives the provider and SPA client ID at build time; changing repository
-variables does not change a deployed bundle. The Firebase build variables are still
-required: the release checks them, and the bundle keeps the Firebase sign-in that local
-development and CI use. These switches do not provision Auth0 tenant
+The web bundle receives the SPA client ID at build time; changing repository variables does
+not change a deployed bundle. These switches do not provision Auth0 tenant
 settings or grant connector access; see [AUTH0.md](AUTH0.md).
 
-**Repository secrets:** `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` are the Firebase test
-account CI signs in with by default. The opt-in Auth0 path uses `E2E_AUTH0_USER_PASSWORD` with the account email
-and subject stored as repository variables. Keep a separate password under that same
-secret name in Dependabot secrets, alongside its separate account variables. See the
-[E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
+**Repository secrets:** `E2E_AUTH0_USER_PASSWORD` is the password of the Auth0 test account
+CI signs in with; its email and subject are the repository variables above. Keep a separate
+password under that same secret name in Dependabot secrets, alongside its separate account
+variables. See the [E2E setup](../apps/web/e2e/README.md) for the isolated HTTPS routing.
 
 **Cloudflare, on the `production` environment:** the secret `CLOUDFLARE_API_TOKEN` and the
 variable `CLOUDFLARE_ACCOUNT_ID`, set by hand
@@ -1260,11 +1227,12 @@ them from the project: `wallyReleaseDomainRead` (the release's domain-mapping gu
 in v0.13.0), and `wallyScheduleDeployment` and `wallyCleanupJobIam` (the
 [account-cleanup worker](#account-cleanup-worker-retired)). Afterwards the deploy identity
 holds `roles/run.developer`, `roles/serviceusage.serviceUsageConsumer`,
-`roles/firebaserules.admin` and `roles/datastore.indexAdmin`; the last two go with Firestore.
+`roles/firebaserules.admin` and `roles/datastore.indexAdmin`; the last two go with Firestore
+([Firebase retired](#firebase-retired)).
 
-Firebase Hosting still lists `wally.luminull.com` as a custom domain after the console
-removal (checked 2026-11-01). It serves nothing, since DNS points at Cloudflare, and it goes
-with the Hosting site and the rest of Firebase in RFC-0011 workstream 6.
+Firebase Hosting still listed `wally.luminull.com` as a custom domain after the console
+removal (checked 2026-11-01). It served nothing, since DNS points at Cloudflare; it is deleted
+with the rest of Firebase ([Firebase retired](#firebase-retired)).
 
 ### How the edge behaves
 
@@ -1287,23 +1255,57 @@ with the Hosting site and the rest of Firebase in RFC-0011 workstream 6.
   added in the dashboard. The first release after the cutover shows it, and its production
   smoke test fails if the hostname was lost.
 
-## Firestore after the switch
+## Firebase retired
 
-Production has run v0.12.0 on PostgreSQL since 2026-11-01. The Firestore database stays,
-unused, until it is decommissioned (RFC-0011 section 6, workstream 6):
+Wally no longer uses Firebase (RFC-0011 workstream 6, part 1;
+[design](superpowers/specs/2026-11-01-retire-firebase-design.md)). Data has been on Supabase
+PostgreSQL since v0.12.0 and the web app on Cloudflare since v0.13.0; the release after v0.13.0
+removes Firebase Authentication, the local and CI sign-in, so Auth0 signs in everywhere. Nothing
+was carried over from Firestore: PostgreSQL started empty
+([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 1).
 
-- **The database is `wally`, in `europe-west3` (Frankfurt).** The project also has a
-  `(default)` database in `nam5` (United States), auto-created and empty. A v0.11.0
-  revision needs `FIRESTORE_DATABASE_ID=wally`; without it, firebase-admin writes to
-  `(default)`.
-- **Rules, composite indexes and the six TTL policies** were deployed by earlier releases
-  and stay on the `wally` database. The files that declared them are deleted from the
-  repository, and so is `firebase.json`, so nothing in the release touches them.
-- **IAM:** the `wally-api` account keeps `roles/datastore.user` (section 9a), and the deploy
-  identity keeps `roles/firebaserules.admin` and `roles/datastore.indexAdmin`, which
-  `scripts/bootstrap-gcp-cicd.sh` grants. Remove them at decommissioning.
-- **Data:** none is carried over. PostgreSQL starts empty, and every user starts with a new
-  account there ([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 1).
+The owner deletes the resources in three groups, each checked read-only afterwards; the
+table records the date each was done and checked. The design holds the exact commands.
+
+| Group                | Resource                                                                                                                                                                                                                                                                 | Action                           | Done and checked |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ---------------- |
+| A, any time          | Firestore database `wally` (`europe-west3`), with its indexes and TTL policies                                                                                                                                                                                           | deleted                          | 2026-11-01       |
+| A                    | Hosting custom domain `wally.luminull.com`                                                                                                                                                                                                                               | deleted (restorable for 30 days) | 2026-11-01       |
+| A                    | Hosting default site `luminull-wally`                                                                                                                                                                                                                                    | disabled                         | 2026-11-01       |
+| A                    | `roles/firebaserules.admin` and `roles/datastore.indexAdmin` on `github-deployer`; `roles/datastore.user` on `wally-api`                                                                                                                                                 | removed                          | 2026-11-01       |
+| B, after the merge   | Firebase Auth accounts, email/password and Google sign-in                                                                                                                                                                                                                | deleted, turned off              | pending          |
+| B                    | Web app registration and its browser API key                                                                                                                                                                                                                             | removed (restorable for 30 days) | pending          |
+| B                    | Service account `firebase-adminsdk-fbsvc`, its user-managed key and roles                                                                                                                                                                                                | deleted                          | pending          |
+| B                    | Firebase product APIs (`identitytoolkit`, `securetoken`, `firebasehosting`, `firebaserules`, `firestore`, `datastore`, `fcm`, `fcmregistrations`, `firebaseinstallations`, `firebaseremoteconfig`, `firebaseremoteconfigrealtime`, `firebaseappdistribution`, `testing`) | disabled                         | pending          |
+| B                    | GitHub variables `FIREBASE_PROJECT_ID` and `VITE_FIREBASE_*`, secrets `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` (repository and Dependabot), label `auth0-validation`                                                                                                     | deleted                          | pending          |
+| C, after the release | Production variables `AUTH0_ENABLED` and `VITE_AUTH_PROVIDER`                                                                                                                                                                                                            | deleted                          | pending          |
+
+**What stays, by necessity:**
+
+- **The Google Cloud project.** Cloud Run, Artifact Registry, Secret Manager, Workload
+  Identity Federation and Vertex AI live in it, and Firebase cannot be taken out of it: Google
+  documents that "once you 'add Firebase' to an existing Google Cloud project, it can't be
+  undone" ([existing Cloud project](https://firebase.google.com/docs/projects/use-firebase-with-existing-cloud-project)).
+  `firebase.googleapis.com` stays enabled, because Google warns that disabling the services
+  "add Firebase" enabled "could cause unexpected and unintended consequences due to
+  dependencies".
+- **The default Hosting site, disabled.** Google documents that "you cannot delete the default
+  site" ([multiple sites](https://firebase.google.com/docs/hosting/multisites)). A
+  `SITE_DISABLE` release makes Hosting act as if the site never existed; its old versions,
+  the public web bundle, stay stored.
+
+**Rolling back the API by Cloud Run revision still works,** because earlier revisions carry
+their own environment, but such a revision accepts Firebase ID tokens again, and creates a
+Wally user straight from a Firebase uid. That stays possible until group B turns Firebase
+sign-in off and deletes its accounts; after that no Firebase token can be issued. Rolling
+back past v0.12.0 was already ruled out (section 13). Whether the old path was ever used in
+production shows in the database: a Firebase uid is 28 characters, while every Auth0 signup
+gets a UUID, so this count should be 0:
+
+```sql
+select count(*) from users
+where id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+```
 
 ## Account-cleanup worker (retired)
 

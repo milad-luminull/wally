@@ -7,9 +7,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 const auth = vi.hoisted(() => ({
   status: 'unauthenticated',
   listeners: new Set<() => void>(),
-  signInWithEmail: vi.fn(),
-  signUpWithEmail: vi.fn(),
-  signInWithGoogle: vi.fn(),
+  hostedLogin: vi.fn(),
 }));
 vi.mock('@/features/auth/AuthProvider', async (importOriginal) => {
   const { useSyncExternalStore } = await import('react');
@@ -71,13 +69,16 @@ function renderEntry(route: string, state?: unknown) {
 
 beforeEach(() => {
   auth.status = 'unauthenticated';
-  for (const signIn of [auth.signInWithEmail, auth.signUpWithEmail, auth.signInWithGoogle]) {
-    signIn.mockReset().mockImplementation(async () => {
-      auth.status = 'authenticated';
-      for (const notify of auth.listeners) notify();
-    });
-  }
+  auth.hostedLogin.mockReset().mockResolvedValue(undefined);
 });
+
+/** The hosted login page signed the person in; the app learns it from the session. */
+async function finishHostedLogin() {
+  await act(async () => {
+    auth.status = 'authenticated';
+    for (const notify of auth.listeners) notify();
+  });
+}
 
 it.each(['/login', '/signup'])(
   '%s takes an existing session into its board instead of back to marketing',
@@ -88,37 +89,33 @@ it.each(['/login', '/signup'])(
   },
 );
 
-it.each(['/login', '/signup'])(
-  '%s preserves an invitation through successful Google authentication',
-  async (route) => {
+it.each([
+  ['/login', 'Continue to sign in', false],
+  ['/signup', 'Continue to create account', true],
+])(
+  '%s hands the invitation to hosted login and offers no password form',
+  async (route, label, signup) => {
     const user = userEvent.setup();
     renderEntry(route, { from: '/share/invitation-token' });
-    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }));
-    expect(await screen.findByText('Destination: /share/invitation-token')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password', { exact: true })).toBeNull();
+    await user.click(screen.getByRole('button', { name: label }));
+    expect(auth.hostedLogin).toHaveBeenCalledWith(signup, '/share/invitation-token');
   },
 );
 
-it('takes an email login from the public root into the user’s board', async () => {
+it('takes a visitor from the public root to hosted login', async () => {
   const user = userEvent.setup();
   renderEntry('/');
   await user.click(screen.getByRole('link', { name: 'Log in' }));
-  await user.type(screen.getByLabelText('Email'), 'visitor@example.test');
-  await user.type(screen.getByLabelText('Password', { exact: true }), 'test-password');
-  await user.click(screen.getByRole('button', { name: 'Sign in' }));
-  expect(await screen.findByText('Destination: /boards/own')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Continue to sign in' }));
+  expect(auth.hostedLogin).toHaveBeenCalledWith(false, null);
 });
 
 it.each(['/login', '/signup'])(
   '%s keeps the invitation while authentication is waiting for its token',
   async (route) => {
-    const user = userEvent.setup();
-    auth.signInWithGoogle.mockResolvedValue(undefined);
     renderEntry(route, { from: '/share/delayed-token' });
-    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }));
-    await act(async () => {
-      auth.status = 'authenticated';
-      for (const notify of auth.listeners) notify();
-    });
+    await finishHostedLogin();
     expect(await screen.findByText('Destination: /share/delayed-token')).toBeInTheDocument();
   },
 );

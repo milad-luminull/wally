@@ -12,7 +12,6 @@ export interface Auth0ClientPort {
     appState: { returnPath: string | null };
     authorizationParams: {
       screen_hint?: 'signup';
-      connection?: string;
       prompt?: 'login';
     };
   }): Promise<void>;

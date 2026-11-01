@@ -4,15 +4,10 @@ import { isLocalDatabaseUrl } from './lib/db/local.js';
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
-  FIREBASE_PROJECT_ID: z.string().min(1),
   // The PostgreSQL connection string. In production it goes through Supabase's transaction
   // pooler, which is why the client turns prepared statements off (lib/postgres/client.ts).
   DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
-  AUTH0_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
   AUTH0_SIGNUP_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -49,8 +44,8 @@ const envSchema = z.object({
   ASSISTANT_MODEL: z.string().min(3).default('vertex:gemini-3.8-flash'),
   // Vertex location and project for the deployment route: `eu` is the EU multi-region
   // endpoint (aiplatform.eu.rep.googleapis.com, which @ai-sdk/google-vertex builds for it). The
-  // project falls back to FIREBASE_PROJECT_ID. The Cloud Run service account needs
-  // roles/aiplatform.user.
+  // project is required when the assistant is on (checked in loadEnv); the release sets it to
+  // the Google Cloud project. The Cloud Run service account needs roles/aiplatform.user.
   ASSISTANT_VERTEX_LOCATION: z.string().min(1).default('eu'),
   ASSISTANT_VERTEX_PROJECT: z.string().min(1).optional(),
   // Per-user daily cap, in tokens; and the deployment's monthly cap in
@@ -71,6 +66,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
+  if (parsed.data.ASSISTANT_ENABLED && !parsed.data.ASSISTANT_VERTEX_PROJECT)
+    throw new Error(
+      'Invalid environment configuration: ASSISTANT_VERTEX_PROJECT is required when ASSISTANT_ENABLED=true',
+    );
   if (parsed.data.MCP_LOCAL_URL) {
     const url = new URL(parsed.data.MCP_LOCAL_URL);
     if (

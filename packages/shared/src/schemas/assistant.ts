@@ -96,7 +96,7 @@ export const SUGGESTION_MAX_SUBTASKS = 5;
 /** Related notes a proposal may name; more would be a map of the board, not a note. */
 export const SUGGESTION_MAX_LINKS = 3;
 
-const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
+const recordId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
 
 /**
  * POST /whiteboards/:id/assistant/captures. `locked` names the fields the person decided
@@ -104,7 +104,7 @@ const firestoreId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/, 'Invalid id');
  */
 export const captureSuggestRequestSchema = z
   .object({
-    noteId: firestoreId,
+    noteId: recordId,
     locked: z.array(suggestionFieldKeySchema).max(suggestionFieldKeys.length).default([]),
     timeZone: z.string().min(1).max(64).refine(isTimeZone, 'Unknown time zone'),
     today: z.string().date(),

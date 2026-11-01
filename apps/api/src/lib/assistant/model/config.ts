@@ -20,18 +20,18 @@ export function parseModelRef(value: string): ModelRef {
   return { provider: provider as ModelRef['provider'], model };
 }
 
-type VertexEnv = Pick<
-  Env,
-  'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT' | 'FIREBASE_PROJECT_ID'
->;
+type VertexEnv = Pick<Env, 'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT'>;
 
 /** The library's model object; `LanguageModel` also admits a bare id string, which this never returns. */
 type ResolvedLanguageModel = Exclude<LanguageModel, string>;
 
 /** Builds the library's model object for a reference. No network call happens here. */
 export function resolveLanguageModel(ref: ModelRef, env: VertexEnv): ResolvedLanguageModel {
+  // loadEnv already refuses an enabled assistant without it; this guards any other caller.
+  if (!env.ASSISTANT_VERTEX_PROJECT)
+    throw new Error('ASSISTANT_VERTEX_PROJECT is required to call the assistant model');
   const settings = {
-    project: env.ASSISTANT_VERTEX_PROJECT ?? env.FIREBASE_PROJECT_ID,
+    project: env.ASSISTANT_VERTEX_PROJECT,
     location: env.ASSISTANT_VERTEX_LOCATION,
     // No credentials are passed: the provider uses Application Default Credentials (the
     // Cloud Run runtime account, or a developer's `gcloud auth application-default login`).

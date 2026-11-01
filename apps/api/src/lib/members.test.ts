@@ -132,8 +132,8 @@ describe('members business logic', () => {
 
     it('creates a PENDING row when the only user record for that email is unverified', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
-      // Firebase permits sign-up with an address you do not control, so this record proves
-      // nothing: it must be treated exactly like no record at all.
+      // The sign-in provider permits sign-up with an address you do not control, so this
+      // record proves nothing: it must be treated exactly like no record at all.
       await createTestUser(db, 'squatter', 'invitee@example.com', null, false);
       const board = await createTestBoard(db, 'owner');
 
@@ -265,7 +265,7 @@ describe('members business logic', () => {
 
   describe('redeemShareLink', () => {
     /** redeemShareLink takes the caller, not a bare uid: claiming an invite keyed by
-     *  invitedEmail is only allowed for an address Firebase has confirmed. */
+     *  invitedEmail is only allowed for an address the sign-in provider has confirmed. */
     const caller = (id: string, email: string, emailVerified = true) => ({
       id,
       email,

@@ -147,13 +147,7 @@ export function tidySchemaJson(): Promise<string> {
 
 /** The runner for the deployment's configured model; a tidy's answer is as small as a capture's. */
 export function createConfiguredTidyRunner(
-  env: Pick<
-    Env,
-    | 'ASSISTANT_MODEL'
-    | 'ASSISTANT_VERTEX_LOCATION'
-    | 'ASSISTANT_VERTEX_PROJECT'
-    | 'FIREBASE_PROJECT_ID'
-  >,
+  env: Pick<Env, 'ASSISTANT_MODEL' | 'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT'>,
 ): TidyRunner {
   const ref = parseModelRef(env.ASSISTANT_MODEL);
   return createTidyRunner(resolveLanguageModel(ref, env), suggestionCallSettings(ref));

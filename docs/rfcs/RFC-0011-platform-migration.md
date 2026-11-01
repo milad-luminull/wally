@@ -2,7 +2,8 @@
 
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
-  (both 2026-11-01). See section 4.
+  (both 2026-11-01). Workstream 6, part 1 (Firebase retired) is merged, not released. See
+  section 4.
 - **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31 and 2026-11-01
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
@@ -117,6 +118,13 @@ and its own E2E specs. Plans are not stacked.
   hostnames to the Workers the same day, and every check passed, including an assistant
   question and a ChatGPT read. The Cloud Run domain mapping is deleted. Its Worker proof
   passed (section 5, item 5).
+- Workstream 6, part 1 is merged, not released: Firebase is retired, including Firebase
+  Authentication, which goes before the identity cutover by the owner's decision of
+  2026-11-01. Auth0 is the only sign-in, locally and in CI as well
+  ([design](../superpowers/specs/2026-11-01-retire-firebase-design.md),
+  [plan](../superpowers/plans/2026-11-01-retire-firebase.md)). The owner deletes the
+  Firebase resources in three groups ([DEPLOY.md](../DEPLOY.md#firebase-retired)). Auth0
+  goes with workstream 3.
 - No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
@@ -184,25 +192,31 @@ Each has to be proven on a free project before the slice that depends on it.
   - Nothing is deleted at a provider until that window has closed and a restore drill on
     the new side has passed.
   - Permanent dual writes are not allowed.
-- **Firestore:** no final export, since nothing is kept (owner, 2026-10-27). After the
-  rollback window, delete the `wally` database, the rules and indexes deploy, and the TTL
-  policies.
-- **Firebase Authentication and Auth0:**
-  - Retire Firebase Authentication and Auth0 only after the identity cutover's rollback
-    window, and after every account that moved has been shown to sign in through
-    Supabase Auth.
+- **Firebase (workstream 6, part 1):** done in code, merged, not released; the owner runs
+  the resource deletions, recorded in [DEPLOY.md](../DEPLOY.md#firebase-retired) with their
+  dates.
+  - **Firestore:** no final export, since nothing is kept (owner, 2026-10-27). The `wally`
+    database goes, and with it its indexes and TTL policies. The rules and indexes release
+    steps were already gone (workstreams 2 and 4).
+  - **Firebase Authentication** goes now, before the identity cutover (owner, 2026-11-01),
+    rather than with Auth0: it served only local development and CI, which move to Auth0.
+    Its accounts, sign-in settings, web app registration and browser key are deleted after
+    the merge (group B).
+  - **Firebase Hosting:** its custom domain was removed in the console right after the
+    Cloudflare cutover was verified, with no window (owner, 2026-11-01), but Hosting still
+    listed it; it is deleted here. The default site cannot be deleted, so it is disabled.
+    The Cloud Run domain mapping was deleted on 2026-11-01.
+  - **Code and docs:** `firebase-admin`, `firebase` and every Firebase setting are removed;
+    DEPLOY, SETUP, GDPR, AUTH0, the architecture overview and the indexes are updated in the
+    same change.
+  - **What stays:** the Google Cloud project, which Google does not let Firebase be removed
+    from (DEPLOY, Firebase retired).
+- **Auth0 (workstream 3):**
+  - Retire Auth0 only after the identity cutover's rollback window, and after every account
+    that moved has been shown to sign in through Supabase Auth.
   - Retire Auth0's custom domain `login.luminull.com` and its tenant.
   - Disconnect the ChatGPT client registered in Auth0.
-- **Firebase Hosting:** its custom domain was removed in the console right after the
-  Cloudflare cutover was verified, with no window (owner, 2026-11-01), but Hosting still
-  lists it. It serves nothing, since DNS points at Cloudflare. It and the Hosting site go
-  here. The Cloud Run domain mapping was deleted the same day.
-- **Code and docs:**
-  - Remove `firebase-admin`, `firebase`, `@auth0/*` and the emulator image.
-  - `firebase.json`, the rules, the indexes and their release steps are already gone
-    (workstreams 2 and 4).
-  - Update DEPLOY, SETUP, GDPR and the architecture overview in the slice that changes
-    them.
+  - Remove `@auth0/*`.
 
 ## 7. Review of the brief
 

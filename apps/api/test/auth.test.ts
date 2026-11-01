@@ -3,7 +3,7 @@ import { INITIAL_BOARD_NAME } from '@wally/shared';
 import { eq } from 'drizzle-orm';
 import { liveBoard } from '../src/lib/db/records.js';
 import type { Database } from '../src/lib/postgres/client.js';
-import { boardMembers, users } from '../src/lib/postgres/schema/index.js';
+import { boardMembers, users, whiteboards } from '../src/lib/postgres/schema/index.js';
 import {
   buildTestApp,
   createTestMembership,
@@ -104,7 +104,7 @@ describe('auth preHandler', () => {
   });
 
   it('does NOT auto-activate a pending invite for an unverified email claim', async () => {
-    // Firebase allows sign-up with an unverified email — without this check, an attacker
+    // The sign-in provider allows sign-up with an unverified email — without this check, an attacker
     // could claim someone else's pending invite just by typing in their email address,
     // no access to that inbox required.
     const ownerToken = registerTestUser(ctx, 'auth-owner-2', 'auth-owner-2@example.com');
@@ -164,5 +164,82 @@ describe('auth preHandler', () => {
     // emailVerified has to take part in the fast-path comparison, or a user who verifies
     // later keeps a stale false forever and the invite waiting on it never activates.
     expect((await userRow(ctx.db, 'auth-later'))?.emailVerified).toBe(true);
+  });
+
+  it('refuses a second identity whose email already belongs to a user, and activates nothing', async () => {
+    const ownerToken = registerTestUser(ctx, 'a-owner', 'a-owner@example.com');
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(ownerToken) });
+    await createTestMembership(ctx.db, 'a-owner', {
+      invitedEmail: 'a-owner@example.com',
+      role: 'EDIT',
+      status: 'PENDING',
+    });
+
+    const other = registerTestUser(ctx, 'a-other', 'A-Owner@example.com');
+    const res = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(other),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('IDENTITY_NOT_LINKED');
+    expect(await userRow(ctx.db, 'a-other')).toBeUndefined();
+    const [member] = await membersOf(ctx.db, 'a-owner');
+    expect(member?.status).toBe('PENDING');
+  });
+
+  it('creates a new account when the user record and its identity mapping are gone', async () => {
+    const token = registerTestUser(ctx, 'a-removed', 'removed@example.com');
+    await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.db
+      .update(users)
+      .set({ preferences: { theme: 'dark' } })
+      .where(eq(users.id, 'a-removed'));
+    await ctx.db.delete(whiteboards).where(eq(whiteboards.ownerId, 'a-removed'));
+    await ctx.db.delete(users).where(eq(users.id, 'a-removed'));
+
+    // The mapping cascades with its user, so the identity is unknown again and signup creates
+    // a fresh user. The deleted user's data is not brought back.
+    const res = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(token),
+    });
+    expect(res.statusCode).toBe(200);
+    const fresh = await userRow(ctx.db, 'a-removed');
+    expect(fresh?.email).toBe('removed@example.com');
+    // A new account, not the old one restored: the old preferences are gone. (In production
+    // the new account also gets a new random id; tests name it through newUserId.)
+    expect(fresh?.preferences).not.toEqual({ theme: 'dark' });
+  });
+});
+
+describe('auth preHandler with signup off', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await buildTestApp({ auth0SignupEnabled: false });
+  });
+
+  afterAll(async () => {
+    await resetDatabase(ctx.db);
+    await ctx.app.close();
+  });
+
+  it('refuses an unknown identity and writes nothing', async () => {
+    const token = registerTestUser(ctx, 'a-unknown', 'unknown@example.com');
+    const res = await ctx.inject({
+      method: 'GET',
+      url: '/whiteboards',
+      headers: ctx.authHeader(token),
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('IDENTITY_NOT_LINKED');
+    expect(await userRow(ctx.db, 'a-unknown')).toBeUndefined();
+    expect(await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, 'a-unknown'))).toEqual(
+      [],
+    );
   });
 });

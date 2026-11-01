@@ -4,7 +4,7 @@ import { useAuth } from './AuthProvider';
 import { AppSkeleton } from '@/components/AppSkeleton';
 
 /**
- * Shows a full-page skeleton while Firebase auth state resolves — never flashes the
+ * Shows a full-page skeleton while the sign-in session resolves — never flashes the
  * login form — then redirects to /login or renders children once authenticated.
  *
  * The intended location goes along to /login only for a visitor who arrived signed out. After

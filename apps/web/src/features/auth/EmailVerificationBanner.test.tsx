@@ -16,10 +16,7 @@ import { createTestQueryClient, renderWithProviders } from '@/test/renderWithPro
 import { makeBoard } from '@/test/fixtures';
 import { EmailVerificationBanner } from './EmailVerificationBanner';
 
-const HEADLINE = 'Confirm your email address';
-
 describe('EmailVerificationBanner', () => {
-  let resendVerificationEmail: ReturnType<typeof vi.fn>;
   let refreshUser: ReturnType<typeof vi.fn>;
   // Read on every render, the way the real provider's state is: refreshUser flipping this
   // is what makes the banner swap to its confirmed state.
@@ -29,8 +26,8 @@ describe('EmailVerificationBanner', () => {
     mockUseAuth.mockImplementation(() => ({
       user: { email: 'max@example.com' },
       emailVerified: verified,
-      resendVerificationEmail,
       refreshUser,
+      hostedLogin: async () => {},
       ...overrides,
     }));
   }
@@ -38,7 +35,6 @@ describe('EmailVerificationBanner', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     verified = false;
-    resendVerificationEmail = vi.fn().mockResolvedValue(undefined);
     refreshUser = vi.fn().mockImplementation(async () => {
       verified = true;
       return true;
@@ -47,8 +43,7 @@ describe('EmailVerificationBanner', () => {
     arrange();
   });
 
-  it('shows failed and still-unverified checks in hosted login mode', async () => {
-    arrange({ hostedLogin: async () => {} });
+  it('shows failed and still-unverified checks', async () => {
     refreshUser.mockResolvedValue(false);
     renderWithProviders(<EmailVerificationBanner />);
     await userEvent.click(screen.getByRole('button', { name: "I've confirmed" }));
@@ -59,7 +54,6 @@ describe('EmailVerificationBanner', () => {
   });
 
   it('refetches boards after verification even when the old list is fresh in cache', async () => {
-    arrange({ hostedLogin: async () => {} });
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(['u', 'anon', 'me', 'boards'], []);
     vi.mocked(boardsApi.list).mockResolvedValue([
@@ -79,54 +73,13 @@ describe('EmailVerificationBanner', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('explains that an invite stays blocked until the address is confirmed', () => {
+  it('points to the login service for verification and never offers a resend', () => {
     renderWithProviders(<EmailVerificationBanner />);
-
-    expect(screen.getByText(HEADLINE)).toBeInTheDocument();
-    // The address is named, so a typo at sign-up is visible rather than mysterious.
-    expect(screen.getByText('max@example.com')).toBeInTheDocument();
-    expect(screen.getByText(/you have been invited to/)).toBeInTheDocument();
-  });
-
-  it('says the email could not be sent at sign-up, never that it is on its way', () => {
-    arrange({ verificationSendFailed: true });
-    renderWithProviders(<EmailVerificationBanner />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t send the email. Try again.');
-    expect(screen.queryByText(/is on its way/)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Resend email' })).toBeInTheDocument();
-  });
-
-  it('sends another verification email and confirms it went out', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<EmailVerificationBanner />);
-
-    await user.click(screen.getByRole('button', { name: 'Resend email' }));
-
-    expect(resendVerificationEmail).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/Email sent/)).toBeInTheDocument();
-  });
-
-  it('blocks a second send during the cooldown window', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<EmailVerificationBanner />);
-
-    await user.click(screen.getByRole('button', { name: 'Resend email' }));
-
-    // Asserted as disabled rather than by advancing timers: fake timers are a documented
-    // flakiness source in this suite.
-    await waitFor(() => expect(screen.getByRole('button', { name: /Resend in/ })).toBeDisabled());
-    expect(resendVerificationEmail).toHaveBeenCalledTimes(1);
-  });
-
-  it('names the rate limit instead of a generic failure', async () => {
-    const user = userEvent.setup();
-    resendVerificationEmail.mockRejectedValue({ code: 'auth/too-many-requests' });
-    renderWithProviders(<EmailVerificationBanner />);
-
-    await user.click(screen.getByRole('button', { name: 'Resend email' }));
-
-    // "Try again" on a throttle the user cannot clear by trying again is actively unhelpful.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Verify your email using the message from our login service',
+    );
+    expect(screen.getByRole('button', { name: "I've confirmed" })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Resend/ })).toBeNull();
   });
 
   it('keeps the banner up when the address is still unconfirmed after a check', async () => {
@@ -137,7 +90,7 @@ describe('EmailVerificationBanner', () => {
     await user.click(screen.getByRole('button', { name: "I've confirmed" }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Not confirmed yet');
-    expect(screen.getByText(HEADLINE)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: "I've confirmed" })).toBeInTheDocument();
   });
 
   /**
