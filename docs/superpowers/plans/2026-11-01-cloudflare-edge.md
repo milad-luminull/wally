@@ -28,7 +28,8 @@ the owner on 2026-11-01, within [RFC-0011](../../rfcs/RFC-0011-platform-migratio
 - Wrangler is exactly `4.151.3` everywhere: both `devDependencies` and every `npx` command
   (released 2026-10-20; the newest, 4.156.0, is three days old).
 - `compatibility_date` is `"2026-10-26"` (the newest the pinned runtime supports) in both `wrangler.jsonc` files.
-- Both Workers: `workers_dev: true`, `preview_urls: true`, `observability: { enabled: false }`.
+- Both Workers: `workers_dev: true`, `preview_urls: true`, `observability: { enabled: false }`,
+  `send_metrics: false`, `dependencies_instrumentation: { enabled: false }`.
   No routes in config: Custom Domains are added by the owner in the dashboard at cutover.
 - Workers Free and Cloudflare Free only. Nothing is spent without the owner's approval.
 - The proxy never retries, rewrites bodies, authenticates, caches, logs or follows redirects.
@@ -358,9 +359,10 @@ Delete the mapping-readiness cases. Keep the canonical-URL and CORS cases.
 
 - Consumes: Task 3's output fields; Task 4's `apply ... --workers`; Task 5's `CHECK_URL`.
 - Produces: a new secret `CLOUDFLARE_API_TOKEN` and a new variable `CLOUDFLARE_ACCOUNT_ID`, both
-  in the `production` environment. They are passed per step, never at job level, to these steps
-  only: the snapshot, the upload, the deploy and the rollback. Those steps also get
-  `WRANGLER_SEND_METRICS: 'false'`.
+  in the `production` environment. The token is passed per step, to these steps only: the
+  Cloudflare validation, the snapshot, the upload, the deploy and the rollback. The account ID
+  is read in the deploy job's `env`, the job that declares the environment (final review).
+  Telemetry is off in both `wrangler.jsonc` files (`send_metrics: false`), not by variable.
 
 - [ ] **Step 1: Edit `release.yml`:**
   1. Drop `FIREBASE_TOOLS_VERSION` and `install_components: beta`. Fix the comments that
@@ -383,8 +385,8 @@ Delete the mapping-readiness cases. Keep the canonical-URL and CORS cases.
      check does.
      - **Proxy:** `/health` has `status` "ok" and `database` "ok". Then
        `CHECK_URL=<proxy_preview> node scripts/check-api-domain.mjs`. Then `POST /mcp` with no
-       token: if `MCP_ENABLED=true`, it answers 401 with a `WWW-Authenticate` containing
-       `resource_metadata=`; otherwise 503.
+       token answers 401 with a `WWW-Authenticate` containing `resource_metadata=`. MCP is
+       always on in production (owner, 2026-11-01), so there is no disabled branch.
      - **Web:** `/` and `/boards/smoke-test` answer 200. The entry bundle references the API
        host, and its `cache-control` contains `immutable`.
   6. Replace "Deploy Firebase Hosting" with **"Deploy the Workers"** (`id: workers`), after the

@@ -282,6 +282,8 @@ origin.
 
 **What it does not do:**
 
+- No telemetry: both `wrangler.jsonc` files set `send_metrics: false` and turn off
+  `dependencies_instrumentation`.
 - No logging. Workers Logs stay off, because request URLs can carry share-link tokens
   (`/share-links/<token>`), which the API redacts in its own logs.
 - Request counts, errors and CPU time come from the dashboard's built-in metrics.
@@ -344,6 +346,11 @@ ADR-0022 allows either choice without a new ADR; its text is updated to name thi
    - `wrangler versions upload` refuses a Worker that does not exist yet (proof, check 9).
      So both Workers are created once, by hand, before the first release (DEPLOY), and the
      snapshot stops the release before any change if either is missing.
+   - The snapshot also refuses while a Worker's active deployment still carries this
+     release's tag as its message. The release deploys with the tag as the message and a
+     rollback replaces it, so that state means an earlier run's recovery failed; recording it
+     would make the failed version the rollback target. DEPLOY's "When a release fails"
+     says how to put it right.
 2. **Image, then migrations:** unchanged.
 3. **Cloud Run candidate, no traffic, then its smoke test:** unchanged.
 4. **Build and check the web bundle:** unchanged.

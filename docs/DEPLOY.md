@@ -775,6 +775,38 @@ The same commands with `--filter @wally/api-proxy` roll back the proxy. **There 
 rollback window to Firebase Hosting:** the owner chose none (2026-11-01), because production
 had no users or data yet.
 
+### When a release fails
+
+Where it stopped decides what happened, and what to do:
+
+- **Before the traffic shift** (the guards, the migrations, the Cloud Run candidate or its
+  smoke test, the bundle checks, the Worker uploads or their preview smoke test):
+  production never changed. Migrations that ran stay applied, which is safe because every
+  migration works with the revision still serving (section 7). Uploaded Worker versions
+  take no traffic. Fix the cause, then rerun the run or push a new tag.
+- **After the traffic shift:** the release restores what it recorded before it started
+  (`release-state.json`, uploaded as the `release-state-<run>-<attempt>` artifact): the
+  previous Cloud Run revision, and each Worker whose active version changed. The run's
+  summary shows **Recovery: success**. Then fix and rerun, as above.
+- **Recovery: failure** means production may be mixed: say, the old API with the new web
+  app. The step's log names what failed. Put it right by hand from the artifact's values,
+  then rerun:
+
+  ```bash
+  gh run download <run-id> --repo milad-luminull/wally --name release-state-<run-id>-<attempt>
+  cat release-state.json      # revision, and workers: { wally-api-proxy, wally-web }
+  gcloud run services update-traffic wally-api --region=europe-west1 --to-revisions=<revision>=100
+  pnpm --filter @wally/api-proxy exec wrangler rollback <wally-api-proxy version> --message "Release rollback" -y
+  pnpm --filter @wally/web exec wrangler rollback <wally-web version> --message "Release rollback" -y
+  ```
+
+  The Wrangler commands need `wrangler login`, or the token in `CLOUDFLARE_API_TOKEN` and
+  the account ID in `CLOUDFLARE_ACCOUNT_ID`. Until production is back, a rerun refuses at
+  "Capture the current production state": Cloud Run must not serve the failed release's
+  revision, and no Worker may still carry the failed release's tag as its deployment
+  message (the release deploys with the tag as the message; a rollback replaces it). This
+  stops a rerun from recording the failed release as the state to go back to.
+
 **A rollback reverts the API, never the schema.** There are no down migrations, so the
 schema a release applied stays when its revision is rolled back. That is why every migration
 must keep working with the revision before it (section 7).
@@ -1032,10 +1064,16 @@ and subject stored as repository variables. Keep a separate password under that 
 secret name in Dependabot secrets, alongside its separate account variables. See the
 [E2E setup](../apps/web/e2e/README.md) for provider selection and isolated HTTPS routing.
 
+**Cloudflare, on the `production` environment:** the secret `CLOUDFLARE_API_TOKEN` and the
+variable `CLOUDFLARE_ACCOUNT_ID`, set by hand
+([Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after)). The release
+validates both before any change.
+
 > There is deliberately **no service-account key anywhere.** The organization enforces
 > `iam.disableServiceAccountKeyCreation`, and the API never uses one: ADC on Cloud Run, and
-> nothing elsewhere, since verifying a token needs no credential (section 5). The database
-> password is the one secret, in Secret Manager (section 7).
+> nothing elsewhere, since verifying a token needs no credential (section 5). Two
+> credentials are long-lived: the database password, in Secret Manager (section 7), and
+> the Cloudflare release token.
 
 ### Why traces are disabled in CI
 
@@ -1196,8 +1234,14 @@ Straight away, since there is no rollback window (owner, 2026-11-01):
 gcloud beta run domain-mappings delete --domain=api.wally.luminull.com --region=europe-west1 --project=luminull-wally
 ```
 
-and in the Firebase console, **Hosting → wally.luminull.com → Remove**. The Hosting site
-itself goes with the rest of Firebase in RFC-0011 workstream 6.
+and in the Firebase console, **Hosting → wally.luminull.com → Remove**. The release no longer
+deploys to Firebase Hosting, so its deploy identity no longer needs the Hosting role:
+
+```bash
+gcloud projects remove-iam-policy-binding luminull-wally --member=serviceAccount:github-deployer@luminull-wally.iam.gserviceaccount.com --role=roles/firebasehosting.admin --condition=None
+```
+
+The Hosting site itself goes with the rest of Firebase in RFC-0011 workstream 6.
 
 ### How the edge behaves
 
@@ -1213,6 +1257,9 @@ itself goes with the rest of Firebase in RFC-0011 workstream 6.
 - **No logs.** Workers Logs are off on both Workers: request URLs can carry share-link
   tokens, which the API redacts in its own logs. Request counts, errors and CPU time are in
   the dashboard's metrics.
+- **No telemetry.** Both `wrangler.jsonc` files set `send_metrics: false` and turn off
+  `dependencies_instrumentation`, so Wrangler sends Cloudflare neither usage data nor the
+  list of npm dependencies, locally or in CI.
 - **Not yet verified:** whether a release (`wrangler versions deploy`) keeps a Custom Domain
   added in the dashboard. The first release after the cutover shows it, and its production
   smoke test fails if the hostname was lost.

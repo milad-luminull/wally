@@ -195,7 +195,8 @@ Each has to be proven on a free project before the slice that depends on it.
   verified, with no window (owner, 2026-11-01); the Hosting site itself goes here.
 - **Code and docs:**
   - Remove `firebase-admin`, `firebase`, `@auth0/*` and the emulator image.
-  - Remove `firebase.json`, the rules, the indexes and the matching release steps.
+  - `firebase.json`, the rules, the indexes and their release steps are already gone
+    (workstreams 2 and 4).
   - Update DEPLOY, SETUP, GDPR and the architecture overview in the slice that changes
     them.
 
