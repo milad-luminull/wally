@@ -2,7 +2,7 @@
 
 This document describes Wally at the system level: what the repository contains, how the parts relate, and where the boundaries are. It follows the [C4 model](https://c4model.com/); levels 1 and 2 live here. Decisions and their reasons are in the [ADRs](../adr/README.md).
 
-It describes the code. The decided move to Supabase and Cloudflare is planned in [RFC-0011](../rfcs/RFC-0011-platform-migration.md). Production runs the API on Supabase PostgreSQL since v0.12.0 and behind the Cloudflare edge since v0.13.0 (both 2026-11-01). Firebase is gone from the code: Auth0 is the only sign-in, locally and in CI as well ([DEPLOY.md](../DEPLOY.md#firebase-retired)).
+It describes the code. The decided move to Supabase and Cloudflare is planned in [RFC-0011](../rfcs/RFC-0011-platform-migration.md). Production runs the API on Supabase PostgreSQL since v0.12.0, behind the Cloudflare edge since v0.13.0, and with Auth0 as the only sign-in since v0.14.0 (all 2026-11-01). Firebase is retired ([DEPLOY.md](../DEPLOY.md#firebase-retired)).
 
 ## Level 1: System context
 

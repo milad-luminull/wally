@@ -2,8 +2,8 @@
 
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
-  (both 2026-11-01). Workstream 6, part 1 (Firebase retired) is merged, not released. See
-  section 4.
+  (both 2026-11-01). Workstream 6, part 1 (Firebase retired) is live since v0.14.0
+  (2026-11-01). See section 4.
 - **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31 and 2026-11-01
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
@@ -118,13 +118,13 @@ and its own E2E specs. Plans are not stacked.
   hostnames to the Workers the same day, and every check passed, including an assistant
   question and a ChatGPT read. The Cloud Run domain mapping is deleted. Its Worker proof
   passed (section 5, item 5).
-- Workstream 6, part 1 is merged, not released: Firebase is retired, including Firebase
-  Authentication, which goes before the identity cutover by the owner's decision of
+- Workstream 6, part 1 is live since v0.14.0 (2026-11-01): Firebase is retired, including
+  Firebase Authentication, which went before the identity cutover by the owner's decision of
   2026-11-01. Auth0 is the only sign-in, locally and in CI as well
   ([design](../superpowers/specs/2026-11-01-retire-firebase-design.md),
-  [plan](../superpowers/plans/2026-11-01-retire-firebase.md)). The owner deletes the
-  Firebase resources in three groups ([DEPLOY.md](../DEPLOY.md#firebase-retired)). Auth0
-  goes with workstream 3.
+  [plan](../superpowers/plans/2026-11-01-retire-firebase.md)). The owner deleted the
+  Firebase resources the same day ([DEPLOY.md](../DEPLOY.md#firebase-retired)). Auth0 goes
+  with workstream 3.
 - No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
@@ -181,7 +181,9 @@ Each has to be proven on a free project before the slice that depends on it.
    - Streaming passes chunk by chunk, so a streamed assistant would also work.
    - Nothing was cached, even a response marked `public, max-age=600`.
    - An MCP-shaped POST and non-browser clients passed the zone's bot settings, from a home
-     IP; the cutover's real ChatGPT call is the last check.
+     IP; the cutover's real ChatGPT call is the last check. _Later:_ the first release
+     through Cloudflare (v0.14.0) was challenged by Bot Fight Mode from its GitHub runner,
+     so Bot Fight Mode is off ([DEPLOY.md](../DEPLOY.md#zone-security-for-luminullcom)).
    - An unreachable origin gets Cloudflare's own error page (530, 524), not the proxy's 502.
 
 ## 6. Decommissioning and rollback
@@ -192,16 +194,15 @@ Each has to be proven on a free project before the slice that depends on it.
   - Nothing is deleted at a provider until that window has closed and a restore drill on
     the new side has passed.
   - Permanent dual writes are not allowed.
-- **Firebase (workstream 6, part 1):** done in code, merged, not released; the owner runs
-  the resource deletions, recorded in [DEPLOY.md](../DEPLOY.md#firebase-retired) with their
-  dates.
+- **Firebase (workstream 6, part 1):** done, live since v0.14.0; the owner ran the resource
+  deletions on 2026-11-01, recorded in [DEPLOY.md](../DEPLOY.md#firebase-retired).
   - **Firestore:** no final export, since nothing is kept (owner, 2026-10-27). The `wally`
     database goes, and with it its indexes and TTL policies. The rules and indexes release
     steps were already gone (workstreams 2 and 4).
   - **Firebase Authentication** goes now, before the identity cutover (owner, 2026-11-01),
     rather than with Auth0: it served only local development and CI, which move to Auth0.
-    Its accounts, sign-in settings, web app registration and browser key are deleted after
-    the merge (group B).
+    Its accounts, sign-in settings, web app registration and browser key were deleted on
+    2026-11-01.
   - **Firebase Hosting:** its custom domain was removed in the console right after the
     Cloudflare cutover was verified, with no window (owner, 2026-11-01), but Hosting still
     listed it; it is deleted here. The default site cannot be deleted, so it is disabled.

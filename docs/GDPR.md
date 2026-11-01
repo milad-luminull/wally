@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                                                                                                                                                                | Basis                                       |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                                                                                                                                                           | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI; Firebase Authentication, unused, until its leftover accounts are deleted), Auth0 (sign-in for web and MCP), Supabase (the database, since v0.12.0) and Cloudflare (serves the web app and forwards all API traffic, since 2026-11-01) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                                |                                             |
+| Role          | Who                                                                                                                                                                                                                      | Basis                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                                                                 | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI), Auth0 (sign-in for web and MCP), Supabase (the database, since v0.12.0) and Cloudflare (serves the web app and forwards all API traffic, since 2026-11-01) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                      |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -49,7 +49,7 @@ single source of truth for stored shapes; field names are the row types' in
 [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
-**Where the data lives (2026-11-01).** Production runs v0.13.0, which stores everything in
+**Where the data lives (2026-11-01).** Production runs v0.14.0, which stores everything in
 PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Nothing was copied across from
 Cloud Firestore, the earlier store: PostgreSQL started empty, and the Firestore database was
 deleted on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)).
@@ -147,11 +147,9 @@ Free plan, on 2026-10-31.
 ### Elsewhere
 
 - **Auth0** holds the production login identity (see [Auth0 and MCP data](#auth0-and-mcp-data)).
-- **Firebase Authentication** is no longer used by the code, but until its group B deletion
-  ([DEPLOY.md](DEPLOY.md#firebase-retired)) it still holds 9 accounts, some with real
-  people's email addresses, and Google's own sign-in metadata (last login, provider). None
-  maps to a Wally account since the v0.11.0 data reset. Deleting a `users` row touches
-  neither identity store — erasure has to address Auth0, and Firebase until then (GAP-01).
+- **Firebase Authentication** is retired: its 9 leftover accounts were deleted and its
+  sign-in turned off on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)). Deleting a
+  `users` row does not touch Auth0 — erasure has to address both (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`

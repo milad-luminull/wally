@@ -21,14 +21,15 @@ The root [`README.md`](../README.md) covers how to run, test and deploy the app.
 
 ## What production runs today
 
-Checked on 2026-11-01. Production runs **v0.13.0** (deployed 2026-11-01), which is everything
-on `main` up to #90: the API on Supabase PostgreSQL, behind the Cloudflare edge. The v0.11.0 release deleted all production
+Checked on 2026-11-01. Production runs **v0.14.0** (deployed 2026-11-01), which is everything
+on `main` up to #93: the API on Supabase PostgreSQL, behind the Cloudflare edge, with Auth0 as
+the only sign-in. The v0.11.0 release deleted all production
 data (ADR-0024). The v0.10.0 release failed to deploy and never served traffic.
 
 | Part                | Today                                                                        | Decided by                                                                                                                                                                                                     | Planned replacement                                                                                    |
 | ------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Data                | Supabase PostgreSQL (Ireland), reached only through the API                  | [ADR-0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)                                                                                                                                     | Done: live since v0.12.0 (2026-11-01). Firestore is retired ([DEPLOY](DEPLOY.md#firebase-retired))     |
-| Web and MCP sign-in | Auth0; Firebase token checks are removed on `main`, not yet released         | [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md), [RFC-0006](rfcs/RFC-0006-auth0-mcp-rollout.md)                                                                                                              | Supabase Auth ([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md)), not started                 |
+| Web and MCP sign-in | Auth0 only; Firebase token checks removed in v0.14.0                         | [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md), [RFC-0006](rfcs/RFC-0006-auth0-mcp-rollout.md)                                                                                                              | Supabase Auth ([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md)), not started                 |
 | Web hosting         | A Cloudflare Worker serving static files (`wally-web`)                       | [ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)                                                                                                                                                     | Done: live since v0.13.0 (2026-11-01). Firebase Hosting no longer serves Wally; its site is disabled   |
 | API                 | Fastify on Cloud Run, `europe-west1`, behind the `wally-api-proxy` Worker    | [ADR-0005](adr/ADR-0005-rest-api-validated-with-shared-zod-schemas.md), [ADR-0008](adr/ADR-0008-tag-triggered-release-to-hosting-and-cloud-run.md), [ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md) | Stays. The proxy in front is live since v0.13.0 (2026-11-01)                                           |
 | Domains             | Cloudflare: both hostnames are Custom Domains on their Workers               | [ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)                                                                                                                                                     | Done: cut over on 2026-11-01; the Cloud Run domain mapping is deleted                                  |
@@ -78,10 +79,10 @@ RFCs and ADRs [0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle
 [stack brief](researches/2026-10-26-tech-stack-and-architecture.md) and the earlier
 [provider research](researches/2026-10-19-provider-strategy.md) are dated references.
 Workstreams 1 and 2 (the API on PostgreSQL) are live since v0.12.0, and workstream 4 (the
-Cloudflare edge) since v0.13.0. Workstream 6's Firebase part is merged, not released: Firebase
+Cloudflare edge) since v0.13.0. Workstream 6's Firebase part is live since v0.14.0: Firebase
 is gone from the code, and Auth0 is the only sign-in, locally and in CI as well. Its cloud
-resources are deleted by the owner ([DEPLOY.md](DEPLOY.md#firebase-retired)); Auth0 goes with
-workstream 3.
+resources were deleted on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)); Auth0 goes
+with workstream 3.
 
 Auth0 login and MCP, which currently serve production until the Supabase Auth cutover:
 [rollout](rfcs/RFC-0006-auth0-mcp-rollout.md), [architecture and setup](AUTH0.md), [connection model](MCP_CONNECTION_MODEL.md), [card views](MCP_CARD_UI.md),

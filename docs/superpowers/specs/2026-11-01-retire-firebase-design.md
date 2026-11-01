@@ -1,6 +1,6 @@
 # Retire Firebase: Firestore, Hosting and Firebase Authentication (migration workstream 6, part 1) — design
 
-> **Status:** draft for the owner's approval, 2026-11-01. Builder check done; its questions are answered below.
+> **Status:** approved by the owner and done, 2026-11-01: code in #93, live since v0.14.0; the resource groups A–C ran the same day (DEPLOY, Firebase retired).
 
 Date: 2026-11-01. Part of workstream 6 (decommission) of the
 [platform migration](../../rfcs/RFC-0011-platform-migration.md). Auth0 is the other half of
