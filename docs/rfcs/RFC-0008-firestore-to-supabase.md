@@ -1,9 +1,9 @@
 # Firestore to Supabase
 
 - **Status:** Supabase selected for data and identity. Revised 2026-10-27 for the clean
-  start. Delivery steps 1 and 3 are built (2026-10-31), not released; steps 2 and 4 are
-  open. See [Delivery](#delivery).
-- **Date:** 2026-10-19, revised 2026-10-26, 2026-10-27 and 2026-10-31
+  start. Delivery steps 1, 3 and 4 are live since v0.12.0 (2026-11-01); step 2, backups,
+  is deferred (owner, 2026-10-31). See [Delivery](#delivery).
+- **Date:** 2026-10-19, revised 2026-10-26, 2026-10-27, 2026-10-31 and 2026-11-01
 - **Decision:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)
 - **Context:** [platform migration](RFC-0011-platform-migration.md), workstreams 1 and 2.
 - **Reference:** [provider research](../researches/2026-10-19-provider-strategy.md)
@@ -139,7 +139,7 @@ The invariants:
    `pg_dump`/`supabase db dump`, stored outside Supabase, plus a timed restore drill.
    Free has no managed backups
    ([backups](https://supabase.com/docs/guides/platform/backups)).
-3. **Move the API onto PostgreSQL (workstream 2). Built in PR #87, not released.** Verify:
+3. **Move the API onto PostgreSQL (workstream 2). Built in PR #87, live since v0.12.0.** Verify:
    - Permission checks, concurrent writes and stale revisions.
    - Retry and replay safety, deletion and cleanup.
    - MCP reads and writes.
@@ -161,14 +161,13 @@ The invariants:
      to confirm in the hosted project.
    - Firestore, its emulator, rules and indexes are gone from the API, compose, CI and the
      release. The release applies the migrations from the image it deploys, before the new
-     revision exists. That has not run against a hosted database yet
+     revision exists. v0.12.0 ran them against the hosted database on 2026-11-01
      ([DEPLOY.md](../DEPLOY.md)).
 
-4. **Switch production. Not started:** it needs the hosted project, the proofs and the
-   rollback window.
-   - Apply the migrations to the empty hosted database, then release the API on
-     PostgreSQL. Nothing is copied from Firestore.
-   - Define the rollback window before starting. No permanent dual writes.
+4. **Switch production. Done in v0.12.0 (2026-11-01).**
+   - The release applied the migrations to the empty hosted database, then released the
+     API on PostgreSQL. Nothing was copied from Firestore.
+   - No permanent dual writes.
 
 ## Done when
 
