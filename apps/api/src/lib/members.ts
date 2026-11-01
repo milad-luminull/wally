@@ -14,8 +14,8 @@ export function strongestRole(roles: WhiteboardRole[]): WhiteboardRole | null {
 /**
  * Auto-links every PENDING membership addressed to `email` to `userId`. Called from the
  * auth preHandler at the two moments a pending invite can become claimable — when the user
- * record is created, and when Firebase confirms the address (see plugins/auth.ts). Returns
- * the number of memberships activated.
+ * record is created, and when the sign-in provider confirms the address (see
+ * plugins/auth.ts). Returns the number of memberships activated.
  *
  * If the user ALREADY has a row on that board — they redeemed a share link before their
  * invite activated — the invite is merged into that row rather than activated alongside it.

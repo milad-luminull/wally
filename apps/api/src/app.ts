@@ -9,7 +9,6 @@ import {
 import { loadEnv } from './env.js';
 import postgresPlugin from './plugins/postgres.js';
 import type { Database } from './lib/postgres/client.js';
-import firebasePlugin, { type AuthVerifier } from './plugins/firebase.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
 import connectionRoutes, { type ConnectionRouteOptions } from './routes/connections.js';
 import mcpRoutes, { type McpRouteOptions } from './routes/mcp.js';
@@ -19,18 +18,22 @@ import healthRoutes from './routes/health.js';
 import meRoutes from './routes/me.js';
 import type { SuggestionRunner, TidyRunner, TurnRunner } from './lib/assistant/model/index.js';
 import { AppError } from './lib/errors.js';
-import { createAuth0Verifier, type AccessTokenVerifier } from './lib/auth/auth0.js';
+import {
+  createAuth0Verifier,
+  type AccessTokenVerifier,
+  type VerifiedIdentity,
+} from './lib/auth/auth0.js';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 import { errorReplyFor } from './lib/errorBody.js';
 
 export interface BuildAppOptions {
   /** Overrides the PostgreSQL database — tests pass their own per-file database. */
   db?: Database;
-  /** Overrides Firebase token verification — tests pass a fake to avoid real tokens. */
-  authVerifier?: AuthVerifier;
-  /** Auth0 access-token verification seam; production remains opt-in. */
+  /** Overrides Auth0 access-token verification — tests pass a fake to avoid real tokens. */
   auth0Verifier?: AccessTokenVerifier;
   auth0SignupEnabled?: boolean;
+  /** Names an account created at signup; tests use it so fixtures keep readable user ids. */
+  newUserId?: (identity: VerifiedIdentity) => string;
   /** MCP-specific test overrides; never reuses the REST audience verifier. */
   mcp?: McpRouteOptions;
   connections?: ConnectionRouteOptions;
@@ -117,15 +120,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   await app.register(postgresPlugin, { database: options.db });
-  await app.register(firebasePlugin, { verifier: options.authVerifier });
   await app.register(authPlugin, {
-    auth0Verifier:
+    verifier:
       options.auth0Verifier ??
-      (env.AUTH0_ENABLED
-        ? createAuth0Verifier({ issuer: AUTH0_ISSUER, audience: AUTH0_AUDIENCE })
-        : undefined),
-    auth0Issuer: AUTH0_ISSUER,
-    auth0SignupEnabled: options.auth0SignupEnabled ?? env.AUTH0_SIGNUP_ENABLED,
+      createAuth0Verifier({ issuer: AUTH0_ISSUER, audience: AUTH0_AUDIENCE }),
+    signupEnabled: options.auth0SignupEnabled ?? env.AUTH0_SIGNUP_ENABLED,
+    newUserId: options.newUserId,
   });
 
   /**
@@ -163,7 +163,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(
     connectionRoutes,
     options.connections ?? {
-      enabled: env.MCP_ENABLED && env.AUTH0_ENABLED,
+      enabled: env.MCP_ENABLED,
       writesEnabled: env.MCP_WRITES_ENABLED,
       clientId: env.MCP_CLIENT_ID,
     },

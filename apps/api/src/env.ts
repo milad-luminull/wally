@@ -9,10 +9,6 @@ const envSchema = z.object({
   // pooler, which is why the client turns prepared statements off (lib/postgres/client.ts).
   DATABASE_URL: z.string().url(),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
-  AUTH0_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
   AUTH0_SIGNUP_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

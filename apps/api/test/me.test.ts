@@ -188,8 +188,8 @@ describe('/me', () => {
   });
 
   // Regression guard for the sharpest edge in this change: provisionUser's update names a
-  // fixed column list, so a Firebase profile change must not take `language` down with it.
-  it('preserves the language when the Firebase profile changes', async () => {
+  // fixed column list, so a provider profile change must not take `language` down with it.
+  it('preserves the language when the provider profile changes', async () => {
     const token = registerTestUser(ctx, 'me-rename', 'rename@example.com', 'Original');
     await ctx.inject({
       method: 'PATCH',
@@ -451,7 +451,7 @@ describe('/me', () => {
       expect(kept).not.toContain('old0');
     });
 
-    it('survives a Firebase profile change', async () => {
+    it('survives a provider profile change', async () => {
       const token = registerTestUser(ctx, 'pref-keep', 'pref-keep@example.com', 'Before');
       await patch(token, { preferences: { theme: 'light', boards: { b1: WALL_FREE } } });
 

@@ -5,8 +5,8 @@ import { boardMembers, users } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, registerTestUser, resetDatabase, type TestContext } from './helpers.js';
 
 /**
- * Firebase permits sign-up with an address you do not control, so a `users` record is not
- * evidence of owning the email on it. These cover the invite path end to end, because the
+ * The sign-in provider permits sign-up with an address you do not control, so a `users`
+ * record is not evidence of owning the email on it. These cover the invite path end to end, because the
  * gap that made this exploitable was a route-level one: plugins/auth.ts checked
  * emailVerified before activating a PENDING invite, while upsertInvite reached the ACTIVE
  * path without checking anything at all.
@@ -84,26 +84,27 @@ describe('invite security', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('activates the invite for the verified owner of the address, not the squatter', async () => {
+  it('refuses the verified owner of a squatted address, and leaves the invite unclaimed', async () => {
     const attackerToken = registerTestUser(ctx, 'sec-attacker', 'victim@example.com', null, false);
     await authenticate(attackerToken);
     const ownerToken = registerTestUser(ctx, 'sec-owner', 'sec-owner@example.com');
     await authenticate(ownerToken);
     await inviteFromOwner(ownerToken, 'victim@example.com', 'EDIT');
 
-    // A different uid now authenticates with the same address, verified this time.
+    // A different identity now signs in with the same address, verified this time. Signup
+    // never picks an account by email, so it is refused rather than given a second account.
     const victimToken = registerTestUser(ctx, 'sec-victim', 'victim@example.com');
-    await authenticate(victimToken);
+    const res = await authenticate(victimToken);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('IDENTITY_NOT_LINKED');
 
     const members = await ctx.db
       .select()
       .from(boardMembers)
       .where(eq(boardMembers.boardId, 'sec-owner'));
-    // Exactly one row: the pending invite is linked, not duplicated alongside it.
     expect(members).toHaveLength(1);
-    expect(members[0]).toMatchObject({ userId: 'sec-victim', status: 'ACTIVE', role: 'EDIT' });
-
-    expect(await memberRoles('sec-owner')).toEqual({ 'sec-victim': 'EDIT' });
+    expect(members[0]).toMatchObject({ userId: null, status: 'PENDING', role: 'EDIT' });
+    expect(await memberRoles('sec-owner')).toEqual({});
   });
 
   it('activates a pending invite on the request where the caller first appears verified', async () => {

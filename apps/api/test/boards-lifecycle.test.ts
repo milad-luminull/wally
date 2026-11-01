@@ -38,12 +38,14 @@ const subtaskCount = (noteIds: string[]) =>
   ctx.db.$count(subtasks, inArray(subtasks.noteId, noteIds));
 
 /**
- * Fails the cleanup that runs after board.delete commits: the command's own transaction
- * goes through, the next one (the inline cleanup job) is interrupted.
+ * Fails the cleanup that runs after board.delete commits: the sign-in's identity lookup and
+ * the command's own transaction go through, the next one (the inline cleanup job) is
+ * interrupted.
  */
 function interruptCleanup() {
   const original = ctx.db.transaction.bind(ctx.db);
   vi.spyOn(ctx.db, 'transaction')
+    .mockImplementationOnce(original)
     .mockImplementationOnce(original)
     .mockRejectedValueOnce(new Error('interrupted'));
 }

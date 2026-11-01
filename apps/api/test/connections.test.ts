@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import {
   createFakeAuthVerifier,
+  testNewUserId,
   createTestBoard,
   createTestDatabase,
   createTestUser,
@@ -10,12 +11,19 @@ import {
 } from './helpers.js';
 import connectionRoutes from '../src/routes/connections.js';
 
-const auth = createFakeAuthVerifier();
+let auth: ReturnType<typeof createFakeAuthVerifier>;
 let handle: TestDatabase;
 let app: Awaited<ReturnType<typeof buildApp>>;
 beforeAll(async () => {
   handle = await createTestDatabase();
-  app = await buildApp({ db: handle.db, logger: false, authVerifier: auth.verifier });
+  auth = createFakeAuthVerifier(handle.db);
+  app = await buildApp({
+    db: handle.db,
+    logger: false,
+    auth0Verifier: auth.verifier,
+    auth0SignupEnabled: true,
+    newUserId: testNewUserId,
+  });
   // Scoped registration keeps these tests independent of deployment configuration.
   await app.register(connectionRoutes, {
     prefix: '/test',

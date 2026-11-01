@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { DEFAULT_LANGUAGE, INITIAL_BOARD_NAME } from '@wally/shared';
 import type { Language, MembershipStatus, WhiteboardRole } from '@wally/shared';
 import { buildApp, type BuildAppOptions } from '../src/app.js';
 import { newId } from '../src/lib/db/ids.js';
 import { normalizeEmail } from '../src/lib/db/records.js';
-import type { AuthVerifier, DecodedAuthToken } from '../src/plugins/firebase.js';
+import type { AccessTokenVerifier, VerifiedIdentity } from '../src/lib/auth/auth0.js';
+import { AUTH0_ISSUER } from '../src/lib/auth/constants.js';
+import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import type { Database } from '../src/lib/postgres/client.js';
 import {
+  authIdentities,
   boardMembers,
   notes,
   shareLinks,
@@ -19,21 +22,62 @@ import { createTestDatabase } from './postgres.js';
 
 export { createTestDatabase, type TestDatabase } from './postgres.js';
 
+/** The identity a test registers for a token: the user id it should resolve to, and its profile. */
+export interface TestIdentity {
+  uid: string;
+  email: string;
+  emailVerified: boolean;
+  name: string | null;
+}
+
+/** Subject prefix of fake identities; `testNewUserId` strips it to give the test's uid. */
+const TEST_SUBJECT_PREFIX = 'test|';
+
+/** A `newUserId` for buildApp: an account created at signup gets the test's chosen uid. */
+export const testNewUserId = (identity: VerifiedIdentity) =>
+  identity.subject.slice(TEST_SUBJECT_PREFIX.length);
+
 /**
- * A fake token->identity map used by integration tests instead of real Firebase ID
- * tokens. Call `.set('token-for-max', { uid, email, name })` then send
- * `Authorization: Bearer token-for-max` in `.inject()` calls.
+ * A fake Auth0 verifier backed by a token->identity map, used by integration tests instead of
+ * real access tokens. Call `.set('token-for-max', { uid, email, emailVerified, name })` then send
+ * `Authorization: Bearer token-for-max` in `.inject()` calls. Each token verifies as an Auth0
+ * identity with subject `test|<uid>`.
+ *
+ * With `db`, a token whose uid already has a user record (made by createTestUser, say) is
+ * first bound to that user, as if they had signed up with this identity earlier; any other
+ * token goes through signup or is refused, like a real first sign-in.
  */
-export function createFakeAuthVerifier(): {
-  verifier: AuthVerifier;
-  tokens: Map<string, DecodedAuthToken>;
+export function createFakeAuthVerifier(db?: Database): {
+  verifier: AccessTokenVerifier;
+  tokens: Map<string, TestIdentity>;
 } {
-  const tokens = new Map<string, DecodedAuthToken>();
-  const verifier: AuthVerifier = {
-    async verifyIdToken(token: string) {
-      const user = tokens.get(token);
-      if (!user) throw new Error('invalid token');
-      return user;
+  const tokens = new Map<string, TestIdentity>();
+  const verifier: AccessTokenVerifier = {
+    async verify(token: string) {
+      const identity = tokens.get(token);
+      if (!identity) throw new Error('invalid token');
+      const external = { issuer: AUTH0_ISSUER, subject: `${TEST_SUBJECT_PREFIX}${identity.uid}` };
+      if (db) {
+        const [mapping] = await db
+          .select({ userId: authIdentities.userId })
+          .from(authIdentities)
+          .where(
+            and(
+              eq(authIdentities.issuer, external.issuer),
+              eq(authIdentities.subject, external.subject),
+            ),
+          );
+        const [user] = mapping
+          ? []
+          : await db.select({ id: users.id }).from(users).where(eq(users.id, identity.uid));
+        if (user) await bindKnownIdentity(db, external, identity.uid);
+      }
+      return {
+        ...external,
+        email: identity.email,
+        emailVerified: identity.emailVerified,
+        name: identity.name,
+      };
     },
   };
   return { verifier, tokens };
@@ -63,7 +107,7 @@ export interface TestContext {
   inject(options: InjectOptions): Promise<LightMyRequestResponse>;
   /** This file's own database, dropped when the app closes. */
   db: Database;
-  tokens: Map<string, DecodedAuthToken>;
+  tokens: Map<string, TestIdentity>;
   authHeader(token: string): { authorization: string };
 }
 
@@ -75,19 +119,24 @@ export async function buildTestApp(
     | 'tidyRunner'
     | 'assistantEnabled'
     | 'assistantDeadlineMs'
+    | 'auth0SignupEnabled'
   > & {
     /** Collects the app's log lines (one JSON object each) instead of discarding them. */
     logLines?: string[];
   } = {},
 ): Promise<TestContext> {
-  const { verifier, tokens } = createFakeAuthVerifier();
   const { logLines, ...appOptions } = options;
   const database = await createTestDatabase();
   const db = database.db;
+  const { verifier, tokens } = createFakeAuthVerifier(db);
   const app = await buildApp({
     ...appOptions,
     db,
-    authVerifier: verifier,
+    auth0Verifier: verifier,
+    // Signup on, as for a first sign-in in production, with the test's chosen uid as the new
+    // user's id so fixtures can name their users.
+    auth0SignupEnabled: appOptions.auth0SignupEnabled ?? true,
+    newUserId: testNewUserId,
     logger: false,
     ...(logLines ? { logStream: { write: (line: string) => void logLines.push(line) } } : {}),
   });

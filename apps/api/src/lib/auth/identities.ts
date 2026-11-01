@@ -55,11 +55,16 @@ export async function bindKnownIdentity(
   });
 }
 
-/** Explicit opt-in signup only. Email collisions deny access; they never select an owner. */
+/**
+ * Explicit opt-in signup only. Email collisions deny access; they never select an owner.
+ * `newUserId` names the new account; production leaves it random, and tests use it to give
+ * their fixture users readable ids.
+ */
 export async function resolveOrCreateIdentity(
   db: Database,
   identity: VerifiedIdentity,
   language: Language,
+  newUserId: (identity: VerifiedIdentity) => string = () => randomUUID(),
 ): Promise<{ userId: string; created: boolean }> {
   const email = normalizeEmail(identity.email);
   return withTransaction(db, async (tx) => {
@@ -74,7 +79,7 @@ export async function resolveOrCreateIdentity(
       .where(eq(users.email, email))
       .limit(1);
     if (collision) throw notLinked();
-    const userId = randomUUID();
+    const userId = newUserId(identity);
     const timestamp = new Date();
     await tx.insert(users).values({
       id: userId,

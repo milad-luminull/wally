@@ -4,7 +4,6 @@ import { buildApp } from '../src/app.js';
 import type { VerifiedIdentity } from '../src/lib/auth/auth0.js';
 import { bindKnownIdentity } from '../src/lib/auth/identities.js';
 import {
-  createFakeAuthVerifier,
   createTestUser,
   createTestBoard,
   createTestMembership,
@@ -38,7 +37,6 @@ beforeAll(async () => {
   const opts = {
     db,
     logger: false as const,
-    authVerifier: createFakeAuthVerifier().verifier,
     auth0Verifier: {
       async verify(value: string) {
         return {
@@ -98,14 +96,14 @@ describe('opt-in Auth0 signup', () => {
     }
   });
   it('keeps a linked user ID and preferences when signup is enabled', async () => {
-    await createTestUser(db, 'firebase-stable', 'new@example.com');
+    await createTestUser(db, 'stable-user', 'new@example.com');
     await db
       .update(users)
       .set({ preferences: { theme: 'dark' } })
-      .where(eq(users.id, 'firebase-stable'));
-    await bindKnownIdentity(db, identity, 'firebase-stable');
+      .where(eq(users.id, 'stable-user'));
+    await bindKnownIdentity(db, identity, 'stable-user');
     expect((await me()).json()).toMatchObject({
-      id: 'firebase-stable',
+      id: 'stable-user',
       preferences: { theme: 'dark' },
     });
     expect(await db.$count(whiteboards)).toBe(0);
@@ -149,7 +147,7 @@ describe('opt-in Auth0 signup', () => {
     expect(await db.$count(authIdentities)).toBe(1);
   });
   it('denies an existing email without linking or creating a board', async () => {
-    await createTestUser(db, 'firebase-existing', 'new@example.com');
+    await createTestUser(db, 'existing-user', 'new@example.com');
     const response = await me();
     expect(response.statusCode).toBe(403);
     expect(response.json().error).toBe('IDENTITY_NOT_LINKED');

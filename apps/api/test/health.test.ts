@@ -75,7 +75,7 @@ describe('boot with a malformed ASSISTANT_MODEL', () => {
     try {
       const app = await buildApp({
         db: handle.db,
-        authVerifier: verifier,
+        auth0Verifier: verifier,
         logger: false,
       });
       await app.close();
