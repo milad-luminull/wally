@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 /**
- * The single source of truth for these value sets, on both sides of the API. Firestore
- * stores them as these exact strings — it has no enum type of its own and validates
- * nothing on write, so a value that isn't listed here will be persisted quite happily.
+ * The single source of truth for these value sets, on both sides of the API. The database
+ * stores them as these exact strings in `text` columns, held to these values by check
+ * constraints built from these same lists (apps/api/src/lib/postgres/schema/columns.ts).
  */
 
 /**

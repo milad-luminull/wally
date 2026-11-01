@@ -103,7 +103,7 @@ export function NoteRow({
         : (note.assignee.displayName ?? note.assignee.email)
       : undefined;
   // First property alphabetically for the reader's language, so the meta line is stable
-  // rather than following whatever order Firestore returns the map in.
+  // rather than following whatever order the stored JSON object returns its keys in.
   const [firstField] = Object.entries(note.customFields ?? {}).sort(([a], [b]) =>
     a.localeCompare(b, language),
   );

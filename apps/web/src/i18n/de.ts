@@ -1037,7 +1037,7 @@ export const de = {
   },
   enums: {
     /**
-     * Leaves are the raw persisted value, not a slug — Firestore stores these exact strings,
+     * Leaves are the raw persisted value, not a slug — the database stores these exact strings,
      * so keeping them visible here is what ties a label to the value it renders, and what
      * makes the `satisfies Record<Enum, string>` check in enumLabels.ts meaningful.
      */

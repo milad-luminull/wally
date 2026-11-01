@@ -214,8 +214,8 @@ describe('note routes', () => {
     });
 
     it('orders by due date, with undated notes last and none dropped', async () => {
-      // Firestore sorts null first and omits documents missing the ordered field
-      // entirely, so this ordering is done in memory. Both halves matter: an undated note
+      // The ordering is done in memory (Firestore, the earlier store, sorted null first and
+      // dropped documents missing the ordered field). Both halves matter: an undated note
       // must come last AND must still be in the list at all.
       const fx = await createBoardFixture(ctx);
       await createNote(fx.boardId, fx.ownerToken, { title: 'No date' });
@@ -363,7 +363,7 @@ describe('note routes', () => {
       for (const customFields of [
         tooMany,
         { Customer: 'A', customer: 'B' }, // same property in two casings
-        { 'Customer.Name': 'A' }, // Firestore field-path metacharacter
+        { 'Customer.Name': 'A' }, // a refused key character
         { [`${'k'.repeat(41)}`]: 'A' }, // key over FIELD_KEY_MAX_LENGTH
         { Customer: 'v'.repeat(201) }, // value over FIELD_VALUE_MAX_LENGTH
       ]) {

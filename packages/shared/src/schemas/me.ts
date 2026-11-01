@@ -94,8 +94,8 @@ export type PreferencesUpdate = z.infer<typeof preferencesUpdateSchema>;
  * assignee and createdBy, and every row of the members list. Carrying them there would ship
  * every board member's UI preferences to every other member, for no consumer at all.
  *
- * `emailVerified` is deliberately absent too: the web already holds it reactively from
- * Firebase and renders the verification banner off that, so a server-side copy would be a
+ * `emailVerified` is deliberately absent too: the web already holds it from the Auth0
+ * session and renders the verification banner off that, so a server-side copy would be a
  * second source of truth for the same flag.
  */
 export const meDtoSchema = userSummarySchema.extend({
@@ -104,7 +104,7 @@ export const meDtoSchema = userSummarySchema.extend({
 });
 export type MeDto = z.infer<typeof meDtoSchema>;
 
-/** The mutable part of a profile — email and displayName are Firebase's to own. */
+/** The mutable part of a profile — email and displayName are the sign-in provider's to own. */
 export const meUpdateSchema = z
   .object({
     language: languageSchema.optional(),
