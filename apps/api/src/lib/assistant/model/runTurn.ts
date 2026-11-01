@@ -241,13 +241,7 @@ function elideEarlierToolResults(history: ModelMessage[]): ModelMessage[] {
 
 /** The runner for the deployment's configured model. */
 export function createConfiguredTurnRunner(
-  env: Pick<
-    Env,
-    | 'ASSISTANT_MODEL'
-    | 'ASSISTANT_VERTEX_LOCATION'
-    | 'ASSISTANT_VERTEX_PROJECT'
-    | 'FIREBASE_PROJECT_ID'
-  >,
+  env: Pick<Env, 'ASSISTANT_MODEL' | 'ASSISTANT_VERTEX_LOCATION' | 'ASSISTANT_VERTEX_PROJECT'>,
 ): TurnRunner {
   const ref = parseModelRef(env.ASSISTANT_MODEL);
   return createTurnRunner(resolveLanguageModel(ref, env), {
