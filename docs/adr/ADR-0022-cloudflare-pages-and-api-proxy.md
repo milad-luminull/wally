@@ -1,6 +1,6 @@
 # ADR-0022: Cloudflare Pages for the web app and a Worker proxy for the API domain
 
-- **Status:** accepted
+- **Status:** accepted; amended 2026-11-01 (Workers static assets, no rollback window, Confirmation)
 - **Date:** 2026-10-26
 - **Deciders:** Milad Rezazadeh
 - **Supersedes:**
@@ -43,6 +43,13 @@ Chosen option: **option 1**, as decided by the owner. The hosting slice confirms
 against option 2. Both are Free and follow the rules below, so moving from one to the
 other needs no new ADR.
 
+**Built (2026-11-01):** the owner chose Workers static assets over Pages, in a Worker of its
+own (`wally-web`), separate from the proxy (`wally-api-proxy`). That keeps option 2's
+mechanism without its coupling: both deployables then share one release path (versions,
+preview URLs, `wrangler rollback`), and an assets-only Worker's requests are free and
+unlimited. The [workstream 4 design](../superpowers/specs/2026-11-01-cloudflare-edge-design.md)
+records the details and the Worker proof.
+
 - **The Worker only forwards.**
   - No business logic, and no buffering of long requests.
   - It never caches private responses.
@@ -55,11 +62,14 @@ other needs no new ADR.
 - **Release:**
   - Release stays tag-triggered and approved. Cloud Run deploys keylessly through
     Workload Identity Federation.
-  - Cloudflare deploys use a scoped API token held as a GitHub environment secret.
+  - Cloudflare deploys use a scoped API token held as a GitHub environment secret: an
+    account API token with Workers Scripts · Edit only.
   - A failed post-release smoke test restores the previous web deployment and Cloud Run
     revision.
-- **Retirement:** the domain mapping and Firebase Hosting are retired after the first
-  Cloudflare release has served through its rollback window.
+- **Retirement:** the domain mapping and Firebase Hosting are retired once the cutover to
+  the Workers is verified. Amended 2026-11-01: the owner chose no rollback window, since
+  production had no users or data yet, so Firebase Hosting leaves the release in the same
+  change that adds the Workers.
 
 ### Consequences
 
@@ -72,19 +82,31 @@ other needs no new ADR.
   - On Workers Free, every proxied request counts against 100,000 requests a day and
     10 ms of CPU per request (owner brief, citing
     [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)).
-  - Whether a 55 s assistant request fits inside that is _unverified_ until the
-    [platform migration](../rfcs/RFC-0011-platform-migration.md) proof, section 5.
-- Neutral: Pages rollback has to be checked and scripted in the hosting slice.
+  - The Worker proof (2026-11-01) measured 0–2 ms of CPU per request, held 30–110 s
+    responses through the proxy, and found a ceiling of about 125 s, after which Cloudflare
+    answers 524. A 55 s assistant request fits.
+- Neutral: rollback is `wrangler rollback` to one of a Worker's last 100 versions, static
+  files included, scripted in `scripts/release-state.mjs`.
 
 ### Confirmation
 
 The release fails if:
 
 - the bundle does not target `https://api.wally.luminull.com`;
-- the Worker serves a cached private response;
-- a long assistant request does not complete through the proxy.
+- either Worker's new version fails its smoke test on its preview URL, before it serves
+  traffic;
+- the production smoke test fails after deploy, in which case it also rolls back.
+
+The two other confirmations were amended on 2026-11-01:
+
+- **No cached private response:** the proxy sets `cache: 'no-store'` on every forwarded
+  request, pinned by its unit tests. The Worker proof saw no response cached, even one marked
+  `public, max-age=600`.
+- **Long requests:** a release cannot make an authenticated assistant request without a
+  production test account and AI spend on every release. The Worker proof's held responses
+  stand in for it, and the owner asks one real question through the proxy at the cutover.
 
 ## More information
 
 - [Platform migration](../rfcs/RFC-0011-platform-migration.md), workstream 4.
-- Deployment steps: [DEPLOY.md](../DEPLOY.md), updated in the hosting slice.
+- Deployment steps: [DEPLOY.md, Cloudflare: setup, cutover and after](../DEPLOY.md#cloudflare-setup-cutover-and-after).

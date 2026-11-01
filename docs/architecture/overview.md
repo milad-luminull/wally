@@ -37,23 +37,29 @@ flowchart LR
   browser["Browser"]
   host["MCP client"]
   auth0["Auth0<br/>login.luminull.com"]
+  subgraph edge["Cloudflare, luminull.com"]
+    web["web<br/>React SPA, Vite<br/>Worker wally-web (static assets), wally.luminull.com"]
+    proxy["api-proxy<br/>Worker wally-api-proxy, api.wally.luminull.com<br/>forwards every request unchanged"]
+  end
   subgraph wally["Wally (Google Cloud project luminull-wally)"]
-    web["web<br/>React SPA, Vite<br/>Firebase Hosting, wally.luminull.com"]
-    api["api<br/>Fastify, Node 22, REST and /mcp<br/>Cloud Run, europe-west1, api.wally.luminull.com"]
+    api["api<br/>Fastify, Node 22, REST and /mcp<br/>Cloud Run, europe-west1"]
     store[("Supabase PostgreSQL<br/>Ireland, transaction pooler")]
     model["Vertex AI<br/>location eu"]
   end
   browser -->|HTTPS| web
   browser -->|sign-in, access token| auth0
   host -->|OAuth, access token| auth0
-  browser -->|REST, Bearer access token| api
-  host -->|MCP, Bearer access token| api
+  browser -->|REST, Bearer access token| proxy
+  host -->|MCP, Bearer access token| proxy
+  proxy -->|HTTPS, run.app URL| api
   api -->|verify token| auth0
   api -->|SQL, Drizzle| store
   api -->|assistant| model
 ```
 
-The browser never talks to the database; the API is the only door ([ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)). The Supabase Data API is to be switched off, and every table has Row Level Security enabled with no policies, so a role other than the tables' owner sees no rows ([DEPLOY.md](../DEPLOY.md#row-level-security)). The Supabase project is in Google Cloud's diagram for brevity only: it is a separate provider, and it does not exist yet.
+The diagram shows the edge after the Cloudflare cutover (DEPLOY, [Cloudflare: setup, cutover and after](../DEPLOY.md#cloudflare-setup-cutover-and-after)); until then Firebase Hosting serves the web app and a Cloud Run domain mapping serves the API's hostname. The proxy holds no logic ([ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md)).
+
+The browser never talks to the database; the API is the only door ([ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)). The Supabase Data API is switched off, and every table has Row Level Security enabled with no policies, so a role other than the tables' owner sees no rows ([DEPLOY.md](../DEPLOY.md#row-level-security)). The Supabase project is in Google Cloud's box for brevity only: it is a separate provider, in Ireland.
 
 ## The life of a request
 
@@ -71,13 +77,13 @@ The full command contract and operating procedures are in [Board operations](boa
 | Directory         | Contains                                                                                                                                                                                                    | Deployable |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | `apps/api`        | Fastify REST API and MCP endpoint: `routes/`, `plugins/` (postgres, firebase, auth), `lib/` (including `postgres/`, `db/`, `auth/`, `mcp/`, `assistant/`, `commands/`), SQL migrations in `drizzle/`, tests | yes        |
-| `apps/web`        | React SPA: `features/` (auth, board, boards, landing), `i18n/`, `components/ui/`, `e2e/`                                                                                                                    | yes        |
+| `apps/web`        | React SPA: `features/` (auth, board, boards, landing), `i18n/`, `components/ui/`, `e2e/`; `wrangler.jsonc` for the `wally-web` Worker                                                                       | yes        |
+| `apps/api-proxy`  | The `wally-api-proxy` Worker: forwards every request on `api.wally.luminull.com` to Cloud Run unchanged                                                                                                     | yes        |
 | `packages/shared` | Zod schemas, enums, constants and query helpers used by both apps                                                                                                                                           | no         |
 | `packages/config` | Shared ESLint, Prettier and TypeScript base config                                                                                                                                                          | no         |
 | `infra/`          | The Auth0 Post Login Action, the HTTPS proxy config for Auth0 E2E runs, the local MCP Inspector config                                                                                                      | no         |
 | `scripts/`        | One-time Google Cloud bootstrap for keyless deploys; release helpers (API domain check, image, runtime config and secrets, rollback state) with their tests; the Post Login Action test                     | no         |
 | `.github/`        | CI and release workflows, PR template, Dependabot                                                                                                                                                           | no         |
-| `firebase.json`   | Firebase Hosting only, deployed by the release                                                                                                                                                              | no         |
 
 The monorepo is pnpm workspaces under Turborepo ([ADR-0002](../adr/ADR-0002-pnpm-turborepo-monorepo-with-shared-contract.md)). Everything runs in Docker Compose locally and in CI ([ADR-0009](../adr/ADR-0009-docker-compose-with-firestore-emulator-and-real-auth.md)), against a PostgreSQL container with a database per test file ([ADR-0025](../adr/ADR-0025-local-postgres-and-per-file-test-databases.md)).
 

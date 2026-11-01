@@ -104,17 +104,17 @@ and its own E2E specs. Plans are not stacked.
 | 5   | **Background service, Realtime notifications, Resend**                    | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
 | 6   | **Decommission** Firestore, Firebase Auth, Firebase Hosting and Auth0     | all, plus rollback windows    | Section 6                                         |
 
-**Status (2026-10-31):**
+**Status (2026-11-01):**
 
-- Workstream 1 is built.
-- Workstream 2 is built in PR #87: the API reads and writes only PostgreSQL, and Firestore
-  is gone from the API, compose, CI and the release
-  ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)). The release applies the
-  migrations and gives Cloud Run `DATABASE_URL` from Secret Manager, but has never run
-  against a hosted database.
-- PR #87 stays open, unmerged, until the hosted Supabase project and the proofs it depends
-  on exist: connectivity from Cloud Run and the Data API switched off (owner, 2026-10-31).
-  Backups no longer gate it (owner, 2026-10-31; section 8).
+- Workstreams 1 and 2 are live: v0.12.0 (2026-11-01) runs the API on Supabase PostgreSQL
+  ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)). Its first two release
+  attempts stopped safely at the migrations step: the secret held the direct host, then a
+  pooler string with a wrong password (section 8).
+- Workstream 4 is built, not released: two Cloudflare Workers, `wally-web` and
+  `wally-api-proxy`, deployed by the release, with Firebase Hosting removed from it in the
+  same change ([design](../superpowers/specs/2026-11-01-cloudflare-edge-design.md),
+  [plan](../superpowers/plans/2026-11-01-cloudflare-edge.md)). The hostnames switch at a
+  one-time cutover after that release. Its Worker proof passed (section 5, item 5).
 - No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
@@ -163,6 +163,17 @@ Each has to be proven on a free project before the slice that depends on it.
      Free plan's per-request CPU limit. That they do is _unverified_.
    - Prove that private responses are never cached.
 
+   **Proven on 2026-11-01** with the real proxy and web Worker code under throwaway names,
+   against a throwaway Cloud Run origin, on Workers Free
+   ([design, proof results](../superpowers/specs/2026-11-01-cloudflare-edge-design.md#proof-results-2026-11-01)):
+   - Held responses of 30, 60, 90 and 110 s passed; at about 125 s Cloudflare answers 524.
+   - CPU time was 0–2 ms per request, including the 60 s hold.
+   - Streaming passes chunk by chunk, so a streamed assistant would also work.
+   - Nothing was cached, even a response marked `public, max-age=600`.
+   - An MCP-shaped POST and non-browser clients passed the zone's bot settings, from a home
+     IP; the cutover's real ChatGPT call is the last check.
+   - An unreachable origin gets Cloudflare's own error page (530, 524), not the proxy's 502.
+
 ## 6. Decommissioning and rollback
 
 - **Rollback windows:**
@@ -180,7 +191,8 @@ Each has to be proven on a free project before the slice that depends on it.
     Supabase Auth.
   - Retire Auth0's custom domain `login.luminull.com` and its tenant.
   - Disconnect the ChatGPT client registered in Auth0.
-- **Firebase Hosting:** retire it after the Cloudflare release has served for its window.
+- **Firebase Hosting:** its custom domain is removed right after the Cloudflare cutover is
+  verified, with no window (owner, 2026-11-01); the Hosting site itself goes here.
 - **Code and docs:**
   - Remove `firebase-admin`, `firebase`, `@auth0/*` and the emulator image.
   - Remove `firebase.json`, the rules, the indexes and the matching release steps.
@@ -294,8 +306,13 @@ Decided on 2026-10-31:
   applied, against real tables and `rpc/purge_expired`: still 503. Realtime with the Data
   API off is still unproven (section 5, item 3).
 - **Schema applied:** the owner ran `migrate-cli --require-purge-job` on 2026-10-31 from
-  their machine through the transaction pooler, so Drizzle's migrator and the pg_cron
-  setup work through it. Checked afterwards: both migrations recorded, 19 tables with RLS
+  their machine. _Corrected 2026-11-01:_ that run used the direct host, which on the Free
+  plan answers only over IPv6, as the owner's machine has; it did not go through the
+  transaction pooler, as this entry first said. GitHub runners and Cloud Run have no IPv6
+  by default, so v0.12.0's first two attempts failed safely at the migrations step until
+  the `wally-database-url` secret held the transaction pooler URL (port 6543, user
+  `postgres.<project-ref>`). That release then proved Drizzle's migrator and the pg_cron
+  setup through the pooler. Checked afterwards: both migrations recorded, 19 tables with RLS
   and no policies, `wally-purge-expired` active hourly as `postgres`, and the Data API roles
   cannot execute `purge_expired`. The security advisor reports only the intended "RLS
   enabled, no policy" notice. A GitHub runner cannot run this before the release: the

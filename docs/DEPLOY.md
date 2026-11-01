@@ -5,16 +5,13 @@ deployed to Google Cloud before. Every command is meant to be copy-pasted in ord
 
 Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
-> **The database is changing (2026-10-31).** Production runs v0.11.0, whose API stores
-> everything in Cloud Firestore (database `wally`). The code this guide describes reads and
-> writes only PostgreSQL ([ADR-0020](adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)),
-> and the release that ships it applies migrations to a hosted Supabase database and hands
-> Cloud Run its `DATABASE_URL` from Secret Manager. **That path is prepared but unproven: it
-> has never run against a hosted database.** It needs the Supabase project, the
-> `wally-database-url` secret and two IAM grants first (sections 4 and 7), and the proofs in
-> [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 5. Until that release, production
-> is what [Firestore in production until the switch](#firestore-in-production-until-the-switch)
-> describes.
+> **Where production stands (2026-11-01).** Production runs v0.12.0: the API on Cloud Run
+> reads and writes Supabase PostgreSQL through the transaction pooler. The release after it
+> moves the edge to Cloudflare ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)):
+> the web app becomes a Worker serving static files, and `api.wally.luminull.com` a Worker
+> that forwards to Cloud Run. The release deploys both Workers; the two hostnames switch
+> once, by hand, in [Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after).
+> Until that cutover, Firebase Hosting and the Cloud Run domain mapping still serve them.
 
 ---
 
@@ -22,11 +19,12 @@ Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
 Wally is three separate things, and they go to three different places:
 
-| Piece      | What it is                                                 | Where it goes                                                           |
-| ---------- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `apps/web` | A React app that compiles down to plain HTML/CSS/JS files  | **Firebase Hosting** (a CDN for static files)                           |
-| `apps/api` | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you)                                |
-| Your data  | Notes, boards, members                                     | **Supabase PostgreSQL** (Ireland, `eu-west-1`), reached only by the API |
+| Piece            | What it is                                                 | Where it goes                                                               |
+| ---------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `apps/web`       | A React app that compiles down to plain HTML/CSS/JS files  | **Cloudflare Worker `wally-web`**, static files only                        |
+| `apps/api-proxy` | A few lines that forward every API request unchanged       | **Cloudflare Worker `wally-api-proxy`**, on `api.wally.luminull.com`        |
+| `apps/api`       | A Fastify server that must stay running to answer requests | **Cloud Run** (runs a container for you), reached through `wally-api-proxy` |
+| Your data        | Notes, boards, members                                     | **Supabase PostgreSQL** (Ireland, `eu-west-1`), reached only by the API     |
 
 Plus configuration rather than code: **Auth0** (the production sign-in for web and MCP,
 see [AUTH0.md](AUTH0.md)), **Firebase Authentication** (the local and CI sign-in) and the
@@ -35,24 +33,25 @@ from it at release. Firebase Auth is not a production fallback: since
 the [ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
 account is an Auth0 signup with a random Wally id and no Firebase mapping, so switching
 production back to Firebase would give every user a new, empty account. The planned move to Supabase and Cloudflare
-is in [RFC-0011](rfcs/RFC-0011-platform-migration.md); this guide describes production until
-then.
+is in [RFC-0011](rfcs/RFC-0011-platform-migration.md).
 
 The flow once deployed:
 
 ```
-Browser ──▶ Firebase Hosting          (serves the React app)
+Browser ──▶ wally-web (Cloudflare)       (serves the React app)
    │
-   └──────▶ Cloud Run                  (the API; verifies the user's Auth0 access token)
+   └──────▶ wally-api-proxy (Cloudflare) (forwards every request unchanged)
                  │
-                 └──▶ Supabase PostgreSQL (reads and writes the data, through the
-                                           transaction pooler)
+                 └──▶ Cloud Run          (the API; verifies the user's Auth0 access token)
+                          │
+                          └──▶ Supabase PostgreSQL (reads and writes the data, through
+                                                    the transaction pooler)
 ```
 
-**Why Cloud Run and not "just Firebase"?** Firebase Hosting can only serve static files.
-`apps/api` is a long-running server, so it needs somewhere that runs a container. Cloud Run
-is part of the same Google Cloud project as your Firebase project — it is not a separate
-service you sign up for — and it scales to zero, so it costs nothing while idle.
+**Why Cloud Run behind a Worker?** `apps/api` is a long-running server, so it needs
+somewhere that runs a container; Cloud Run does, and scales to zero. The Worker in front
+replaces Cloud Run's domain mapping, a Preview feature, as the way the API gets its own
+hostname ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)). It holds no logic.
 
 ---
 
@@ -64,22 +63,19 @@ You need these installed on your machine. Check each one:
 node --version     # must be 22 or newer
 docker --version   # only needed if you want to test the prod image locally
 gcloud --version   # Google Cloud CLI
-firebase --version # Firebase CLI
 ```
 
 If `gcloud` is missing, install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install).
-If `firebase` is missing:
-
-```bash
-npm install -g firebase-tools
-```
-
-Then sign in to both. Each opens a browser window:
+Then sign in; it opens a browser window:
 
 ```bash
 gcloud auth login
-firebase login
 ```
+
+Cloudflare's CLI, Wrangler, needs no install: it is a pinned dev dependency of `apps/web` and
+`apps/api-proxy`, run with `pnpm --filter <package> exec wrangler`. Signing in to it is only
+needed for the one-time setup in
+[Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after).
 
 ### Names used throughout
 
@@ -101,7 +97,7 @@ supported by every service used here.
 
 ## 3. Step 1 — Put the project on the Blaze plan
 
-Hosting works on the free Spark plan, but **Cloud Run and Cloud Build do not**. You must
+The free Spark plan does not cover **Cloud Run and Cloud Build**. You must
 enable billing.
 
 1. Open the [Firebase console](https://console.firebase.google.com/), select your project.
@@ -228,7 +224,7 @@ gcloud services enable \
 ```
 
 `firestore.googleapis.com` was enabled for the Firestore database. It stays on until
-Firestore is decommissioned ([Firestore in production until the switch](#firestore-in-production-until-the-switch)).
+Firestore is decommissioned ([Firestore after the switch](#firestore-after-the-switch)).
 
 ---
 
@@ -377,9 +373,9 @@ gcloud iam service-accounts create wally-api \
   --display-name="Wally API runtime"
 ```
 
-The account also holds `roles/datastore.user`, granted when the API used Firestore. The
-v0.11.0 revision production serves still needs it; it goes when Firestore is decommissioned
-([Firestore in production until the switch](#firestore-in-production-until-the-switch)).
+The account also holds `roles/datastore.user`, granted when the API used Firestore. Only a
+rollback to v0.11.0 would need it; it goes when Firestore is decommissioned
+([Firestore after the switch](#firestore-after-the-switch)).
 
 > IAM changes take up to 5 minutes to take effect. If your first request fails with a
 > permission error, wait and retry before assuming something is broken.
@@ -541,9 +537,10 @@ gcloud run services describe wally-api --region=europe-west1 --format='value(sta
 `https://wally-api-128432325938.europe-west1.run.app`. Both reach the same service.)
 
 The production browser API URL is **`https://api.wally.luminull.com`**, with no trailing
-slash. Its Cloud Run domain mapping must target `wally-api` in `luminull-wally` /
-`europe-west1`, report `Ready=True`, and have reconciled its current generation. Cloud
-Run `status.url` remains a `run.app` URL and must not be compared to the custom domain.
+slash. Until the cutover a Cloud Run domain mapping serves it; after it, the
+`wally-api-proxy` Worker does, forwarding to the service's `status.url` (a `run.app` URL).
+That URL is written in `apps/api-proxy/wrangler.jsonc` as `ORIGIN`, and the release refuses
+to ship a proxy whose `ORIGIN` no longer matches it.
 The canonical web origin is **`https://wally.luminull.com`**.
 
 Sanity check it is alive:
@@ -606,30 +603,34 @@ values from GitHub repository _variables_ — they are public identifiers baked 
 bundle, so they are variables rather than secrets — and asserts afterwards that the built
 bundle really does contain the production API URL and not `localhost:4000`.
 
-### 10b. The Hosting block in `firebase.json`
+### 10b. The web Worker's configuration
 
-Already present in [`firebase.json`](../firebase.json), which holds nothing else now:
+[`apps/web/wrangler.jsonc`](../apps/web/wrangler.jsonc) describes `wally-web`: a Worker with
+no script that serves `apps/web/dist` as
+[static assets](https://developers.cloudflare.com/workers/static-assets/).
 
-```json
-  "hosting": {
-    "public": "apps/web/dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
-  }
-```
-
-That single rewrite is what makes React Router work. Without it, loading
-`https://luminull-wally.web.app/board/123` directly returns 404, because no such file exists
-— the rewrite hands every unmatched path to `index.html` and lets the router sort it out.
+- `not_found_handling: "single-page-application"` answers any unknown path with
+  `index.html` and status 200. That is what makes React Router work: loading
+  `https://wally.luminull.com/boards/123` directly would otherwise be a 404, because no such
+  file exists.
+- [`apps/web/public/_headers`](../apps/web/public/_headers) caches `/assets/*` for a year as
+  `immutable`: those files are named by their content hash, so a new build never reuses a
+  name. Everything else, `index.html` included, keeps Cloudflare's default
+  `public, max-age=0, must-revalidate` with an ETag, so a release is seen on the next load.
+- No script runs: static asset requests are free and unlimited on Workers Free only while
+  no script runs first.
 
 ### 10c. Build and deploy
 
+Normally the release does this (section 13). By hand, after the one-time setup:
+
 ```bash
 pnpm --filter @wally/web build
-firebase deploy --only hosting
+pnpm --filter @wally/web exec wrangler deploy
 ```
 
-The output ends with a **Hosting URL**: `https://luminull-wally.web.app`.
+The output ends with the Worker's `workers.dev` URL. After the cutover the same Worker also
+answers on `https://wally.luminull.com`.
 
 > **The web build uses its own tsconfig, for the same reason the API does.** `build` runs
 > `tsc -p tsconfig.build.json`, not `tsc -b`. The plain `tsc -b` walks the project
@@ -712,10 +713,11 @@ The run pauses on the `production` GitHub Environment until someone approves it.
 authenticates with Workload Identity Federation, so there is no key to manage — which is
 just as well, since the organization blocks service-account key creation entirely.
 
-[The release guard](../scripts/check-api-domain.mjs) verifies that the `api.wally.luminull.com` mapping targets
-`wally-api` and is ready, HTTPS health, unauthenticated 401, and a successful CORS preflight allowing authorization and
-content-type from the canonical web origin. It runs before deployment and again after
-promotion; a failure after traffic shifts follows the existing rollback path. Run its
+[The release guard](../scripts/check-api-domain.mjs) checks the API by behaviour, whichever
+edge serves it: HTTPS health, unauthenticated 401, and a successful CORS preflight allowing
+authorization and content-type from the canonical web origin. It runs before deployment,
+against the proxy's preview URL (`CHECK_URL`), and again after promotion; a failure after
+traffic shifts follows the existing rollback path. Run its
 isolated regression suite locally with:
 
 ```bash
@@ -739,6 +741,13 @@ What it does differently from the manual commands, and why:
   (`node scripts/resolve-release-image.mjs verify`).
 - **Checks the deployed bundle** actually contains the production API URL and not
   `localhost:4000`.
+- **Uploads both Workers as versions that serve no traffic** (`wrangler versions upload`)
+  and smoke-tests each through its own preview URL before anything shifts: the proxy's
+  `/health` (with `"database":"ok"`), 401, CORS and the `/mcp` challenge; the web app's `/`,
+  a deep link, the API URL in its bundle and the `immutable` header on its assets. Only after
+  the Cloud Run traffic shift does it deploy them (`wrangler versions deploy`, 100%).
+- **Uses one Cloudflare credential,** the `CLOUDFLARE_API_TOKEN` secret, passed only to the
+  steps that call Cloudflare.
 
 ### Rolling back
 
@@ -750,19 +759,21 @@ gcloud run services update-traffic wally-api --region=europe-west1 \
   --to-revisions=<previous-revision>=100
 ```
 
-For Hosting there is **no `firebase hosting:rollback` command** — that is worth knowing
-before you go looking for it under pressure. Either use the Firebase console
-(**Hosting → Release history → Rollback**), or re-release a previous version directly:
+The Workers keep their last 100 versions, static files included. The release records the
+version each Worker served before it started (`release-state.json`, kept as a workflow
+artifact), and on failure rolls back only a Worker whose version changed. By hand:
 
 ```bash
-TOKEN=$(gcloud auth print-access-token)
-# newest first; [1] is the release before the current one
-PREV=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
-  "https://firebasehosting.googleapis.com/v1beta1/sites/luminull-wally/releases?pageSize=2" \
-  | jq -r '.releases[1].version.name')
-curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Length: 0" \
-  "https://firebasehosting.googleapis.com/v1beta1/sites/luminull-wally/releases?versionName=$PREV"
+# the version serving now, and the recent ones
+pnpm --filter @wally/web exec wrangler deployments status --json
+pnpm --filter @wally/web exec wrangler versions list
+# go back to one of them
+pnpm --filter @wally/web exec wrangler rollback <version-id> --message "rollback" -y
 ```
+
+The same commands with `--filter @wally/api-proxy` roll back the proxy. **There is no
+rollback window to Firebase Hosting:** the owner chose none (2026-11-01), because production
+had no users or data yet.
 
 **A rollback reverts the API, never the schema.** There are no down migrations, so the
 schema a release applied stays when its revision is rolled back. That is why every migration
@@ -771,12 +782,10 @@ must keep working with the revision before it (section 7).
 **The smoke check reads the database.** `/health` runs one query and answers 503
 (`"database":"unreachable"`) when the candidate cannot reach Supabase, and the smoke check
 requires `"database":"ok"`, so such a candidate never takes traffic. A missing secret or grant
-fails earlier: the revision does not start. Connectivity from Cloud Run is a proof still to
-run (RFC-0011 section 5, item 1).
+fails earlier: the revision does not start. v0.12.0 proved the path on 2026-11-01.
 
-**The first PostgreSQL release is different.** Rolling it back sends traffic to v0.11.0,
-which reads Firestore, so anything written to PostgreSQL in between is not visible there.
-RFC-0011 section 6 requires the rollback window to be agreed before that release.
+**Do not roll back past v0.12.0.** v0.11.0 reads Firestore, so nothing written to
+PostgreSQL since is visible there. Fix forward.
 
 ### The manual path (break-glass)
 
@@ -795,8 +804,13 @@ gcloud run deploy wally-api \
 
 ```bash
 pnpm --filter @wally/web build
-firebase deploy --only hosting
+pnpm --filter @wally/web exec wrangler deploy
 ```
+
+**Proxy changed:** `pnpm --filter @wally/api-proxy exec wrangler deploy`.
+
+Both need Wrangler signed in to the account (`wrangler login`), or `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` in the environment.
 
 **Schema changed:** apply the migrations from the new image first (section 7), then deploy
 the backend as above.
@@ -837,8 +851,15 @@ The database is a Supabase project on the Free plan. Its budget is in
 [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 2, and the Free plan's catches (no
 managed backups, a project that can pause) in its section 7. Nothing beyond Free is bought
 without the owner's approval. Cloud Run scales to zero — you are billed per request and per second of execution, and
-an idle service costs nothing. Firebase Hosting gives 10 GB of storage and 360 MB/day of
-transfer free.
+an idle service costs nothing.
+
+Both Workers run on [Workers Free](https://developers.cloudflare.com/workers/platform/limits/).
+Static asset requests are free and unlimited. Requests through `wally-api-proxy` count
+against **100,000 a day** for the account, reset at midnight UTC, with 10 ms of CPU each (the
+proof measured 0–2 ms). Over the limit, requests fail with error 1027; whether the API then
+"fails open" is not documented for Custom Domains, so assume it is down until midnight UTC.
+**When the dashboard shows more than 50,000 requests on any day,** the owner decides on
+Workers Paid ($5/month).
 
 The thing that would actually cost money is a runaway loop on Cloud Run or the assistant. That is
 exactly what the budget alert in [section 3](#3-step-1--put-the-project-on-the-blaze-plan)
@@ -922,8 +943,8 @@ Deliberately out of scope, in rough order of when you will want them:
 - ~~**Automated deploys from GitHub.**~~ Done — see section 13 and
   [`.github/workflows/`](../.github/workflows/). Everything above remains valid as the
   manual break-glass path.
-- **A separate staging project.** The usual approach is a second Firebase project with the
-  same setup, selected via `firebase use`.
+- **A separate staging project.** The usual approach is a second Google Cloud project and a
+  second pair of Workers with the same setup.
 - **Seed data in production.** `make seed` writes fixture users that do not exist in any real
   sign-in provider into whatever `DATABASE_URL` names. The E2E and local MCP fixture seeds
   refuse a non-local database; the demo seed does not. Never run it with the production
@@ -1072,21 +1093,142 @@ pending. Run it after any `cleanup_pending` outcome and monitor the remaining co
 not expire until completed. A repeated deletion request also retries its cleanup while its
 receipt is retained.
 
-## Firestore in production until the switch
+## Cloudflare: setup, cutover and after
 
-Production runs v0.11.0 on Cloud Firestore until the release that ships the PostgreSQL API.
-What that means, and what stays until Firestore is decommissioned (RFC-0011 section 6,
-workstream 6):
+The web app and the API's hostname are served by two Workers in the Cloudflare account that
+holds `luminull.com` ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md), the
+[workstream 4 design](superpowers/specs/2026-11-01-cloudflare-edge-design.md)). Both are on
+Workers Free, with `workers.dev` URLs under `luminull.workers.dev`.
+
+### One-time setup (owner)
+
+1. **Create the release token.** In the dashboard, select the account, then **Manage
+   account → Account API tokens → Create Token**. An
+   [account API token](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/)
+   belongs to the account rather than a person, which is what Cloudflare recommends for CI.
+   Give it one permission, **Account · Workers Scripts · Edit**, on this account only, and an
+   expiry of one year. The Worker proof showed that permission covers every release step:
+   upload, preview URLs, deploy, status and rollback. It can change any Worker in the account;
+   token scopes stop at the account. It has no DNS permission, so the release never edits DNS.
+2. **Store it** as the secret `CLOUDFLARE_API_TOKEN` on the `production` GitHub environment,
+   without it passing through anyone else:
+
+   ```bash
+   read -rs TOKEN && printf '%s' "$TOKEN" | gh secret set CLOUDFLARE_API_TOKEN --env production --repo milad-luminull/wally; unset TOKEN
+   ```
+
+   and the account ID, which is not a secret, as a variable on the same environment:
+
+   ```bash
+   gh variable set CLOUDFLARE_ACCOUNT_ID --env production --repo milad-luminull/wally --body <account-id>
+   ```
+
+3. **Create both Workers once.** `wrangler versions upload`, which the release uses, refuses
+   a Worker that does not exist yet, and the release stops at "Capture the current
+   production state" if either is missing. From an up-to-date `main`, signed in with
+   `npx --yes wrangler@4.151.3 login` (or with the token in the environment):
+
+   ```bash
+   pnpm --filter @wally/api-proxy exec wrangler deploy
+   pnpm --filter @wally/web build      # with the production values from section 10a
+   pnpm --filter @wally/web exec wrangler deploy
+   ```
+
+   Until the cutover these answer only on their `workers.dev` URLs, which no one uses.
+
+**Rotating the token:** create a new one the same way, replace the secret with the command
+above, run a release, then delete the old token. Record the new expiry date here.
+
+- Current token: created 2026-11-01; expiry not recorded yet.
+
+### Zone security for `luminull.com`
+
+These settings apply to every hostname on the zone, not only Wally's. As found on
+2026-11-01, and kept:
+
+- **Bot Fight Mode: on.** Cloudflare
+  [warns](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/) it "may
+  challenge API or mobile app traffic", and no rule can exempt a path from it. The Worker
+  proof saw no challenge with it on, from a home IP; ChatGPT calls from data centres. **If
+  ChatGPT's call is challenged at cutover, switch it off** (Security → Bots).
+- **Browser Integrity Check: on. Security Level: medium.** No challenge in the proof.
+- **AI bot policies (Search, Training, Agents): Allow**, which the dashboard marks as
+  recommended. **Agents must stay allowed:** that category covers assistants fetching on a
+  person's behalf.
+
+### Cutover (owner, once, after a green release that deployed both Workers)
+
+One sitting: the API first, then the web app. Both hostnames are DNS-only CNAMEs to Google
+today, and a Custom Domain cannot be created on a hostname that has a CNAME, so each step
+deletes the record first.
+
+1. **API.**
+   1. In **DNS**, note the record `api.wally` → `ghs.googlehosted.com` (DNS only), then
+      delete it.
+   2. Open **Workers & Pages → wally-api-proxy → Domains → Add → domain** and enter
+      `api.wally.luminull.com`. (Cloudflare's docs still call this **Domains & Routes → Add →
+      Custom Domain**. The account sidebar's **Domains → Add a domain** is a different thing:
+      it adds a whole new zone.) Cloudflare creates the DNS record and the certificate within
+      a few minutes.
+   3. Check it:
+
+      ```bash
+      API_BASE_URL=https://api.wally.luminull.com WEB_ORIGIN=https://wally.luminull.com node scripts/check-api-domain.mjs
+      curl -sI https://api.wally.luminull.com/health | grep -i '^server'   # expect server: cloudflare
+      ```
+
+   4. Ask the assistant one real question in the web app (a few cents of Vertex): its reply
+      is the longest request path, end to end. Then make one read through ChatGPT's Wally
+      connection.
+
+2. **Web.** The same for `wally` → `luminull-wally.web.app` on `wally-web`, with hostname
+   `wally.luminull.com`. Then sign in, open a board, create a note and move it.
+
+**Undo, at any step:** remove the Custom Domain and recreate the noted CNAME, DNS only.
+Firebase Hosting and the domain mapping keep serving until they are deleted below. Nothing
+lives at the edge, so nothing is lost.
+
+### After the cutover is verified (owner)
+
+Straight away, since there is no rollback window (owner, 2026-11-01):
+
+```bash
+gcloud beta run domain-mappings delete --domain=api.wally.luminull.com --region=europe-west1 --project=luminull-wally
+```
+
+and in the Firebase console, **Hosting → wally.luminull.com → Remove**. The Hosting site
+itself goes with the rest of Firebase in RFC-0011 workstream 6.
+
+### How the edge behaves
+
+- **The proxy holds no logic.** It forwards the method, every header, the path, the query and
+  the body unchanged to `ORIGIN`, never caches (`cache: 'no-store'`, which also adds
+  `Cache-Control: no-cache` and `Pragma: no-cache` to the forwarded request), never follows
+  redirects and never retries. The caller's IP reaches the API as `CF-Connecting-IP`; the API
+  does not trust it, because the origin stays publicly reachable.
+- **Errors.** If the origin cannot be reached, Cloudflare usually answers itself: 530 for a
+  host that does not resolve, 524 when the origin has not answered within about 125 s. The
+  proxy's own 502 (`{"error":"INTERNAL_SERVER_ERROR",...,"retryable":true}`) covers only a
+  connection that fails outright. The web app treats every one of these as temporary.
+- **No logs.** Workers Logs are off on both Workers: request URLs can carry share-link
+  tokens, which the API redacts in its own logs. Request counts, errors and CPU time are in
+  the dashboard's metrics.
+- **Not yet verified:** whether a release (`wrangler versions deploy`) keeps a Custom Domain
+  added in the dashboard. The first release after the cutover shows it, and its production
+  smoke test fails if the hostname was lost.
+
+## Firestore after the switch
+
+Production has run v0.12.0 on PostgreSQL since 2026-11-01. The Firestore database stays,
+unused, until it is decommissioned (RFC-0011 section 6, workstream 6):
 
 - **The database is `wally`, in `europe-west3` (Frankfurt).** The project also has a
-  `(default)` database in `nam5` (United States), auto-created and empty. The v0.11.0
-  revision sets `FIRESTORE_DATABASE_ID=wally`; without it, firebase-admin writes to
-  `(default)`. Keep that variable on any v0.11.0 revision you redeploy or roll back to.
+  `(default)` database in `nam5` (United States), auto-created and empty. A v0.11.0
+  revision needs `FIRESTORE_DATABASE_ID=wally`; without it, firebase-admin writes to
+  `(default)`.
 - **Rules, composite indexes and the six TTL policies** were deployed by earlier releases
-  and stay on the `wally` database. The files that declared them (`firestore.rules`,
-  `firestore.indexes.json`) are deleted from the repository, and `firebase.json` now holds
-  Hosting only, so the release no longer touches them. Nothing should change them before
-  decommissioning.
+  and stay on the `wally` database. The files that declared them are deleted from the
+  repository, and so is `firebase.json`, so nothing in the release touches them.
 - **IAM:** the `wally-api` account keeps `roles/datastore.user` (section 9a), and the deploy
   identity keeps `roles/firebaserules.admin` and `roles/datastore.indexAdmin`, which
   `scripts/bootstrap-gcp-cicd.sh` grants. Remove them at decommissioning.
