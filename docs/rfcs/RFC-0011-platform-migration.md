@@ -1,9 +1,9 @@
 # Platform migration: Supabase, Supabase Auth and Cloudflare
 
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
-  (section 8). Workstreams 1 and 2 are built (2026-10-31), not released: production still
-  runs on Firestore. See section 4.
-- **Date:** 2026-10-26, updated 2026-10-27 and 2026-10-31
+  (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
+  (both 2026-11-01). See section 4.
+- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31 and 2026-11-01
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
@@ -110,11 +110,13 @@ and its own E2E specs. Plans are not stacked.
   ([plan](../superpowers/plans/2026-10-31-api-on-postgres.md)). Its first two release
   attempts stopped safely at the migrations step: the secret held the direct host, then a
   pooler string with a wrong password (section 8).
-- Workstream 4 is built, not released: two Cloudflare Workers, `wally-web` and
-  `wally-api-proxy`, deployed by the release, with Firebase Hosting removed from it in the
-  same change ([design](../superpowers/specs/2026-11-01-cloudflare-edge-design.md),
-  [plan](../superpowers/plans/2026-11-01-cloudflare-edge.md)). The hostnames switch at a
-  one-time cutover after that release. Its Worker proof passed (section 5, item 5).
+- Workstream 4 is live: v0.13.0 (2026-11-01) deploys two Cloudflare Workers, `wally-web`
+  and `wally-api-proxy`, and no longer deploys to Firebase Hosting
+  ([design](../superpowers/specs/2026-11-01-cloudflare-edge-design.md),
+  [plan](../superpowers/plans/2026-11-01-cloudflare-edge.md)). The owner moved both
+  hostnames to the Workers the same day, and every check passed, including an assistant
+  question and a ChatGPT read. The Cloud Run domain mapping is deleted. Its Worker proof
+  passed (section 5, item 5).
 - No other workstream has started.
 
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
@@ -191,8 +193,10 @@ Each has to be proven on a free project before the slice that depends on it.
     Supabase Auth.
   - Retire Auth0's custom domain `login.luminull.com` and its tenant.
   - Disconnect the ChatGPT client registered in Auth0.
-- **Firebase Hosting:** its custom domain is removed right after the Cloudflare cutover is
-  verified, with no window (owner, 2026-11-01); the Hosting site itself goes here.
+- **Firebase Hosting:** its custom domain was removed in the console right after the
+  Cloudflare cutover was verified, with no window (owner, 2026-11-01), but Hosting still
+  lists it. It serves nothing, since DNS points at Cloudflare. It and the Hosting site go
+  here. The Cloud Run domain mapping was deleted the same day.
 - **Code and docs:**
   - Remove `firebase-admin`, `firebase`, `@auth0/*` and the emulator image.
   - `firebase.json`, the rules, the indexes and their release steps are already gone

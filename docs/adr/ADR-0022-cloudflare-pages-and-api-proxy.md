@@ -69,7 +69,9 @@ records the details and the Worker proof.
 - **Retirement:** the domain mapping and Firebase Hosting are retired once the cutover to
   the Workers is verified. Amended 2026-11-01: the owner chose no rollback window, since
   production had no users or data yet, so Firebase Hosting leaves the release in the same
-  change that adds the Workers.
+  change that adds the Workers. Done on 2026-11-01: v0.13.0 deployed the Workers, the
+  owner moved both hostnames to them, and the domain mapping was deleted. Firebase
+  Hosting's site goes with the rest of Firebase in RFC-0011 workstream 6.
 
 ### Consequences
 
@@ -105,6 +107,7 @@ The two other confirmations were amended on 2026-11-01:
 - **Long requests:** a release cannot make an authenticated assistant request without a
   production test account and AI spend on every release. The Worker proof's held responses
   stand in for it, and the owner asks one real question through the proxy at the cutover.
+  Done on 2026-11-01: the assistant answered through the proxy, and so did a ChatGPT read.
 
 ## More information
 

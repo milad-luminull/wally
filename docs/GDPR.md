@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                                                                                                                                                                                                                                                                                       | Basis                                       |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                                                                                                                                                                                                                                                                                  | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI; Firebase Hosting until the Cloudflare cutover; Cloud Firestore, unused since v0.12.0, until it is decommissioned; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP), Supabase (the database, since v0.12.0) and, from the Cloudflare cutover, Cloudflare (serves the web app and forwards all API traffic) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                                                                                                                                                       |                                             |
+| Role          | Who                                                                                                                                                                                                                                                                                                                                                            | Basis                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                                                                                                                                                                                                       | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI; Cloud Firestore, unused since v0.12.0, until it is decommissioned; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP), Supabase (the database, since v0.12.0) and Cloudflare (serves the web app and forwards all API traffic, since 2026-11-01) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                                                                                            |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -49,7 +49,7 @@ single source of truth for stored shapes; field names are the row types' in
 [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
-**Where the data lives (2026-11-01).** Production runs v0.12.0, which stores everything in
+**Where the data lives (2026-11-01).** Production runs v0.13.0, which stores everything in
 PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Whatever v0.11.0 wrote stays in
 Cloud Firestore (database `wally`, `europe-west3`), unused. Nothing was copied across:
 PostgreSQL started empty, and the Firestore data is deleted when Firestore is decommissioned
@@ -196,7 +196,7 @@ The unused Firestore database is `europe-west3` (Frankfurt)
 ([`DEPLOY.md`, Firestore after the switch](DEPLOY.md#firestore-after-the-switch)).
 _(Art. 44 ff.)_
 
-Cloudflare is the other exception, from the cutover on. It answers each request in whichever
+Cloudflare is the other exception, since the cutover on 2026-11-01. It answers each request in whichever
 of its data centres is nearest the caller, and it terminates TLS there: it sees client IP
 addresses, bearer tokens and note text in transit. Wally's Workers store nothing; what
 Cloudflare itself retains about requests is not verified first-hand (GAP-05, ORG-08).
@@ -223,8 +223,8 @@ id as its ID — a pseudonymous identifier, accepted because it identifies no on
 ### No processors beyond Google, Auth0, Supabase and Cloudflare
 
 [`apps/web/package.json`](../apps/web/package.json) carries no analytics, tag manager, error
-reporter or session recorder. Google, Auth0 and Supabase are the processors today; Cloudflare
-joins them at the cutover, which makes four Art. 28 relationships. _(Art. 28)_
+reporter or session recorder. Google, Auth0, Supabase and Cloudflare (since
+the cutover on 2026-11-01) are the processors: four Art. 28 relationships. _(Art. 28)_
 
 ### No consent banner is required
 
@@ -624,7 +624,7 @@ incident, so it is worth writing down who notices one, who decides, and who repo
 
 ### ORG-08 — Cloudflare as a processor · Art. 28, Chapter V
 
-From the cutover, Cloudflare serves the web app and carries every API request, with TLS
+Since the cutover on 2026-11-01, Cloudflare serves the web app and carries every API request, with TLS
 ending at its edge (§3). Review its data processing agreement, the transfer mechanism for a US
 company, its subprocessors, and what it retains about requests on the Free plan, then add it
 to the processor register.

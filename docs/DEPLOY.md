@@ -5,13 +5,14 @@ deployed to Google Cloud before. Every command is meant to be copy-pasted in ord
 
 Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
-> **Where production stands (2026-11-01).** Production runs v0.12.0: the API on Cloud Run
-> reads and writes Supabase PostgreSQL through the transaction pooler. The release after it
-> moves the edge to Cloudflare ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)):
-> the web app becomes a Worker serving static files, and `api.wally.luminull.com` a Worker
-> that forwards to Cloud Run. The release deploys both Workers; the two hostnames switch
-> once, by hand, in [Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after).
-> Until that cutover, Firebase Hosting and the Cloud Run domain mapping still serve them.
+> **Where production stands (2026-11-01).** Production runs v0.13.0: the API on Cloud Run
+> reads and writes Supabase PostgreSQL through the transaction pooler, and the edge is
+> Cloudflare ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)). The Worker
+> `wally-web` serves the web app's static files at `wally.luminull.com`, and the Worker
+> `wally-api-proxy` forwards `api.wally.luminull.com` to Cloud Run. The release deploys both
+> Workers. The hostnames moved to them once, by hand, on 2026-11-01
+> ([Cloudflare: setup, cutover and after](#cloudflare-setup-cutover-and-after)), and the
+> Cloud Run domain mapping is deleted. Firebase Hosting no longer serves Wally.
 
 ---
 
@@ -50,7 +51,7 @@ Browser ──▶ wally-web (Cloudflare)       (serves the React app)
 
 **Why Cloud Run behind a Worker?** `apps/api` is a long-running server, so it needs
 somewhere that runs a container; Cloud Run does, and scales to zero. The Worker in front
-replaces Cloud Run's domain mapping, a Preview feature, as the way the API gets its own
+replaced Cloud Run's domain mapping, a Preview feature, as the way the API gets its own
 hostname ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)). It holds no logic.
 
 ---
@@ -537,8 +538,8 @@ gcloud run services describe wally-api --region=europe-west1 --format='value(sta
 `https://wally-api-128432325938.europe-west1.run.app`. Both reach the same service.)
 
 The production browser API URL is **`https://api.wally.luminull.com`**, with no trailing
-slash. Until the cutover a Cloud Run domain mapping serves it; after it, the
-`wally-api-proxy` Worker does, forwarding to the service's `status.url` (a `run.app` URL).
+slash. The `wally-api-proxy` Worker serves it, forwarding to the service's `status.url` (a
+`run.app` URL).
 That URL is written in `apps/api-proxy/wrangler.jsonc` as `ORIGIN`, and the release refuses
 to ship a proxy whose `ORIGIN` no longer matches it.
 The canonical web origin is **`https://wally.luminull.com`**.
@@ -629,8 +630,8 @@ pnpm --filter @wally/web build
 pnpm --filter @wally/web exec wrangler deploy
 ```
 
-The output ends with the Worker's `workers.dev` URL. After the cutover the same Worker also
-answers on `https://wally.luminull.com`.
+The output ends with the Worker's `workers.dev` URL. The same Worker also answers on
+`https://wally.luminull.com`.
 
 > **The web build uses its own tsconfig, for the same reason the API does.** `build` runs
 > `tsc -p tsconfig.build.json`, not `tsc -b`. The plain `tsc -b` walks the project
@@ -818,6 +819,12 @@ fails earlier: the revision does not start. v0.12.0 proved the path on 2026-11-0
 
 **Do not roll back past v0.12.0.** v0.11.0 reads Firestore, so nothing written to
 PostgreSQL since is visible there. Fix forward.
+
+**Do not roll a Worker back to a version older than v0.13.0's.** Each Worker's first
+version was deployed by hand on 2026-11-01 to create it (`wally-web` 7ecc599e,
+`wally-api-proxy` e420e600), and `wally-web`'s was built without production values, so it
+cannot sign in or reach the API. `wrangler versions list` shows each version's message;
+v0.13.0's are tagged `v0.13.0` (`wally-web` 5c3a20a1, `wally-api-proxy` 907ed2dc).
 
 ### The manual path (break-glass)
 
@@ -1172,9 +1179,9 @@ Workers Free, with `workers.dev` URLs under `luminull.workers.dev`.
    pnpm --filter @wally/web exec wrangler deploy
    ```
 
-   Until the cutover these answer only on their `workers.dev` URLs, which no one uses. So
-   the web build needs no production values: the first release replaces it with the
-   production bundle before any hostname points at it.
+   Until the cutover these answered only on their `workers.dev` URLs, which no one used. So
+   the web build needed no production values: the first release replaced it with the
+   production bundle before any hostname pointed at it. Done on 2026-11-01.
 
 **Rotating the token:** create a new one the same way, replace the secret with the command
 above, run a release, then delete the old token. Record the new expiry date here.
@@ -1189,18 +1196,23 @@ These settings apply to every hostname on the zone, not only Wally's. As found o
 - **Bot Fight Mode: on.** Cloudflare
   [warns](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/) it "may
   challenge API or mobile app traffic", and no rule can exempt a path from it. The Worker
-  proof saw no challenge with it on, from a home IP; ChatGPT calls from data centres. **If
-  ChatGPT's call is challenged at cutover, switch it off** (Security → Bots).
+  proof saw no challenge with it on, from a home IP, and ChatGPT's real read at the cutover
+  (2026-11-01, from its data centres) was not challenged either. **If a later ChatGPT call
+  is challenged, switch it off** (Security → Bots).
 - **Browser Integrity Check: on. Security Level: medium.** No challenge in the proof.
 - **AI bot policies (Search, Training, Agents): Allow**, which the dashboard marks as
   recommended. **Agents must stay allowed:** that category covers assistants fetching on a
   person's behalf.
 
-### Cutover (owner, once, after a green release that deployed both Workers)
+### Cutover (done 2026-11-01)
 
-One sitting: the API first, then the web app. Both hostnames are DNS-only CNAMEs to Google
-today, and a Custom Domain cannot be created on a hostname that has a CNAME, so each step
-deletes the record first.
+Done by the owner after v0.13.0 deployed both Workers, and every check below passed. Each
+Custom Domain's certificate was ready about two minutes after it was added. The steps stay
+as the record, and as the way to attach a hostname to a Worker again.
+
+One sitting: the API first, then the web app. Both hostnames were DNS-only CNAMEs to Google,
+and a Custom Domain cannot be created on a hostname that has a CNAME, so each step deleted
+the record first.
 
 1. **API.**
    1. In **DNS**, note the record `api.wally` → `ghs.googlehosted.com` (DNS only), then
@@ -1224,13 +1236,13 @@ deletes the record first.
 2. **Web.** The same for `wally` → `luminull-wally.web.app` on `wally-web`, with hostname
    `wally.luminull.com`. Then sign in, open a board, create a note and move it.
 
-**Undo, at any step:** remove the Custom Domain and recreate the noted CNAME, DNS only.
-Firebase Hosting and the domain mapping keep serving until they are deleted below. Nothing
-lives at the edge, so nothing is lost.
+**Undo** was possible until the clean-up below: remove the Custom Domain and recreate the
+noted CNAME. With the domain mapping deleted there is no way back to Google's edge; a bad
+Worker version is rolled back instead (section 13, rollback).
 
-### After the cutover is verified (owner)
+### After the cutover (done 2026-11-01)
 
-Straight away, since there is no rollback window (owner, 2026-11-01):
+Done straight away, since there is no rollback window (owner, 2026-11-01):
 
 ```bash
 gcloud beta run domain-mappings delete --domain=api.wally.luminull.com --region=europe-west1 --project=luminull-wally
@@ -1243,7 +1255,16 @@ deploys to Firebase Hosting, so its deploy identity no longer needs the Hosting 
 gcloud projects remove-iam-policy-binding luminull-wally --member=serviceAccount:github-deployer@luminull-wally.iam.gserviceaccount.com --role=roles/firebasehosting.admin --condition=None
 ```
 
-The Hosting site itself goes with the rest of Firebase in RFC-0011 workstream 6.
+The same clean-up removed three custom roles the deploy identity no longer used, and deleted
+them from the project: `wallyReleaseDomainRead` (the release's domain-mapping guard, removed
+in v0.13.0), and `wallyScheduleDeployment` and `wallyCleanupJobIam` (the
+[account-cleanup worker](#account-cleanup-worker-retired)). Afterwards the deploy identity
+holds `roles/run.developer`, `roles/serviceusage.serviceUsageConsumer`,
+`roles/firebaserules.admin` and `roles/datastore.indexAdmin`; the last two go with Firestore.
+
+Firebase Hosting still lists `wally.luminull.com` as a custom domain after the console
+removal (checked 2026-11-01). It serves nothing, since DNS points at Cloudflare, and it goes
+with the Hosting site and the rest of Firebase in RFC-0011 workstream 6.
 
 ### How the edge behaves
 

@@ -57,7 +57,7 @@ flowchart LR
   api -->|assistant| model
 ```
 
-The diagram shows the edge after the Cloudflare cutover (DEPLOY, [Cloudflare: setup, cutover and after](../DEPLOY.md#cloudflare-setup-cutover-and-after)); until then Firebase Hosting serves the web app and a Cloud Run domain mapping serves the API's hostname. The proxy holds no logic ([ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md)).
+Both hostnames have been served by these Workers since the Cloudflare cutover on 2026-11-01 (DEPLOY, [Cloudflare: setup, cutover and after](../DEPLOY.md#cloudflare-setup-cutover-and-after)). The proxy holds no logic ([ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md)).
 
 The browser never talks to the database; the API is the only door ([ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md)). The Supabase Data API is switched off, and every table has Row Level Security enabled with no policies, so a role other than the tables' owner sees no rows ([DEPLOY.md](../DEPLOY.md#row-level-security)). The Supabase project is in Google Cloud's box for brevity only: it is a separate provider, in Ireland.
 
@@ -125,4 +125,4 @@ Notes are top-level rather than nested under their board because routes address 
 - [Setup and conventions](../SETUP.md), [Deploying](../DEPLOY.md), [GDPR](../GDPR.md)
 - [Product spec](../SPEC.md)
 - [Wally assistant](../rfcs/RFC-0003-wally-agent.md) and [Wally over MCP](../rfcs/RFC-0004-wally-mcp.md)
-- [Platform migration](../rfcs/RFC-0011-platform-migration.md), workstreams 1 and 2 built, not released
+- [Platform migration](../rfcs/RFC-0011-platform-migration.md), workstreams 1, 2 and 4 live
