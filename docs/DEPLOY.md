@@ -1168,11 +1168,13 @@ Workers Free, with `workers.dev` URLs under `luminull.workers.dev`.
 
    ```bash
    pnpm --filter @wally/api-proxy exec wrangler deploy
-   pnpm --filter @wally/web build      # with the production values from section 10a
+   pnpm --filter @wally/web build
    pnpm --filter @wally/web exec wrangler deploy
    ```
 
-   Until the cutover these answer only on their `workers.dev` URLs, which no one uses.
+   Until the cutover these answer only on their `workers.dev` URLs, which no one uses. So
+   the web build needs no production values: the first release replaces it with the
+   production bundle before any hostname points at it.
 
 **Rotating the token:** create a new one the same way, replace the secret with the command
 above, run a release, then delete the old token. Record the new expiry date here.
