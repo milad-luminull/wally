@@ -27,7 +27,7 @@ the owner on 2026-11-01, within [RFC-0011](../../rfcs/RFC-0011-platform-migratio
 
 - Wrangler is exactly `4.151.3` everywhere: both `devDependencies` and every `npx` command
   (released 2026-10-20; the newest, 4.156.0, is three days old).
-- `compatibility_date` is `"2026-11-01"` in both `wrangler.jsonc` files.
+- `compatibility_date` is `"2026-10-26"` (the newest the pinned runtime supports) in both `wrangler.jsonc` files.
 - Both Workers: `workers_dev: true`, `preview_urls: true`, `observability: { enabled: false }`.
   No routes in config: Custom Domains are added by the owner in the dashboard at cutover.
 - Workers Free and Cloudflare Free only. Nothing is spent without the owner's approval.
@@ -46,9 +46,10 @@ the owner on 2026-11-01, within [RFC-0011](../../rfcs/RFC-0011-platform-migratio
 
 ## Review Focus
 
-1. **First release, Workers absent:** the first tag runs before `wally-api-proxy` or
-   `wally-web` has ever been deployed. The snapshot must record "none" and a rollback must skip
-   them, not fail the recovery. Pinned in Task 4.
+1. **First release, Workers absent:** `versions upload` refuses a Worker that does not exist
+   (proof, check 9), so both Workers are created once by hand (DEPLOY). If either is still
+   missing, the snapshot stops the release before any change, with a message naming that
+   setup step. Pinned in Task 4.
 2. **Partial Workers deploy:** the proxy deploys and the web deploy fails. Rollback restores
    the proxy, and leaves the web Worker alone when its active version is still the snapshot's.
    Pinned in Task 4.
@@ -276,7 +277,7 @@ pnpm --filter @wally/web exec wrangler deploy --name wally-proof-web
 
 - Consumes: the commands and JSON shapes recorded in Task 3, step 9.
 - Produces: the state file
-  `{ version: 2, project, region, revision, workers: { 'wally-api-proxy': string|null, 'wally-web': string|null }, commit }`.
+  `{ version: 2, project, region, revision, workers: { 'wally-api-proxy': string, 'wally-web': string }, commit }`.
   - `snapshotState(env, run)` returns it.
   - `applyState(state, run, { workers: boolean })` restores it.
   - CLI: `apply STATE.json [--workers]`.
@@ -291,11 +292,10 @@ pnpm --filter @wally/web exec wrangler deploy --name wally-proof-web
 
 ```js
 test('snapshot records the serving revision and each Worker version', ...)
-test('snapshot records null for a Worker that was never deployed', ...)   // Review Focus 1
+test('snapshot refuses, naming the setup step, when a Worker does not exist', ...) // Review Focus 1
 test('snapshot stops when a Worker read fails for any other reason', ...)
 test('apply rolls back each Worker whose active version changed', ...)    // rollback <id>, then verified
 test('apply skips a Worker still on its snapshot version', ...)           // Review Focus 2
-test('apply skips a Worker with no snapshot version and says so', ...)    // Review Focus 1
 test('apply leaves Workers alone without --workers', ...)
 test('failed API recovery still attempts Worker recovery and reports failure', ...)
 test('unexpected Worker readback cannot report recovery success', ...)
@@ -305,8 +305,10 @@ test('invalid snapshot performs no mutations', ...)                       // ver
 Keep the existing Cloud Run tests unchanged.
 
 - [ ] **Step 2:** `node --test scripts/release-state.test.mjs`. Expected: FAIL on the new tests.
-- [ ] **Step 3: Implement.** Distinguish "Worker not found" from other errors by the message
-      Task 3 recorded. Version IDs must match `/^[0-9a-f-]{36}$/` before they are used.
+- [ ] **Step 3: Implement.** Read each Worker with
+      `deployments status --name <worker> --json` (clean JSON on stdout,
+      `versions: [{ version_id, percentage }]`); a missing Worker exits 1 with
+      `[code: 10007]` on stderr. Version IDs must match `/^[0-9a-f-]{36}$/` before they are used.
 - [ ] **Step 4:** `node --test scripts/release-state.test.mjs`. Expected: all PASS.
 - [ ] **Step 5: Commit.** `git commit -m "feat(release): snapshot and roll back the Workers instead of Firebase Hosting"`
 

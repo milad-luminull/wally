@@ -1,7 +1,7 @@
 # Cloudflare edge: web app and API proxy (migration workstream 4) — design
 
-> **Status:** draft, 2026-11-01; owner decisions recorded the same day; awaiting the owner's
-> approval. Nothing is built.
+> **Status:** approved by the owner, 2026-11-01. The proof ran the same day; its results are
+> under Evidence.
 
 Date: 2026-11-01. Workstream 4 of the [platform migration](../../rfcs/RFC-0011-platform-migration.md),
 decided in [ADR-0022](../../adr/ADR-0022-cloudflare-pages-and-api-proxy.md). It includes the
@@ -143,6 +143,12 @@ That holds unless a Worker script runs first, so the web Worker has no script.
 The rules below are ADR-0022's, and the owner's.
 
 - **The Cloudflare API token:**
+  - is an
+    [account API token](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/)
+    (**Manage account → Account API tokens**), which Cloudflare recommends for CI/CD: it
+    belongs to the account, not to a person;
+  - has one permission, **Account · Workers Scripts · Edit**. The proof showed it is enough
+    for every release step;
   - is the release's second long-lived credential;
   - is scoped to the account that holds the `luminull.com` zone, since a Custom Domain must
     be in the zone's account, and to deploying Workers only;
@@ -266,6 +272,11 @@ origin.
    `{"error":"INTERNAL_SERVER_ERROR","message":"Upstream unavailable","retryable":true}`.
    - The web app treats any 5xx as temporary (`apps/web/src/lib/errors.ts`).
    - Without CORS headers the browser reports a network error, which is also temporary.
+   - **The proof showed `fetch` rarely throws.** When the origin cannot be reached, Cloudflare
+     usually answers itself: 530 for a host that does not resolve, 524 after about 125 s
+     without an answer. Those pages pass through as they are. They are 5xx without CORS
+     headers, so the web app treats them as temporary too. Rewriting them would put logic in
+     the proxy, so it does not.
 5. Never retries. Writes are guarded by idempotency keys, but the proxy has no business
    deciding to send a request twice.
 
@@ -329,7 +340,10 @@ ADR-0022 allows either choice without a new ADR; its text is updated to name thi
 1. **Verify, guards, and capture state (changed):**
    - `release-state.mjs snapshot` records the deployed version ID of `wally-api-proxy` and
      `wally-web`, instead of the Hosting version. It reads them with
-     `wrangler deployments list --json`, or the equivalent the proof confirms.
+     `wrangler deployments status --name <worker> --json` (confirmed by the proof).
+   - `wrangler versions upload` refuses a Worker that does not exist yet (proof, check 9).
+     So both Workers are created once, by hand, before the first release (DEPLOY), and the
+     snapshot stops the release before any change if either is missing.
 2. **Image, then migrations:** unchanged.
 3. **Cloud Run candidate, no traffic, then its smoke test:** unchanged.
 4. **Build and check the web bundle:** unchanged.
@@ -446,8 +460,8 @@ The Firebase Hosting site itself goes with the rest of Firebase in workstream 6.
 ## Left to the builder
 
 - **The proof origin's code,** and the exact measurement script.
-- **The `wrangler` version and `compatibility_date`.** Use a current version and a date at or
-  after the proof.
+- **The `wrangler` version and `compatibility_date`.** Settled in the plan: Wrangler 4.151.3 and
+  `2026-10-26`, the newest date its runtime supports.
 - **How `release-state.mjs` reads and restores Worker versions,** following the commands the
   proof confirmed. Unit tests in the style of `release-state.test.mjs`.
 - **Whether the two Worker uploads share one job step.**
@@ -508,13 +522,36 @@ The Firebase Hosting site itself goes with the rest of Firebase in workstream 6.
   [Pages rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/),
   [Pages rollback API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/subresources/deployments/methods/rollback/)
 
-### Not verified first-hand (the proof settles them)
+### Proof results (2026-11-01)
 
-- **Origin timeout:** whether a ~100 s origin timeout applies to a Worker's `fetch`. Only
-  forum posts discuss it. Wally needs about 55 s.
-- **Fail-open:** whether it exists for Custom Domains.
-- **Token scope:** the minimal API token permission set for `versions upload`, the preview URL,
-  `versions deploy` and `rollback`.
-- **Preview URLs:** that version preview URLs work for an assets-only Worker.
-- **Custom Domains across deploys:** whether `wrangler deploy` leaves a dashboard-created
-  Custom Domain in place when the config declares no routes.
+The proof ran the real `apps/api-proxy` and `apps/web` code under throwaway names, against a
+throwaway Cloud Run origin, on Workers Free. All ten checks passed or were resolved:
+
+1. Held responses of 30, 60, 90 and 110 s answered 200. At 130 s Cloudflare answered 524 after
+   about 125 s, so a Worker's origin request ends at roughly 125 s. Wally needs about 55 s.
+2. CPU time was 0–2 ms per request, including the 60 s hold.
+3. A streamed response arrived chunk by chunk, as sent.
+4. Nothing was cached, even with `public, max-age=600`. `cache: 'no-store'` also adds
+   `Cache-Control: no-cache` and `Pragma: no-cache` to the forwarded request.
+5. Every API header arrived unchanged. `CF-Connecting-IP` is the caller's IP; `Host` is the
+   origin's.
+6. OPTIONS, PATCH, DELETE and a 256 KB POST arrived intact.
+7. An unreachable origin gets Cloudflare's own error page, not the proxy's 502 (Part 2).
+8. The assets-only Worker serves deep links with 200, applies `_headers`, does not serve
+   `_headers` itself, and `wrangler rollback` restores the earlier version's files.
+9. With only an account API token holding Workers Scripts · Edit: version upload, preview URLs
+   (proxy and assets-only), `versions deploy`, `deployments status --json` and `rollback` all
+   work. Uploading to a Worker that does not exist is refused.
+10. Through `proof.wally.luminull.com`, with Bot Fight Mode, Browser Integrity Check and
+    Security Level "medium" on: no challenge or block for non-browser clients or an MCP-shaped
+    POST. These requests came from a residential IP, not a data centre, so the real ChatGPT
+    call at cutover stays the last check (Part 5).
+
+Deleting a Worker also removes its Custom Domain and DNS record.
+
+### Still not verified first-hand
+
+- **Fail-open:** whether it exists for Custom Domains. The proof cannot test the daily limit.
+- **Custom Domains across deploys:** whether `wrangler versions deploy` leaves a
+  dashboard-created Custom Domain in place when the config declares no routes. The first
+  release after cutover shows it; the production smoke test fails if the domain is lost.
