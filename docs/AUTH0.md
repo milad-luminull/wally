@@ -1,13 +1,11 @@
 # Auth0 login and MCP
 
-Production signs users in through Auth0, with signup open and MCP reads and writes
-enabled (release variables `AUTH0_ENABLED`, `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`,
-`MCP_WRITES_ENABLED`, `VITE_AUTH_PROVIDER=auth0`). Firebase login is the local and CI
-default, not a production fallback: since the
-[ADR-0024](adr/ADR-0024-rename-persisted-values-without-migration.md) data reset every
-account is an Auth0 signup with a random Wally id, so a production switch back to Firebase
-would give every user a new, empty account. The decision is [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery
-history is in [the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
+Auth0 is Wally's only sign-in, in production, local development and CI. Production has
+signup open and MCP reads and writes enabled (release variables `AUTH0_SIGNUP_ENABLED`,
+`MCP_ENABLED`, `MCP_WRITES_ENABLED`). Firebase login, the earlier local and CI sign-in, is
+removed ([DEPLOY.md](DEPLOY.md#firebase-retired)). The decision is
+[ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery history is in
+[the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
 
 Auth0 is to be replaced by Supabase Auth for web login and MCP
 ([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
@@ -16,36 +14,42 @@ that cutover.
 
 ## Configuration
 
-The root `.env` feeds Docker Compose. Every switch defaults off, and the web provider
-defaults to Firebase:
+The root `.env` feeds Docker Compose. `.env.example` turns signup on for local use and
+leaves MCP off:
 
 ```dotenv
-AUTH0_ENABLED=false
-AUTH0_SIGNUP_ENABLED=false
+AUTH0_SIGNUP_ENABLED=true
 MCP_ENABLED=false
 MCP_WRITES_ENABLED=false
-VITE_AUTH_PROVIDER=firebase
 ```
 
-**Local Auth0 run:**
+**Local run:**
 
-- Set `AUTH0_ENABLED=true`, `VITE_AUTH_PROVIDER=auth0` and `VITE_AUTH0_CLIENT_ID` (the
-  public SPA client ID). Recreate the containers after changing `.env`.
+- Nothing else is needed. The web app uses Wally's public SPA client unless
+  `VITE_AUTH0_CLIENT_ID` names another. Your first sign-in creates your account in the local
+  database; recreate the containers after changing `.env`.
 - The SPA client allows the callbacks `http://localhost:5174/login` and
-  `https://wally.luminull.com/login`, with matching web origins and logout URLs.
+  `https://wally.luminull.com/login`, with matching web origins and logout URLs. Running the
+  web app on any other address, such as a second copy on another port, needs that address
+  added to the SPA client's callbacks, web origins and logout URLs first.
+- On `http://localhost`, Auth0 asks you to confirm the login again after a page reload. Auth0
+  documents that this confirmation "may still appear" for a first-party application "when
+  the application uses a non-verifiable callback URI (such as `localhost` …)"
+  ([consent](https://auth0.com/docs/get-started/applications/confidential-and-public-applications/user-consent-and-third-party-applications)).
+  For the same reason the Playwright suite runs only in CI, which serves the production
+  hostnames over HTTPS inside its runner ([E2E README](../apps/web/e2e/README.md)).
 - The SPA requests `openid profile email offline_access` and keeps tokens in memory, with
   rotating refresh tokens.
 - Never put a client secret in a `VITE_*` variable.
 
-**MCP:** additionally needs `MCP_ENABLED=true` and `MCP_CLIENT_ID`. Leave `MCP_CLIENT_ID`
+**MCP:** needs `MCP_ENABLED=true` and `MCP_CLIENT_ID`. Leave `MCP_CLIENT_ID`
 unset when unused rather than empty.
 
 **Release variables** have the same names. The workflow rejects:
 
-- unknown providers or invalid booleans;
-- Auth0 web login without API Auth0 or a SPA client ID;
-- signup without API Auth0;
-- MCP without API Auth0 or a client ID;
+- invalid booleans;
+- a missing SPA client ID;
+- MCP without a client ID;
 - writes without MCP.
 
 The issuer and audiences are pinned in code, not supplied by variables. See
@@ -73,9 +77,10 @@ The issuer and audiences are pinned in code, not supplied by variables. See
 
 **Mapping record:**
 
-- `authIdentities/{sha256(JSON.stringify([issuer, subject]))}` maps an external identity
-  to a Wally user ID.
-- Fields: `issuer`, `subject`, `userId` and `createdAt`. No credential or email is stored.
+- A row of `auth_identities`, keyed by `(issuer, subject)`, maps an external identity to a
+  Wally user ID.
+- Columns: `issuer`, `subject`, `user_id` and `created_at`. No credential or email is
+  stored.
 
 **Binding:** `bindKnownIdentity` in
 [identities.ts](../apps/api/src/lib/auth/identities.ts) is the only way to bind an

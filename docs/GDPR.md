@@ -15,11 +15,11 @@ Wally lives outside the repository (§8), and no amount of code review closes th
 
 ## 1. Roles and scope
 
-| Role          | Who                                                                                                                                                                                                                                                                                                                                                            | Basis                                       |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Controller    | Luminull                                                                                                                                                                                                                                                                                                                                                       | Decides why and how to-do data is processed |
-| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI; Cloud Firestore, unused since v0.12.0, until it is decommissioned; Firebase Auth for local and CI sign-in, not production), Auth0 (production sign-in for web and MCP), Supabase (the database, since v0.12.0) and Cloudflare (serves the web app and forwards all API traffic, since 2026-11-01) | Processes on the controller's instructions  |
-| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                                                                                                                                                            |                                             |
+| Role          | Who                                                                                                                                                                                                                      | Basis                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| Controller    | Luminull                                                                                                                                                                                                                 | Decides why and how to-do data is processed |
+| Processor     | Google (Cloud Run, Cloud Logging, Secret Manager, Vertex AI), Auth0 (sign-in for web and MCP), Supabase (the database, since v0.12.0) and Cloudflare (serves the web app and forwards all API traffic, since 2026-11-01) | Processes on the controller's instructions  |
+| Data subjects | People using Wally, plus non-users invited by email                                                                                                                                                                      |                                             |
 
 Wally is a shared to-do tool with per-user accounts and board sharing, run by Luminull as a
 side project. It is a standalone application and not part of any other product.
@@ -50,10 +50,9 @@ single source of truth for stored shapes; field names are the row types' in
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
 **Where the data lives (2026-11-01).** Production runs v0.13.0, which stores everything in
-PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Whatever v0.11.0 wrote stays in
-Cloud Firestore (database `wally`, `europe-west3`), unused. Nothing was copied across:
-PostgreSQL started empty, and the Firestore data is deleted when Firestore is decommissioned
-([RFC-0011](rfcs/RFC-0011-platform-migration.md) section 6).
+PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Nothing was copied across from
+Cloud Firestore, the earlier store: PostgreSQL started empty, and the Firestore database is
+deleted with Firebase's retirement ([DEPLOY.md](DEPLOY.md#firebase-retired)).
 
 ### Identity — `users`
 
@@ -71,9 +70,8 @@ Production signs in with Auth0: the sign-in token is an Auth0 access token whose
 from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs), and the uid is a random
 Wally id that `resolveOrCreateIdentity`
 ([`apps/api/src/lib/auth/identities.ts`](../apps/api/src/lib/auth/identities.ts)) creates at
-the first sign-in and links to the Auth0 subject in `authIdentities`. Firebase Authentication
-signs in local development and CI only; there the token is a Firebase ID token and the uid
-is the Firebase uid.
+the first sign-in and links to the Auth0 subject in `authIdentities`, in production, local
+development and CI alike.
 
 ### Membership — `board_members`
 
@@ -149,12 +147,9 @@ Free plan, on 2026-10-31.
 ### Elsewhere
 
 - **Auth0** holds the production login identity (see [Auth0 and MCP data](#auth0-and-mcp-data)).
-- **Firebase Authentication** signs in local development and CI; it is not a production
-  fallback. It holds the CI test accounts, and may still hold the credential records of
-  accounts created before Auth0 and Google's own sign-in metadata (last login, provider) that
-  Wally never reads. Since the v0.11.0 data reset none of them maps to a Wally account. Not
-  checked: whether those records have been deleted. Deleting a `users` row
-  touches neither identity store — erasure has to address all three (GAP-01).
+- **Firebase Authentication** is retired: Wally no longer uses it, and its remaining
+  accounts are deleted with Firebase's retirement ([DEPLOY.md](DEPLOY.md#firebase-retired)).
+  Deleting a `users` row does not touch Auth0 — erasure has to address both (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
@@ -192,8 +187,6 @@ regression is visible as a change to a named file.
 The database is in Supabase's Ireland region, `eu-west-1` ([`DEPLOY.md`, Create the database](DEPLOY.md#4-step-2--create-the-database)),
 the connection-string secret is replicated only in `europe-west3` (Frankfurt), and everything else on
 Google Cloud is `europe-west1` (Belgium) ([`DEPLOY.md`, Names used throughout](DEPLOY.md#names-used-throughout)).
-The unused Firestore database is `europe-west3` (Frankfurt)
-([`DEPLOY.md`, Firestore after the switch](DEPLOY.md#firestore-after-the-switch)).
 _(Art. 44 ff.)_
 
 Cloudflare is the other exception, since the cutover on 2026-11-01. It answers each request in whichever
@@ -240,16 +233,14 @@ Manager. The web app holds no database client; every request passes the API's ro
 [`apps/api/src/lib/authorization.ts`](../apps/api/src/lib/authorization.ts). Every table has Row
 Level Security enabled with no policies, which denies every row to any role row security
 applies to ([row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)), and
-Supabase's Data API is to be switched off
-([DEPLOY.md](DEPLOY.md#4-step-2--create-the-database)). **Not yet verified in production:**
-both are settings of a hosted project that does not exist yet. Until the PostgreSQL release,
-production's `firestore.rules`, deployed earlier, deny every direct read and write.
-_(Art. 32(1)(b))_
+Supabase's Data API is switched off: from outside, its endpoints answer 503 for every table
+(checked 2026-10-31, [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 8; setup in
+[DEPLOY.md](DEPLOY.md#4-step-2--create-the-database)). _(Art. 32(1)(b))_
 
 ### Privilege decisions keyed on email require a verified address
 
-An invite can only be claimed once the sign-in provider (Auth0 in production, Firebase
-locally and in CI) confirms the caller controls the address —
+An invite can only be claimed once the sign-in provider (Auth0) confirms the caller controls
+the address —
 the `emailVerified` check before `activatePendingInvitesForEmail` in
 [`apps/api/src/plugins/auth.ts`](../apps/api/src/plugins/auth.ts), with the reasoning
 recorded on the `users.emailVerified` column. Without it, anyone could claim a colleague's pending
@@ -303,8 +294,8 @@ signed-in users. _(Art. 5(1)(c))_
 No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
 can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
 employee's `users` row, any board they did not delete, their `createdById` and `assigneeId`
-references and their `history.actorId` entries persist forever. Firebase Auth and Auth0 each
-hold a further copy of the identity, independent of the database.
+references and their `history.actorId` entries persist forever. Auth0 holds a further copy of
+the identity, independent of the database.
 
 **Status:** a self-service deletion flow was built, then removed in PR #76 because it was
 too complex to maintain. Until it is rebuilt, deletion requests to

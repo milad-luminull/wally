@@ -1,6 +1,6 @@
 # ADR-0009: Local dev and CI run in Docker Compose against the Firestore emulator, with real Firebase Auth
 
-- **Status:** accepted; the Firestore emulator and its per-project test isolation are superseded by [ADR-0025](ADR-0025-local-postgres-and-per-file-test-databases.md), and the emulator left compose and CI on 2026-10-31. Docker Compose, `make` and real Firebase Auth stand
+- **Status:** accepted; the Firestore emulator and its per-project test isolation are superseded by [ADR-0025](ADR-0025-local-postgres-and-per-file-test-databases.md), and the emulator left compose and CI on 2026-10-31; real Firebase Auth is superseded by [ADR-0016](ADR-0016-auth0-for-web-and-mcp.md): local development and CI sign in with Auth0 since the Firebase retirement (2026-11-01). Docker Compose and `make` stand
 - **Date:** 2026-09-18
 - **Deciders:** Milad Rezazadeh
 

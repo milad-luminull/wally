@@ -15,7 +15,8 @@
 - **Web sign-in:** Google and email/password, through Supabase Auth.
 - **MCP tokens:** ChatGPT connects to `https://api.wally.luminull.com/mcp` with tokens
   issued by Supabase Auth's OAuth 2.1 server.
-- **Retired:** Auth0 and Firebase Authentication, after the rollback window.
+- **Retired:** Auth0, after the rollback window. Firebase Authentication was retired earlier
+  (RFC-0011 workstream 6, part 1, owner 2026-11-01).
 - **Unchanged behavior:**
   - Wally user IDs, board permissions and verified-email invites.
   - Private notes, MCP connection records, Disconnect and Reconnect.
@@ -118,7 +119,8 @@ stays revoked.
      denial and revocation.
 4. **Retire:**
    - Auth0: its tenant, its client registrations and `login.luminull.com`.
-   - The Firebase verifier and the `firebase` web SDK.
+   - (The Firebase verifier and the `firebase` web SDK were already removed in RFC-0011
+     workstream 6, part 1.)
 
 ## 6. Proof required before step 2
 
