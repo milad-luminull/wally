@@ -17,7 +17,7 @@ export function SignupPage() {
 
   return (
     <AuthLayout title={t('routes.signup.title')} subtitle={t('routes.signup.subtitle')}>
-      {<HostedLogin signup />}
+      <HostedLogin signup />
     </AuthLayout>
   );
 }

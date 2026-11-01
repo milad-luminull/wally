@@ -192,6 +192,10 @@ describe('auth preHandler', () => {
   it('creates a new account when the user record and its identity mapping are gone', async () => {
     const token = registerTestUser(ctx, 'a-removed', 'removed@example.com');
     await ctx.inject({ method: 'GET', url: '/whiteboards', headers: ctx.authHeader(token) });
+    await ctx.db
+      .update(users)
+      .set({ preferences: { theme: 'dark' } })
+      .where(eq(users.id, 'a-removed'));
     await ctx.db.delete(whiteboards).where(eq(whiteboards.ownerId, 'a-removed'));
     await ctx.db.delete(users).where(eq(users.id, 'a-removed'));
 
@@ -203,7 +207,11 @@ describe('auth preHandler', () => {
       headers: ctx.authHeader(token),
     });
     expect(res.statusCode).toBe(200);
-    expect((await userRow(ctx.db, 'a-removed'))?.email).toBe('removed@example.com');
+    const fresh = await userRow(ctx.db, 'a-removed');
+    expect(fresh?.email).toBe('removed@example.com');
+    // A new account, not the old one restored: the old preferences are gone. (In production
+    // the new account also gets a new random id; tests name it through newUserId.)
+    expect(fresh?.preferences).not.toEqual({ theme: 'dark' });
   });
 });
 

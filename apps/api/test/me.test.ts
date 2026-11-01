@@ -187,7 +187,7 @@ describe('/me', () => {
     expect(response.json().language).toBe('en');
   });
 
-  // Regression guard for the sharpest edge in this change: provisionUser's update names a
+  // Regression guard for the sharpest edge in this change: syncProfile's update names a
   // fixed column list, so a provider profile change must not take `language` down with it.
   it('preserves the language when the provider profile changes', async () => {
     const token = registerTestUser(ctx, 'me-rename', 'rename@example.com', 'Original');

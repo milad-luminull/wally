@@ -200,7 +200,8 @@ Each has to be proven on a free project before the slice that depends on it.
     steps were already gone (workstreams 2 and 4).
   - **Firebase Authentication** goes now, before the identity cutover (owner, 2026-11-01),
     rather than with Auth0: it served only local development and CI, which move to Auth0.
-    Its accounts, sign-in settings, web app registration and browser key are deleted.
+    Its accounts, sign-in settings, web app registration and browser key are deleted after
+    the merge (group B).
   - **Firebase Hosting:** its custom domain was removed in the console right after the
     Cloudflare cutover was verified, with no window (owner, 2026-11-01), but Hosting still
     listed it; it is deleted here. The default site cannot be deleted, so it is disabled.

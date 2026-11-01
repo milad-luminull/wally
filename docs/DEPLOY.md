@@ -215,7 +215,8 @@ gcloud services enable \
   secretmanager.googleapis.com
 ```
 
-The Firebase APIs this project once used are disabled ([Firebase retired](#firebase-retired)).
+The Firebase APIs this project once used are disabled in group B of the
+[Firebase retirement](#firebase-retired).
 
 ---
 
@@ -362,8 +363,8 @@ gcloud iam service-accounts create wally-api \
   --display-name="Wally API runtime"
 ```
 
-It once held `roles/datastore.user`, for Firestore; that grant is removed with Firebase's
-retirement ([Firebase retired](#firebase-retired)).
+It once held `roles/datastore.user`, for Firestore; that grant was removed on 2026-11-01
+([Firebase retired](#firebase-retired)).
 
 > IAM changes take up to 5 minutes to take effect. If your first request fails with a
 > permission error, wait and retry before assuming something is broken.
@@ -1293,9 +1294,18 @@ table records the date each was done and checked. The design holds the exact com
   `SITE_DISABLE` release makes Hosting act as if the site never existed; its old versions,
   the public web bundle, stay stored.
 
-**Rolling back the API by Cloud Run revision still works:** earlier revisions carry their own
-environment, and production never verified a Firebase token. Rolling back past v0.12.0 was
-already ruled out (section 13).
+**Rolling back the API by Cloud Run revision still works,** because earlier revisions carry
+their own environment, but such a revision accepts Firebase ID tokens again, and creates a
+Wally user straight from a Firebase uid. That stays possible until group B turns Firebase
+sign-in off and deletes its accounts; after that no Firebase token can be issued. Rolling
+back past v0.12.0 was already ruled out (section 13). Whether the old path was ever used in
+production shows in the database: a Firebase uid is 28 characters, while every Auth0 signup
+gets a UUID, so this count should be 0:
+
+```sql
+select count(*) from users
+where id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+```
 
 ## Account-cleanup worker (retired)
 

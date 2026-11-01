@@ -27,7 +27,9 @@ MCP_WRITES_ENABLED=false
 
 - Nothing else is needed. The web app uses Wally's public SPA client unless
   `VITE_AUTH0_CLIENT_ID` names another. Your first sign-in creates your account in the local
-  database; recreate the containers after changing `.env`.
+  database; recreate the containers after changing `.env`. An older `.env` without
+  `AUTH0_SIGNUP_ENABLED=true` gets `403 IDENTITY_NOT_LINKED` on that first sign-in, because
+  compose defaults the switch to `false`.
 - The SPA client allows the callbacks `http://localhost:5174/login` and
   `https://wally.luminull.com/login`, with matching web origins and logout URLs. Running the
   web app on any other address, such as a second copy on another port, needs that address

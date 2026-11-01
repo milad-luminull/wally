@@ -355,14 +355,16 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
+      # Compose needs AUTH0_CI_TLS_DIR (docker-compose.auth0-ci.yml); before the HTTPS
+      # preparation step sets it, no container exists to log or tear down.
       - name: Container logs on failure
-        if: failure()
+        if: failure() && env.AUTH0_CI_TLS_DIR != ''
         run: |
           docker compose ps
           docker compose logs --no-color --tail=400
 
       - name: Tear down
-        if: always()
+        if: always() && env.AUTH0_CI_TLS_DIR != ''
         run: docker compose down -v
 
   # THIS is the required status check, not `e2e`. A fork PR cannot reach the secrets, so

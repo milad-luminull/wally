@@ -24,7 +24,7 @@ export function LoginPage() {
             : t('auth.sessionEnded')}
         </p>
       )}
-      {<HostedLogin />}
+      <HostedLogin />
     </AuthLayout>
   );
 }

@@ -169,8 +169,9 @@ export default fp(
       const emailVerified = identity.emailVerified;
 
       const [existing] = await db.select().from(users).where(eq(users.id, userId));
-      // A linked identity whose user record is gone (removed by hand) is refused: it never
-      // recreates that user or creates an empty one.
+      // The user record disappeared after the identity resolved (removed by hand in between):
+      // refused, never recreated. A user removed earlier takes its mapping with it (cascade),
+      // so its identity is unknown again: refused with signup off, a new account with it on.
       if (!existing) {
         throw new AppError(
           403,
