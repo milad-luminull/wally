@@ -9,7 +9,9 @@
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0021](../adr/ADR-0021-supabase-auth-for-web-and-mcp.md) (identity and MCP),
   [ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
-  [ADR-0023](../adr/ADR-0023-supabase-realtime-for-notification-events.md) (notification events)
+  [ADR-0023](../adr/ADR-0023-supabase-realtime-for-notification-events.md) (notification events),
+  [ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md) (a new Google
+  Cloud project, created with Terraform)
 
 This RFC replaces the [EU platform overview](RFC-0007-eu-platform-and-ai-workers.md) of 2026-10-19.
 
@@ -30,9 +32,11 @@ and Auth0 are decommissioned.** Every existing capability keeps working, in part
   switch move to Supabase Auth is open (section 8). Accounts are never merged by email
   alone.
 
-The **Google Cloud project `luminull-wally` stays**. It also hosts Cloud Run, Artifact
+The **Google Cloud project `luminull-wally` stays** for now. It also hosts Cloud Run, Artifact
 Registry, Workload Identity Federation and Secret Manager. Decommissioning Firebase means
-switching off Firebase products in that project, not deleting the project.
+switching off Firebase products in that project, not deleting the project. Later, Wally moves
+to a new project created with Terraform, which has never been linked to Firebase
+([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md)).
 
 ## 2. Target stack
 
@@ -48,7 +52,8 @@ The brief's table is authoritative for the choice of provider. In short:
 - Resend for all email: Supabase Auth's custom SMTP and notification email.
 - Supabase Storage for uploads ([uploads RFC](RFC-0009-uploads-and-retrieval.md)).
 - GitHub Actions to Artifact Registry to Cloud Run.
-- Terraform for infrastructure.
+- Terraform for infrastructure, including a new Google Cloud project for Wally
+  ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md)).
 
 **Budget (replaces the €30/month ceiling of 2026-10-19):**
 
@@ -348,6 +353,13 @@ Decided on 2026-10-31:
   incident) cannot be recovered. Revisit before real users depend on Wally, or with the
   move to Pro, whose daily backups the owner approves when the time comes.
 
+Decided on 2026-11-01:
+
+- **A new Google Cloud project, later:** Firebase cannot be removed from `luminull-wally`, and
+  switching its Firebase plan to Spark unlinked billing and stopped Cloud Run on 2026-11-01.
+  Wally moves to a new project created with Terraform, when Terraform is adopted; not now, by
+  hand ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md)).
+
 Still open:
 
 - **Accounts at the identity switch:** accounts and boards created on PostgreSQL while
@@ -355,7 +367,8 @@ Still open:
   ([identity RFC](RFC-0012-supabase-auth-and-mcp.md) section 3), or are deleted and
   everyone starts again.
 - **Rollback windows** for the persistence and identity switches.
-- **Terraform scope:** which resources it manages first.
+- **Terraform scope:** which resources it manages first. The new Google Cloud project of
+  ADR-0026 is part of it.
 
 ## 9. Operations the brief expects from day one
 
