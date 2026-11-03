@@ -1,8 +1,8 @@
 # Passkeys with password fallback, Google kept, one identity per account — design
 
-> **Status:** proposed, 2026-11-03. Waiting for the owner's approval. It replaces the
-> account-linking design of the same day, which the owner dropped: Wally builds no account
-> linking.
+> **Status:** approved by the owner, 2026-11-03. It replaces the same day's account-linking
+> design, which the owner dropped: Wally builds no account linking. Code: steps 2–4. The
+> docs in step 5 wait for the `docs/keep-auth0` work to land.
 
 ## Intent
 
