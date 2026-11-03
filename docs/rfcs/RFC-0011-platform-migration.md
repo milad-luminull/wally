@@ -262,7 +262,8 @@ Points marked _unverified_ must be confirmed in the slice that relies on them.
    - `wally-background` and its Scheduler job are therefore new in workstream 5.
    - Supabase Free can pause a project after about seven days of low database activity
      (owner brief). Until the background service queries PostgreSQL regularly, a
-     keepalive needs a decision.
+     keepalive needs a decision. _Decided 2026-11-03:_ a GitHub Actions workflow calls
+     `/health` every 6 hours ([DEPLOY.md](../DEPLOY.md#keeping-the-database-awake)).
 
 ## 8. Owner decisions
 
@@ -328,6 +329,21 @@ Still open:
 - **Before production switches to PostgreSQL:**
   - Billing alerts on Google Cloud, Supabase and Cloudflare. Alerts are not caps.
   - Supabase project-owner emails switched on, so pause warnings reach the owner.
+
+  Checked on 2026-11-03, after the switch:
+  - **Google Cloud:** a €10/month budget on `luminull-wally` alerts at 50, 90 and 100 % of
+    actual spend, to the billing account's default recipients. AI spend alone may reach it.
+  - **Supabase:** the organization is on the Free plan, which is not charged. Going over a
+    quota sends a notice to the billing email and starts a grace period
+    ([usage](https://supabase.com/docs/guides/platform/manage-your-usage/monthly-active-users)).
+    Pause warnings go to the project owner, with no setting to switch on
+    ([project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)).
+    The owner confirms that both addresses are read.
+  - **Cloudflare:** Workers Free fails requests over the daily limit with error 1027
+    ([limits](https://developers.cloudflare.com/workers/platform/limits/)); no usage alert
+    is documented. The owner confirms that the account is on Workers Free.
+  - **Pausing:** the keepalive workflow (section 7, item 9).
+
 - **Dashboards:**
   - API p95 latency and errors;
   - database size against the 500 MB quota;
