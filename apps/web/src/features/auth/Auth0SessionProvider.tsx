@@ -105,8 +105,13 @@ export function Auth0SessionProvider({
         window.history.replaceState(window.history.state, '', window.location.pathname);
         clear();
         setStatus('unauthenticated');
+        const code = (error as { code?: string }).code;
         setAuthError(
-          (error as { code?: string }).code === 'IDENTITY_NOT_LINKED' ? 'migration' : 'unavailable',
+          code === 'IDENTITY_NOT_LINKED'
+            ? 'migration'
+            : code === 'EMAIL_NOT_VERIFIED'
+              ? 'unverified'
+              : 'unavailable',
         );
       }
     })();

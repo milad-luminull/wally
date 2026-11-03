@@ -462,11 +462,14 @@ export const de = {
   },
   auth: {
     hosted: {
-      description: 'Melde dich sicher mit Google oder deiner E-Mail auf unserer Anmeldeseite an.',
+      description:
+        'Melde dich sicher mit Google, einem Passkey oder deiner E-Mail auf unserer Anmeldeseite an.',
       passwordReset:
         'Passwort vergessen? Wähle auf der nächsten Seite „Passwort vergessen“, um es zurückzusetzen.',
       migration:
-        'Diese Anmeldung ist mit keinem Wally-Konto verknüpft. Wende dich an den Wally-Betreiber oder nutze ein anderes Konto.',
+        'Für diese E-Mail-Adresse gibt es schon ein Wally-Konto. Melde dich so an, wie du dich registriert hast, zum Beispiel mit Google.',
+      unverified:
+        'Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir geschickt haben, und melde dich dann erneut an.',
       unavailable: 'Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
       pending: 'Verbindung wird hergestellt…',
       login: 'Weiter zur Anmeldung',

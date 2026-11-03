@@ -26,24 +26,32 @@ test('signed profile claims are restricted to Wally audiences', async () => {
     });
   }
   await onExecutePostLogin(
-    { resource_server: { identifier: 'https://unrelated.example' }, user: {} },
-    { accessToken: { setCustomClaim: () => assert.fail('unrelated audience') } },
+    {
+      resource_server: { identifier: 'https://unrelated.example' },
+      user: { email_verified: true },
+    },
+    {
+      access: { deny: () => assert.fail('verified user denied') },
+      accessToken: { setCustomClaim: () => assert.fail('unrelated audience') },
+    },
   );
 });
-test('verification must be explicitly true and missing email is never fabricated', async () => {
-  const claims = {};
-  await onExecutePostLogin(
-    {
-      resource_server: { identifier: 'https://api.wally.luminull.com' },
-      user: { email_verified: 'true' },
-    },
-    {
-      accessToken: {
-        setCustomClaim: (key, value) => {
-          claims[key] = value;
+test('a login without an explicitly verified email is denied before any claim', async () => {
+  for (const user of [
+    { email: 'user@example.com', email_verified: 'true' },
+    { email_verified: false },
+    {},
+  ]) {
+    for (const identifier of ['https://api.wally.luminull.com', 'https://unrelated.example']) {
+      const denied = [];
+      await onExecutePostLogin(
+        { resource_server: { identifier }, user },
+        {
+          access: { deny: (reason) => denied.push(reason) },
+          accessToken: { setCustomClaim: () => assert.fail('claim set for an unverified user') },
         },
-      },
-    },
-  );
-  assert.deepEqual(claims, { [`${ns}email_verified`]: false, [`${ns}name`]: null });
+      );
+      assert.deepEqual(denied, ['EMAIL_NOT_VERIFIED']);
+    }
+  }
 });

@@ -58,7 +58,7 @@ describe('hosted sign-in', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }));
     expect(target).toEqual({ signup: false, returnPath: '/boards/known' });
   });
-  it('explains a sign-in not linked to a Wally account and lets the user switch accounts', async () => {
+  it('explains an address that already has a Wally account and lets the user switch accounts', async () => {
     let loggedOut = false;
     render(
       <MemoryRouter>
@@ -77,8 +77,26 @@ describe('hosted sign-in', () => {
         </AuthContext.Provider>
       </MemoryRouter>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent(/not linked to a Wally account/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/already has a Wally account/i);
     await userEvent.click(screen.getByRole('button', { name: 'Use another account' }));
     expect(loggedOut).toBe(true);
+  });
+  it('asks for email verification after Auth0 denied an unverified sign-in', () => {
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider
+          value={
+            {
+              authError: 'unverified',
+              hostedLogin: async () => {},
+              signOut: async () => {},
+            } as unknown as AuthContextValue
+          }
+        >
+          <HostedLogin />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/verify your email address/i);
   });
 });

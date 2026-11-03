@@ -31,7 +31,9 @@ export function HostedLogin({ signup = false }: { signup?: boolean }) {
           {t(
             !failed && authError === 'migration'
               ? 'auth.hosted.migration'
-              : 'auth.hosted.unavailable',
+              : !failed && authError === 'unverified'
+                ? 'auth.hosted.unverified'
+                : 'auth.hosted.unavailable',
           )}
         </p>
       )}

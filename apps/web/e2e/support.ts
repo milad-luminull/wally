@@ -14,14 +14,30 @@ export async function completeSignIn(page: Page) {
   expect(new URL(page.url()).origin).toBe('https://login.luminull.com');
   await page.locator('input[name="username"]').fill(EMAIL);
   // Auth0's required marker is part of its label; target the inspected password field.
-  await page.locator('input[name="password"][type="password"]').fill(PASSWORD);
+  const password = page.locator('input[name="password"][type="password"]');
+  // With Identifier First (required for passkeys) the password is on a second screen.
+  if (!(await password.isVisible())) {
+    await page.getByRole('button', { name: /^(Continue|Weiter)$/ }).click();
+  }
+  await password.fill(PASSWORD);
+  const passwordPage = page.url();
   await page.getByRole('button', { name: /^(Continue|Weiter)$/ }).click();
-  await page.waitForURL(
-    (url) =>
-      (url.origin === appOrigin && /^\/boards(?:\/|$)/.test(url.pathname)) ||
-      (url.origin === 'https://login.luminull.com' && url.pathname.startsWith('/u/consent')),
-  );
-  if (new URL(page.url()).origin === 'https://login.luminull.com') {
+  const inApp = (url: URL) => url.origin === appOrigin && /^\/boards(?:\/|$)/.test(url.pathname);
+  const onLogin = (url: URL) => url.origin === 'https://login.luminull.com';
+  await page.waitForURL((url) => inApp(url) || (onLogin(url) && url.href !== passwordPage));
+  const current = () => new URL(page.url());
+  if (onLogin(current()) && !current().pathname.startsWith('/u/consent')) {
+    // Passkey progressive enrollment after a password login: CI keeps the password path.
+    const later = /^(Remind me later|Not now|Skip|Später erinnern|Jetzt nicht|Überspringen)$/;
+    await page
+      .getByRole('button', { name: later })
+      .or(page.getByRole('link', { name: later }))
+      .click();
+    await page.waitForURL(
+      (url) => inApp(url) || (onLogin(url) && url.pathname.startsWith('/u/consent')),
+    );
+  }
+  if (onLogin(current())) {
     // Localhost requires interactive consent even for a first-party application.
     await page.getByRole('button', { name: /^(Accept|Akzeptieren|Zustimmen)$/ }).click();
   }

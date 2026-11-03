@@ -58,6 +58,20 @@ describe('Auth0 application session', () => {
       expect(await getAuth0AccessToken()).toBeNull();
     },
   );
+  it('shows the verification state when Auth0 denied an unverified email', async () => {
+    window.history.replaceState(null, '', '/login?error=access_denied&state=s');
+    const fixture = setup(async () => new Response(JSON.stringify(profile)));
+    fixture.client.handleRedirectCallback = async () => {
+      throw Object.assign(new Error('access_denied'), {
+        error: 'access_denied',
+        error_description: 'EMAIL_NOT_VERIFIED',
+      });
+    };
+    const { result } = renderHook(() => useContext(AuthContext)!, { wrapper: fixture.wrapper });
+    await waitFor(() => expect(result.current.authError).toBe('unverified'));
+    expect(result.current.status).toBe('unauthenticated');
+    expect(window.location.search).toBe('');
+  });
   it('retains the session and cache after a transient token network failure', async () => {
     const fixture = setup(async () => new Response(JSON.stringify(profile)));
     const { result } = renderHook(() => useContext(AuthContext)!, { wrapper: fixture.wrapper });
