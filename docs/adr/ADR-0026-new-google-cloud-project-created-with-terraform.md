@@ -7,7 +7,7 @@
 ## Context and problem statement
 
 Wally's Google Cloud resources live in `luminull-wally`, a project that was set up as a
-Firebase project. Firebase was retired there on 2026-11-01 (workstream 6, part 1 of
+Firebase project. Firebase was retired there on 2026-11-01 (workstream 6 of
 [RFC-0011](../rfcs/RFC-0011-platform-migration.md); [DEPLOY.md](../DEPLOY.md#firebase-retired)),
 but it cannot be removed from the project: Google documents that "once you 'add Firebase' to an
 existing Google Cloud project, it can't be undone"

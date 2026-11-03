@@ -7,10 +7,10 @@ removed ([DEPLOY.md](DEPLOY.md#firebase-retired)). The decision is
 [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery history is in
 [the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
 
-Auth0 is to be replaced by Supabase Auth for web login and MCP
-([ADR-0021](adr/ADR-0021-supabase-auth-for-web-and-mcp.md),
-[RFC-0012](rfcs/RFC-0012-supabase-auth-and-mcp.md)). This page describes production until
-that cutover.
+Where the browser talks to Supabase (Realtime, planned), Supabase trusts the Auth0 ID token
+through Third-Party Auth
+([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)). Not built
+yet: the Post Login Action does not add the `role` claim Supabase requires.
 
 ## Configuration
 
@@ -111,6 +111,12 @@ users and mappings; every account since is an Auth0 signup.
 **Collisions:** a normalized email that matches any existing user denies the signup with
 `IDENTITY_NOT_LINKED`. It never links accounts. Concurrent signups are checked inside the
 same transaction.
+
+Each Wally account has exactly one Auth0 identity: a second sign-in method with an address
+an account already holds is refused, and Wally never links or merges accounts.
+
+**Open:** an unverified password signup still gets a Wally account, so it can hold an address
+its verified owner then cannot use.
 
 **Unverified email:**
 

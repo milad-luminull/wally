@@ -1,6 +1,6 @@
 # ADR-0016: Auth0 for web login and MCP authorization
 
-- **Status:** superseded by [ADR-0021](ADR-0021-supabase-auth-for-web-and-mcp.md)
+- **Status:** accepted (2026-11-03)
 - **Date:** 2026-10-19
 - **Deciders:** Milad Rezazadeh
 

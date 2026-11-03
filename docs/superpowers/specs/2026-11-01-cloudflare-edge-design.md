@@ -26,7 +26,7 @@ The addresses stay the same, and so do the bundle, CORS, the MCP resource URL an
 connections. Firebase Hosting and the domain mapping are retired straight after: there is no rollback
 window, because production has no users or data yet (owner, 2026-11-01).
 
-This is the smallest workstream and is independent of identity (workstream 3). It ships as
+This is the smallest workstream and is independent of the others. It ships as
 its own release, after v0.12.0 (the PostgreSQL release) has gone out, so that a failure points
 at one change.
 
@@ -313,7 +313,7 @@ Why:
   a preview URL, deploy and rollback. Pages would add `wrangler pages deploy` and a separate
   rollback API with its own deployment IDs.
 - **Cloudflare's direction.** Its Pages documentation says "Start new projects with Workers"
-  (RFC-0011 §7.7).
+  (RFC-0011 §7.2).
 - **No coupling.** ADR-0022 set this option aside because it shared one Worker with the proxy.
   A Worker of its own removes that.
 - **Free.** An assets-only Worker's requests are free and unlimited.

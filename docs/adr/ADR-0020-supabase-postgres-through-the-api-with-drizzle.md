@@ -103,4 +103,4 @@ The scope, data inventory, backup routine and switch are in the
 ## More information
 
 - [Platform migration](../rfcs/RFC-0011-platform-migration.md) and the [data RFC](../rfcs/RFC-0008-firestore-to-supabase.md).
-- Browser access to Supabase Auth and Realtime: ADR-0021 and ADR-0023.
+- Browser access to Supabase Realtime, with Auth0 tokens: ADR-0023 and ADR-0027.

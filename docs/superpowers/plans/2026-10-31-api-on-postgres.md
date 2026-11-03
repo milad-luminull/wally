@@ -11,7 +11,7 @@ workstream 1 foundation (Drizzle, `withTransaction`, the schema in
 `apps/api/src/lib/postgres/`). There is no interim data-access layer and no dual store: the
 board command transaction couples users, boards, members, notes, receipts, audit, MCP
 grants and assistant records, so they switch together. `firebase-admin` stays only to verify
-Firebase ID tokens until the identity slice (workstream 3).
+Firebase ID tokens until Firebase Authentication is retired (workstream 6).
 
 **Tech stack:** Drizzle ORM 0.45.4 (`casing: 'snake_case'`), postgres.js 3.4.9
 (`prepare: false`), `supabase/postgres:17.11.0.003`, Vitest per-file databases.

@@ -1,6 +1,6 @@
 # Firestore to Supabase
 
-- **Status:** Supabase selected for data and identity. Revised 2026-10-27 for the clean
+- **Status:** Supabase selected for data. Revised 2026-10-27 for the clean
   start. Delivery steps 1, 3 and 4 are live since v0.12.0 (2026-11-01); step 2, backups,
   is deferred (owner, 2026-10-31). See [Delivery](#delivery).
 - **Date:** 2026-10-19, revised 2026-10-26, 2026-10-27, 2026-10-31 and 2026-11-01
@@ -27,10 +27,10 @@ What has to be kept is the API's behavior, not its data.
 
 - Only the API reads and writes application tables.
 - The Data API is disabled.
-- The browser reaches Supabase only for Auth and Realtime (ADR-0021, ADR-0023).
+- The browser reaches Supabase only for Realtime, with its Auth0 token (ADR-0023, ADR-0027).
 
-**Identity:** Supabase Auth replaces Auth0 in the [identity RFC](RFC-0012-supabase-auth-and-mcp.md),
-after this switch. The `authIdentities` table starts empty; mappings are created as
+**Identity:** Auth0 stays ([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)). The
+`authIdentities` table starts empty; mappings are created as
 users sign in.
 
 **Cost:** stay on Supabase Free: $0 in development, and the initial release stays under
@@ -100,7 +100,7 @@ The invariants:
   their source rows. The subtask copy limit of 400 still applies.
 - **Board limit:** at most 20 boards per owner, with no phantom inserts.
 - **One connection per client:** at most one active MCP connection per user and client.
-  The Auth0 signup email-collision denial stays until Auth0 is retired.
+  The Auth0 signup email-collision denial stays.
 - **Assistant budget:**
   - At most two in-flight slots, each on a 120 s lease.
   - Daily token cap and monthly spend cap.

@@ -51,7 +51,7 @@ Chosen option: **option 1**.
 - Good: local and CI use the engine and major version a new hosted project runs.
 - Bad: the image is large, and a test run needs the `postgres` service up, as it needs the
   emulator.
-- Neutral: Auth and Realtime arrive locally with the identity slices, probably through the
+- Neutral: Realtime arrives locally with the slice that uses it, probably through the
   Supabase CLI; that will be its own decision.
 
 ### Confirmation
