@@ -123,7 +123,7 @@ it('rejects with a message naming DATABASE_URL when it is unset', async () => {
 - [ ] **Step 9: Docs.** ADR-0025 (template `ADR-0000-template.md`) covers:
   - the local Supabase PostgreSQL service with no published port;
   - the template plus per-file test databases;
-  - the alternatives: the Supabase CLI stack (deferred to the identity slices), and schema-per-file;
+  - the alternatives: the Supabase CLI stack (deferred to the Realtime and Storage slices), and schema-per-file;
   - its status: partly supersedes ADR-0009. The Firestore emulator stays until workstream 2.
 
   Add ADR-0025 to the ADR index with "In production: not used by production". Mark ADR-0009 partly superseded in the index. SETUP.md: the new service, `psql` through `docker compose exec`, and `pnpm --filter @wally/api db:generate`.

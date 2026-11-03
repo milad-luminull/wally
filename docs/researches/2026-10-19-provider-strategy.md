@@ -1,8 +1,7 @@
 # Wally provider research: EU platform, AI, storage and jobs
 
 > **2026-10-26:** the owner's [tech stack brief](2026-10-26-tech-stack-and-architecture.md)
-> reverses the identity choice below. Supabase Auth replaces Auth0, Cloudflare Pages
-> replaces Firebase Hosting, and the budget becomes a target of $0 in development and
+> keeps Auth0 for identity. Cloudflare Pages replaces Firebase Hosting, and the budget becomes a target of $0 in development and
 > under $50/month at release. See [Platform migration](../rfcs/RFC-0011-platform-migration.md).
 > The comparison below is kept as dated research.
 

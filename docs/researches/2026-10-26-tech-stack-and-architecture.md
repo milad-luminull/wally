@@ -1,6 +1,7 @@
 <!--
-Owner's decision brief, received 2026-10-26 and stored unchanged below this note.
-It is the source for the platform decisions in ADR-0020 to ADR-0023 and for
+Owner's decision brief, received 2026-10-26. Identity is Auth0 (ADR-0016), and Supabase
+trusts its tokens through Third-Party Auth (ADR-0027).
+It is the source for the platform decisions in ADR-0020, ADR-0022 and ADR-0023 and for
 ../rfcs/RFC-0011-platform-migration.md, which also records the review of this brief against
 Wally's current state. Where the RFC or an ADR is more specific, they win.
 -->
@@ -21,11 +22,11 @@ Wally's current state. Where the RFC or an ADR is more specific, they win.
 | API and business logic                 | **Fastify + Node.js + Docker on Google Cloud Run**                    | Scale to zero; free execution allowance                                      |
 | Background jobs                        | **Cloud Run + Cloud Tasks + Cloud Scheduler**                         | Free allowances; no always-on worker                                         |
 | Database                               | **Supabase PostgreSQL + Drizzle**                                     | **Supabase Free**                                                            |
-| Authentication                         | **Supabase Auth**                                                     | Free                                                                         |
+| Authentication                         | **Auth0**, trusted by Supabase through Third-Party Auth               | Auth0 Free; Supabase Free                                                    |
 | In-app notifications                   | **PostgreSQL + Supabase Realtime**                                    | Free; browser WebSocket to Supabase                                          |
 | File storage                           | **Supabase Storage or Google Cloud Storage**                          | **Decision open**; prefer Supabase's included free storage for the prototype |
 | AI integration                         | **AI SDK + interchangeable model adapters**                           | Free/synthetic-data development; paid models only when justified             |
-| Transactional email                    | **Resend** configured as Supabase custom SMTP                         | Free allowance                                                               |
+| Transactional email                    | **Resend**                                                            | Free allowance                                                               |
 | Repository and CI/CD                   | **GitHub + Actions + Google Artifact Registry**                       | Included/free allowances                                                     |
 | Secrets, logs, monitoring              | **Google IAM / Secret Manager / Cloud Logging + provider dashboards** | Free allowances where available                                              |
 | Infrastructure configuration           | **OpenTofu or Terraform**                                             | No paid infrastructure platform                                              |
@@ -56,7 +57,7 @@ Users / Browser
   |                                            |
   |                                      Cloud Scheduler
   |
-  +-- Sign-in ----------------> Supabase Auth
+  +-- Sign-in ----------------> Auth0
   +-- Notification WebSocket -> Supabase Realtime
   +-- Signed file transfers --> Supabase Storage OR Google Cloud Storage
 
@@ -75,7 +76,7 @@ Keep **one repository and a modular monolith**. The API and background service s
 | Supabase Free resource |                                 Included allowance |
 | ---------------------- | -------------------------------------------------: |
 | PostgreSQL database    |                             **500 MB per project** |
-| Authentication         |                    **50,000 monthly active users** |
+| Third-party auth users |                    **50,000 monthly active users** |
 | File storage           |                                           **1 GB** |
 | Outbound transfer      |                    **5 GB uncached + 5 GB cached** |
 | Realtime               | **200 peak connections; 2 million messages/month** |
@@ -107,12 +108,12 @@ One recurring Scheduler configuration counts as **one job** regardless of how of
 
 | Service             | Free-first configuration                                                          | When to consider paying                                                         |
 | ------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **Supabase**        | Free: PostgreSQL, Auth, Realtime, optional Storage                                | Capacity limits, sustained reliability/backup needs, or unacceptable pause risk |
+| **Supabase**        | Free: PostgreSQL, Third-Party Auth, Realtime, optional Storage                    | Capacity limits, sustained reliability/backup needs, or unacceptable pause risk |
 | **Cloudflare**      | Pages Free + Worker Free (**100,000 proxy requests/day**, **10 ms CPU/request**)  | Reaching limits or needing more processing/controls                             |
 | **Cloud Run**       | Request-based billing, **minimum 0 instances**, small CPU/RAM and instance caps   | Measured traffic, latency, or execution usage exceeds free allowances           |
 | **Cloud Tasks**     | First **1 million billable operations/month** free                                | Actual dispatch/retry volume                                                    |
 | **Cloud Scheduler** | First **3 configured jobs/account** free                                          | More schedules than needed initially                                            |
-| **Resend**          | **3,000 emails/month**, up to **100/day**, free                                   | Larger sign-in/notification mail volume                                         |
+| **Resend**          | **3,000 emails/month**, up to **100/day**, free                                   | Larger notification mail volume                                                 |
 | **GitHub Actions**  | Use included minutes/storage; avoid excessive builds                              | CI demand exceeds plan allowances                                               |
 | **AI**              | AI SDK; optional **Gemini free API only for synthetic/approved development data** | Real private-user data or API quotas require a suitable paid model              |
 | **Storage**         | Supabase Free includes 1 GB; GCS remains an alternative                           | Real file volume, bandwidth, IAM, or region requirements                        |

@@ -432,9 +432,9 @@ Follow the spec's "Docs (same PR)" list exactly. Specifics the spec leaves to th
   - ADR-0009: the cell, plus the status line in both the index and the ADR file (call 5).
   - "Last checked" is set to this branch's base commit.
 - **RFC index and RFC-0011:**
-  - §4 status: workstream 6's Firebase part is merged, not released.
+  - §4 status: workstream 6 is merged, not released.
   - §6: the Firebase bullets are marked done or pending, with the owner's 2026-11-01
-    decision to retire Firebase Authentication before the identity cutover.
+    decision to retire Firebase Authentication now.
   - §3 stays history.
 - **`docs/SETUP.md`, `README.md`, `docs/architecture/overview.md`, `docs/README.md`,
   `docs/SPEC.md`:** every sentence presenting Firebase as current is corrected.

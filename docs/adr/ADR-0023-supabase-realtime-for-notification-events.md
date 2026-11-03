@@ -43,11 +43,14 @@ Chosen option: **option 1**.
 - **Events are signals only.** They carry an identifier and a type, never note content.
   The browser then reads through the API with TanStack Query, and refetches unread
   notifications after every reconnect.
-- **Channels are private and keyed by the recipient's Supabase user ID (`auth.uid()`).**
-  - The server finds that ID through Wally's identity mapping before it sends.
-  - The policy on `realtime.messages` only compares the channel topic with `auth.uid()`.
-    It never reads application tables, so ADR-0020's "no permissive policies on
-    application tables" still holds.
+- **Channels are private and keyed by the recipient's Auth0 subject.** The browser joins
+  with its Auth0 token, which Supabase trusts through Third-Party Auth
+  ([ADR-0027](ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)).
+  - The server finds the recipient's subjects through Wally's identity mapping before it
+    sends.
+  - The policy on `realtime.messages` only compares the channel topic with the token's
+    `sub` and checks its `iss` and `aud`. It never reads application tables, so ADR-0020's "no
+    permissive policies on application tables" still holds.
   - Public access is switched off in Realtime settings
     ([Realtime authorization](https://supabase.com/docs/guides/realtime/authorization)).
 - **Board data does not use this channel.** Another member's edit still appears on the

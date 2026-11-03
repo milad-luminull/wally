@@ -8,7 +8,9 @@
 
 Store documents in private EU object storage, and use permission-filtered pgvector
 retrieval for document search. This follows the [database migration](RFC-0008-firestore-to-supabase.md).
-Identity follows the [Supabase Auth RFC](RFC-0012-supabase-auth-and-mcp.md).
+Identity is Auth0 ([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)). If the browser talks to
+Supabase Storage directly, it uses its Auth0 token
+([ADR-0027](../adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)).
 
 The storage provider is open:
 
