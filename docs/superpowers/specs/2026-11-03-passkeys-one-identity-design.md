@@ -1,8 +1,9 @@
 # Passkeys with password fallback, Google kept, one identity per account — design
 
 > **Status:** approved by the owner, 2026-11-03. It replaces the same day's account-linking
-> design, which the owner dropped: Wally builds no account linking. Code: steps 2–4. The
-> docs in step 5 wait for the `docs/keep-auth0` work to land.
+> design, which the owner dropped: Wally builds no account linking. Steps 2–5 are in #98
+> ([ADR-0028](../../adr/ADR-0028-one-auth0-identity-per-account-with-passkeys.md)); step 1
+> is the owner's, in the Auth0 dashboard ([AUTH0.md](../../AUTH0.md#sign-in-methods)).
 
 ## Intent
 

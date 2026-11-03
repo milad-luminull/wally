@@ -335,7 +335,7 @@ property keys — is shown as entered, in whatever language it was written.
 Wally is a standalone application. It does not integrate with, and is not part of, any other
 product.
 
-Users sign in through Auth0 (email/password and Google), which also authorizes MCP clients
+Users sign in through Auth0 (Google, or email with a passkey or password; one sign-in method per account), which also authorizes MCP clients
 such as ChatGPT ([`AUTH0.md`](AUTH0.md)), in production, local development and CI alike. Permissions are Wally's own: a whiteboard role per member, enforced by the API. There is no
 external directory to synchronise against and no single sign-on requirement.
 
