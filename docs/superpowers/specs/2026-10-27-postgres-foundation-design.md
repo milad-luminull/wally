@@ -37,7 +37,7 @@ imported or carried over, so there is no importer, no reconciler and no rehearsa
 - No Supabase project, no hosted database, no secrets, no release workflow change.
 - No backup routine or restore drill: they need a hosted project and move to the proofs
   slice (RFC-0011 §5 item 4).
-- No Supabase Auth, Realtime or Storage locally. They arrive with the slices that use them.
+- No Supabase Realtime or Storage locally. They arrive with the slices that use them.
 - No expiry purge job. The `expires_at` columns exist; the job comes with the switch.
 - No database role setup for production (the dedicated API role in ADR-0020). That needs
   the hosted project.

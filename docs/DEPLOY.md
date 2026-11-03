@@ -134,7 +134,7 @@ section 5 come first. Nothing is bought without the owner's approval.
    it goes into Secret Manager in section 7, never into a file or a plain variable.
 3. Switch off the **Data API**, so only the API reads and writes tables
    ([securing your API](https://supabase.com/docs/guides/api/securing-your-api)). Whether
-   Auth and Realtime keep working with it off is an open proof (RFC-0011 section 5, item 3).
+   Realtime keeps working with it off is an open proof (RFC-0011 section 5, item 3).
 
 ### Which connection the API uses
 
@@ -1274,7 +1274,7 @@ with the rest of Firebase ([Firebase retired](#firebase-retired)).
 
 ## Firebase retired
 
-Wally no longer uses Firebase (RFC-0011 workstream 6, part 1;
+Wally no longer uses Firebase (RFC-0011 workstream 6;
 [design](superpowers/specs/2026-11-01-retire-firebase-design.md)). Data has been on Supabase
 PostgreSQL since v0.12.0 and the web app on Cloudflare since v0.13.0. v0.14.0 (2026-11-01)
 removed Firebase Authentication, the local and CI sign-in, so Auth0 signs in everywhere. Nothing

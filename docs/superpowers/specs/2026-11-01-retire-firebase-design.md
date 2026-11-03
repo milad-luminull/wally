@@ -1,11 +1,10 @@
-# Retire Firebase: Firestore, Hosting and Firebase Authentication (migration workstream 6, part 1) — design
+# Retire Firebase: Firestore, Hosting and Firebase Authentication (migration workstream 6) — design
 
 > **Status:** approved by the owner and done, 2026-11-01: code in #93, live since v0.14.0; the resource groups A–C ran the same day (DEPLOY, Firebase retired).
 
 Date: 2026-11-01. Part of workstream 6 (decommission) of the
-[platform migration](../../rfcs/RFC-0011-platform-migration.md). Auth0 is the other half of
-workstream 6. It is retired with the Supabase Auth cutover (workstream 3) and is not part of
-this design.
+[platform migration](../../rfcs/RFC-0011-platform-migration.md). Auth0 stays Wally's identity
+provider ([ADR-0016](../../adr/ADR-0016-auth0-for-web-and-mcp.md)).
 
 ## Intent
 
@@ -28,7 +27,7 @@ Firebase is still present in three ways:
    The owner decided on 2026-11-01 that Firebase Authentication goes completely, now. This
    replaces two earlier positions:
    - the 2026-10-27 position that CI stays on Firebase;
-   - RFC-0011 §6's order, which retired Firebase Authentication only with Auth0.
+   - RFC-0011 §6's earlier order, which retired Firebase Authentication last.
 
 2. **Live resources in `luminull-wally`:**
    - the Firestore database `wally`;
@@ -41,8 +40,7 @@ Firebase is still present in three ways:
 3. **Leftovers in config, docs and comments.**
 
 After this work, nothing in the repository or the project depends on Firebase. Auth0 is the
-only sign-in everywhere: production, local development and CI. Workstream 3 later replaces
-it with Supabase Auth.
+only sign-in everywhere: production, local development and CI.
 
 ## Goals
 
@@ -57,7 +55,6 @@ it with Supabase Auth.
 
 ## Non-goals
 
-- Retiring Auth0 or starting Supabase Auth (workstream 3).
 - Deleting the Google Cloud project. Cloud Run, Artifact Registry, Secret Manager, Workload
   Identity Federation and Vertex AI live in it.
 - Detaching Firebase from the project. Google documents that "once you 'add Firebase' to an
@@ -96,8 +93,7 @@ it with Supabase Auth.
 
 1. **No provider switches left.** Removed: `VITE_AUTH_PROVIDER`, `AUTH0_ENABLED`,
    `E2E_AUTH_PROVIDER` and the `auth0-validation` label logic. With one provider, each
-   switch either has one valid value or turns sign-in off. Workstream 3 designs its own
-   transition. `AUTH0_SIGNUP_ENABLED` stays, because production, CI and local development
+   switch either has one valid value or turns sign-in off. `AUTH0_SIGNUP_ENABLED` stays, because production, CI and local development
    want different values.
 2. **Local development signs up through Auth0.** `.env.example` sets
    `AUTH0_SIGNUP_ENABLED=true` and asks for the public `VITE_AUTH0_CLIENT_ID`. The first
@@ -280,9 +276,9 @@ it with Supabase Auth.
   (call 5), and the "Last checked" line.
 - **RFC index:** the RFC-0011 row and the "Last checked" line.
 - **RFC-0011:**
-  - the §4 status: workstream 6's Firebase part done, Auth0 left for workstream 3;
+  - the §4 status: workstream 6 done;
   - §6's decommission list: the Firebase items marked done with dates, and the note that
-    Firebase Authentication went before the identity cutover by owner decision.
+    Firebase Authentication went now by owner decision.
   - The released version is filled in when the owner tags.
 
 ## Live resources: order of operations
