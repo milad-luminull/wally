@@ -1,6 +1,6 @@
 # Account deletion and data export — design
 
-> **Status:** proposed, 2026-11-03. Waiting for the owner's approval.
+> **Status:** proposed, 2026-11-03; simplified 2026-11-04. Waiting for the owner's approval.
 
 Closes [GDPR.md](../../GDPR.md) GAP-01 (account deletion, Art. 17) and GAP-02 (data export,
 Art. 15 and 20) on PostgreSQL, with Auth0 as the only identity provider
@@ -15,9 +15,9 @@ disabled since PR #76.
 PR #76 removed the earlier version because it had grown into a cleanup system for seven
 users: a Cloud Run job on a schedule, deleted-account checks inside about 40 transactions, a
 recent-sign-in flow through the web app, the API and the Auth0 Action, swallowed errors, and
-an export that made one transaction per note. **This design is deliberately small:** one
-request deletes, one request exports, and nothing else in the app has to know that accounts
-can be deleted.
+an export that made one transaction per note. **This design is deliberately small:** the
+database's own foreign keys do the erasing, one request deletes, one request exports, and
+nothing else in the app has to know that accounts can be deleted.
 
 ## Goals
 
@@ -25,7 +25,7 @@ can be deleted.
   confirming, at once. The only exception is other people's short-lived records, which
   expire on their own schedule (below).
 - A signed-in person downloads everything they can see in Wally as one JSON file.
-- The owner can run the same deletion for someone who has lost their login.
+- The owner can delete the account of someone who has lost their login.
 
 ## Non-goals
 
@@ -40,7 +40,9 @@ can be deleted.
 - **Deleted-account checks spread across commands.** No "is this account deleted?" lookup
   in board commands, the assistant or MCP. Deletion removes the rows; everything else keeps
   working because the rows are gone.
-- **A scheduler, queue or worker** for deletion.
+- **Erase logic in application code** that the schema can express. Each table says what
+  happens to its rows when a user goes, so a new table cannot be forgotten.
+- **A scheduler, queue, worker or admin tool** for deletion.
 - **Deleting the real CI test users in Auth0** from a CI run.
 - **Silently skipping the Auth0 deletion in production.**
 
@@ -60,77 +62,103 @@ can be deleted.
 7. **Traces in other people's short-lived records expire on their own schedule** (owner,
    2026-11-04). They are not searched or scrubbed.
 
-## Starting point (checked 2026-11-03, `main` 7b9660f7)
+## Starting point (checked 2026-11-04, `main` a22ab4a0)
 
 - **Schema** (`apps/api/src/lib/postgres/schema/`):
-  - Rows that cascade when the `users` row is deleted: `auth_identities`, `mcp_connections`,
-    `mcp_limits`, `assistant_usage`, `assistant_attempts`, `assistant_conversations`,
-    `assistant_suggestions`, `assistant_tidies`, `board_operations`.
-  - `whiteboards.owner_id` references `users` **without** cascade, so a user cannot be
+  - Rows that already cascade when the `users` row is deleted: `auth_identities`,
+    `mcp_connections`, `mcp_limits`, `assistant_usage`, `assistant_attempts`,
+    `assistant_conversations`, `assistant_suggestions`, `assistant_tidies`,
+    `board_operations`.
+  - `whiteboards.owner_id` references `users` **without** an action, so a user cannot be
     deleted while they own a board. Deleting a board cascades its members, share link,
     notes, subtasks and history.
   - **No foreign key:** `notes.created_by_id`, `notes.assignee_id`, `note_history.actor_id`,
-    `board_members.user_id` and `invited_email`, `assistant_audit.actor_id`,
-    `board_cleanup.user_id`. These are cleared explicitly.
+    `board_members.user_id`, `assistant_audit.actor_id`. All nullable except
+    `assistant_audit.actor_id`; all hold a user ID or null.
+  - A private note must have `assignee_id = created_by_id`, both non-null (a check
+    constraint in `notes.ts`).
+  - `board_cleanup` has no foreign keys by design ("the job outlives what it cleans up"), and
+    `drainCleanupJob` tolerates targets that are already gone (`commands/maintenance.ts`).
   - `note_history.metadata` holds `via`, `duplicatedFrom` and move data, never a user ID.
-  - `users.email` is not unique; identities, not emails, identify a person.
-- **Board deletion** today (`commands/administration.ts`, `commands/maintenance.ts`): sets
-  `deleted_at`, queues a `board_cleanup` job, and the job deletes the `whiteboards` row.
 - **Sign-in** (`lib/auth/identities.ts`): `resolveOrCreateIdentity` creates an account for an
   unmapped token when `AUTH0_SIGNUP_ENABLED` is true, as in production. MCP never creates
-  accounts.
-- **Tokens:** Auth0 access tokens last 900 seconds; refresh tokens rotate
-  ([AUTH0.md](../../AUTH0.md)).
-- **Web:** `apps/web/src/routes/AccountPage.tsx` has the disabled buttons; logout returns to
-  `/login`, which the SPA client already allows.
-- **E2E:** CI signs in through real Auth0 as dedicated test users, bound to seeded Wally
-  accounts ([E2E README](../../../apps/web/e2e/README.md)).
+  accounts. Since #98 each account has exactly one Auth0 identity, and the Post Login Action
+  denies unverified signups ([ADR-0028](../../adr/ADR-0028-one-auth0-identity-per-account-with-passkeys.md),
+  [AUTH0.md](../../AUTH0.md)).
+- **Tokens:** Auth0 access tokens last 900 seconds. REST and MCP tokens have different fixed
+  audiences (`lib/auth/constants.ts`).
+- **No live sync:** the web app refetches on load and focus; nothing polls board revisions.
+- **Web:** `apps/web/src/routes/AccountPage.tsx` has the disabled buttons. `GET /whiteboards`
+  returns each board's name and `currentUserRole`; the members list exists per board. Logout
+  returns to `/login`.
+- **Config pattern:** fixed Auth0 values are constants (`constants.ts`); a setting required
+  only in some modes is checked in `loadEnv` (`env.ts`, as `ASSISTANT_VERTEX_PROJECT`).
+- **E2E:** CI signs in through real Auth0 as dedicated test users (`+1`, and `+2` for
+  Dependabot), bound to seeded Wally accounts in a database that is new for every run
+  ([E2E README](../../../apps/web/e2e/README.md)).
 
 ## Design
 
+### The schema erases
+
+One migration gives every user-ID column a foreign key to `users` that says what happens on
+delete:
+
+| Column                     | On delete  | Effect                                                   |
+| -------------------------- | ---------- | -------------------------------------------------------- |
+| `whiteboards.owner_id`     | `cascade`  | their boards go, with everything that cascades from them |
+| `notes.created_by_id`      | `cascade`  | their notes on any board go, with subtasks and history   |
+| `notes.assignee_id`        | `set null` | cards they were only assigned to stay, unassigned        |
+| `note_history.actor_id`    | `cascade`  | their entries in other notes' history go                 |
+| `board_members.user_id`    | `cascade`  | their memberships go                                     |
+| `assistant_audit.actor_id` | `cascade`  | audit rows they caused go                                |
+
+Foreign keys with referential actions are PostgreSQL's standard way to keep references
+valid ([constraints](https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK)).
+They also close the in-flight case: a write that resolved the user just before the deletion
+and commits after it fails on the foreign key instead of leaving an orphan row.
+
+Adding a foreign key checks every existing row. Before the release, the owner runs one
+read-only query (in DEPLOY.md) that counts rows whose user ID has no `users` row. Production
+started clean on 2026-10-31 and no account has been deleted since, so zero is expected. A
+non-zero count is cleaned up first; otherwise the migration fails and the release stops,
+with nothing changed.
+
 ### Deleting an account
 
-**API:** `DELETE /me`, body `{ "confirmEmail": "<the account's email>" }`. The server
-compares it, case-insensitively, with `users.email` and answers 400 if it differs, so a
-stray or forged call cannot delete an account.
+**API:** `DELETE /me`, no request body. It takes the web app's REST token only (an MCP token
+has a different audience and is refused). The typed email is a guard in the dialog, not an
+API parameter: RFC 9110 §9.3.5 says content in a DELETE request "has no generally defined
+semantics" and can make some implementations reject the request.
 
-**Preview:** `GET /me/deletion` returns what the dialog lists: each board the person owns,
-with its name and number of other active members, and the number of notes they created on
-other people's boards.
+**Order.** Auth0 first, then the database:
 
-**Order.** The deletion runs in two steps, Auth0 first:
+1. **Auth0, outside any transaction.** The API deletes the account's one Auth0 user. If that
+   fails (any answer but 204), nothing has been erased; the person sees an error and can try
+   again.
+2. **Then one `withTransaction`** (SERIALIZABLE, re-runs its body on a conflict, up to five
+   times; the body "must not have effects outside the transaction"), so a re-run never calls
+   Auth0 twice. It runs three statements:
+   1. delete the notes they created (`created_by_id` = the user);
+   2. insert the tombstone (below);
+   3. delete the `users` row. The foreign keys do the rest.
 
-1. **Auth0, outside any transaction.** For each `auth_identities` row with Wally's Auth0
-   issuer, the API deletes that Auth0 user. If Auth0 fails, nothing has been erased; the
-   person sees an error and can try again.
-2. **Then the database, in one transaction.** Every write in Wally goes through
-   `withTransaction` (`lib/postgres/transaction.ts`), which runs SERIALIZABLE and re-runs the
-   whole body on a conflict, up to five times, so its body "must not have effects outside the
-   transaction". A deletion touches other people's boards, so a conflict is normal; keeping
-   the Auth0 call out of the body means a re-run never calls Auth0 twice.
+   Their notes go first because a private note's check constraint requires an assignee, and
+   PostgreSQL fires the two referential actions on that row in trigger-name order
+   ([CREATE TRIGGER](https://www.postgresql.org/docs/current/sql-createtrigger.html)): if
+   `set null` ran first, the delete would fail.
 
-The remaining gap: Auth0 has deleted the user, then the database step fails after its
-retries. The person can no longer sign in, and their Wally data is still there. That is
-logged as an error with the Wally user ID, and the owner finishes it with the admin script,
-told that the Auth0 step is already done. Nothing relies on how Auth0 answers a second delete
-of the same user, which is undocumented.
+If the database step still fails after Auth0 succeeded, the person can no longer sign in and
+their Wally data is still there. That is logged as an error with the Wally user ID, and the
+owner finishes it by hand (below).
 
-**The database transaction** erases, in this order:
-
-1. **Their boards:** every `whiteboards` row they own, deleted outright (not through the
-   cleanup queue), with whatever cascades from it today. Pending `board_cleanup` rows for
-   those boards go too.
-2. **Their notes elsewhere:** every note with `created_by_id` = the user, on any board,
-   including their private notes, deleted with its subtasks and history (cascade).
-3. **Assignments:** remaining notes with `assignee_id` = the user get `assignee_id = null`
-   and their revision bumped.
-4. **History:** remaining `note_history` rows with `actor_id` = the user are deleted.
-5. **Memberships and invites:** `board_members` rows with `user_id` = the user, and, **only
-   if the account's email is verified**, pending invites whose `invited_email` is that
-   email. An unverified address may belong to someone else, whose invites must survive.
-6. **Audit and leftovers:** `assistant_audit` rows with `actor_id` = the user, and
-   `board_cleanup` rows with `user_id` = the user.
-7. **A short tombstone** (below), then the `users` row. Everything else cascades.
+**Why the tombstone.** Right after deletion the browser can still hold an access token for
+up to 900 seconds. With signup open, any request carrying it would quietly create a new
+account holding the person's email and name. So the deletion writes
+`deleted_identities(issuer, subject, expires_at)` with `expires_at` one hour ahead, and
+`resolveOrCreateIdentity` answers 401 while a row matches, checked only on the path that
+creates accounts. `purge_expired()` gets the table added to its list. This is the only new
+check.
 
 **What stays for a while: other people's short-lived records.** Some rows belong to another
 member and can still mention the deleted person, by name or user ID inside their JSON:
@@ -142,64 +170,63 @@ member and can still mention the deleted person, by name or user ID inside their
 | Assistant conversations                      | the member who asked           | 30 days after the conversation's last turn, at most 20 turns (`CONVERSATION_RETENTION_DAYS`, `MAX_TURNS`) |
 | `assistant_audit` rows another member caused | that member                    | 30 days (`ASSISTANT_AUDIT_RETENTION_DAYS`)                                                                |
 
-The deletion leaves these alone and `purge_expired()` removes them when they expire.
-Scrubbing them at once would mean searching JSON for the person and editing or deleting a
-colleague's assistant history, which is what made the earlier version large. Audit rows the
-person caused are deleted at once (step 6). Nothing in these records lets anyone act as the
-deleted person, and the person's own rows of these kinds cascade with the `users` row.
+The deletion leaves these alone and `purge_expired()` removes them when they expire. Nothing
+in them lets anyone act as the deleted person, and the person's own rows of these kinds go
+with the `users` row.
 
-**Why the tombstone.** Right after deletion the browser can still hold an access token for
-up to 900 seconds. With signup open, any request carrying it would quietly create a new,
-empty account. So the deletion writes `deleted_identities(issuer, subject, expires_at)` with
-`expires_at` one hour ahead, and `resolveOrCreateIdentity` answers 401 while a row
-matches. The existing `purge_expired()` cron job removes it. This is the only new check, at
-the one place accounts are created.
+**Left alone on purpose:**
+
+- **Pending invites to their email address.** They are the inviter's record of an address,
+  like the rows above, and would be found by anyone who later signs up with that address, as
+  any invite is. Invite expiry is GAP-06.
+- **`board_cleanup` jobs.** Each finishes on its own: `drainCleanupJob` already tolerates a
+  target that is gone.
+- **Revisions.** Notes that lose their assignee keep their revision. Nothing polls
+  revisions, other members see the change on their next load, and the response to their
+  next edit of that note carries it.
 
 **Auth0 Management API** (all checked 2026-11-03):
 
 - Delete: `DELETE /api/v2/users/{id}`, scope `delete:users`; 204 on success; "This action
   cannot be undone"
   ([delete a user](https://auth0.com/docs/api/management/v2/users/delete-users-by-id)).
-  A 404 is not documented. Treating "already gone" as success is _unverified_; the builder
-  decides how to handle it.
-- Token: client credentials at `https://login.luminull.com/oauth/token`. The **audience** is
-  the tenant's **default** domain, `https://<tenant default domain>/api/v2/`; the endpoints use
-  the custom domain ([custom domains](https://auth0.com/docs/customize/custom-domains/configure-features-to-use-custom-domains),
+- Token: client credentials at `https://login.luminull.com/oauth/token`, with the tenant's
+  **default** domain as the audience, `https://<tenant default domain>/api/v2/`
+  ([custom domains](https://auth0.com/docs/customize/custom-domains/configure-features-to-use-custom-domains),
   [Management API tokens](https://auth0.com/docs/secure/tokens/access-tokens/management-api-access-tokens/get-management-api-access-tokens-for-production)).
-  The token lasts 24 hours in Auth0's example. Keep it in memory until shortly before it
-  expires.
-- Free includes 1,000 machine-to-machine tokens a month ([pricing](https://auth0.com/pricing)).
+  A new token for each deletion, no cache: Free includes 1,000 machine-to-machine tokens a
+  month ([pricing](https://auth0.com/pricing)).
 
-**Configuration:** `AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_AUDIENCE` (variables) and
-`AUTH0_MANAGEMENT_CLIENT_SECRET` (Secret Manager). With `NODE_ENV=production` all three are
-required and the API refuses to start without them.
-
-**Only production calls Auth0.** Local development, CI and production share one Auth0
-tenant, and the issuer is fixed in code, so a local account's identity is a real Auth0 user,
-often the developer's own login. Outside `NODE_ENV=production` the deletion therefore skips
-the Auth0 step and logs that it did, **even when the credentials are set**. CI never deletes
-its test users, and nobody deletes their own login from a local run.
+**Configuration:** the audience is a constant next to `AUTH0_ISSUER`, as the other fixed
+Auth0 values are. Two settings: `AUTH0_MANAGEMENT_CLIENT_ID` (variable) and
+`AUTH0_MANAGEMENT_CLIENT_SECRET` (Secret Manager). The Auth0 step runs when both are set;
+`loadEnv` requires them with `NODE_ENV=production`, so production never skips it. Local
+development and CI do not have the secret, so they skip the step and log that they did; CI
+never deletes its test users. Tests pass a fake deleter, as they pass a fake model runner.
 
 **Web:**
 
-- The **Delete account** button opens a dialog. It shows the preview: the boards that will be
-  deleted for everyone, with their member counts, and the notes on other boards. The Delete
-  button unlocks only when the typed text matches the account's email.
-- On success the app clears its session, logs out of Auth0 and lands on `/login` with a
-  "Your account is deleted" message. On failure it shows an error and stays.
+- The **Delete account** button opens a dialog. It lists the boards that will be deleted for
+  everyone and their other members, from the existing boards list (`currentUserRole` =
+  owner) and each owned board's members list. The Delete button unlocks only when the typed
+  text matches the account's email.
+- On success the app clears its session and logs out of Auth0 to `/login`, which says "Your
+  account is deleted" (a flag in `sessionStorage`, so no Auth0 setting changes). On failure
+  it shows an error and stays.
 - English and German copy.
 
-**Admin path:** a command-line script for the owner, for someone who lost their login. It
-runs the same function as `DELETE /me` for a given Wally user ID, without the email check.
-It can list the Wally user IDs that match an email first, because emails are not unique. It
-can be told the Auth0 step is already done, to finish a deletion whose database step failed.
+**The owner's path, for someone who lost their login:** a runbook in DEPLOY.md, no script.
+Delete the Auth0 user in the Auth0 dashboard, then run the same three statements in the
+Supabase SQL editor for the Wally user ID, found by email first because emails are not
+unique. The tombstone is not needed there. The same runbook finishes a deletion whose
+database step failed.
 
 ### Exporting data
 
 **API:** `GET /me/export` returns `application/json` with
 `Content-Disposition: attachment; filename="wally-export-YYYY-MM-DD.json"`. It is built in
-**one read-only transaction**, from the API's existing DTO mappers (`lib/dto.ts`), so it
-matches what the app shows:
+**one read-only transaction**, from the API's existing queries and DTO mappers
+(`lib/dto.ts`), so it matches what the app shows:
 
 - `exportedAt` and a `formatVersion`;
 - `profile` (as `/me` returns it);
@@ -211,20 +238,23 @@ matches what the app shows:
 - `assistant`: their daily usage, their conversations (the transcript entries), and their
   suggestions and tidies.
 
+Left out: the raw model messages (the transcript entries cover them), command receipts,
+audit records and cleanup jobs.
+
 **Web:** the **Download my data** button fetches the file with the session's token and saves
 it.
 
 ### Docs updated in the same PR
 
 - [GDPR.md](../../GDPR.md): GAP-01 and GAP-02 closed; §6 decision 1 answered (erase, not
-  anonymise) and decision 3 (on request, plus the admin script); the work-plan rows and
+  anonymise) and decision 3 (self-service, plus the owner's runbook); the work-plan rows and
   checklist. It states that deletion is immediate except for mentions in other members'
-  short-lived records, which expire as in the table above, and names those windows.
+  short-lived records and pending invites to the address, and names the windows above.
 - The privacy page and the Account page copy (en, de): self-service export and deletion
   exist.
 - [AUTH0.md](../../AUTH0.md): the Management API client, its single scope, and the tombstone.
-- [DEPLOY.md](../../DEPLOY.md): the owner's setup steps below, and the release's new
-  variables and secret.
+- [DEPLOY.md](../../DEPLOY.md): the owner's setup and the orphan check below, the owner's
+  deletion runbook, and the release's new variable and secret.
 
 ## Owner setup, before the release
 
@@ -232,7 +262,8 @@ it.
    with **only** `delete:users`.
 2. Put its client secret in Secret Manager. Give `wally-api` read access to it, and the
    release identity if the release reads it.
-3. Set the client ID and the tenant's default domain as production variables.
+3. Set the client ID as a production variable.
+4. Run the orphan check; it should report zero.
 
 The builder writes the exact commands into DEPLOY.md. The owner runs them.
 
@@ -244,49 +275,45 @@ the user is gone and in Wally that nothing of it is left. DEPLOY.md holds the st
 ## Testing
 
 - **API integration tests** (per-file test database):
-  - each erase step, including private notes, notes on other boards, unassignment,
-    history removal, pending invites to the email, and audit rows;
-  - a board the person owns with other members is gone for everyone;
-  - other people's data is untouched;
+  - the foreign keys: deleting a user removes their boards (for everyone), their notes on
+    other boards including private ones, their history entries, memberships and audit rows,
+    and unassigns the rest; other people's data is untouched;
+  - a pending invite to their email survives;
   - an Auth0 failure leaves everything in place;
-  - a database conflict re-runs the erase without calling Auth0 again;
-  - outside production, Auth0 is never called, even with credentials set;
-  - pending invites to an unverified email survive;
-  - a wrong `confirmEmail` changes nothing;
-  - the tombstone refuses a second sign-in with the old token and expires;
+  - a database conflict re-runs the transaction without calling Auth0 again;
+  - without the settings, Auth0 is never called;
+  - an MCP token cannot call `DELETE /me`;
+  - the tombstone refuses a new account for the old token and expires;
   - export visibility: other people's private notes never appear.
+- **Web unit test:** the Delete button stays disabled until the typed email matches.
 - **E2E (Playwright, CI):**
   - export downloads a JSON file containing the test user's board and note;
-  - deletion: the confirm button stays disabled until the email is typed; after deleting,
-    the app is signed out and shows the message.
+  - deletion: type the email, delete, land signed out on `/login` with the message.
 
-  CI runs with `AUTH0_SIGNUP_ENABLED=false`, so the tombstone does not come into play there,
-  and the Auth0 step is skipped (not production). The deletion spec deletes the seeded test
-  account every other spec uses, so **it must run after every other spec in the run**, and
-  the next run's seed must recreate that account.
+  The deletion spec deletes the test user's Wally account, so it sits in its own Playwright
+  project that lists the main project in `dependencies` and runs only after it passes
+  ([projects](https://playwright.dev/docs/test-projects)). CI's database is new for every
+  run, so the next run's seed recreates the account as it does today. CI has no Auth0
+  secret, so the test user stays in Auth0.
 
 ## Calls made in this design (Claude's; the owner can overrule any)
 
-1. **Auth0 first, then the database,** rather than a record-and-retry table, which would need
-   a scheduler. The rare half-done case is finished with the admin script.
-2. **A one-hour identity tombstone** blocks re-creation by a still-valid token.
-3. **`DELETE /me` carries the typed email,** checked by the server too.
-4. **Owned boards are deleted directly** in the deletion transaction, not queued.
-5. **Only production calls Auth0,** and production refuses to start without its settings.
-6. **Pending invites to the email are deleted only if that email is verified.**
-7. **A production proof right after the release,** with a throwaway account.
-8. **Export leaves out internal records:** the raw model messages (only the transcript
-   entries), command receipts, audit records and cleanup jobs.
-9. **No ADR.** Nothing here changes an accepted decision. The erase-vs-anonymise call is
-   recorded in GDPR.md §6, where the question was asked.
+1. **Foreign keys erase,** not application code: one migration, and the deletion is three
+   statements.
+2. **Auth0 first, then the database,** rather than a record-and-retry table, which would need
+   a scheduler. The rare half-done case is finished with the runbook.
+3. **A one-hour identity tombstone** blocks re-creation by a still-valid token.
+4. **`DELETE /me` has no body;** the typed email is checked in the dialog.
+5. **No preview endpoint;** the dialog uses the boards and members lists.
+6. **The Auth0 step runs when configured,** and production refuses to start without it.
+7. **Pending invites, cleanup jobs and revisions are left alone.**
+8. **No admin script;** the owner's path is a runbook.
+9. **A production proof right after the release,** with a throwaway account.
+10. **No ADR.** Nothing here changes an accepted decision. The erase-vs-anonymise call is
+    recorded in GDPR.md §6, where the question was asked.
 
 ## Left to the builder
 
 - Endpoint and module layout, error codes beyond those named, the dialog's component
   structure.
-- Whether to bump the revision of other boards whose notes changed.
-- How a command already in flight when the deletion commits is handled. An accepted residual
-  case is a write that resolved the user before the deletion and commits just after it. It
-  must not require deleted-account checks in commands (anti-goals).
-- The admin script's packaging and how the owner runs it.
-- How the E2E deletion spec is ordered last.
+- How a schema test that inserts rows without a `users` row gets one.
