@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-const EMAIL = process.env.E2E_USER_EMAIL ?? '';
+export const EMAIL = process.env.E2E_USER_EMAIL ?? '';
 const PASSWORD = process.env.E2E_USER_PASSWORD ?? '';
 
 export const hasE2eCredentials = Boolean(EMAIL && PASSWORD);
