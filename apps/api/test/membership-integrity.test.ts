@@ -8,6 +8,7 @@ import {
   buildTestApp,
   createTestMembership,
   createTestShareLink,
+  createTestUser,
   registerTestUser,
   resetDatabase,
   type TestContext,
@@ -237,6 +238,7 @@ describe('membership integrity', () => {
     const ownerToken = registerTestUser(ctx, 'mi-owner', 'mi-owner@example.com');
     await authenticate(ownerToken);
 
+    await createTestUser(ctx.db, 'mi-alice', 'alice@example.com');
     // A PENDING row that happens to carry a userId — the shape a partially-linked invite
     // leaves behind.
     const pendingRow = await createTestMembership(ctx.db, 'mi-owner', {

@@ -62,7 +62,9 @@ export const assistantAudit = pgTable(
   'assistant_audit',
   {
     operationId: text().primaryKey(),
-    actorId: text().notNull(),
+    actorId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     boardId: text().notNull(),
     /** The note the command targeted or created; null for board commands. */
     targetId: text(),
@@ -77,6 +79,7 @@ export const assistantAudit = pgTable(
   },
   (table) => [
     index().on(table.expiresAt),
+    index().on(table.actorId),
     oneOf('assistant_audit_command_type_check', table.commandType, boardCommandTypes),
     oneOf('assistant_audit_via_check', table.via, auditViaValues),
   ],

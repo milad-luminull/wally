@@ -8,6 +8,7 @@ const TABLES = {
   assistant_conversations: 'assistantConversations',
   assistant_suggestions: 'assistantSuggestions',
   assistant_tidies: 'assistantTidies',
+  deleted_identities: 'deletedIdentities',
 } as const;
 
 export type PurgeCounts = Record<(typeof TABLES)[keyof typeof TABLES], number>;

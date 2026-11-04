@@ -2,7 +2,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { asc, eq } from 'drizzle-orm';
 import { MAX_FIELDS_PER_NOTE, MAX_TAGS_PER_NOTE } from '@wally/shared';
 import { noteHistory, notes, subtasks } from '../src/lib/postgres/schema/index.js';
-import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
+import {
+  buildTestApp,
+  createBoardFixture,
+  createTestUser,
+  resetDatabase,
+  type TestContext,
+} from './helpers.js';
 import { listNotes } from '../src/lib/commands/queries.js';
 
 /** Spellings from before ADR-0024, refused like any unknown value. */
@@ -842,6 +848,7 @@ describe('note routes', () => {
 
     it('drops an assignee who has left the board instead of failing', async () => {
       const { fx, noteId } = await doneNoteWithEverything();
+      await createTestUser(ctx.db, 'gone-user', 'gone@example.com');
       await ctx.db.update(notes).set({ assigneeId: 'gone-user' }).where(eq(notes.id, noteId));
       const res = await duplicate(noteId, fx.ownerToken);
       expect(res.statusCode).toBe(201);

@@ -15,6 +15,20 @@
       "when": 1793474721095,
       "tag": "0001_purge_expired",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793787775954,
+      "tag": "0002_user_references",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793787776356,
+      "tag": "0003_purge_deleted_identities",
+      "breakpoints": true
     }
   ]
 }

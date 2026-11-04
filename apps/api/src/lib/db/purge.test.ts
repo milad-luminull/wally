@@ -8,6 +8,7 @@ import {
   assistantTidies,
   boardCleanup,
   boardOperations,
+  deletedIdentities,
   users,
 } from '../postgres/schema/index.js';
 import { assertPurgeScheduled, purgeExpired } from './purge.js';
@@ -28,7 +29,7 @@ describe('purgeExpired', () => {
     await handle?.drop();
   });
 
-  it('deletes rows past their expiry from the six expiring tables, and nothing else', async () => {
+  it('deletes rows past their expiry from the seven expiring tables, and nothing else', async () => {
     const { db } = handle;
     await db.insert(users).values({
       id: 'u1',
@@ -120,6 +121,9 @@ describe('purgeExpired', () => {
         updatedAt: at,
         expiresAt,
       });
+      await db
+        .insert(deletedIdentities)
+        .values({ issuer: 'https://issuer/', subject: suffix, expiresAt });
     }
     await db
       .insert(boardCleanup)
@@ -134,6 +138,7 @@ describe('purgeExpired', () => {
       assistantConversations: 2,
       assistantSuggestions: 2,
       assistantTidies: 2,
+      deletedIdentities: 2,
     });
     for (const table of [
       boardOperations,
@@ -142,6 +147,7 @@ describe('purgeExpired', () => {
       assistantConversations,
       assistantSuggestions,
       assistantTidies,
+      deletedIdentities,
     ])
       expect(await db.$count(table)).toBe(1);
     expect(await db.$count(boardCleanup)).toBe(1);
@@ -169,6 +175,7 @@ describe('the purge_expired database function', () => {
       'assistant_suggestions',
       'assistant_tidies',
       'board_operations',
+      'deleted_identities',
     ]);
   });
 

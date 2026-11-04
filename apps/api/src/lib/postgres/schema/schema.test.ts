@@ -38,6 +38,7 @@ const TABLES = [
   'board_cleanup',
   'board_members',
   'board_operations',
+  'deleted_identities',
   'mcp_connections',
   'mcp_limits',
   'note_history',
@@ -55,6 +56,7 @@ const EXPIRING = [
   'assistant_conversations',
   'assistant_suggestions',
   'assistant_tidies',
+  'deleted_identities',
 ];
 
 describe('the whole schema', () => {
@@ -68,7 +70,7 @@ describe('the whole schema', () => {
     await handle?.drop();
   });
 
-  it('creates exactly the 19 tables', async () => {
+  it('creates exactly the 20 tables', async () => {
     const rows = await handle.sql<{ tablename: string }[]>`
       select tablename from pg_tables where schemaname = 'public' order by 1`;
     expect(rows.map((row) => row.tablename)).toEqual(TABLES);
