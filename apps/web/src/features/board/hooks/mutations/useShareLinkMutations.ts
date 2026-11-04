@@ -63,6 +63,10 @@ export function useChangeShareLink(boardId: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: keys.shareLink(boardId) });
+      // Regenerating or turning off the link removes the people who joined through it and
+      // unassigns their notes on the server.
+      void queryClient.invalidateQueries({ queryKey: keys.members(boardId) });
+      void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
     },
   });
 }

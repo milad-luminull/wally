@@ -357,8 +357,8 @@ until they expire; they are not searched or scrubbed (owner, 2026-11-04):
 | Assistant conversations                      | 30 days after the conversation's last turn, at most 20 turns |
 | `assistant_audit` rows another member caused | 30 days                                                      |
 
-Pending invites to the person's address are the inviter's records and stay until invite
-expiry exists (GAP-07). Design:
+Pending invites to the person's address are the inviter's records; they go 30 days after the
+invite, like any pending invite (GAP-07). Design:
 [account deletion and export](superpowers/specs/2026-11-03-account-deletion-and-export-design.md).
 
 ### GAP-02 — No data export · ~~**High**~~ · Art. 15, 20 · **CLOSED**
@@ -495,7 +495,9 @@ Opening an expired link fails at once (`link.redeem`); the hourly purge deletes 
 who joined through a link is marked (`joined_by_link`), labelled "Joined by link" in the
 member list, and loses access when the link expires, is regenerated or is turned off. The
 label answers "who came in through the link"; a separate last-used record was left out on
-purpose (owner, 2026-11-04). The token is not logged.
+purpose (owner, 2026-11-04). Wally's own request log redacts the token, but redemption puts it
+in the URL (`POST /share-links/:token/redeem`), and Cloud Run's platform request log keeps the
+full URL for 30 days (GAP-05). Expiry now limits what such a logged token can still open.
 
 ### GAP-07 — Emails of people who never signed up are kept indefinitely · **Medium** · Art. 5(1)(e), 14 · **retention closed; notice open**
 

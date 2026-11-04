@@ -101,8 +101,10 @@ reason logic lives in the database; ADR-0020 otherwise holds):
 
 `purge_expired()` keeps what it does today (and whatever the deletion work added) and also:
 
-1. for each board whose link has `expires_at <= at`: `remove_link_members`, bump the board
-   revision, delete the link;
+1. deletes links with `expires_at <= at` (the delete re-checks the row, so a link extended a
+   moment ago stays), then removes the link members of every board that no longer has a link,
+   with `remove_link_members`, and bumps those boards' revisions. This also catches a member
+   a redeem added while their link was being deleted;
 2. deletes `PENDING` `board_members` rows with `invited_at <= at - 30 days`;
 3. deletes `assistant_usage` rows with `day` older than 30 days.
 

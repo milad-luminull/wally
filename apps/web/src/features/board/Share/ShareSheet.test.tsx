@@ -407,6 +407,22 @@ describe('share-link expiry (retention, 2026-11-04)', () => {
     expect(screen.getByText('Never expires')).toBeInTheDocument();
   });
 
+  it('reloads the member list after the link is regenerated', async () => {
+    vi.mocked(shareLinkApi.rotate).mockResolvedValue({
+      token: 'new',
+      role: 'VIEW',
+      url: 'https://hub.example.com/w/new',
+      expiresAt: null,
+    });
+    const user = await openShareSheet();
+    const callsBefore = vi.mocked(membersApi.list).mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Regenerate link' }));
+    await user.click(screen.getByRole('button', { name: 'Replace link' }));
+    await waitFor(() =>
+      expect(vi.mocked(membersApi.list).mock.calls.length).toBeGreaterThan(callsBefore),
+    );
+  });
+
   it('labels members who joined by link', async () => {
     vi.mocked(membersApi.list).mockResolvedValue([
       owner,

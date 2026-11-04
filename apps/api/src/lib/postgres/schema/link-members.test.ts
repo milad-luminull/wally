@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { asc, eq, sql } from 'drizzle-orm';
 import { createTestDatabase, type TestDatabase } from '../../../../test/postgres.js';
-import { boardMembers, notes, users, whiteboards } from './index.js';
+import { boardMembers, notes, shareLinks, users, whiteboards } from './index.js';
 
 const at = new Date('2026-11-04T09:00:00.000Z');
 const later = new Date('2026-11-04T10:00:00.000Z');
@@ -102,6 +103,37 @@ describe('release_assignments and remove_link_members', () => {
     });
     const [row] = await handle.db.select().from(boardMembers).where(eq(boardMembers.id, 'm-new'));
     expect(row!.joinedByLink).toBe(false);
+  });
+
+  it('the release gives existing links 30 days and leaves existing members permanent', async () => {
+    await handle.db.insert(shareLinks).values({
+      token: 't-existing',
+      boardId: 'b1',
+      role: 'VIEW',
+      createdAt: at,
+      updatedAt: at,
+    });
+    // The backfill statement exactly as migration 0004 runs it.
+    const migration = readFileSync(
+      new URL('../../../../drizzle/0004_share_link_expiry.sql', import.meta.url),
+      'utf8',
+    );
+    const backfill = migration
+      .split('--> statement-breakpoint')
+      .find((part) => /UPDATE "share_links"/.test(part));
+    expect(backfill).toBeDefined();
+    const before = Date.now();
+    await handle.db.execute(sql.raw(backfill!));
+
+    const [link] = await handle.db
+      .select()
+      .from(shareLinks)
+      .where(eq(shareLinks.token, 't-existing'));
+    const days = (link!.expiresAt!.getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(29.99);
+    expect(days).toBeLessThan(30.01);
+    // The column was added with default false, so every member that existed stays.
+    expect(/"joined_by_link" boolean DEFAULT false NOT NULL/.test(migration)).toBe(true);
   });
 
   it('release_assignments unassigns shared notes of a non-member and keeps private ones', async () => {

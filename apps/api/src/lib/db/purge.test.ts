@@ -285,6 +285,42 @@ describe('purgeExpired and the retention periods (2026-11-04)', () => {
     expect(untouched!.revision).toBe(1);
   });
 
+  it('removes link members left on a board that has no link any more', async () => {
+    const { db } = handle;
+    await db
+      .insert(whiteboards)
+      .values({ id: 'b-orphan', ownerId: 'owner', name: 'b-orphan', createdAt: at, updatedAt: at });
+    await db.insert(boardMembers).values([
+      {
+        id: 'm-orphan-link',
+        boardId: 'b-orphan',
+        userId: 'linked',
+        role: 'EDIT',
+        status: 'ACTIVE',
+        invitedAt: at,
+        joinedByLink: true,
+      },
+      {
+        id: 'm-orphan-invited',
+        boardId: 'b-orphan',
+        userId: 'invited',
+        role: 'EDIT',
+        status: 'ACTIVE',
+        invitedAt: at,
+      },
+    ]);
+    await purgeExpired(db, now);
+    const ids = (
+      await db
+        .select({ id: boardMembers.id })
+        .from(boardMembers)
+        .where(eq(boardMembers.boardId, 'b-orphan'))
+    ).map((row) => row.id);
+    expect(ids).toEqual(['m-orphan-invited']);
+    const [board] = await db.select().from(whiteboards).where(eq(whiteboards.id, 'b-orphan'));
+    expect(board!.revision).toBe(2);
+  });
+
   it('deletes pending invites at 30 days, not a second earlier, and never active rows', async () => {
     const { db } = handle;
     const invite = (id: string, invitedAt: Date, status: 'PENDING' | 'ACTIVE') => ({

@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
+import { activatePendingInvitesForEmail } from '../src/lib/members.js';
 import { boardMembers, notes, shareLinks } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
@@ -348,6 +349,40 @@ describe('share-link routes', () => {
         headers: ctx.authHeader(fx.ownerToken),
       });
       expect(await boardStatus(fx.boardId, fx.outsiderToken)).toBe(200);
+    });
+
+    async function pendingInviteFor(boardId: string, email: string) {
+      await ctx.db.insert(boardMembers).values({
+        id: `pending-${email}`,
+        boardId,
+        userId: null,
+        invitedEmail: email,
+        role: 'EDIT',
+        status: 'PENDING',
+        invitedAt: new Date(),
+      });
+    }
+
+    it('an invite activated at sign-in makes an existing link member permanent', async () => {
+      const fx = await createBoardFixture(ctx);
+      const token = (await createLink(fx, { role: 'VIEW' })).json().token;
+      await redeem(token, fx.outsiderToken);
+      await pendingInviteFor(fx.boardId, 'outsider@fixture.de');
+
+      await activatePendingInvitesForEmail(ctx.db, 'fx-outsider', 'outsider@fixture.de');
+      const row = await outsiderRow(fx.boardId);
+      expect(row!.joinedByLink).toBe(false);
+      expect(row!.role).toBe('EDIT');
+    });
+
+    it('redeeming again with a pending invite waiting makes a link member permanent', async () => {
+      const fx = await createBoardFixture(ctx);
+      const token = (await createLink(fx, { role: 'VIEW' })).json().token;
+      await redeem(token, fx.outsiderToken);
+      await pendingInviteFor(fx.boardId, 'outsider@fixture.de');
+
+      expect((await redeem(token, fx.outsiderToken)).statusCode).toBe(200);
+      expect((await outsiderRow(fx.boardId))!.joinedByLink).toBe(false);
     });
 
     it('claiming a pending invite through the link makes the member permanent', async () => {

@@ -244,9 +244,9 @@ export async function executeAdminCommand(
         role,
         status: 'ACTIVE',
         activatedAt: existing?.activatedAt ?? timestamp,
-        // Only a membership this link created goes with the link; a claimed invite or an
-        // existing membership keeps what it was.
-        joinedByLink: existing ? existing.status === 'ACTIVE' && existing.joinedByLink : true,
+        // Only a membership this link created goes with the link. A claimed invite, or any
+        // existing row that did not come from the link, makes it permanent.
+        joinedByLink: matching.every((row) => row.status === 'ACTIVE' && row.joinedByLink),
       };
       for (const duplicate of matching.slice(1))
         await tx.delete(boardMembers).where(eq(boardMembers.id, duplicate.id));

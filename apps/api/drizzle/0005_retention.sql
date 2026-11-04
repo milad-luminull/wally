@@ -92,16 +92,24 @@ begin
     return next;
   end loop;
 
+  -- The delete re-checks expires_at on the row as it is now, so a link the owner extended or
+  -- recreated a moment ago is left alone.
   table_name := 'share_links';
-  deleted := 0;
-  for expired_board in select l.board_id from share_links l where l.expires_at <= at loop
+  delete from share_links where expires_at <= at;
+  get diagnostics deleted = row_count;
+  return next;
+
+  -- Members who joined by link on a board that no longer has a link: the ones whose link just
+  -- expired, and any a redeem added while its link was being deleted. They lose access here.
+  for expired_board in
+    select distinct m.board_id from board_members m
+     where m.joined_by_link
+       and not exists (select 1 from share_links l where l.board_id = m.board_id)
+  loop
     if remove_link_members(expired_board, at) > 0 then
       update whiteboards set revision = revision + 1, updated_at = at where id = expired_board;
     end if;
-    delete from share_links where board_id = expired_board;
-    deleted := deleted + 1;
   end loop;
-  return next;
 
   table_name := 'board_members';
   delete from board_members where status = 'PENDING' and invited_at <= at - interval '30 days';
