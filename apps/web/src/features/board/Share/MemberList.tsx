@@ -49,6 +49,9 @@ export function MemberList({ boardId, members, ownerId, isOwner }: MemberListPro
               {member.status === 'PENDING' && (
                 <div className="text-12 text-fg-3">{t('share.members.pending')}</div>
               )}
+              {member.joinedByLink && (
+                <div className="text-12 text-fg-3">{t('share.members.joinedByLink')}</div>
+              )}
             </div>
             {isOwner && !isBoardOwner ? (
               <>

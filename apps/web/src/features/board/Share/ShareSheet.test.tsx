@@ -267,7 +267,7 @@ describe('board sharing scope and link lifecycle', () => {
     const user = await openShareSheet();
     await user.click(screen.getByRole('button', { name: 'Regenerate link' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
-      'The old link will stop working. People already added to this board keep their access.',
+      'The old link will stop working, and people who joined through it lose access. People invited by email keep theirs.',
     );
     await user.click(screen.getByRole('button', { name: 'Replace link' }));
     expect(await screen.findByDisplayValue('https://hub.example.com/w/new')).toBeInTheDocument();
@@ -324,3 +324,89 @@ it.each(['members', 'link'] as const)(
     );
   },
 );
+
+describe('share-link expiry (retention, 2026-11-04)', () => {
+  const missingLink = () =>
+    vi
+      .mocked(shareLinkApi.get)
+      .mockRejectedValue(Object.assign(new Error('Missing'), { status: 404 }));
+
+  it('creates a link that lasts 30 days unless another duration is picked', async () => {
+    missingLink();
+    const user = await openShareSheet(false);
+    await user.click(await screen.findByRole('button', { name: 'Enable link sharing' }));
+    await waitFor(() =>
+      expect(shareLinkApi.createOrUpdate).toHaveBeenCalledWith(
+        'board-1',
+        { expiresIn: 'DAYS_30' },
+        false,
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('creates a never-expiring link when Never is picked', async () => {
+    missingLink();
+    const user = await openShareSheet(false);
+    await user.click(await screen.findByRole('combobox', { name: 'How long the link works' }));
+    await user.click(await screen.findByRole('option', { name: 'Never' }));
+    await user.click(screen.getByRole('button', { name: 'Enable link sharing' }));
+    await waitFor(() =>
+      expect(shareLinkApi.createOrUpdate).toHaveBeenCalledWith(
+        'board-1',
+        { expiresIn: 'NEVER' },
+        false,
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('shows when the link expires, warns about link members, and changes the expiry', async () => {
+    vi.mocked(shareLinkApi.get).mockResolvedValue({
+      token: 'tok',
+      role: 'VIEW',
+      url: 'https://hub.example.com/w/tok',
+      expiresAt: '2026-12-04T10:00:00.000Z',
+    });
+    const user = await openShareSheet();
+    expect(screen.getByText(/^Expires on .*2026$/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'People who joined through this link lose access when it expires, is regenerated or turned off.',
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('combobox', { name: 'Change expiry' }));
+    await user.click(await screen.findByRole('option', { name: 'Never' }));
+    await waitFor(() =>
+      expect(shareLinkApi.createOrUpdate).toHaveBeenCalledWith(
+        'board-1',
+        { expiresIn: 'NEVER' },
+        true,
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('says when a link never expires', async () => {
+    vi.mocked(shareLinkApi.get).mockResolvedValue({
+      token: 'tok',
+      role: 'VIEW',
+      url: 'https://hub.example.com/w/tok',
+      expiresAt: null,
+    });
+    await openShareSheet();
+    expect(screen.getByText('Never expires')).toBeInTheDocument();
+  });
+
+  it('labels members who joined by link', async () => {
+    vi.mocked(membersApi.list).mockResolvedValue([
+      owner,
+      makeMember({ id: 'm-link', userId: 'user-2', displayName: 'Lea Link', joinedByLink: true }),
+      makeMember({ id: 'm-invited', userId: 'user-3', displayName: 'Ida Invite' }),
+    ]);
+    await openShareSheet();
+    await screen.findByText('Lea Link');
+    expect(screen.getAllByText('Joined by link')).toHaveLength(1);
+  });
+});

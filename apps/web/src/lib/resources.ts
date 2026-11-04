@@ -16,7 +16,8 @@ import {
   inviteCreateSchema,
   memberRoleUpdateSchema,
   shareLinkDtoSchema,
-  shareLinkRoleSchema,
+  shareLinkCreateSchema,
+  shareLinkUpdateSchema,
   shareLinkRedeemResultSchema,
   subtaskDtoSchema,
   subtaskCreateSchema,
@@ -59,6 +60,7 @@ import {
   type InviteCreateInput,
   type MemberRoleUpdateInput,
   type ShareLinkDto,
+  type ShareLinkDuration,
   type ShareLinkRedeemResult,
   type SubtaskDto,
   type SubtaskCreateInput,
@@ -243,21 +245,34 @@ export const membersApi = {
     api.delete(`/whiteboards/${boardId}/members/${memberId}`, undefined, ticket),
 };
 
+export interface ShareLinkChange {
+  role?: WhiteboardRole;
+  expiresIn?: ShareLinkDuration;
+}
+
 export const shareLinkApi = {
   get: (boardId: string): Promise<ShareLinkDto> =>
     api.get(`/whiteboards/${boardId}/share-link`, shareLinkDtoSchema),
+  /** Creates the link (VIEW unless a role is given) or changes its role and/or expiry. */
   createOrUpdate: (
     boardId: string,
-    role: WhiteboardRole,
+    change: ShareLinkChange,
     exists = false,
     ticket?: MutationTicket,
   ): Promise<ShareLinkDto> =>
-    api[exists ? 'patch' : 'post'](
-      `/whiteboards/${boardId}/share-link`,
-      shareLinkRoleSchema.parse({ role }),
-      shareLinkDtoSchema,
-      ticket,
-    ),
+    exists
+      ? api.patch(
+          `/whiteboards/${boardId}/share-link`,
+          shareLinkUpdateSchema.parse(change),
+          shareLinkDtoSchema,
+          ticket,
+        )
+      : api.post(
+          `/whiteboards/${boardId}/share-link`,
+          shareLinkCreateSchema.parse({ role: 'VIEW', ...change }),
+          shareLinkDtoSchema,
+          ticket,
+        ),
   rotate: (boardId: string): Promise<ShareLinkDto> =>
     api.post(`/whiteboards/${boardId}/share-link/rotate`, {}, shareLinkDtoSchema),
   remove: (boardId: string): Promise<void> => api.delete(`/whiteboards/${boardId}/share-link`),

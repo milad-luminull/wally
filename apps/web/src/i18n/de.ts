@@ -1017,7 +1017,7 @@ export const de = {
     regenerate: 'Link erneuern',
     replace: 'Link ersetzen',
     regenerateHint:
-      'Der alte Link funktioniert danach nicht mehr. Personen, die bereits zu diesem Board hinzugefügt wurden, behalten ihren Zugriff.',
+      'Der alte Link funktioniert danach nicht mehr, und wer über ihn beigetreten ist, verliert den Zugang. Per E-Mail eingeladene Personen behalten ihn.',
     linkDisabled:
       'Die Link-Freigabe ist aus. Nur Personen, die bereits zu diesem Board hinzugefügt wurden, haben Zugriff.',
     linkSaveFailed:
@@ -1028,6 +1028,17 @@ export const de = {
     title: '„{{name}}“ teilen',
     copy: 'Board-Link kopieren',
     copied: 'Kopiert',
+    expiry: {
+      DAYS_7: '7 Tage',
+      DAYS_30: '30 Tage',
+      NEVER: 'Nie',
+    },
+    expiryAria: 'Wie lange der Link gilt',
+    changeExpiry: 'Ablauf ändern',
+    expiresOn: 'Läuft ab am {{date}}',
+    neverExpires: 'Läuft nie ab',
+    linkMembersHint:
+      'Wer über diesen Link beigetreten ist, verliert den Zugang, wenn er abläuft, neu erstellt oder deaktiviert wird.',
     linkRoleAria: 'Rolle für den Link',
     linkLabel: 'Jeder mit dem Link',
     linkHint: {
@@ -1038,6 +1049,7 @@ export const de = {
     privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
     members: {
       pending: 'Ausstehend',
+      joinedByLink: 'Über Link beigetreten',
       roleAria: 'Rolle von {{name}}',
       remove: '{{name}} entfernen',
     },

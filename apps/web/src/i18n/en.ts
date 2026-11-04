@@ -978,7 +978,7 @@ export const en = {
     regenerate: 'Regenerate link',
     replace: 'Replace link',
     regenerateHint:
-      'The old link will stop working. People already added to this board keep their access.',
+      'The old link will stop working, and people who joined through it lose access. People invited by email keep theirs.',
     linkDisabled: 'Link sharing is off. Only people already added to this board can access it.',
     linkSaveFailed: 'Could not update link settings. Please try again.',
     linkUrlAria: 'Board share link',
@@ -987,6 +987,17 @@ export const en = {
     title: 'Share “{{name}}”',
     copy: 'Copy board link',
     copied: 'Copied',
+    expiry: {
+      DAYS_7: '7 days',
+      DAYS_30: '30 days',
+      NEVER: 'Never',
+    },
+    expiryAria: 'How long the link works',
+    changeExpiry: 'Change expiry',
+    expiresOn: 'Expires on {{date}}',
+    neverExpires: 'Never expires',
+    linkMembersHint:
+      'People who joined through this link lose access when it expires, is regenerated or turned off.',
     linkRoleAria: 'Role for the link',
     linkLabel: 'Anyone with the link',
     linkHint: {
@@ -997,6 +1008,7 @@ export const en = {
     privateNotesHint: 'Members can keep private notes that only they can see.',
     members: {
       pending: 'Pending',
+      joinedByLink: 'Joined by link',
       roleAria: "{{name}}'s role",
       remove: 'Remove {{name}}',
     },

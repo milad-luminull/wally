@@ -31,6 +31,7 @@ export function useCreateInvite(boardId: string) {
         displayName: null,
         role: input.role,
         status: 'PENDING',
+        joinedByLink: false,
       };
       queryClient.setQueryData<MemberDto[]>(keys.members(boardId), (prev) => [
         ...(prev ?? []),
