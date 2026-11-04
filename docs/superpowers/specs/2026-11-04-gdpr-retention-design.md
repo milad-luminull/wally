@@ -1,6 +1,6 @@
 # Retention: share-link expiry, invite expiry and a written retention policy (GDPR GAP-04, GAP-06, GAP-07) — design
 
-> **Status:** draft, 2026-11-04. Awaiting the owner's approval.
+> **Status:** approved by the owner, 2026-11-04. Plan: [2026-11-04-gdpr-retention.md](../plans/2026-11-04-gdpr-retention.md).
 
 Date: 2026-11-04. Closes [GDPR.md](../../GDPR.md) GAP-04 (no retention policy), GAP-06 (share
 links never expire and are not auditable) and GAP-07 (emails of people who never signed up
