@@ -76,8 +76,9 @@ is the user's ongoing use. This is the owner's decision; GDPR.md records it as s
 
 - An expired link or invite that still works in the window before the hourly purge runs, or
   a member who joined through an expired link who can still open the board in that window.
-  Expiry is checked at the moment of use and in every access check; the purge only cleans
-  up.
+  Expiry is checked at the moment of use and in every access check, always by the
+  database's clock (`now()`), so the commands, the access checks and the purge can never
+  disagree about whether something has expired; the purge only cleans up.
 - A vendor retention period in GDPR.md or the privacy notice that is not backed by the
   vendor's own documentation (project rule: verified practice only). Anything that cannot be
   checked is listed as unverified, not guessed.
@@ -108,7 +109,7 @@ is the user's ongoing use. This is the owner's decision; GDPR.md records it as s
 | Column             | Type                  | Meaning                                                                                |
 | ------------------ | --------------------- | -------------------------------------------------------------------------------------- |
 | `expiry`           | text, not null        | The owner's choice: `DAYS_7`, `DAYS_30` or `NEVER` (a check constraint, as `role` has) |
-| `expires_at`       | timestamptz, nullable | When it stops working; null for `NEVER`                                                |
+| `expires_at`       | timestamptz, nullable | When it stops working; null exactly when `expiry` is `NEVER` (a check constraint)      |
 | `last_redeemed_at` | timestamptz, nullable | The last successful redemption by someone other than the board owner                   |
 
 `expiry` is stored so that rotating a link can give the new token the same duration.
@@ -153,7 +154,7 @@ null `expires_at` are never touched.
   (pre-selected) and "Never".
 - An existing link: the same select, showing its current choice; changing it sends
   `link.update` with the new `expiry`.
-- Under the link: "Expires on {date}" or "Never expires", and "Last used {date}" or "Not used
+- Under the link: "Expires on {{date}}" or "Never expires", and "Last used {{date}}" or "Not used
   yet". Dates in the user's locale, date only.
 - New strings in `en.ts` and `de.ts`.
 
@@ -187,10 +188,13 @@ link joins from invites).
   This makes access end at the moment of expiry, regenerate or turn-off, before any cleanup
   runs.
 - **Clean-up:** one database function, `remove_link_members(board, at)`, deletes the board's
-  `joined_by_link` rows and, in the same statement, releases the removed people's
-  assignments on shared notes, with the same rule as the `member.remove` cleanup job (a
-  person who still holds another `ACTIVE` row keeps theirs; private notes stay assigned and
-  hidden, GDPR.md §3). Callers bump the board revision.
+  `joined_by_link` rows and releases the removed people's assignments on shared notes
+  through `release_assignments(board, member, at)` — today's `member.remove` rule (a person
+  who still holds another `ACTIVE` row keeps theirs; private notes stay assigned and hidden,
+  GDPR.md §3), moved into the database so that `drainCleanupJob` calls the same function
+  and the rule exists once. Callers bump the board revision. These are database functions,
+  unlike the rest of Wally's logic (ADR-0020), only because the hourly purge runs inside
+  the database.
   - `link.rotate`, `link.delete` and `link.create` over an expired row call it in their own
     transaction. No cleanup jobs: the cleanup jobs that exist today are drained only right
     after the command that queued them, or by hand with `pnpm maintenance --cleanup`, so a
@@ -223,7 +227,7 @@ No schema change. A pending invite's expiry is `invited_at + 30 days`.
   (`invited_at = now`). Today `member.invite` keeps the old row unchanged except for the
   role; this changes it to also refresh `invited_at`. (Claude's call: the owner asking again
   is a fresh purpose.)
-- **Member list:** a pending invite shows "Invite expires on {date}" instead of the plain
+- **Member list:** a pending invite shows "Invite expires on {{date}}" instead of the plain
   "Pending" label. Expired rows not yet purged are left out of the list.
 - **Purge:** `purge_expired()` deletes `board_members` rows with `status = 'PENDING'` and
   `invited_at <= at - interval '30 days'`.
