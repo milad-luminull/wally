@@ -1,14 +1,30 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { HomeShell } from '@/features/boards/HomeShell';
 import { Button } from '@/components/ui/button';
+import { DeleteAccountDialog } from '@/features/account/DeleteAccountDialog';
+import { downloadExport } from '@/features/account/downloadExport';
 
-/**
- * Self-service export and deletion are not available yet. The page keeps its place in the
- * settings so the controls can return without moving, and says how to reach us meanwhile.
- */
+/** Download everything you can see, or delete your account (the account deletion design). */
 export function AccountSettings() {
   const { t } = useTranslation();
+  const [downloading, setDownloading] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function download() {
+    setDownloading(true);
+    setExportFailed(false);
+    try {
+      await downloadExport();
+    } catch {
+      setExportFailed(true);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
       <div className="space-y-3">
@@ -27,9 +43,19 @@ export function AccountSettings() {
         <p id="export-hint" className="text-sm text-fg-3">
           {t('accountData.exportHint')}
         </p>
-        <Button variant="outline" disabled aria-describedby="export-hint">
+        <Button
+          variant="outline"
+          disabled={downloading}
+          aria-describedby="export-hint"
+          onClick={download}
+        >
           {t('accountData.download')}
         </Button>
+        {exportFailed && (
+          <p role="alert" className="text-sm text-status-danger">
+            {t('accountData.exportFailed')}
+          </p>
+        )}
       </section>
       <section className="space-y-3 border-t border-border pt-6" aria-labelledby="delete-title">
         <h2 id="delete-title" className="text-lg font-semibold">
@@ -38,9 +64,14 @@ export function AccountSettings() {
         <p id="delete-hint" className="text-sm text-fg-3">
           {t('accountData.deleteHint')}
         </p>
-        <Button variant="destructive" disabled aria-describedby="delete-hint">
+        <Button
+          variant="destructive"
+          aria-describedby="delete-hint"
+          onClick={() => setDeleting(true)}
+        >
           {t('accountData.deleteTitle')}
         </Button>
+        <DeleteAccountDialog open={deleting} onOpenChange={setDeleting} />
       </section>
     </div>
   );

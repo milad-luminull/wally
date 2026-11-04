@@ -3,12 +3,20 @@ export const en = {
   accountData: {
     title: 'Account and data',
     exportTitle: 'Your data',
-    exportHint:
-      'Downloading your data from Wally is coming soon. Until then, email privacy@luminull.com and we will send you a copy.',
+    exportHint: 'Download everything you can see in Wally as one JSON file.',
     download: 'Download my data',
+    exportFailed: 'Your data could not be downloaded. Try again.',
     deleteTitle: 'Delete account',
-    deleteHint:
-      'Deleting your account from Wally is coming soon. Until then, email privacy@luminull.com and we will delete it for you.',
+    deleteHint: 'Deletes your account and everything you created, at once. This cannot be undone.',
+    deleteBoards: 'These boards are deleted for everyone:',
+    deleteNoBoards: 'You own no boards.',
+    deleteSharedWith: 'shared with {{names}}',
+    deleteNotes:
+      "Your notes on other people's boards are deleted too. Cards you were only assigned to stay.",
+    deleteTypeEmail: 'Type {{email}} to confirm',
+    deleteConfirm: 'Delete my account',
+    deleteFailed: 'Your account could not be deleted. Nothing was removed. Try again.',
+    deleted: 'Your account is deleted.',
   },
   privacy: {
     title: 'Privacy information',

@@ -9,12 +9,22 @@ export const de = {
   accountData: {
     title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
-    exportHint:
-      'Das Herunterladen deiner Daten aus Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir schicken dir eine Kopie.',
+    exportHint: 'Lade alles, was du in Wally siehst, als eine JSON-Datei herunter.',
     download: 'Meine Daten herunterladen',
+    exportFailed: 'Deine Daten konnten nicht heruntergeladen werden. Versuch es noch einmal.',
     deleteTitle: 'Konto löschen',
     deleteHint:
-      'Das Löschen deines Kontos in Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir löschen es für dich.',
+      'Löscht dein Konto und alles, was du erstellt hast, sofort. Das lässt sich nicht rückgängig machen.',
+    deleteBoards: 'Diese Wände werden für alle gelöscht:',
+    deleteNoBoards: 'Du besitzt keine Wände.',
+    deleteSharedWith: 'geteilt mit {{names}}',
+    deleteNotes:
+      'Deine Notizen auf fremden Wänden werden ebenfalls gelöscht. Karten, die dir nur zugewiesen sind, bleiben.',
+    deleteTypeEmail: 'Gib {{email}} ein, um zu bestätigen',
+    deleteConfirm: 'Mein Konto löschen',
+    deleteFailed:
+      'Dein Konto konnte nicht gelöscht werden. Es wurde nichts entfernt. Versuch es noch einmal.',
+    deleted: 'Dein Konto ist gelöscht.',
   },
   privacy: {
     title: 'Datenschutzinformationen',
