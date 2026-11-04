@@ -64,7 +64,7 @@
 - Modify: `packages/shared/src/enums.ts`, `packages/shared/src/schemas/member.ts`, `packages/shared/src/schemas/command.ts`, `apps/api/src/lib/commands/administration.ts`, `apps/api/src/lib/dto.ts`, `apps/api/src/routes/boards.ts` if it builds the inputs
 - Test: `apps/api/test/share-links.test.ts`, `apps/api/test/invite-security.test.ts`
 
-**Interfaces — Produces:** `shareLinkDurationValues = ['DAYS_7', 'DAYS_30', 'NEVER'] as const` and `shareLinkDurationSchema`; `link.create` input `{ role, expiresIn: shareLinkDurationSchema.default('DAYS_30') }`; `link.update` input `{ role?, expiresIn? }` (at least one); `ShareLinkDto.expiresAt: string | null`. A local `const DURATION_DAYS = { DAYS_7: 7, DAYS_30: 30, NEVER: null }` in `administration.ts`. **Consumes:** Task 1's `remove_link_members`, called as ``tx.execute(sql`select remove_link_members(${board.id}, ${timestamp})`)``.
+**Interfaces — Produces:** `shareLinkDurationValues = ['DAYS_7', 'DAYS_30', 'NEVER'] as const` and `shareLinkDurationSchema`; `link.create` input `{ role, expiresIn: shareLinkDurationSchema.default('DAYS_30') }`; `link.update` input `{ role?, expiresIn? }` (at least one); `ShareLinkDto.expiresAt: string | null`; `MemberDto.joinedByLink: boolean`. A local `const DURATION_DAYS = { DAYS_7: 7, DAYS_30: 30, NEVER: null }` in `administration.ts`. **Consumes:** Task 1's `remove_link_members`, called as ``tx.execute(sql`select remove_link_members(${board.id}, ${timestamp})`)``.
 
 Behaviour:
 
@@ -73,7 +73,7 @@ Behaviour:
 - `link.rotate`: `remove_link_members`, new token, same `expiresAt`. `link.delete`: `remove_link_members`, delete. Both already bump the board revision via `updateBoard()`.
 - `link.redeem`: the link lookup adds `expires_at is null or expires_at > now()` (so an expired link is the existing 404, before the owner shortcut). A new row gets `joinedByLink: true`; a claimed pending invite `false`; an existing row keeps its value.
 - `member.invite` on an existing row sets `joinedByLink = false`; the upsert's `set` includes `joinedByLink`.
-- `toShareLinkDto` adds `expiresAt: link.expiresAt?.toISOString() ?? null`.
+- `toShareLinkDto` adds `expiresAt: link.expiresAt?.toISOString() ?? null`; `toMemberDto` adds `joinedByLink`.
 
 - [ ] **Step 1: Failing tests:** `create defaults to 30 days` and `NEVER stores null`; `role-only update keeps expiresAt`; `expiresIn update counts from now`; `rotate and delete remove link members and unassign their shared notes, keep joined_by_link = false members`; `rotate keeps expiresAt`; `redeem fails one second past expiry and works one second before` (set `expires_at` in the database); `owner gets 404 on their own expired link`; `redeem marks a new member joined by link`; `claiming a pending invite through a link clears the flag`; `an email invite makes a link member permanent` (invite-security).
 - [ ] **Step 2:** Run both files → FAIL.
@@ -106,16 +106,16 @@ Then the existing `revoke execute` line. `TABLES` gains `share_links: 'shareLink
 
 **Files:**
 
-- Modify: `apps/web/src/features/board/Share/ShareLinkControls.tsx`, `apps/web/src/features/board/hooks/mutations/useShareLinkMutations.ts`, `apps/web/src/i18n/en.ts`, `apps/web/src/i18n/de.ts`, `apps/web/src/test/fixtures.ts`, `apps/web/e2e/share.spec.ts`
+- Modify: `apps/web/src/features/board/Share/ShareLinkControls.tsx`, `apps/web/src/features/board/Share/MemberList.tsx`, `apps/web/src/features/board/hooks/mutations/useShareLinkMutations.ts`, `apps/web/src/i18n/en.ts`, `apps/web/src/i18n/de.ts`, `apps/web/src/test/fixtures.ts`, `apps/web/e2e/share.spec.ts`
 - Test: `apps/web/src/features/board/Share/ShareSheet.test.tsx`
 
-Behaviour (spec, "Web"): a duration select on create (30 days pre-selected); on an existing link "Expires on {{date}}" / "Never expires" and a "Change expiry" select sending `link.update { expiresIn }`; one warning line under the link. Dates via the existing locale formatter, date only. German: "7 Tage", "30 Tage", "Nie", "Läuft ab am {{date}}", "Läuft nie ab", "Ablauf ändern", "Wer über diesen Link beigetreten ist, verliert den Zugang, wenn er abläuft, neu erstellt oder deaktiviert wird."
+Behaviour (spec, "Web"): a duration select on create (30 days pre-selected); on an existing link "Expires on {{date}}" / "Never expires" and a "Change expiry" select sending `link.update { expiresIn }`; one warning line under the link; the member list shows "Joined by link" under a `joinedByLink` member (German: "Über Link beigetreten"). Dates via the existing locale formatter, date only. German: "7 Tage", "30 Tage", "Nie", "Läuft ab am {{date}}", "Läuft nie ab", "Ablauf ändern", "Wer über diesen Link beigetreten ist, verliert den Zugang, wenn er abläuft, neu erstellt oder deaktiviert wird."
 
-- [ ] **Step 1: Failing tests** in `ShareSheet.test.tsx`: create sends `expiresIn: 'DAYS_30'` by default; changing to never sends `link.update { expiresIn: 'NEVER' }`; the expiry and warning lines render.
+- [ ] **Step 1: Failing tests** in `ShareSheet.test.tsx`: create sends `expiresIn: 'DAYS_30'` by default; changing to never sends `link.update { expiresIn: 'NEVER' }`; the expiry and warning lines render; a `joinedByLink` member shows the label.
 - [ ] **Step 2:** Run → FAIL.
 - [ ] **Step 3:** Implement. In `share.spec.ts`: create a link with "7 Tage", see "Läuft ab am" with today + 7 days; change to "Nie", see "Läuft nie ab".
 - [ ] **Step 4:** `pnpm --filter @wally/web test` and `pnpm typecheck` PASS; E2E locally per `apps/web/e2e/README.md` (CI is the run that counts).
-- [ ] **Step 5:** Commit `feat(web): choose and change a share link's expiry`.
+- [ ] **Step 5:** Commit `feat(web): choose and change a share link's expiry; label members who joined by link`.
 
 ### Task 5: Docs, review, PR
 

@@ -115,6 +115,9 @@ The periods are written in the migration only; the tests use the same numbers.
   with the same three options, counted from today.
 - One line under the link: "People who joined through this link lose access when it
   expires, is regenerated or turned off."
+- The member list shows "Joined by link" under a member who joined through the link
+  (owner, 2026-11-04), so the owner sees who will lose access. `MemberDto` gains
+  `joinedByLink`.
 - Pending invites keep today's "Pending" label.
 
 ### Docs
@@ -143,7 +146,7 @@ The periods are written in the migration only; the tests use the same numbers.
   earlier, never `ACTIVE` rows; deletes usage older than 12 months and keeps the boundary
   day. Tests write past timestamps and pass `at`; they never fake the clock.
 - **Web:** the select defaults to 30 days; changing to never sends `expiresIn: 'NEVER'`; the
-  expiry and warning lines render.
+  expiry and warning lines render; a link member shows "Joined by link".
 - **E2E** (`apps/web/e2e/share.spec.ts`): create a link with 7 days, see the date; change it to
   never, see "Never expires". No second-user step (CI has one Auth0 test account; owner,
   2026-11-04).
@@ -154,7 +157,7 @@ Cut on 2026-11-04 to keep maintenance low; each can be added later if a real nee
 
 - Expiry checks in access control, member lists and invite claiming (the hourly job is
   enough; see "How expiry works").
-- "Last used", a "Joined by link" label, an "Invite expires on" line, restarting an invite's
+- "Last used", an "Invite expires on" line, restarting an invite's
   30 days on re-invite, warnings before expiry, a separate "link expired" page.
 - Storing the chosen duration next to `expires_at`, extra check constraints, a shared
   retention-constants module, query helpers for expiry.
