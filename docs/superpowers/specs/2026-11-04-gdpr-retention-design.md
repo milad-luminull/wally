@@ -49,7 +49,7 @@ use. This is the owner's decision; GDPR.md records it as such.
 
 The hourly `wally-purge-expired` job (`purge_expired()`, pg_cron) does all deleting. Only
 **opening a share link** checks expiry at the moment of use, because that is where access is
-granted. Everything else may lag by up to an hour (Claude's call, 2026-11-04):
+granted. Everything else may lag by up to an hour (owner, 2026-11-04):
 
 - A member who joined through an expired link keeps access until the next hourly run.
 - An invite at day 30 can still be claimed until the next hourly run.
@@ -182,10 +182,9 @@ The code is the same either way: one number in the migration.
 
 ## Claude's calls (the owner can overrule any)
 
-1. Expiry lags by up to an hour everywhere except opening a link.
-2. Changing a link's expiry counts from the change; changing only its role leaves it alone.
-3. Regenerating a link keeps its end date.
-4. Members who exist before the release count as invited, so nobody loses access at the
+1. Changing a link's expiry counts from the change; changing only its role leaves it alone.
+2. Regenerating a link keeps its end date.
+3. Members who exist before the release count as invited, so nobody loses access at the
    release.
-5. An email invite makes a link member permanent.
-6. Vendor rows link to the vendor's own documentation instead of copying periods.
+4. An email invite makes a link member permanent.
+5. Vendor rows link to the vendor's own documentation instead of copying periods.
