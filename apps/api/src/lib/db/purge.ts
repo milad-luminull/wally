@@ -9,15 +9,22 @@ const TABLES = {
   assistant_suggestions: 'assistantSuggestions',
   assistant_tidies: 'assistantTidies',
   deleted_identities: 'deletedIdentities',
+  // The retention periods of 2026-11-04 (drizzle/0005_retention.sql): expired share links
+  // with their link members, pending invites after 30 days, usage counters after 12 months.
+  share_links: 'shareLinks',
+  board_members: 'pendingInvites',
+  assistant_usage: 'assistantUsage',
 } as const;
 
 export type PurgeCounts = Record<(typeof TABLES)[keyof typeof TABLES], number>;
 
 /**
- * Deletes every row whose `expires_at` has passed, through the `purge_expired()` database
- * function (apps/api/drizzle/0001_purge_expired.sql). A Supabase Cron job runs the same
- * function hourly; this is for `pnpm maintenance`. Board cleanup jobs carry no expiry and
- * are never touched.
+ * Deletes every row whose `expires_at` has passed, plus what the retention periods expire
+ * (expired share links and their link members, pending invites after 30 days, usage counters
+ * after 12 months), through the `purge_expired()` database function
+ * (apps/api/drizzle/0001_purge_expired.sql, last redefined in 0005_retention.sql). A Supabase
+ * Cron job runs the same function hourly; this is for `pnpm maintenance`. Board cleanup jobs
+ * carry no expiry and are never touched.
  *
  * Expiry is storage hygiene, not access control: a row may outlive its expiry until the
  * next run.

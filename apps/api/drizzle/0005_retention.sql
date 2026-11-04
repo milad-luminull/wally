@@ -61,3 +61,58 @@ end
 $$;
 --> statement-breakpoint
 revoke execute on function remove_link_members(text, timestamptz) from public, anon, authenticated, service_role;
+--> statement-breakpoint
+-- purge_expired(), as in 0003, plus the retention periods the owner set on 2026-11-04:
+--   * an expired share link goes, with everyone who joined through it;
+--   * a pending invite (and the email address in it) goes 30 days after it was made;
+--   * assistant usage counters go after 12 months.
+-- Opening an expired link already fails (apps/api/src/lib/commands/index.ts); everything else
+-- here may run up to an hour late, which the owner accepted. `create or replace` keeps the
+-- pg_cron job that calls it.
+create or replace function purge_expired(at timestamptz default now())
+returns table (table_name text, deleted bigint)
+language plpgsql
+set search_path = public
+as $$
+declare
+  expiring text[] := array[
+    'board_operations',
+    'assistant_audit',
+    'assistant_attempts',
+    'assistant_conversations',
+    'assistant_suggestions',
+    'assistant_tidies',
+    'deleted_identities'
+  ];
+  expired_board text;
+begin
+  foreach table_name in array expiring loop
+    execute format('delete from %I where expires_at <= $1', table_name) using at;
+    get diagnostics deleted = row_count;
+    return next;
+  end loop;
+
+  table_name := 'share_links';
+  deleted := 0;
+  for expired_board in select l.board_id from share_links l where l.expires_at <= at loop
+    if remove_link_members(expired_board, at) > 0 then
+      update whiteboards set revision = revision + 1, updated_at = at where id = expired_board;
+    end if;
+    delete from share_links where board_id = expired_board;
+    deleted := deleted + 1;
+  end loop;
+  return next;
+
+  table_name := 'board_members';
+  delete from board_members where status = 'PENDING' and invited_at <= at - interval '30 days';
+  get diagnostics deleted = row_count;
+  return next;
+
+  table_name := 'assistant_usage';
+  delete from assistant_usage where day < (at - interval '12 months')::date;
+  get diagnostics deleted = row_count;
+  return next;
+end
+$$;
+--> statement-breakpoint
+revoke execute on function purge_expired(timestamptz) from public, anon, authenticated, service_role;

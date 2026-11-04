@@ -9,7 +9,8 @@ if ([...args].some((arg) => arg !== '--cleanup'))
   throw new Error('Usage: pnpm maintenance [--cleanup]');
 const { db, close } = createDatabase(loadEnv().DATABASE_URL);
 try {
-  // Expired receipts, audit and assistant records always go; cleanup jobs only with --cleanup.
+  // Expired receipts, audit and assistant records, expired share links, old invites and old
+  // usage counters always go; cleanup jobs only with --cleanup.
   const purged = await purgeExpired(db);
   const cleanup = args.has('--cleanup')
     ? await drainCleanup(db)
