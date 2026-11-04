@@ -178,7 +178,7 @@ with the `users` row.
 
 - **Pending invites to their email address.** They are the inviter's record of an address,
   like the rows above, and would be found by anyone who later signs up with that address, as
-  any invite is. Invite expiry is GAP-06.
+  any invite is. Invite expiry is GAP-07.
 - **`board_cleanup` jobs.** Each finishes on its own: `drainCleanupJob` already tolerates a
   target that is gone.
 - **Revisions.** Notes that lose their assignee keep their revision. Nothing polls

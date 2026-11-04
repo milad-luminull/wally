@@ -54,6 +54,37 @@ PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Nothing was copied
 Cloud Firestore, the earlier store: PostgreSQL started empty, and the Firestore database was
 deleted on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)).
 
+### Retention periods (owner, 2026-11-04)
+
+How long each kind of personal data in Wally's database is kept, and what deletes it. The
+hourly `purge_expired()` job (pg_cron, see "Assistant records" below) does every timed
+deletion, so a row can outlive its period by up to an hour; opening an expired share link
+fails at once ([design](superpowers/specs/2026-11-04-gdpr-retention-design.md)).
+
+| Data                                             | Kept                                                                     | Deleted by                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------- |
+| Account (`users`) and preferences                | Until the person deletes their account; inactive accounts are kept       | Account deletion (GAP-01)                 |
+| Boards                                           | Until the owner deletes the board or their account                       | `board.delete`, account deletion          |
+| Notes, including completed ones, with subtasks   | Until the user deletes them, or their board or account                   | `note.delete`, board or account deletion  |
+| Note history (`note_history`)                    | As long as its note                                                      | Deleted with the note                     |
+| Memberships (`board_members`, `ACTIVE`)          | Until removed, the board is deleted, or the person deletes their account | `member.delete`, `board.leave`, deletions |
+| Memberships from a share link (`joined_by_link`) | Until the link expires, is regenerated or is turned off                  | The link command, or the hourly purge     |
+| Pending invites (`board_members`, `PENDING`)     | 30 days after the invite, then the row and its email address go          | Hourly purge                              |
+| Share links (`share_links`)                      | 7 days, 30 days (default) or never, as the owner chooses                 | Hourly purge                              |
+| Assistant usage counters (`assistant_usage`)     | 30 days: the daily limit needs only today's row                          | Hourly purge                              |
+| Other assistant records, command receipts        | 7 or 30 days (see the tables below)                                      | Hourly purge                              |
+| Deletion tombstones (`deleted_identities`)       | 1 hour                                                                   | Hourly purge                              |
+
+Notes and history have no time limit by the owner's decision: they are the user's own
+working material, the user controls them (edit, complete, delete, delete the board, delete
+the account), and deleting work someone still relies on would defeat the purpose they are
+kept for. Art. 5(1)(e) allows "as long as the user keeps it" when the purpose is the user's
+ongoing use. Assistant spend is tracked per month without naming anyone (`assistant_spend`),
+which is why per-user usage needs no more than 30 days.
+
+Data held by vendors (Auth0, Google Cloud, Cloudflare, Supabase) follows their own retention;
+a list with links to each vendor's documentation is to follow.
+
 ### Identity — `users`
 
 | Field                     | Personal data                                                                                                                                                                                                                                                                 | Source                                               | Deleted when                          |
@@ -80,6 +111,17 @@ development and CI alike.
 | `userId`                                     | Yes, pseudonymous                                         | Null until the invitee signs up      |
 | `invitedEmail`                               | Yes — **and it may belong to someone who has no account** | See GAP-07                           |
 | `role`, `status`, `invitedAt`, `activatedAt` | Yes, indirectly                                           | Reveals when a person joined a board |
+| `joinedByLink`                               | Yes, indirectly                                           | Joined through the share link        |
+
+A `PENDING` row goes 30 days after `invitedAt`, with its `invitedEmail` (GAP-07). A row with
+`joinedByLink` goes when the board's share link expires, is regenerated or is turned off; an
+email invite to that person clears the flag.
+
+### Share links — `share_links`
+
+| Field                                          | Personal data | Deleted when                                                  |
+| ---------------------------------------------- | ------------- | ------------------------------------------------------------- |
+| `token`, `role`, `expiresAt`, `createdAt`, ... | No            | At `expiresAt` (hourly purge), or when the owner turns it off |
 
 ### Boards — `whiteboards`
 
@@ -140,7 +182,7 @@ Free plan, on 2026-10-31.
 | `assistant_suggestions`           | **Yes — free text.** Proposed values for one note with the model's reasons (title, description, subtasks, tags, properties, links, a proposed assignee's user id), the note's previous values after a keep, the decision and its time, model, usage | Purge, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
 | `assistant_tidies`                | Yes, pseudonymous — note ids and their horizon moves with the model's reasons, the decision and its time, model, usage                                                                                                                              | Purge, 7 days after creation (`SUGGESTION_RETENTION_DAYS`)          |
 | `assistant_attempts`              | Yes, indirectly — when the user's model calls ran, their reserved and settled tokens and cost                                                                                                                                                       | Purge, 7 days after creation (`ATTEMPT_RETENTION_DAYS`)             |
-| `assistant_usage` (per UTC day)   | Yes, indirectly — the user's tokens per UTC day, and the ids and start times of calls in flight                                                                                                                                                     | **Never** — no expiry (GAP-04)                                      |
+| `assistant_usage` (per UTC day)   | Yes, indirectly — the user's tokens per UTC day, and the ids and start times of calls in flight                                                                                                                                                     | Purge, when the day is more than 30 days old                        |
 | `assistant_audit`                 | Yes, pseudonymous — actor, board and target note ids, command type, conversation, approval or MCP connection id, revision and time. No contents                                                                                                     | Purge, 30 days after the command (`ASSISTANT_AUDIT_RETENTION_DAYS`) |
 | `assistant_spend` (per UTC month) | No — the deployment's spend per UTC month                                                                                                                                                                                                           | Never; holds no personal data                                       |
 
@@ -351,20 +393,15 @@ approval, and it cannot state retention periods until GAP-04 sets them.
 
 ## 5. Gaps — data lifecycle and security
 
-### GAP-04 — No retention policy anywhere · **High** · Art. 5(1)(e)
+### GAP-04 — No retention policy anywhere · ~~**High**~~ · Art. 5(1)(e) · **CLOSED**
 
-No user content expires. The hourly expiry purge (`purge_expired()`, §2) covers only command
-receipts and assistant records, kept seven or 30 days
-([`DEPLOY.md`](DEPLOY.md#board-safety-rollout)). Completed notes, history events,
-membership rows, daily assistant usage counters and user profiles accumulate indefinitely. Storage limitation is not optional, and "we never delete"
-is the clearest possible failure of it.
-
-**Plan.** Agree a retention period per category with the controller (§8), then enforce it in
-code rather than documenting an intention. Suggested starting point: completed notes 24
-months after `completedAt`; history events 12 months after `occurredAt`; PENDING invites 90
-days after `invitedAt` (GAP-07); user profiles deleted on offboarding (GAP-01). Where the
-retention job runs is open: the Supabase Cron job that runs the expiry purge is one place, the
-planned background service another (RFC-0011 workstream 5).
+The owner set a period for every kind of personal data on 2026-11-04; §2 "Retention periods"
+lists them. The hourly `purge_expired()` job enforces the timed ones
+([`apps/api/drizzle/0005_retention.sql`](../apps/api/drizzle/0005_retention.sql)): expired
+share links with the members who joined through them, pending invites after 30 days, and
+assistant usage counters after 30 days. Notes, history and accounts stay until the user
+deletes them, a decision recorded with its reason in §2. The vendor part of the table is to
+follow.
 
 ### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44 · **deferred**
 
@@ -450,17 +487,21 @@ page only renders in a browser; its figures were read from Google's search listi
 
 The recitals were read on gdpr-info.eu; the official EUR-Lex page did not load for checking.
 
-### GAP-06 — Share links never expire and are not auditable · **Medium** · Art. 5(1)(e), 32
+### GAP-06 — Share links never expire and are not auditable · ~~**Medium**~~ · Art. 5(1)(e), 32 · **CLOSED**
 
-`share_links` has no expiry column and no usage record
-([`apps/api/src/lib/postgres/schema/boards.ts`](../apps/api/src/lib/postgres/schema/boards.ts)). A link handed out once grants
-access until someone remembers to revoke it, and nobody can tell who redeemed it. The token
-itself is strong; the lifecycle around it is not.
+A share link now expires after 7 days, 30 days (the default) or never, as the owner chooses
+when creating or changing it; links that existed at the release expire 30 days after it.
+Opening an expired link fails at once (`link.redeem`); the hourly purge deletes it. Everyone
+who joined through a link is marked (`joined_by_link`), labelled "Joined by link" in the
+member list, and loses access when the link expires, is regenerated or is turned off. The
+label answers "who came in through the link"; a separate last-used record was left out on
+purpose (owner, 2026-11-04). The token is not logged.
 
-**Plan.** Add `expiresAt` (default 30 days, enforced at redemption, surfaced in the UI) and
-`lastRedeemedAt`. Do not log the token value itself.
+### GAP-07 — Emails of people who never signed up are kept indefinitely · **Medium** · Art. 5(1)(e), 14 · **retention closed; notice open**
 
-### GAP-07 — Emails of people who never signed up are kept indefinitely · **Medium** · Art. 5(1)(e), 14
+**Done (2026-11-04).** A pending invite and its email address are deleted 30 days after the
+invite (hourly purge). **Still open:** the Art. 14 notice in an invitation email, because Wally
+sends no email yet, and whether external addresses may be invited at all (§6, decision 4).
 
 `board_members.invitedEmail` stores the address of an invited non-user. That person has no
 account, no way to exercise their rights, and — because the data was not collected from them
@@ -481,8 +522,8 @@ Every history event records `actorId` and `occurredAt`
 narrow — but it is still a timestamped record of who did what, retained forever, and
 [`docs/SPEC.md`](SPEC.md) §10 justifies it only as "informational".
 
-**Plan.** State the purpose explicitly in the spec and the privacy notice; apply the
-retention from GAP-04; and treat any new event type as a change that needs re-assessment
+**Retention settled (2026-11-04):** history lives as long as its note (§2). **Plan.** State
+the purpose explicitly in the spec and the privacy notice; and treat any new event type as a change that needs re-assessment
 rather than a routine enum addition. **The co-determination question in §8 is the more
 consequential one, and it should be answered before this ships.**
 
@@ -517,8 +558,8 @@ These block implementation. They are product and legal calls, not engineering on
 1. ~~**Erasure vs. anonymisation for content on other people's boards.**~~ **Answered
    2026-11-03: erase.** Notes the person created anywhere are deleted; cards they were only
    assigned to stay, unassigned (GAP-01).
-2. **Retention periods** per category (GAP-04). Engineering can enforce any number; it cannot
-   choose it.
+2. ~~**Retention periods** per category (GAP-04).~~ **Answered 2026-11-04** — see §2,
+   "Retention periods".
 3. ~~**Offboarding trigger.**~~ **Answered 2026-11-03: on request.** Self-service, and the
    owner deletes by hand for someone who has lost their login (GAP-01).
 4. **External invitees.** Permitted, or restricted to the operator's own email domain? A
@@ -533,20 +574,19 @@ job needs a scheduler that does not exist yet.
 
 | #     | Item                                                  | Gap            | Depends on        |
 | ----- | ----------------------------------------------------- | -------------- | ----------------- |
-| 1     | Answer the four decisions (1 and 3 answered)          | —              | §6                |
+| 1     | Answer the four decisions (1, 2 and 3 answered)       | —              | §6                |
 | 2     | Platform request log and EU log bucket — **deferred** | GAP-05         | —                 |
 | ~~3~~ | ~~Data export endpoint~~ — **done**                   | GAP-02         | RFC-0008          |
 | ~~4~~ | ~~Account deletion~~ — **done**                       | GAP-01         | 1, RFC-0008       |
-| 5     | Share-link expiry                                     | GAP-06         | —                 |
-| 6     | Retention job + invite expiry                         | GAP-04, GAP-07 | 1, scheduler      |
+| ~~5~~ | ~~Share-link expiry~~ — **done**                      | GAP-06         | —                 |
+| ~~6~~ | ~~Retention job + invite expiry~~ — **done**          | GAP-04, GAP-07 | 1                 |
 | ~~7~~ | ~~Privacy notice route, DE + EN~~ — **done**          | GAP-03         | controller's text |
 | 8     | History purpose in spec + notice                      | GAP-08         | —                 |
 | ~~9~~ | ~~Seed data cleanup~~ — **done**                      | GAP-10         | —                 |
 | 10    | TOM register                                          | GAP-09         | —                 |
 
-Items 2 and 5 have no external dependency. Item 5 can start immediately; item 2 is deferred
-(GAP-05) and, when picked up, is three `gcloud` commands with no code change and no extra
-cost. Items 3, 4, 7 and 9 are done; item 7's text still awaits the controller's review
+Item 2 has no external dependency; it is deferred (GAP-05) and, when picked up, is three `gcloud` commands with no code change and no extra
+cost. Items 3, 4, 5, 6, 7 and 9 are done; item 7's text still awaits the controller's review
 (ORG-04).
 
 ### Checklist
@@ -554,10 +594,10 @@ cost. Items 3, 4, 7 and 9 are done; item 7's text still awaits the controller's 
 - [x] GAP-01 Account deletion (Art. 17) — self-service and the owner's runbook
 - [x] GAP-02 Data export (Art. 15, 20) — `GET /me/export`
 - [x] GAP-03 Privacy notice (Art. 13) — `/privacy` live since v0.8.1; text pending the controller's review (ORG-04)
-- [ ] GAP-04 Retention policy (Art. 5(1)(e))
+- [x] GAP-04 Retention policy (Art. 5(1)(e)) — §2; vendor list to follow
 - [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done
-- [ ] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
-- [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14)
+- [x] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
+- [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14) — expiry done; the invitation-email notice waits for email
 - [ ] GAP-08 History purpose (Art. 5(1)(b))
 - [ ] GAP-09 TOM documentation (Art. 32)
 - [x] GAP-10 Seed data (Art. 5(1)(c)) — closed

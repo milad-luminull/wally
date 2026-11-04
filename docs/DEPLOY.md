@@ -1113,7 +1113,11 @@ the Supabase Cron (pg_cron) job `wally-purge-expired` runs it every hour, inside
 They replace the Firestore TTL policies. `board_cleanup` has no expiry and the purge never
 touches it. Seven days (receipts, assistant attempts, and assistant suggestions and tidies)
 and 30 days (assistant audit records, and assistant conversations after their last turn) are
-retention targets, not exact erasure times.
+retention targets, not exact erasure times. Since migration `0005_retention.sql` the same
+function also deletes expired share links with the members who joined through them, pending
+invites 30 days after the invite, and `assistant_usage` days older than 30 days
+([GDPR.md](GDPR.md#retention-periods-owner-2026-11-04)); `0003` added the one-hour
+`deleted_identities` tombstones.
 
 Both come from a SQL migration in [`apps/api/drizzle/`](../apps/api/drizzle/), so the release
 creates them with the rest of the schema. Supabase enables pg_cron with
