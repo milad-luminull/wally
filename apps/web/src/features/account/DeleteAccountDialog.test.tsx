@@ -30,6 +30,7 @@ vi.mock('@/lib/resources', () => ({
 vi.mock('@/lib/apiClient', () => ({ api: { delete: vi.fn() } }));
 
 import { api } from '@/lib/apiClient';
+import { boardsApi } from '@/lib/resources';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { ACCOUNT_DELETED_FLAG, DeleteAccountDialog } from './DeleteAccountDialog';
 
@@ -78,7 +79,7 @@ it('deletes, marks the login page, and signs out once', async () => {
   expect(sessionStorage.getItem(ACCOUNT_DELETED_FLAG)).toBe('1');
 });
 
-it('says nothing was removed when the deletion fails, and stays signed in', async () => {
+it('says the deletion failed, and stays signed in', async () => {
   vi.mocked(api.delete).mockImplementation(async () => {
     throw new Error('502');
   });
@@ -87,8 +88,36 @@ it('says nothing was removed when the deletion fails, and stays signed in', asyn
   await user.type(screen.getByLabelText('Type Me@Example.com to confirm'), 'me@example.com');
   await user.click(screen.getByRole('button', { name: 'Delete my account' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Your account could not be deleted. Nothing was removed. Try again.',
+    'Your account could not be deleted. Try again.',
   );
   expect(auth.signOut).not.toHaveBeenCalled();
   expect(sessionStorage.getItem(ACCOUNT_DELETED_FLAG)).toBeNull();
+});
+
+it('keeps the delete button locked until the boards it would delete have loaded', async () => {
+  let resolve: (boards: Awaited<ReturnType<typeof boardsApi.list>>) => void = () => {};
+  vi.mocked(boardsApi.list).mockImplementationOnce(() => new Promise((done) => (resolve = done)));
+  const user = userEvent.setup();
+  open();
+  await user.type(screen.getByLabelText('Type Me@Example.com to confirm'), 'me@example.com');
+  expect(screen.getByText('Loading your boards…')).toBeVisible();
+  expect(screen.queryByText('You own no boards.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Delete my account' })).toBeDisabled();
+
+  resolve([{ id: 'team', name: 'Team board', currentUserRole: 'OWNER' }]);
+  expect(await screen.findByText('Team board — shared with Ada, ben@example.com')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Delete my account' })).toBeEnabled();
+});
+
+it('says when the boards could not be loaded, and stays locked', async () => {
+  vi.mocked(boardsApi.list).mockImplementationOnce(async () => {
+    throw new Error('offline');
+  });
+  const user = userEvent.setup();
+  open();
+  await user.type(screen.getByLabelText('Type Me@Example.com to confirm'), 'me@example.com');
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Your boards could not be loaded. Close this and try again.',
+  );
+  expect(screen.getByRole('button', { name: 'Delete my account' })).toBeDisabled();
 });

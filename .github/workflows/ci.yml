@@ -310,7 +310,7 @@ jobs:
       - name: Fail if the suite was vacuously green
         if: always()
         env:
-          MIN_EXECUTED: '22' # 21 under chromium-desktop + 1 under mobile-list-only
+          MIN_EXECUTED: '24' # 22 under chromium-desktop + 1 under mobile-list-only + 1 under account-deletion
         run: |
           set -euo pipefail
           REPORT=apps/web/playwright-results.json
@@ -337,8 +337,8 @@ jobs:
             echo "::error title=Vacuous E2E run::only $EXECUTED test(s) executed, expected at least $MIN_EXECUTED"
             exit 1
           fi
-          if [ "$PROJECTS" -lt 2 ]; then
-            echo "::error title=Vacuous E2E run::only $PROJECTS Playwright project(s) produced results; expected chromium-desktop and mobile-list-only"
+          if [ "$PROJECTS" -lt 3 ]; then
+            echo "::error title=Vacuous E2E run::only $PROJECTS Playwright project(s) produced results; expected chromium-desktop, mobile-list-only and account-deletion"
             exit 1
           fi
           echo "E2E: $EXECUTED executed, 0 skipped, across $PROJECTS projects."

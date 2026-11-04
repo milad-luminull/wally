@@ -56,6 +56,10 @@ export function DeleteAccountDialog({
     })),
   });
 
+  // The list is the safeguard: nothing can be deleted before it is complete.
+  const listReady = boards.isSuccess && members.every((query) => query.isSuccess);
+  const listFailed = boards.isError || members.some((query) => query.isError);
+
   const email = user?.email ?? '';
   const matches = email !== '' && typed.trim().toLowerCase() === email.toLowerCase();
 
@@ -88,7 +92,13 @@ export function DeleteAccountDialog({
           <AlertDialogDescription>{t('accountData.deleteHint')}</AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-3 text-14">
-          {owned.length ? (
+          {listFailed ? (
+            <p role="alert" className="text-status-danger">
+              {t('accountData.deleteListFailed')}
+            </p>
+          ) : !listReady ? (
+            <p>{t('accountData.deleteLoading')}</p>
+          ) : owned.length ? (
             <div className="space-y-1">
               <p>{t('accountData.deleteBoards')}</p>
               <ul className="list-disc space-y-1 pl-5">
@@ -128,7 +138,11 @@ export function DeleteAccountDialog({
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{t('common.cancel')}</AlertDialogCancel>
-          <Button variant="destructive" disabled={!matches || pending} onClick={confirm}>
+          <Button
+            variant="destructive"
+            disabled={!matches || pending || !listReady}
+            onClick={confirm}
+          >
             {t('accountData.deleteConfirm')}
           </Button>
         </AlertDialogFooter>

@@ -15,7 +15,9 @@ export const en = {
       "Your notes on other people's boards are deleted too. Cards you were only assigned to stay.",
     deleteTypeEmail: 'Type {{email}} to confirm',
     deleteConfirm: 'Delete my account',
-    deleteFailed: 'Your account could not be deleted. Nothing was removed. Try again.',
+    deleteFailed: 'Your account could not be deleted. Try again.',
+    deleteLoading: 'Loading your boards…',
+    deleteListFailed: 'Your boards could not be loaded. Close this and try again.',
     deleted: 'Your account is deleted.',
   },
   privacy: {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { accountExportSchema } from '@wally/shared';
-import { mcpConnections } from '../src/lib/postgres/schema/index.js';
+import { assistantConversations, mcpConnections } from '../src/lib/postgres/schema/index.js';
 import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } from './helpers.js';
 
 describe('GET /me/export', () => {
@@ -66,6 +66,51 @@ describe('GET /me/export', () => {
     const titles = data.boards.find((b) => b.id === fx.boardId)!.notes.map((n) => n.title);
     expect(titles).toContain('My secret');
     expect(titles).not.toContain('Their secret');
+  });
+
+  it('drops assistant chips for notes the person can no longer see', async () => {
+    const fx = await createBoardFixture(ctx);
+    const shared = await create(fx.ownerToken, fx.boardId, { title: 'Shared plan' });
+    const hidden = await create(fx.editToken, fx.boardId, { title: 'Their secret' });
+    await ctx.inject({
+      method: 'PATCH',
+      url: `/notes/${hidden.id}`,
+      headers: ctx.authHeader(fx.editToken),
+      payload: { visibility: 'PRIVATE' },
+    });
+    const at = new Date();
+    await ctx.db.insert(assistantConversations).values({
+      id: 'conversation-1',
+      userId: fx.ownerId,
+      boardId: fx.boardId,
+      model: 'vertex:gemini',
+      status: 'OPEN',
+      turns: 1,
+      messages: [],
+      entries: [
+        {
+          role: 'assistant',
+          text: 'Two notes match.',
+          chips: [
+            { id: shared.id, title: 'Shared plan' },
+            { id: hidden.id, title: 'Their secret' },
+          ],
+          partial: false,
+          stopped: null,
+          at: at.toISOString(),
+        },
+      ],
+      usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+      toolCalls: 0,
+      createdAt: at,
+      lastTurnAt: at,
+      expiresAt: new Date(at.getTime() + 86_400_000),
+    });
+
+    const data = accountExportSchema.parse((await exportOf(fx.ownerToken)).json());
+    const [conversation] = data.assistant.conversations;
+    expect(conversation!.entries[0]!.chips).toEqual([{ id: shared.id, title: 'Shared plan' }]);
+    expect(JSON.stringify(data)).not.toContain('Their secret');
   });
 
   it('lists their MCP connections', async () => {

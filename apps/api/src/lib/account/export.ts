@@ -45,6 +45,7 @@ export async function exportAccount(
     db.select().from(assistantTidies).where(eq(assistantTidies.userId, user.id)),
     listConnections(db, user.id),
   ]);
+  const visible = new Set(boards.flatMap((board) => board.notes.map((note) => note.id)));
   return {
     formatVersion: 1,
     exportedAt: now.toISOString(),
@@ -53,7 +54,19 @@ export async function exportAccount(
     connections,
     assistant: {
       usage,
-      conversations: conversations.map(toConversationDto),
+      conversations: conversations.map((row) => {
+        // Chips are checked against what the person sees now, as the app does when it shows a
+        // conversation (toVisibleConversationDto): a note since made private, deleted or on a
+        // board they left drops out.
+        const dto = toConversationDto(row);
+        return {
+          ...dto,
+          entries: dto.entries.map((entry) => ({
+            ...entry,
+            chips: entry.chips.filter((chip) => visible.has(chip.id)),
+          })),
+        };
+      }),
       suggestions: suggestions.map((s) => ({
         id: s.id,
         boardId: s.boardId,

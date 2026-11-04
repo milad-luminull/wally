@@ -22,8 +22,10 @@ export const de = {
       'Deine Notizen auf fremden Wänden werden ebenfalls gelöscht. Karten, die dir nur zugewiesen sind, bleiben.',
     deleteTypeEmail: 'Gib {{email}} ein, um zu bestätigen',
     deleteConfirm: 'Mein Konto löschen',
-    deleteFailed:
-      'Dein Konto konnte nicht gelöscht werden. Es wurde nichts entfernt. Versuch es noch einmal.',
+    deleteFailed: 'Dein Konto konnte nicht gelöscht werden. Versuch es noch einmal.',
+    deleteLoading: 'Deine Wände werden geladen …',
+    deleteListFailed:
+      'Deine Wände konnten nicht geladen werden. Schließ das Fenster und versuch es noch einmal.',
     deleted: 'Dein Konto ist gelöscht.',
   },
   privacy: {
