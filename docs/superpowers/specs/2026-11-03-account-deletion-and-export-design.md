@@ -190,15 +190,18 @@ with the `users` row.
 - Delete: `DELETE /api/v2/users/{id}`, scope `delete:users`; 204 on success; "This action
   cannot be undone"
   ([delete a user](https://auth0.com/docs/api/management/v2/users/delete-users-by-id)).
-- Token: client credentials at `https://login.luminull.com/oauth/token`, with the tenant's
-  **default** domain as the audience, `https://<tenant default domain>/api/v2/`
+- Token: client credentials, with the tenant's **default** domain as the audience,
+  `https://<tenant default domain>/api/v2/`
   ([custom domains](https://auth0.com/docs/customize/custom-domains/configure-features-to-use-custom-domains),
   [Management API tokens](https://auth0.com/docs/secure/tokens/access-tokens/management-api-access-tokens/get-management-api-access-tokens-for-production)).
-  A new token for each deletion, no cache: Free includes 1,000 machine-to-machine tokens a
-  month ([pricing](https://auth0.com/pricing)).
+- Client: Auth0's Node SDK, `auth0` `ManagementClient`
+  ([node-auth0](https://github.com/auth0/node-auth0)), on the tenant's default domain (owner,
+  2026-11-04, replacing a hand-written client). It gets the token, keeps it until shortly
+  before it expires, and retries 408, 429 and 5xx answers. Free includes 1,000
+  machine-to-machine tokens a month ([pricing](https://auth0.com/pricing)).
 
-**Configuration:** the audience is a constant next to `AUTH0_ISSUER`, as the other fixed
-Auth0 values are. Two settings: `AUTH0_MANAGEMENT_CLIENT_ID` (variable) and
+**Configuration:** the tenant's default domain is a constant next to `AUTH0_ISSUER`, as the
+other fixed Auth0 values are. Two settings: `AUTH0_MANAGEMENT_CLIENT_ID` (variable) and
 `AUTH0_MANAGEMENT_CLIENT_SECRET` (Secret Manager). The Auth0 step runs when both are set;
 `loadEnv` requires them with `NODE_ENV=production`, so production never skips it. Local
 development and CI do not have the secret, so they skip the step and log that they did; CI

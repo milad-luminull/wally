@@ -1385,7 +1385,7 @@ start without the client, and the release refuses to build without its ID.
 1. **Auth0:** Dashboard → Applications → Create Application → **Machine to Machine** → the
    **Auth0 Management API** → only the **`delete:users`** permission. Under Applications →
    APIs → Auth0 Management API, the **Identifier** must read
-   `https://dev-4tuhqfy0z1yepp5h.eu.auth0.com/api/v2/` (the constant in
+   `https://dev-4tuhqfy0z1yepp5h.eu.auth0.com/api/v2/` (`AUTH0_TENANT_DOMAIN` in
    [constants.ts](../apps/api/src/lib/auth/constants.ts)).
 2. **The secret,** in the EU like the database URL, read only by the runtime service account
    (the release does not read it):
