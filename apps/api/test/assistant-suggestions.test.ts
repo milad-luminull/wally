@@ -28,6 +28,7 @@ import {
   registerTestUser,
   resetDatabase,
   type TestContext,
+  untilAborted,
 } from './helpers.js';
 
 const usage = { inputTokens: 50, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
@@ -483,11 +484,8 @@ describe('a capture whose model is busy or slow', () => {
   it('answers 504 ASSISTANT_TIMEOUT, retryable, when the model runs past the deadline, and frees its slot', async () => {
     const slow: SuggestionRunner = async (input) => {
       await input.onAttempt({ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 });
-      return new Promise((_resolve, reject) =>
-        input.abortSignal?.addEventListener('abort', () =>
-          reject(new DOMException('aborted', 'AbortError')),
-        ),
-      );
+      await untilAborted(input.abortSignal);
+      throw new DOMException('aborted', 'AbortError');
     };
     const app = await buildTestApp({
       suggestionRunner: slow,
