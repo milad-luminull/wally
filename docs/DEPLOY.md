@@ -176,6 +176,33 @@ The Free plan has no managed backups ([backups](https://supabase.com/docs/guides
 lost on Supabase cannot be recovered. An encrypted nightly dump with a restore drill, or Pro's
 daily backups, comes back when the owner decides.
 
+### Keeping the database awake
+
+Supabase pauses a Free plan project that "does not receive sufficient user database activity
+over the past week"; "a few user requests to the database each day" is typically enough
+([project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)). A
+request to a paused project does not wake it. While it is paused the web app still loads, but
+every API call that touches the database fails and `/health` answers 503.
+
+**The keepalive.** [`.github/workflows/keepalive.yml`](../.github/workflows/keepalive.yml)
+calls `https://api.wally.luminull.com/health` every 6 hours. `/health` runs one query against
+the database, so that is four real queries a day, through the Cloudflare proxy and Cloud Run
+like any user's request. It needs no secret and its token has no permissions. **Run workflow**
+on the Actions tab runs it by hand.
+
+- **A failed run** means `/health` did not answer 200 through three retries: the database was
+  unreachable or paused, or Cloud Run was down. GitHub emails the person who last changed the
+  workflow's schedule ([schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)).
+- **Delays:** GitHub can delay scheduled runs under load, so the 6 hours are approximate.
+- **It can switch itself off.** In a public repository, scheduled workflows are disabled after
+  60 days without repository activity (same page). Turn it back on from the Actions tab.
+- **It is not a guarantee.** Supabase does not say how much activity is enough. The backstop
+  is Supabase's warning email to the project owner, about a week before a pause.
+
+**If the project is paused anyway:** Supabase dashboard → the organization → `wally` →
+**Resume project**. Data and settings come back. This works for 90 days after the pause; after
+that the dashboard can no longer restore it, and the Free plan keeps no backup.
+
 ---
 
 ## 5. Step 3 — Already done: Application Default Credentials on Cloud Run

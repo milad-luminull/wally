@@ -1,0 +1,32 @@
+name: Keepalive
+
+# Supabase pauses a Free plan project after a week without enough database activity, and a
+# paused project stays down until someone resumes it in the dashboard. /health runs one query
+# against the database, so calling it four times a day keeps the project active. A failed run
+# means the API could not reach its database. See docs/DEPLOY.md, "Keeping the database awake".
+on:
+  schedule:
+    # Off the hour: GitHub names the start of every hour as a high-load time for schedules.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+# The job only calls a public URL, so its token needs no access at all.
+permissions: {}
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: Call the API health check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET https://api.wally.luminull.com/health
+        # Retries cover a Cloud Run cold start or a brief network error; a 503 that lasts
+        # through every retry fails the run.
+        run: >-
+          curl --fail --silent --show-error --max-time 60
+          --retry 3 --retry-delay 20 --retry-all-errors
+          https://api.wally.luminull.com/health
