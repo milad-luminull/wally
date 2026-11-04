@@ -140,18 +140,21 @@ Auth0's hosted page offers two connections
   ([passkey policy](https://auth0.com/docs/authenticate/database-connections/passkeys/configure-passkey-policy)).
   Passkeys are bound to `login.luminull.com`.
 
-**Tenant setup, in this order:**
+**Tenant setup, in this order** (done 2026-11-04, live with v0.15.0):
 
 1. Mark the CI accounts (`+1`, `+2`) as email-verified (Auth0 Dashboard > User Management >
    Users). Otherwise the Action denies E2E.
 2. Deploy `infra/auth0-post-login.cjs` to the tenant's Post Login Action.
 3. Authentication > Authentication Profile: **Identifier First**
    ([docs](https://auth0.com/docs/authenticate/login/auth0-universal-login/identifier-first)).
+   Only after the E2E helper that handles the two-screen login is on `main`; otherwise E2E
+   fails on every branch.
 4. On `Username-Password-Authentication`: turn **Requires Username** off and enable
    **passkeys**, with progressive enrollment on (Authentication Methods > Passkey).
 
 The E2E helper (`apps/web/e2e/support.ts`) signs in with a password on either login layout
-and postpones the passkey prompt. CI cannot enter a passkey.
+and skips the passkey prompt with Auth0's **Continue without passkeys** button. CI cannot
+enter a passkey.
 
 ## MCP client
 
