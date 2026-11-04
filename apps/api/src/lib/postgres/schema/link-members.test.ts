@@ -92,16 +92,14 @@ describe('release_assignments and remove_link_members', () => {
     (await handle.db.select().from(notes).where(eq(notes.id, id)))[0]!;
 
   it('a new member row is not joined by link unless it says so', async () => {
-    await handle.db
-      .insert(boardMembers)
-      .values({
-        id: 'm-new',
-        boardId: 'b2',
-        userId: 'invited',
-        role: 'VIEW',
-        status: 'ACTIVE',
-        invitedAt: at,
-      });
+    await handle.db.insert(boardMembers).values({
+      id: 'm-new',
+      boardId: 'b2',
+      userId: 'invited',
+      role: 'VIEW',
+      status: 'ACTIVE',
+      invitedAt: at,
+    });
     const [row] = await handle.db.select().from(boardMembers).where(eq(boardMembers.id, 'm-new'));
     expect(row!.joinedByLink).toBe(false);
   });

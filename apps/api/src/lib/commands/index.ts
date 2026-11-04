@@ -1,6 +1,6 @@
 import { visibleLinks } from '../visibleLinks.js';
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import {
   boardCommandSchema,
   operationMetadataSchema,
@@ -196,7 +196,17 @@ export async function executeBoardCommand(
       if (note && !canSeeNote(note, actor.id)) notFound();
       const [link] =
         command.type === 'link.redeem'
-          ? await tx.select().from(shareLinks).where(eq(shareLinks.token, command.token))
+          ? await tx
+              .select()
+              .from(shareLinks)
+              .where(
+                and(
+                  eq(shareLinks.token, command.token),
+                  // The one place expiry is checked as it happens: where a link grants access.
+                  // Everything else waits for the hourly purge (retention design, 2026-11-04).
+                  or(isNull(shareLinks.expiresAt), gt(shareLinks.expiresAt, sql`now()`)),
+                ),
+              )
           : [];
       const boardId = note?.boardId ?? ('boardId' in command ? command.boardId : link?.boardId);
       if (!boardId || ('boardId' in command && command.boardId && command.boardId !== boardId))

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { effectiveRoleSchema, membershipStatusSchema, whiteboardRoleSchema } from '../enums.js';
+import {
+  effectiveRoleSchema,
+  membershipStatusSchema,
+  shareLinkDurationSchema,
+  whiteboardRoleSchema,
+} from '../enums.js';
 
 export const inviteCreateSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -24,17 +29,36 @@ export const memberDtoSchema = z.object({
    */
   role: effectiveRoleSchema,
   status: membershipStatusSchema,
+  /** Joined through the share link; loses access when the link expires or is replaced. */
+  joinedByLink: z.boolean(),
 });
 export type MemberDto = z.infer<typeof memberDtoSchema>;
 
-export const shareLinkRoleSchema = z.object({
+export const shareLinkCreateSchema = z.object({
   role: whiteboardRoleSchema,
+  /** Defaults to 30 days, so clients that send only a role keep working. */
+  expiresIn: shareLinkDurationSchema.default('DAYS_30'),
 });
+export type ShareLinkCreateInput = z.input<typeof shareLinkCreateSchema>;
+
+export const shareLinkUpdateSchema = z
+  .object({
+    role: whiteboardRoleSchema.optional(),
+    /** Counted from the change. */
+    expiresIn: shareLinkDurationSchema.optional(),
+  })
+  .strict()
+  .refine((input) => input.role !== undefined || input.expiresIn !== undefined, {
+    message: 'Change the role, the expiry, or both',
+  });
+export type ShareLinkUpdateInput = z.infer<typeof shareLinkUpdateSchema>;
 
 export const shareLinkDtoSchema = z.object({
   token: z.string(),
   role: whiteboardRoleSchema,
   url: z.string().url(),
+  /** ISO datetime; null when the link never expires. */
+  expiresAt: z.string().datetime().nullable(),
 });
 export type ShareLinkDto = z.infer<typeof shareLinkDtoSchema>;
 

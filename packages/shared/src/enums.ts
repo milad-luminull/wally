@@ -85,6 +85,11 @@ export const effectiveRoleValues = ['OWNER', 'EDIT', 'VIEW'] as const;
 export const effectiveRoleSchema = z.enum(effectiveRoleValues);
 export type EffectiveRole = z.infer<typeof effectiveRoleSchema>;
 
+/** How long a new or changed share link stays valid. An input only: the API stores the date. */
+export const shareLinkDurationValues = ['DAYS_7', 'DAYS_30', 'NEVER'] as const;
+export const shareLinkDurationSchema = z.enum(shareLinkDurationValues);
+export type ShareLinkDuration = z.infer<typeof shareLinkDurationSchema>;
+
 export const membershipStatusValues = ['PENDING', 'ACTIVE'] as const;
 export const membershipStatusSchema = z.enum(membershipStatusValues);
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;

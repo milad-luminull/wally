@@ -166,6 +166,7 @@ export function toMemberDto(member: MemberRow, users: UserMap): MemberDto {
     displayName: user?.displayName ?? null,
     role: member.role,
     status: member.status,
+    joinedByLink: member.joinedByLink,
   };
 }
 
@@ -194,6 +195,7 @@ export function ownerMemberDto(
     displayName: user.displayName,
     role: 'OWNER',
     status: 'ACTIVE',
+    joinedByLink: false,
   };
 }
 
@@ -202,5 +204,6 @@ export function toShareLinkDto(shareLink: ShareLinkRow, baseUrl: string): ShareL
     token: shareLink.token,
     role: shareLink.role,
     url: `${baseUrl.replace(/\/$/, '')}/share/${shareLink.token}`,
+    expiresAt: shareLink.expiresAt?.toISOString() ?? null,
   };
 }
