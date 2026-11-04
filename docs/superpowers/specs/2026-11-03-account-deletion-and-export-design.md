@@ -1,6 +1,6 @@
 # Account deletion and data export — design
 
-> **Status:** proposed, 2026-11-03; simplified 2026-11-04. Waiting for the owner's approval.
+> **Status:** accepted 2026-11-04 and built (plan: [2026-11-04-account-deletion-and-export.md](../plans/2026-11-04-account-deletion-and-export.md)).
 
 Closes [GDPR.md](../../GDPR.md) GAP-01 (account deletion, Art. 17) and GAP-02 (data export,
 Art. 15 and 20) on PostgreSQL, with Auth0 as the only identity provider

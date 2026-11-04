@@ -9,7 +9,7 @@ engineering judgements about code, and the controller's own privacy function has
 word. And it is not complete on its own: roughly a third of GDPR compliance for an app like
 Wally lives outside the repository (§8), and no amount of code review closes those items.
 
-**Status: 2 of 13 closed (GAP-03 pending the controller's review of the notice text, ORG-04), 1 not applicable.** Update the checklist in §7 as they land.
+**Status: 4 of 13 closed (GAP-03 pending the controller's review of the notice text, ORG-04), 1 not applicable.** Update the checklist in §7 as they land.
 
 ---
 
@@ -56,15 +56,15 @@ deleted on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)).
 
 ### Identity — `users`
 
-| Field                     | Personal data                                                                                                                                                                                                                                                                 | Source                                               | Deleted when       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------ |
-| `email`                   | Yes — direct identifier                                                                                                                                                                                                                                                       | Sign-in token (see below), lowercased                | **Never** (GAP-01) |
-| `displayName`             | Yes                                                                                                                                                                                                                                                                           | Sign-in token                                        | **Never** (GAP-01) |
-| `emailVerified`           | Yes, indirectly                                                                                                                                                                                                                                                               | Sign-in token                                        | **Never** (GAP-01) |
-| `language`                | Yes — a preference tied to a person                                                                                                                                                                                                                                           | `Accept-Language` at first sign-in, then `PATCH /me` | **Never** (GAP-01) |
-| `preferences`             | Yes — UI choices tied to a person: theme, colour palette, free-canvas background, last opened board, per-board view settings (view, grouping, done/mine/priority filters), and whether WallyBot applies its suggestions automatically (`wallybot.autoApply`). No search text. | `PATCH /me`                                          | **Never** (GAP-01) |
-| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                                                                                                                                                   | Server                                               | **Never** (GAP-01) |
-| row id (`uid`)            | Yes — pseudonymous identifier, referenced everywhere                                                                                                                                                                                                                          | Random id, created at first sign-in                  | **Never** (GAP-01) |
+| Field                     | Personal data                                                                                                                                                                                                                                                                 | Source                                               | Deleted when                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------- |
+| `email`                   | Yes — direct identifier                                                                                                                                                                                                                                                       | Sign-in token (see below), lowercased                | Until the account is deleted (GAP-01) |
+| `displayName`             | Yes                                                                                                                                                                                                                                                                           | Sign-in token                                        | Until the account is deleted (GAP-01) |
+| `emailVerified`           | Yes, indirectly                                                                                                                                                                                                                                                               | Sign-in token                                        | Until the account is deleted (GAP-01) |
+| `language`                | Yes — a preference tied to a person                                                                                                                                                                                                                                           | `Accept-Language` at first sign-in, then `PATCH /me` | Until the account is deleted (GAP-01) |
+| `preferences`             | Yes — UI choices tied to a person: theme, colour palette, free-canvas background, last opened board, per-board view settings (view, grouping, done/mine/priority filters), and whether WallyBot applies its suggestions automatically (`wallybot.autoApply`). No search text. | `PATCH /me`                                          | Until the account is deleted (GAP-01) |
+| `createdAt` / `updatedAt` | Yes, indirectly — reveals first use and last profile change                                                                                                                                                                                                                   | Server                                               | Until the account is deleted (GAP-01) |
+| row id (`uid`)            | Yes — pseudonymous identifier, referenced everywhere                                                                                                                                                                                                                          | Random id, created at first sign-in                  | Until the account is deleted (GAP-01) |
 
 Production signs in with Auth0: the sign-in token is an Auth0 access token whose claims come
 from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs), and the uid is a random
@@ -148,8 +148,8 @@ Free plan, on 2026-10-31.
 
 - **Auth0** holds the production login identity (see [Auth0 and MCP data](#auth0-and-mcp-data)).
 - **Firebase Authentication** is retired: its 9 leftover accounts were deleted and its
-  sign-in turned off on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)). Deleting a
-  `users` row does not touch Auth0 — erasure has to address both (GAP-01).
+  sign-in turned off on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)). Deleting an
+  account deletes its Auth0 user first, then its Wally data (GAP-01).
 - **Cloud Logging** receives the API's own log, which names no caller (§3), and Cloud Run's
   request log, which records each client's IP address and user agent (GAP-05).
 - **Browser `localStorage`** holds `wally.language`
@@ -266,7 +266,7 @@ rows pointing at a person. _(Art. 17(1))_
 Their notes fall back to unassigned, but only once they have genuinely lost all access —
 the `member.remove` cleanup in `drainCleanupJob`,
 [`apps/api/src/lib/commands/maintenance.ts`](../apps/api/src/lib/commands/maintenance.ts). _(Art. 5(1)(c))_
-A removed member's private notes are kept, hidden from everyone, and become visible to them again if they rejoin. They are deleted with the rest of the account once account deletion (GAP-01) exists.
+A removed member's private notes are kept, hidden from everyone, and become visible to them again if they rejoin. They are deleted with the rest of the account (GAP-01).
 
 ### Browser locale is not used as an ongoing tracking signal
 
@@ -289,35 +289,46 @@ signed-in users. _(Art. 5(1)(c))_
 
 ## 4. Gaps — data subject rights
 
-### GAP-01 — No way to delete an account or its data · **High** · Art. 17
+### GAP-01 — No way to delete an account or its data · ~~**High**~~ · Art. 17 · **CLOSED**
 
-No `DELETE /me`. An owner can now delete each of their boards (`board.delete`) and a member
-can leave a shared one (`board.leave`), but nothing removes the account itself. A departing
-employee's `users` row, any board they did not delete, their `createdById` and `assigneeId`
-references and their `history.actorId` entries persist forever. Auth0 holds a further copy of
-the identity, independent of the database.
+A signed-in person deletes their own account on the **Account and data** page, after typing
+its email. `DELETE /me` ([`apps/api/src/routes/me.ts`](../apps/api/src/routes/me.ts)) first
+deletes the Auth0 user through the Management API (production only has the credentials),
+then erases the Wally data in one transaction
+([`apps/api/src/lib/account/erase.ts`](../apps/api/src/lib/account/erase.ts)). Foreign keys
+on `users` do the erasing: the person's boards go for everyone, their notes on any board go
+with subtasks and history, their history entries on other notes, memberships and the audit
+rows they caused go, and cards they were only assigned to stay, unassigned. Deletion is
+immediate; nothing is anonymised (§6, decision 1). For an hour afterwards the identity
+cannot sign up again, so a token the browser still holds cannot recreate the account.
 
-**Status:** a self-service deletion flow was built, then removed in PR #76 because it was
-too complex to maintain. Until it is rebuilt, deletion requests to
-privacy@luminull.com are handled by hand. The Account and data page says so.
+Someone who has lost their login is deleted by the owner, by hand
+([DEPLOY.md](DEPLOY.md#deleting-an-account-by-hand)).
 
-**Plan.** Rebuild `DELETE /me`, plus an admin-invocable equivalent for someone who has
-already lost their login, on PostgreSQL after the platform migration, against the new
-schema ([RFC-0008](rfcs/RFC-0008-firestore-to-supabase.md)). The erasure-vs-anonymisation
-decision in §6 applies, and the routine must also remove the identity at the sign-in
-provider.
+**What stays for a while.** Other members' own records can still mention the deleted person
+until they expire; they are not searched or scrubbed (owner, 2026-11-04):
 
-### GAP-02 — No data export · **High** · Art. 15, 20
+| Record                                       | Gone after                                                   |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| Command receipts (`board_operations`)        | 7 days                                                       |
+| Assistant suggestions and tidies             | 7 days                                                       |
+| Assistant conversations                      | 30 days after the conversation's last turn, at most 20 turns |
+| `assistant_audit` rows another member caused | 30 days                                                      |
 
-No export endpoint. A subject access request can only be answered today by someone querying
-the database by hand, which does not scale and is error-prone. A first export
-endpoint was removed in PR #76, to be rebuilt with deletion. Until then, requests to
-privacy@luminull.com are answered by hand.
+Pending invites to the person's address are the inviter's records and stay until invite
+expiry exists (GAP-07). Design:
+[account deletion and export](superpowers/specs/2026-11-03-account-deletion-and-export-design.md).
 
-**Plan.** `GET /me/export` returning JSON: the profile, every board the user owns or belongs
-to, their notes and subtasks, their history events, and their membership rows. Reuse the DTO
-mappers so the export cannot drift from the API's own view. Machine-readable and structured
-satisfies Art. 20; a ZIP is unnecessary at this data volume.
+### GAP-02 — No data export · ~~**High**~~ · Art. 15, 20 · **CLOSED**
+
+**Download my data** on the **Account and data** page saves `GET /me/export` as one JSON
+file ([`apps/api/src/lib/account/export.ts`](../apps/api/src/lib/account/export.ts)): the
+profile, every board the person owns or belongs to with its members and every note they can
+see (their own private notes, never anyone else's) with subtasks and history, their MCP
+connections, and their assistant usage, conversations, suggestions and tidies. It is built
+from the API's own queries and DTOs, so it cannot drift from what the app shows. Left out:
+the assistant's raw model messages (the transcript is included), command receipts, audit
+records and cleanup jobs.
 
 ### GAP-03 — Privacy notice · ~~**High**~~ · Art. 13 · **resolved, pending the controller's review**
 
@@ -503,15 +514,13 @@ this sentence is the record of that decision.
 
 These block implementation. They are product and legal calls, not engineering ones.
 
-1. **Erasure vs. anonymisation for content on other people's boards.** If Lena is deleted,
-   does the note she created on Max's board vanish, or stay with an anonymous author? Hard
-   deletion destroys a colleague's work; anonymisation retains a pseudonymous record.
-   Recommendation: anonymise. Needs sign-off.
+1. ~~**Erasure vs. anonymisation for content on other people's boards.**~~ **Answered
+   2026-11-03: erase.** Notes the person created anywhere are deleted; cards they were only
+   assigned to stay, unassigned (GAP-01).
 2. **Retention periods** per category (GAP-04). Engineering can enforce any number; it cannot
    choose it.
-3. **Offboarding trigger.** Does deletion happen when the upstream account is disabled, on
-   request, or on a schedule? This decides whether GAP-01 needs an admin endpoint as well as
-   a self-service one.
+3. ~~**Offboarding trigger.**~~ **Answered 2026-11-03: on request.** Self-service, and the
+   owner deletes by hand for someone who has lost their login (GAP-01).
 4. **External invitees.** Permitted, or restricted to the operator's own email domain? A
    one-line check in `upsertInvite` if restricted, and it removes most of GAP-07.
 
@@ -524,10 +533,10 @@ job needs a scheduler that does not exist yet.
 
 | #     | Item                                                  | Gap            | Depends on        |
 | ----- | ----------------------------------------------------- | -------------- | ----------------- |
-| 1     | Answer the four decisions                             | —              | §6                |
+| 1     | Answer the four decisions (1 and 3 answered)          | —              | §6                |
 | 2     | Platform request log and EU log bucket — **deferred** | GAP-05         | —                 |
-| 3     | Data export endpoint                                  | GAP-02         | RFC-0008          |
-| 4     | Account deletion                                      | GAP-01         | 1, RFC-0008       |
+| ~~3~~ | ~~Data export endpoint~~ — **done**                   | GAP-02         | RFC-0008          |
+| ~~4~~ | ~~Account deletion~~ — **done**                       | GAP-01         | 1, RFC-0008       |
 | 5     | Share-link expiry                                     | GAP-06         | —                 |
 | 6     | Retention job + invite expiry                         | GAP-04, GAP-07 | 1, scheduler      |
 | ~~7~~ | ~~Privacy notice route, DE + EN~~ — **done**          | GAP-03         | controller's text |
@@ -535,15 +544,15 @@ job needs a scheduler that does not exist yet.
 | ~~9~~ | ~~Seed data cleanup~~ — **done**                      | GAP-10         | —                 |
 | 10    | TOM register                                          | GAP-09         | —                 |
 
-Items 2 and 5 have no external dependency. Item 5 can start immediately; items 3 and 4 are
-rebuilt on PostgreSQL after the migration (RFC-0008); item 2 is deferred (GAP-05) and,
-when picked up, is three `gcloud` commands with no code change and no extra cost. Items 7 and
-9 are done; item 7's text still awaits the controller's review (ORG-04).
+Items 2 and 5 have no external dependency. Item 5 can start immediately; item 2 is deferred
+(GAP-05) and, when picked up, is three `gcloud` commands with no code change and no extra
+cost. Items 3, 4, 7 and 9 are done; item 7's text still awaits the controller's review
+(ORG-04).
 
 ### Checklist
 
-- [ ] GAP-01 Account deletion (Art. 17)
-- [ ] GAP-02 Data export (Art. 15, 20)
+- [x] GAP-01 Account deletion (Art. 17) — self-service and the owner's runbook
+- [x] GAP-02 Data export (Art. 15, 20) — `GET /me/export`
 - [x] GAP-03 Privacy notice (Art. 13) — `/privacy` live since v0.8.1; text pending the controller's review (ORG-04)
 - [ ] GAP-04 Retention policy (Art. 5(1)(e))
 - [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done

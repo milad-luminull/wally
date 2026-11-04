@@ -412,8 +412,8 @@ It once held `roles/datastore.user`, for Firestore; that grant was removed on 20
 `--set-env-vars` **replaces** the service's whole set of variables, and production needs
 every one that `apiConfig` in [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs)
 defines: `NODE_ENV`, `CORS_ORIGIN`, `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`,
-`ASSISTANT_VERTEX_LOCATION`, `ASSISTANT_VERTEX_PROJECT`, `AUTH0_SIGNUP_ENABLED`,
-`MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A hand-typed list drops
+`ASSISTANT_VERTEX_LOCATION`, `ASSISTANT_VERTEX_PROJECT`, `AUTH0_MANAGEMENT_CLIENT_ID`,
+`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A hand-typed list drops
 one easily, and a dropped `AUTH0_SIGNUP_ENABLED` turns production signup off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the functions the
 release uses.
 The values below are what production ran on 2026-11-01 (release v0.13.0), without the
@@ -425,7 +425,8 @@ deploy, and change any that differ:
 export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
   ASSISTANT_ENABLED=true ASSISTANT_MODEL=vertex:gemini-3.8-flash ASSISTANT_VERTEX_LOCATION=eu \
   AUTH0_SIGNUP_ENABLED=true MCP_ENABLED=true MCP_WRITES_ENABLED=true \
-  MCP_CLIENT_ID="$(gh variable get MCP_CLIENT_ID --env production)"
+  MCP_CLIENT_ID="$(gh variable get MCP_CLIENT_ID --env production)" \
+  AUTH0_MANAGEMENT_CLIENT_ID="$(gh variable get AUTH0_MANAGEMENT_CLIENT_ID --env production)"
 RUN_ENV=$(node --input-type=module -e "
   const { apiConfig, runEnvFlag } = await import('./scripts/resolve-release-image.mjs');
   console.log(runEnvFlag(apiConfig(process.env)));")
@@ -745,7 +746,8 @@ What it does differently from the manual commands, and why:
   secret. A failed migration stops the release before Cloud Run changes.
 - **Asserts the environment back** after deploying. `--set-env-vars` and `--set-secrets`
   replace the whole set, so the workflow re-reads the candidate and fails the release unless
-  its variables are exactly `apiConfig`'s and `DATABASE_URL` comes from `wally-database-url`
+  its variables are exactly `apiConfig`'s, `DATABASE_URL` comes from `wally-database-url` and
+  `AUTH0_MANAGEMENT_CLIENT_SECRET` from `wally-auth0-management-client-secret`
   (`node scripts/resolve-release-image.mjs verify`).
 - **Checks the deployed bundle** actually contains the production API URL and not
   `localhost:4000`.
@@ -1059,7 +1061,9 @@ that anyone can download, so hiding them would buy nothing:
 
 **Auth0/MCP variables:** production runs with `AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED` and
 `MCP_WRITES_ENABLED` set to `true`, and `VITE_AUTH0_CLIENT_ID` and `MCP_CLIENT_ID` set to
-the public SPA and MCP client IDs. Unset, the switches default to `false`; the release
+the public SPA and MCP client IDs. `AUTH0_MANAGEMENT_CLIENT_ID` is the account-deletion
+client's ID ([account deletion setup](#account-deletion-setup)); `apiConfig` refuses a
+release without it. Unset, the switches default to `false`; the release
 refuses to build without `VITE_AUTH0_CLIENT_ID`. Both client IDs are
 public identifiers, never client secrets. The release validates combinations before any
 deployment and reads the exact API flags and client ID back after deployment. Missing
@@ -1365,6 +1369,96 @@ count returned 0 on 2026-11-01:
 select count(*) from users
 where id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 ```
+
+## Account deletion and export
+
+Signed-in people export their data and delete their account on the **Account and data**
+page ([design](superpowers/specs/2026-11-03-account-deletion-and-export-design.md),
+[GDPR.md](GDPR.md) GAP-01 and GAP-02). Deletion deletes the Auth0 user first, then the Wally
+data ([AUTH0.md](AUTH0.md#account-deletion)).
+
+### Account deletion setup
+
+Once, by the owner, **before the release that ships it**: the production API refuses to
+start without the client, and the release refuses to build without its ID.
+
+1. **Auth0:** Dashboard → Applications → Create Application → **Machine to Machine** → the
+   **Auth0 Management API** → only the **`delete:users`** permission. Under Applications →
+   APIs → Auth0 Management API, the **Identifier** must read
+   `https://dev-4tuhqfy0z1yepp5h.eu.auth0.com/api/v2/` (the constant in
+   [constants.ts](../apps/api/src/lib/auth/constants.ts)).
+2. **The secret,** in the EU like the database URL, read only by the runtime service account
+   (the release does not read it):
+
+   ```bash
+   read -rs AUTH0_MANAGEMENT_CLIENT_SECRET
+   printf '%s' "$AUTH0_MANAGEMENT_CLIENT_SECRET" | gcloud secrets create \
+     wally-auth0-management-client-secret \
+     --data-file=- --replication-policy=user-managed --locations=europe-west3
+   gcloud secrets add-iam-policy-binding wally-auth0-management-client-secret \
+     --member="serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com" \
+     --role="roles/secretmanager.secretAccessor"
+   ```
+
+3. **The client ID** as a production variable:
+
+   ```bash
+   gh variable set AUTH0_MANAGEMENT_CLIENT_ID --env production --body '<client id>'
+   ```
+
+4. **The orphan check.** The release adds foreign keys from every user ID column to `users`,
+   and adding one checks every existing row. In the Supabase SQL editor, this read-only query
+   must return 0 in every row; otherwise the migration fails and the release stops with
+   nothing changed. Clean up any row it finds first.
+
+   ```sql
+   select 'whiteboards.owner_id' as ref, count(*) from whiteboards t
+     where not exists (select 1 from users u where u.id = t.owner_id)
+   union all select 'notes.created_by_id', count(*) from notes t
+     where t.created_by_id is not null and not exists (select 1 from users u where u.id = t.created_by_id)
+   union all select 'notes.assignee_id', count(*) from notes t
+     where t.assignee_id is not null and not exists (select 1 from users u where u.id = t.assignee_id)
+   union all select 'note_history.actor_id', count(*) from note_history t
+     where t.actor_id is not null and not exists (select 1 from users u where u.id = t.actor_id)
+   union all select 'board_members.user_id', count(*) from board_members t
+     where t.user_id is not null and not exists (select 1 from users u where u.id = t.user_id)
+   union all select 'assistant_audit.actor_id', count(*) from assistant_audit t
+     where not exists (select 1 from users u where u.id = t.actor_id);
+   ```
+
+### Proof after the release
+
+CI and local runs never call Auth0, so the token exchange and the delete first run in
+production. Right after the release:
+
+1. Sign up at `https://wally.luminull.com` with a throwaway address, and create a note.
+2. **Account and data** → **Download my data**: the file holds the profile and the note.
+3. **Delete account**, type the address, confirm. The app lands on the login page with "Your
+   account is deleted."
+4. Auth0 Dashboard → User Management → Users: the throwaway user is gone.
+5. In the SQL editor, `select count(*) from users where email = '<throwaway address>'`
+   returns 0.
+
+### Deleting an account by hand
+
+For someone who has lost their login, or to finish a deletion whose database step failed
+after Auth0 (the API logs `account erase failed` with the `userId`):
+
+1. Auth0 Dashboard → User Management → Users → the person → **Delete**, unless the log says
+   the Auth0 step already happened.
+2. In the Supabase SQL editor, find the Wally user ID (emails are not unique, so check the
+   creation date with the person), then erase. The foreign keys remove everything else, as
+   `DELETE /me` does ([erase.ts](../apps/api/src/lib/account/erase.ts)); their notes go
+   first because a private note must keep an assignee:
+
+   ```sql
+   select id, email, created_at from users where email = lower('<address>');
+
+   begin;
+   delete from notes where created_by_id = '<user id>';
+   delete from users where id = '<user id>';
+   commit;
+   ```
 
 ## Account-cleanup worker (retired)
 
