@@ -141,6 +141,8 @@ runs in the release, so its run time is the release time). `last_redeemed_at` st
   (404), so the share sheet shows "no link" the moment it expires, not up to an hour later.
 - `link.create` when an expired, not-yet-purged row exists: replace it as if it were absent,
   rather than the 409 `SHARE_LINK_EXISTS`.
+- `link.update` and `link.rotate` on an expired, not-yet-purged row: 404, as if there were no
+  link. Otherwise setting its expiry to "never" would give its old members their access back.
 
 **Purge:** `purge_expired()` deletes `share_links` rows with `expires_at <= at`. Rows with a
 null `expires_at` are never touched.
@@ -184,17 +186,17 @@ link joins from invites).
   share link whose `expires_at` is null or in the future. Otherwise it is treated as absent.
   This makes access end at the moment of expiry, regenerate or turn-off, before any cleanup
   runs.
-- **Clean-up:** the rows are then deleted, with the same follow-up as `member.delete`: the
-  board revision changes, and a `member.remove` cleanup job releases the person's
-  assignments. Their private notes are kept hidden, as for any removed member (GDPR.md §3).
-  - `link.rotate` and `link.delete` delete the board's `joined_by_link` rows in the same
-    transaction and enqueue one cleanup job per removed user.
-  - Expiry: the hourly `purge_expired()` deletes the board's `joined_by_link` rows when it
-    deletes the expired link. Those users' assignments must be released too. The builder
-    checks how `board_cleanup` jobs are drained today; if a job inserted from SQL would not
-    be picked up, the release happens another way (for example a purge step in the API's
-    `pnpm maintenance` path, or the access check's treatment being enough until the API
-    drains). Whatever the mechanism, a test proves the assignments are released.
+- **Clean-up:** one database function, `remove_link_members(board, at)`, deletes the board's
+  `joined_by_link` rows and, in the same statement, releases the removed people's
+  assignments on shared notes, with the same rule as the `member.remove` cleanup job (a
+  person who still holds another `ACTIVE` row keeps theirs; private notes stay assigned and
+  hidden, GDPR.md §3). Callers bump the board revision.
+  - `link.rotate`, `link.delete` and `link.create` over an expired row call it in their own
+    transaction. No cleanup jobs: the cleanup jobs that exist today are drained only right
+    after the command that queued them, or by hand with `pnpm maintenance --cleanup`, so a
+    job queued from the hourly purge would never run.
+  - Expiry: the hourly `purge_expired()` calls it for each board whose link has expired,
+    before deleting the link.
 - `link.update` changing only the role leaves link members' roles alone (Claude's call).
   Changing the expiry so that it lies in the past is not possible (the choices are 7 days, 30
   days or never, counted from now).
@@ -237,18 +239,19 @@ deployment, no user id) holds no personal data and is left alone.
 Today it loops over tables with an `expires_at` column. The new deletes do not fit that shape
 (invites use `invited_at`, usage uses `day`), so the function gets explicit statements after
 the loop, each returning its own `(table_name, deleted)` row. For the invite delete,
-`table_name` is `board_members`. The 30-day and 12-month periods are written once, as
-constants next to the existing retention constants in the API, and the migration uses the
-same numbers. A unit test checks the SQL numbers equal the TypeScript constants (Claude's
-call; the builder may choose another way to keep them in one place).
+`table_name` is `board_members`. The 30-day and 12-month periods are constants in the API
+(`apps/api/src/lib/retention.ts`), and the migration uses the same numbers. The purge's
+boundary tests build their timestamps from those constants, so a mismatch fails them.
 
 `pnpm maintenance` (`apps/api/src/lib/db/purge.ts`) calls the same function and needs no
 change beyond expecting the new rows.
 
-### Vendor retention (research task)
+### Vendor retention (research task, a second PR)
 
-The retention table covers data outside Wally's database too (owner, 2026-11-04). A research
-task comes before the docs task. For each item, it finds the vendor's documented retention,
+The retention table covers data outside Wally's database too (owner, 2026-11-04). This is a
+separate docs-only PR after the code PR merges, so console checks and open vendor questions
+never hold up the feature. The code PR's GDPR.md table covers Wally's database and says the
+vendor part follows. For each item, it finds the vendor's documented retention,
 cites the page and the date it was checked, and checks Wally's actual setting where one
 exists:
 
@@ -284,7 +287,7 @@ the owner as a question in the PR, not into the table as a decision.
   plain words, that boards and notes stay until the user deletes them; invites to people
   without an account are deleted after 30 days; share links expire after the period the
   board owner picks, and people who joined through a link lose access when it expires;
-  assistant usage counts are kept for 12 months; and the vendor periods that were verified.
+  assistant usage counts are kept for 12 months; and, once the research PR lands, the vendor periods that were verified.
   It replaces today's "provider backups may follow separate retention schedules; contact us
   for details" with those periods.
 - **RFC/ADR indexes:** no RFC or ADR changes status. Production version lines are updated by
@@ -324,7 +327,8 @@ the owner as a question in the PR, not into the table as a decision.
 - Known details from the builder check: `purgeExpired`'s `TABLES` map in
   `apps/api/src/lib/db/purge.ts` needs the new keys; the member upsert's
   `onConflictDoUpdate` must also set `invitedAt` (re-invite) and `joinedByLink`; `MemberDto`
-  needs `invitedAt` and `joinedByLink`; the create flow has no role select today, only a
+  gains `inviteExpiresAt` (computed by the API for pending rows, so the 30-day rule lives only
+  on the server) and `joinedByLink`; the create flow has no role select today, only a
   button that creates a VIEW link, so where the expiry select goes is a layout choice; seed
   links and invites need the new values.
 
