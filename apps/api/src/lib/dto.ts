@@ -82,7 +82,7 @@ function toSubtaskSummary(subtasks: SubtaskRow[]): SubtaskSummary {
   };
 }
 
-function toHistoryEventDto(event: HistoryRow, users: UserMap): HistoryEventDto {
+export function toHistoryEventDto(event: HistoryRow, users: UserMap): HistoryEventDto {
   return {
     id: event.id,
     type: event.type,

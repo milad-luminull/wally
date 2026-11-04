@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { eq } from 'drizzle-orm';
-import { MAX_REMEMBERED_BOARDS, meDtoSchema, meUpdateSchema } from '@wally/shared';
+import {
+  MAX_REMEMBERED_BOARDS,
+  accountExportSchema,
+  meDtoSchema,
+  meUpdateSchema,
+} from '@wally/shared';
 import { userPreferences } from '../lib/db/records.js';
 import type { StoredPreferences } from '../lib/db/types.js';
 import { toMeDto } from '../lib/dto.js';
@@ -9,6 +14,7 @@ import { AppError } from '../lib/errors.js';
 import { withTransaction } from '../lib/postgres/transaction.js';
 import { users } from '../lib/postgres/schema/index.js';
 import { accountIdentity, eraseAccount } from '../lib/account/erase.js';
+import { exportAccount } from '../lib/account/export.js';
 import type { Auth0UserDeleter } from '../lib/auth/management.js';
 
 /**
@@ -78,6 +84,21 @@ export default async function meRoutes(
       });
 
       return toMeDto({ ...request.user, ...stored });
+    },
+  );
+
+  /** Everything the caller can see, as one JSON file (GDPR Art. 15 and 20). */
+  app.get(
+    '/me/export',
+    { schema: { response: { 200: accountExportSchema } } },
+    async (request, reply) => {
+      const data = await exportAccount(request.server.db, request.user);
+      return reply
+        .header(
+          'content-disposition',
+          `attachment; filename="wally-export-${data.exportedAt.slice(0, 10)}.json"`,
+        )
+        .send(data);
     },
   );
 
