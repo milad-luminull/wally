@@ -103,6 +103,7 @@ const TABLES = [
   'board_cleanup',
   'assistant_audit',
   'assistant_spend',
+  'deleted_identities',
 ];
 
 /**
