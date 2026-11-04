@@ -133,6 +133,7 @@ export async function buildTestApp(
     | 'assistantEnabled'
     | 'assistantDeadlineMs'
     | 'auth0SignupEnabled'
+    | 'auth0UserDeleter'
   > & {
     /** Collects the app's log lines (one JSON object each) instead of discarding them. */
     logLines?: string[];

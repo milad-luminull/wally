@@ -1,12 +1,16 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
+import { buildApp } from '../src/app.js';
+import { _resetEnvCacheForTests } from '../src/env.js';
 import { accountIdentity, eraseAccount } from '../src/lib/account/erase.js';
+import type { Auth0UserDeleter } from '../src/lib/auth/management.js';
 import { purgeExpired } from '../src/lib/db/purge.js';
 import { boardMembers, users } from '../src/lib/postgres/schema/index.js';
 import {
   addTestMember,
   buildTestApp,
   createBoardFixture,
+  createTestDatabase,
   createTestMembership,
   resetDatabase,
   type TestContext,
@@ -126,5 +130,101 @@ describe('erasing an account', () => {
     });
     expect(recreated.statusCode).toBe(200);
     expect(await ctx.db.$count(users, eq(users.id, fx.ownerId))).toBe(1);
+  });
+});
+
+describe('DELETE /me', () => {
+  const deleted: string[] = [];
+  let failAuth0 = false;
+  let afterAuth0: (() => void) | undefined;
+  const fakeDeleter: Auth0UserDeleter = {
+    async deleteUser(subject) {
+      if (failAuth0) throw new Error('Auth0 is down');
+      deleted.push(subject);
+      afterAuth0?.();
+    },
+  };
+  const lines: string[] = [];
+  let ctx: TestContext;
+  let skipping: TestContext;
+  beforeAll(async () => {
+    ctx = await buildTestApp({ auth0UserDeleter: fakeDeleter, logLines: lines });
+    skipping = await buildTestApp({ auth0UserDeleter: null, logLines: lines });
+  });
+  afterEach(async () => {
+    deleted.length = 0;
+    lines.length = 0;
+    failAuth0 = false;
+    afterAuth0 = undefined;
+    vi.restoreAllMocks();
+    await resetDatabase(ctx.db);
+    await resetDatabase(skipping.db);
+  });
+  afterAll(async () => {
+    await ctx.app.close();
+    await skipping.app.close();
+  });
+
+  const deleteMe = (c: TestContext, token: string) =>
+    c.inject({ method: 'DELETE', url: '/me', headers: c.authHeader(token) });
+  const getMe = (c: TestContext, token: string) =>
+    c.inject({ method: 'GET', url: '/me', headers: c.authHeader(token) });
+
+  it('deletes the Auth0 user, then the account, and answers 204', async () => {
+    const fx = await createBoardFixture(ctx);
+    const res = await deleteMe(ctx, fx.ownerToken);
+    expect(res.statusCode).toBe(204);
+    expect(deleted).toEqual(['test|fx-owner']);
+    expect((await getMe(ctx, fx.ownerToken)).statusCode).toBe(401);
+  });
+
+  it('erases nothing when Auth0 fails', async () => {
+    const fx = await createBoardFixture(ctx);
+    failAuth0 = true;
+    const res = await deleteMe(ctx, fx.ownerToken);
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error).toBe('ACCOUNT_DELETE_FAILED');
+    expect((await getMe(ctx, fx.ownerToken)).statusCode).toBe(200);
+  });
+
+  it('skips Auth0 and logs it when no deleter is configured', async () => {
+    const fx = await createBoardFixture(skipping);
+    const res = await deleteMe(skipping, fx.ownerToken);
+    expect(res.statusCode).toBe(204);
+    expect(lines.some((line) => line.includes('auth0 step skipped'))).toBe(true);
+    expect(await skipping.db.$count(users, eq(users.id, fx.ownerId))).toBe(0);
+  });
+
+  it('logs the user id when the database step fails after Auth0', async () => {
+    const fx = await createBoardFixture(ctx);
+    afterAuth0 = () => {
+      vi.spyOn(ctx.db, 'transaction').mockRejectedValue(new Error('database unavailable'));
+    };
+    const res = await deleteMe(ctx, fx.ownerToken);
+    expect(res.statusCode).toBe(500);
+    const logged = lines
+      .map((line) => JSON.parse(line))
+      .find((l) => l.msg === 'account erase failed');
+    expect(logged).toMatchObject({ userId: fx.ownerId, auth0Deleted: true });
+  });
+});
+
+describe('the production API', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    _resetEnvCacheForTests();
+  });
+
+  it('refuses to start without the Auth0 Management settings', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    _resetEnvCacheForTests();
+    const handle = await createTestDatabase();
+    try {
+      await expect(buildApp({ db: handle.db, logger: false })).rejects.toThrow(
+        'AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required in production',
+      );
+    } finally {
+      await handle.drop();
+    }
   });
 });
