@@ -446,10 +446,11 @@ export const en = {
   },
   auth: {
     hosted: {
-      description: 'Sign in securely with Google or your email on our login page.',
+      description: 'Sign in securely with Google, a passkey or your email on our login page.',
       passwordReset: 'Forgot your password? Select “Forgot password” on the next page to reset it.',
       migration:
-        'This sign-in is not linked to a Wally account. Please contact the Wally owner or use another account.',
+        'This email address already has a Wally account. Sign in the way you signed up, for example with Google.',
+      unverified: 'Please verify your email address with the link we sent you, then sign in again.',
       unavailable: 'We could not finish signing you in. Please try again.',
       pending: 'Connecting…',
       login: 'Continue to sign in',

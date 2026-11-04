@@ -84,6 +84,33 @@ describe('Auth0 session adapter', () => {
     );
     await expect(session.load()).rejects.toMatchObject({ code: 'IDENTITY_NOT_LINKED' });
   });
+  it('reports a login the Post Login Action denied for an unverified email', async () => {
+    const denied = client();
+    denied.handleRedirectCallback = async () => {
+      throw Object.assign(new Error('access_denied'), {
+        error: 'access_denied',
+        error_description: 'EMAIL_NOT_VERIFIED',
+      });
+    };
+    const session = createAuth0Session(denied, 'https://api.wally.luminull.com');
+    await expect(
+      session.initialize('https://wally.luminull.com/login?error=access_denied&state=b'),
+    ).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+  });
+  it('passes any other callback error through unchanged', async () => {
+    const denied = client();
+    const consent = Object.assign(new Error('access_denied'), {
+      error: 'access_denied',
+      error_description: 'User did not authorize the request',
+    });
+    denied.handleRedirectCallback = async () => {
+      throw consent;
+    };
+    const session = createAuth0Session(denied, 'https://api.wally.luminull.com');
+    await expect(
+      session.initialize('https://wally.luminull.com/login?error=access_denied&state=b'),
+    ).rejects.toBe(consent);
+  });
   it('does not use an ID token or publish an account on profile failure', async () => {
     const session = createAuth0Session(
       client(),

@@ -69,7 +69,9 @@ The issuer and audiences are pinned in code, not supplied by variables. See
 
 **Claims:**
 
-- The versioned [Post Login Action](../infra/auth0-post-login.cjs) adds signed email,
+- The versioned [Post Login Action](../infra/auth0-post-login.cjs) first denies any login or
+  refresh-token exchange whose `email_verified` is not `true` (reason `EMAIL_NOT_VERIFIED`,
+  shown by the web app as "verify your email"). It then adds signed email,
   email-verification and name claims for the REST and MCP audiences only.
 - Missing claims fail closed. The browser cannot supply a trusted email or verification
   flag.
@@ -113,15 +115,43 @@ users and mappings; every account since is an Auth0 signup.
 same transaction.
 
 Each Wally account has exactly one Auth0 identity: a second sign-in method with an address
-an account already holds is refused, and Wally never links or merges accounts.
+an account already holds is refused, and Wally never links or merges accounts
+([ADR-0028](adr/ADR-0028-one-auth0-identity-per-account-with-passkeys.md)). The web app tells
+the person to sign in the way they signed up.
 
-**Open:** an unverified password signup still gets a Wally account, so it can hold an address
-its verified owner then cannot use.
+**Unverified signups get no account.** The Post Login Action denies them before any token is
+issued, so an unverified signup cannot hold an address its verified owner then wants.
 
 **Unverified email:**
 
-- An unverified email stays unverified and cannot activate board invites.
+- Auth0 issues no token for one (above). The API's own checks stay as a second guard: an
+  unverified email cannot activate board invites.
 - Mappings whose Wally user no longer exists fail closed, and are never recreated.
+
+## Sign-in methods
+
+Auth0's hosted page offers two connections
+([ADR-0028](adr/ADR-0028-one-auth0-identity-per-account-with-passkeys.md)):
+
+- **Google** (`google-oauth2`), the main signup.
+- **Email** (`Username-Password-Authentication`), with passkeys first and the password as
+  fallback. Auth0 requires passwords to stay enabled when passkeys are on, and progressive
+  enrollment offers a passkey after a password login
+  ([passkey policy](https://auth0.com/docs/authenticate/database-connections/passkeys/configure-passkey-policy)).
+  Passkeys are bound to `login.luminull.com`.
+
+**Tenant setup, in this order:**
+
+1. Mark the CI accounts (`+1`, `+2`) as email-verified (Auth0 Dashboard > User Management >
+   Users). Otherwise the Action denies E2E.
+2. Deploy `infra/auth0-post-login.cjs` to the tenant's Post Login Action.
+3. Authentication > Authentication Profile: **Identifier First**
+   ([docs](https://auth0.com/docs/authenticate/login/auth0-universal-login/identifier-first)).
+4. On `Username-Password-Authentication`: turn **Requires Username** off and enable
+   **passkeys**, with progressive enrollment on (Authentication Methods > Passkey).
+
+The E2E helper (`apps/web/e2e/support.ts`) signs in with a password on either login layout
+and postpones the passkey prompt. CI cannot enter a passkey.
 
 ## MCP client
 

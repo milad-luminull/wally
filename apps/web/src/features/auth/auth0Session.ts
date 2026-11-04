@@ -18,7 +18,7 @@ export interface Auth0ClientPort {
   logout(options: { logoutParams: { returnTo: string } }): Promise<void>;
 }
 class SessionError extends Error {
-  constructor(readonly code: 'IDENTITY_NOT_LINKED' | 'SESSION_UNAVAILABLE') {
+  constructor(readonly code: 'IDENTITY_NOT_LINKED' | 'EMAIL_NOT_VERIFIED' | 'SESSION_UNAVAILABLE') {
     super(code);
   }
 }
@@ -36,7 +36,14 @@ export function createAuth0Session(
       initialization ??= (async () => {
         const params = new URL(url).searchParams;
         if (params.has('state') && (params.has('code') || params.has('error'))) {
-          const result = await client.handleRedirectCallback();
+          const result = await client.handleRedirectCallback().catch((error: unknown) => {
+            // The Post Login Action denies an unverified email with this reason.
+            if (
+              (error as { error_description?: string }).error_description === 'EMAIL_NOT_VERIFIED'
+            )
+              throw new SessionError('EMAIL_NOT_VERIFIED');
+            throw error;
+          });
           return {
             callback: true,
             returnPath: readReturnPath({ from: result.appState?.returnPath }),

@@ -16,6 +16,6 @@ export interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshUser: () => Promise<boolean>;
   hostedLogin: (signup: boolean, returnPath: string | null) => Promise<void>;
-  authError?: 'migration' | 'unavailable' | null;
+  authError?: 'migration' | 'unverified' | 'unavailable' | null;
 }
 export const AuthContext = createContext<AuthContextValue | null>(null);

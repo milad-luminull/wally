@@ -1,4 +1,10 @@
 exports.onExecutePostLogin = async (event, api) => {
+  // An unverified address never gets a token, so it can never hold an address in Wally.
+  // Runs on every login and refresh-token exchange, for every audience.
+  if (event.user.email_verified !== true) {
+    api.access.deny('EMAIL_NOT_VERIFIED');
+    return;
+  }
   const audience = event.resource_server?.identifier;
   if (
     audience !== 'https://api.wally.luminull.com' &&
