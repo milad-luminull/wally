@@ -17,6 +17,7 @@ export function apiConfig(env) {
     ASSISTANT_MODEL: env.ASSISTANT_MODEL,
     ASSISTANT_VERTEX_LOCATION: env.ASSISTANT_VERTEX_LOCATION,
     ASSISTANT_VERTEX_PROJECT: env.GCP_PROJECT_ID,
+    AUTH0_MANAGEMENT_CLIENT_ID: env.AUTH0_MANAGEMENT_CLIENT_ID,
     AUTH0_SIGNUP_ENABLED: env.AUTH0_SIGNUP_ENABLED,
     MCP_ENABLED: env.MCP_ENABLED,
     MCP_WRITES_ENABLED: env.MCP_WRITES_ENABLED,
@@ -35,7 +36,16 @@ export function apiConfig(env) {
       .map(([name, value]) => ({ name, value })),
     // Values Cloud Run reads from Secret Manager when an instance starts. The database URL
     // carries its password, so it is never a plain variable.
-    secrets: [{ name: 'DATABASE_URL', secret: 'wally-database-url', version: 'latest' }],
+    // The same for the Auth0 Management client's secret (account deletion). Sorted by name,
+    // as deployedConfig reads them back.
+    secrets: [
+      {
+        name: 'AUTH0_MANAGEMENT_CLIENT_SECRET',
+        secret: 'wally-auth0-management-client-secret',
+        version: 'latest',
+      },
+      { name: 'DATABASE_URL', secret: 'wally-database-url', version: 'latest' },
+    ],
   };
 }
 

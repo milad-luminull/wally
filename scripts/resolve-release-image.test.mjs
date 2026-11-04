@@ -16,6 +16,7 @@ const releaseEnv = {
   ASSISTANT_ENABLED: 'false',
   ASSISTANT_MODEL: 'vertex:gemini-3.8-flash',
   ASSISTANT_VERTEX_LOCATION: 'eu',
+  AUTH0_MANAGEMENT_CLIENT_ID: 'management-client',
   AUTH0_SIGNUP_ENABLED: 'false',
   MCP_ENABLED: 'false',
   MCP_WRITES_ENABLED: 'false',
@@ -95,8 +96,16 @@ test('the deploy flag carries exactly the configuration the checks expect', () =
   // The connection string carries a password: it is never a plain variable.
   assert.ok(!parsed.some((e) => e.name === 'DATABASE_URL'));
 });
-test('the database connection comes from Secret Manager', () =>
-  assert.equal(runSecretsFlag(apiConfig(releaseEnv)), 'DATABASE_URL=wally-database-url:latest'));
+test('the database connection and the Auth0 Management secret come from Secret Manager', () =>
+  assert.equal(
+    runSecretsFlag(apiConfig(releaseEnv)),
+    'AUTH0_MANAGEMENT_CLIENT_SECRET=wally-auth0-management-client-secret:latest,DATABASE_URL=wally-database-url:latest',
+  ));
+test('a release without the Auth0 Management client is refused', () =>
+  assert.throws(
+    () => apiConfig({ ...releaseEnv, AUTH0_MANAGEMENT_CLIENT_ID: '' }),
+    /Missing candidate configuration/,
+  ));
 test('the configuration sets exactly the variables the API reads in production', () =>
   assert.deepEqual(
     apiConfig({ ...releaseEnv, MCP_CLIENT_ID: 'client' }).env.map(({ name }) => name),
@@ -105,6 +114,7 @@ test('the configuration sets exactly the variables the API reads in production',
       'ASSISTANT_MODEL',
       'ASSISTANT_VERTEX_LOCATION',
       'ASSISTANT_VERTEX_PROJECT',
+      'AUTH0_MANAGEMENT_CLIENT_ID',
       'AUTH0_SIGNUP_ENABLED',
       'CORS_ORIGIN',
       'MCP_CLIENT_ID',
