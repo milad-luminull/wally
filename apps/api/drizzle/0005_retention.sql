@@ -65,7 +65,7 @@ revoke execute on function remove_link_members(text, timestamptz) from public, a
 -- purge_expired(), as in 0003, plus the retention periods the owner set on 2026-11-04:
 --   * an expired share link goes, with everyone who joined through it;
 --   * a pending invite (and the email address in it) goes 30 days after it was made;
---   * assistant usage counters go after 12 months.
+--   * assistant usage counters go after 30 days (enough for the daily limit).
 -- Opening an expired link already fails (apps/api/src/lib/commands/index.ts); everything else
 -- here may run up to an hour late, which the owner accepted. `create or replace` keeps the
 -- pg_cron job that calls it.
@@ -109,7 +109,7 @@ begin
   return next;
 
   table_name := 'assistant_usage';
-  delete from assistant_usage where day < (at - interval '12 months')::date;
+  delete from assistant_usage where day < (at - interval '30 days')::date;
   get diagnostics deleted = row_count;
   return next;
 end

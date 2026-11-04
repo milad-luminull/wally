@@ -36,7 +36,7 @@ is granted. Nothing new runs anywhere else.
 | Share links                             | **The owner picks 7 days, 30 days (pre-selected) or never** when creating the link.                        |
 | Share links that exist when this ships  | **Expire 30 days after the release.**                                                                      |
 | People who joined through a share link  | **Lose access when the link expires, is regenerated or is turned off.**                                    |
-| Assistant daily usage counters          | **12 months.** The per-user purpose is still to be stated (see Open question).                             |
+| Assistant daily usage counters          | **30 days** (owner, 2026-11-04: enough for the daily limit; cost is tracked without users).                |
 | Data held by vendors                    | **In the retention table too**, in a second, docs-only PR.                                                 |
 
 Why notes and history have no time limit, for GDPR.md: they are the user's own working
@@ -104,7 +104,7 @@ reason logic lives in the database; ADR-0020 otherwise holds):
 1. for each board whose link has `expires_at <= at`: `remove_link_members`, bump the board
    revision, delete the link;
 2. deletes `PENDING` `board_members` rows with `invited_at <= at - 30 days`;
-3. deletes `assistant_usage` rows with `day` older than 12 months.
+3. deletes `assistant_usage` rows with `day` older than 30 days.
 
 The periods are written in the migration only; the tests use the same numbers.
 
@@ -123,8 +123,8 @@ The periods are written in the migration only; the tests use the same numbers.
 ### Docs
 
 - **GDPR.md:** §2 gains a retention table for Wally's database with each period and what
-  deletes it, the reason for notes and history, and the purpose of the 12-month usage
-  counters. GAP-04, GAP-06 resolved; GAP-07 resolved for retention (the invitation-email
+  deletes it, the reason for notes and history, and the purpose of the 30-day usage
+  counters (the daily limit). GAP-04, GAP-06 resolved; GAP-07 resolved for retention (the invitation-email
   notice stays open until Wally sends email); GAP-08's retention half settled. The
   `share_links` and `board_members` inventory rows gain the new columns.
 - **Privacy notice** (`privacy.*` in `en.ts` and `de.ts`): the retention paragraph states the
@@ -143,7 +143,7 @@ The periods are written in the migration only; the tests use the same numbers.
   removal tests pass unchanged with `release_assignments`.
 - **Hourly job:** removes an expired link and its members (not `joined_by_link = false`
   members, not live or never-expiring links); deletes invites at 30 days and not a second
-  earlier, never `ACTIVE` rows; deletes usage older than 12 months and keeps the boundary
+  earlier, never `ACTIVE` rows; deletes usage older than 30 days and keeps the boundary
   day. Tests write past timestamps and pass `at`; they never fake the clock.
 - **Web:** the select defaults to 30 days; changing to never sends `expiresIn: 'NEVER'`; the
   expiry and warning lines render; a link member shows "Joined by link".
@@ -176,12 +176,11 @@ Cut on 2026-11-04 to keep maintenance low; each can be added later if a real nee
 - No new services or jobs; the existing hourly job does the cleanup.
 - Never log a share-link token.
 
-## Open question for the owner
+## Usage counters (owner, 2026-11-04)
 
-What are per-user assistant usage counters kept 12 months **for**? Cost tracking alone is
-already covered by `assistant_spend` (monthly totals, no user). GDPR.md must state a purpose
-for the period; without one, 30 days (enough for the daily limit) is the defensible choice.
-The code is the same either way: one number in the migration.
+Per-user assistant usage counters are kept 30 days: the daily limit needs only today's row,
+and cost is tracked without naming anyone in `assistant_spend` (monthly totals). This
+replaces the earlier choice of 12 months.
 
 ## Claude's calls (the owner can overrule any)
 

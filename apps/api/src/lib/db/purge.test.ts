@@ -310,11 +310,11 @@ describe('purgeExpired and the retention periods (2026-11-04)', () => {
     expect(ids).toEqual(expect.arrayContaining(['p-almost', 'a-old']));
   });
 
-  it('deletes usage counters older than 12 months and keeps the boundary day', async () => {
+  it('deletes usage counters older than 30 days and keeps the boundary day', async () => {
     const { db } = handle;
-    // `now` is 2026-10-31: 12 months back is 2025-10-31.
+    // `now` is 2026-10-31: 30 days back is 2026-10-01.
     await db.insert(assistantUsage).values(
-      ['2025-10-30', '2025-10-31', '2026-10-31'].map((day) => ({
+      ['2026-09-30', '2026-10-01', '2026-10-31'].map((day) => ({
         userId: 'other',
         day,
         tokens: 1,
@@ -329,7 +329,7 @@ describe('purgeExpired and the retention periods (2026-11-04)', () => {
         .from(assistantUsage)
         .orderBy(asc(assistantUsage.day))
     ).map((row) => row.day);
-    expect(days).toEqual(['2025-10-31', '2026-10-31']);
+    expect(days).toEqual(['2026-10-01', '2026-10-31']);
   });
 });
 

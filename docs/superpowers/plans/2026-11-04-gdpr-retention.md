@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Share links expire (7 days, 30 days or never) and their members go with them, pending invites go after 30 days, assistant usage counters after 12 months, and GDPR.md and the privacy notice state the periods. Vendors follow in a second, docs-only PR (Task 6).
+**Goal:** Share links expire (7 days, 30 days or never) and their members go with them, pending invites go after 30 days, assistant usage counters after 30 days, and GDPR.md and the privacy notice state the periods. Vendors follow in a second, docs-only PR (Task 6).
 
 **Architecture:** Two columns (`share_links.expires_at`, `board_members.joined_by_link`). The existing hourly `purge_expired()` job does all deleting; the only runtime expiry check is in `link.redeem`. Two SQL functions, `release_assignments()` (today's `member.remove` rule, moved so it exists once) and `remove_link_members()`, are shared by the link commands, `drainCleanupJob` and the hourly job.
 
@@ -16,7 +16,7 @@
 - Keep it small: no expiry checks outside `link.redeem`, no new helper modules, no new UI beyond the spec's "Web" section. If a step seems to need more, stop and ask.
 - Durations offered: `DAYS_7`, `DAYS_30` (default), `NEVER`; only the resulting `expires_at` is stored (null = never).
 - Existing share links get `expires_at = now() + interval '30 days'` in the migration; existing members `joined_by_link = false`.
-- Periods: invites `invited_at <= at - interval '30 days'`; usage `day < (at - interval '12 months')::date`. Written in the migration only.
+- Periods: invites `invited_at <= at - interval '30 days'`; usage `day < (at - interval '30 days')::date` (owner switched from 12 months to 30 days on 2026-11-04). Written in the migration only.
 - English identifiers and stored values; German only in `de.ts` (ADR-0014). i18next placeholders are `{{name}}`.
 - Never log a share-link token.
 - Tests write past timestamps and pass explicit `at` to `purge_expired()`; never fake the clock for database expiry.
@@ -92,11 +92,11 @@ Append `create or replace function purge_expired(at timestamptz default now())` 
 
 1. `share_links` — for each board whose link has `expires_at <= at`: `remove_link_members(board, at)`, bump `whiteboards.revision`/`updated_at` if it removed anyone, delete the link. Count = links deleted.
 2. `board_members` — delete `PENDING` rows with `invited_at <= at - interval '30 days'`.
-3. `assistant_usage` — delete rows with `day < (at - interval '12 months')::date`.
+3. `assistant_usage` — delete rows with `day < (at - interval '30 days')::date`.
 
 Then the existing `revoke execute` line. `TABLES` gains `share_links: 'shareLinks'`, `board_members: 'pendingInvites'`, `assistant_usage: 'assistantUsage'`.
 
-- [ ] **Step 1: Failing tests:** an expired link and its link members go, shared assignments released; live and never-expiring links, and `joined_by_link = false` members, stay; the board revision went up. Invites go at exactly 30 days, not a second earlier, never `ACTIVE` rows. Usage older than 12 months goes, the boundary day stays. Existing purge tests still pass.
+- [ ] **Step 1: Failing tests:** an expired link and its link members go, shared assignments released; live and never-expiring links, and `joined_by_link = false` members, stay; the board revision went up. Invites go at exactly 30 days, not a second earlier, never `ACTIVE` rows. Usage older than 30 days goes, the boundary day stays. Existing purge tests still pass.
 - [ ] **Step 2:** Run → FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** PASS; `pnpm --filter @wally/api test` PASS.
