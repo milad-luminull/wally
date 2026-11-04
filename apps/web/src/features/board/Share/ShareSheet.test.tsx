@@ -31,12 +31,14 @@ beforeEach(() => {
     token: 'tok',
     role: 'VIEW',
     url: 'https://hub.example.com/w/tok',
+    expiresAt: null,
   });
   vi.mocked(shareLinkApi.createOrUpdate).mockImplementation(async () => {
     const link = {
       token: 'tok',
       url: 'https://hub.example.com/w/tok',
       role: 'VIEW' as const,
+      expiresAt: null,
     };
     vi.mocked(shareLinkApi.get).mockResolvedValue(link);
     return link;
@@ -241,6 +243,7 @@ describe('board sharing scope and link lifecycle', () => {
       token: 'tok',
       role: 'VIEW',
       url: 'https://hub.example.com/w/tok',
+      expiresAt: null,
     });
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('button', { name: 'Copy board link' })).toBeEnabled();
@@ -260,7 +263,12 @@ describe('board sharing scope and link lifecycle', () => {
 
   it('regenerates a link after explaining that the old link will stop working', async () => {
     vi.mocked(shareLinkApi.rotate).mockImplementation(async () => {
-      const link = { token: 'new', role: 'VIEW' as const, url: 'https://hub.example.com/w/new' };
+      const link = {
+        token: 'new',
+        role: 'VIEW' as const,
+        url: 'https://hub.example.com/w/new',
+        expiresAt: null,
+      };
       vi.mocked(shareLinkApi.get).mockResolvedValue(link);
       return link;
     });
