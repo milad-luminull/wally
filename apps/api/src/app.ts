@@ -7,6 +7,7 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import { loadEnv } from './env.js';
+import { createAuth0UserDeleter, type Auth0UserDeleter } from './lib/auth/management.js';
 import postgresPlugin from './plugins/postgres.js';
 import type { Database } from './lib/postgres/client.js';
 import authPlugin, { type AuthenticatedUser } from './plugins/auth.js';
@@ -50,6 +51,12 @@ export interface BuildAppOptions {
   assistantEnabled?: boolean;
   /** Overrides the turn deadline for tests. */
   assistantDeadlineMs?: number;
+  /**
+   * Overrides the Auth0 user deleter for account deletion: tests pass a fake, or null for none.
+   * By default the app makes one from the AUTH0_MANAGEMENT_* settings, and production refuses
+   * to start without them.
+   */
+  auth0UserDeleter?: Auth0UserDeleter | null;
 }
 
 /**
@@ -67,6 +74,19 @@ export const requestLogSerializers = {
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = loadEnv();
+  const auth0UserDeleter =
+    options.auth0UserDeleter !== undefined
+      ? options.auth0UserDeleter
+      : env.AUTH0_MANAGEMENT_CLIENT_ID && env.AUTH0_MANAGEMENT_CLIENT_SECRET
+        ? createAuth0UserDeleter({
+            clientId: env.AUTH0_MANAGEMENT_CLIENT_ID,
+            clientSecret: env.AUTH0_MANAGEMENT_CLIENT_SECRET,
+          })
+        : null;
+  if (options.auth0UserDeleter === undefined && !auth0UserDeleter && env.NODE_ENV === 'production')
+    throw new Error(
+      'Invalid environment configuration: AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET are required in production',
+    );
 
   const app = Fastify({
     logger: options.logStream
@@ -169,7 +189,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     },
   );
   await app.register(healthRoutes);
-  await app.register(meRoutes);
+  await app.register(meRoutes, { auth0UserDeleter });
   await app.register(boardRoutes);
   await app.register(assistantRoutes, {
     runner: options.assistantRunner,

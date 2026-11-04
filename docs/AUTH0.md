@@ -128,6 +128,29 @@ issued, so an unverified signup cannot hold an address its verified owner then w
   unverified email cannot activate board invites.
 - Mappings whose Wally user no longer exists fail closed, and are never recreated.
 
+## Account deletion
+
+Deleting an account (`DELETE /me`) deletes its Auth0 user first, then its Wally data
+([design](superpowers/specs/2026-11-03-account-deletion-and-export-design.md)).
+
+- **Client:** a machine-to-machine application authorized for the Auth0 Management API
+  with **only** the `delete:users` scope. Its client ID is the production variable
+  `AUTH0_MANAGEMENT_CLIENT_ID`; its secret is the Secret Manager secret
+  `wally-auth0-management-client-secret`, read by `wally-api` as
+  `AUTH0_MANAGEMENT_CLIENT_SECRET` ([DEPLOY.md](DEPLOY.md#account-deletion-setup)).
+- **Calls:** through Auth0's Node SDK ([`auth0`](https://github.com/auth0/node-auth0),
+  `ManagementClient`), on the tenant's default domain `dev-4tuhqfy0z1yepp5h.eu.auth0.com`
+  ([management.ts](../apps/api/src/lib/auth/management.ts)). The SDK gets a
+  client-credentials token for `https://dev-4tuhqfy0z1yepp5h.eu.auth0.com/api/v2/`, keeps it
+  until shortly before it expires, and sends `DELETE /api/v2/users/{id}`.
+- **Only production has the client.** Local development and CI share this tenant but not the
+  secret, so their deletions skip Auth0 and log that they did; the CI test users are never
+  deleted. The production API refuses to start without the client.
+- **Tombstone:** for one hour after a deletion, `deleted_identities` holds the identity, and
+  an unmapped token for it answers `401 ACCOUNT_DELETED` instead of signing up again. Access
+  tokens last 900 seconds, so a token the browser still holds cannot recreate the account.
+  `purge_expired()` removes the row.
+
 ## Sign-in methods
 
 Auth0's hosted page offers two connections

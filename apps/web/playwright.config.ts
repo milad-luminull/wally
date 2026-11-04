@@ -70,7 +70,7 @@ export default defineConfig({
       // mobile-list-only.spec.ts here, where its assertions (a "Wand" tab, no drag
       // affordance) are false by construction at 1280x720. That failure is invisible today
       // only because every spec self-skips without E2E credentials.
-      testIgnore: /mobile-list-only\.spec\.ts/,
+      testIgnore: [/mobile-list-only\.spec\.ts/, /account-delete\.spec\.ts/],
     },
     {
       // devices['iPhone 13'] carries defaultBrowserType: 'webkit' — this project does NOT
@@ -78,6 +78,15 @@ export default defineConfig({
       name: 'mobile-list-only',
       use: { ...devices['iPhone 13'] },
       testMatch: /mobile-list-only\.spec\.ts/,
+    },
+    {
+      // Deletes the test account's Wally data, so it runs only after every other project
+      // has passed (https://playwright.dev/docs/test-projects). The next CI run's new
+      // database seeds the account again.
+      name: 'account-deletion',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /account-delete\.spec\.ts/,
+      dependencies: ['chromium-desktop', 'mobile-list-only'],
     },
   ],
 });

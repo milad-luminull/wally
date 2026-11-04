@@ -9,12 +9,24 @@ export const de = {
   accountData: {
     title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
-    exportHint:
-      'Das Herunterladen deiner Daten aus Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir schicken dir eine Kopie.',
+    exportHint: 'Lade alles, was du in Wally siehst, als eine JSON-Datei herunter.',
     download: 'Meine Daten herunterladen',
+    exportFailed: 'Deine Daten konnten nicht heruntergeladen werden. Versuch es noch einmal.',
     deleteTitle: 'Konto löschen',
     deleteHint:
-      'Das Löschen deines Kontos in Wally kommt bald. Bis dahin schreib an privacy@luminull.com, und wir löschen es für dich.',
+      'Löscht dein Konto und alles, was du erstellt hast, sofort. Das lässt sich nicht rückgängig machen.',
+    deleteBoards: 'Diese Wände werden für alle gelöscht:',
+    deleteNoBoards: 'Du besitzt keine Wände.',
+    deleteSharedWith: 'geteilt mit {{names}}',
+    deleteNotes:
+      'Deine Notizen auf fremden Wänden werden ebenfalls gelöscht. Karten, die dir nur zugewiesen sind, bleiben.',
+    deleteTypeEmail: 'Gib {{email}} ein, um zu bestätigen',
+    deleteConfirm: 'Mein Konto löschen',
+    deleteFailed: 'Dein Konto konnte nicht gelöscht werden. Versuch es noch einmal.',
+    deleteLoading: 'Deine Wände werden geladen …',
+    deleteListFailed:
+      'Deine Wände konnten nicht geladen werden. Schließ das Fenster und versuch es noch einmal.',
+    deleted: 'Dein Konto ist gelöscht.',
   },
   privacy: {
     title: 'Datenschutzinformationen',
@@ -28,7 +40,7 @@ export const de = {
       'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Supabase speichert die Daten von Wally. Google betreibt den Wally-Server. Cloudflare liefert die Web-App aus und leitet Anfragen an den Server weiter. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter, derzeit Google (Vertex AI). Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
     retentionTitle: 'Aufbewahrung und Kontofunktionen',
     retention:
-      'Boards und Karten laufen nicht automatisch ab. Für eine Kopie deiner Daten oder die Löschung deines Kontos schreib an privacy@luminull.com. Herunterladen und Löschen unter Konto und Daten kommen bald. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere uns für Details.',
+      'Boards und Karten laufen nicht automatisch ab. Unter Konto und Daten kannst du eine Kopie deiner Daten herunterladen oder dein Konto löschen; die Löschung wirkt sofort. Aufzeichnungen anderer Mitglieder über ihre eigenen Aktionen können dich erwähnen, bis sie ablaufen: nach 7 oder 30 Tagen, bei einem Assistenten-Gespräch 30 Tage nach seiner letzten Nachricht. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere privacy@luminull.com für Details.',
     rightsTitle: 'Deine Möglichkeiten',
     rights:
       'Du kannst Auskunft, Berichtigung, Löschung oder Übertragbarkeit deiner personenbezogenen Daten verlangen und einer Verarbeitung aufgrund berechtigter Interessen widersprechen. Du kannst dich bei deiner zuständigen Datenschutzaufsichtsbehörde beschweren. Anbietervereinbarungen, Schutzmaßnahmen für internationale Übermittlungen und Rechtsgrundlagen müssen vor der Veröffentlichung vom Betreiber freigegeben werden.',

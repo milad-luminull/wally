@@ -18,6 +18,7 @@ import {
   noteStatusValues,
   noteVisibilityValues,
 } from '@wally/shared';
+import { users } from './accounts.js';
 import { whiteboards } from './boards.js';
 import { instant, oneOf } from './columns.js';
 
@@ -41,20 +42,23 @@ export const notes = pgTable(
     freeY: doublePrecision().notNull(),
     /** A calendar day with no timezone, read and written as 'YYYY-MM-DD'. */
     dueDate: date({ mode: 'string' }),
-    assigneeId: text(),
+    assigneeId: text().references(() => users.id, { onDelete: 'set null' }),
     tags: text().array().notNull().default([]),
     /** Related notes, by id. */
     links: text().array().notNull().default([]),
     customFields: jsonb().$type<Record<string, string>>().notNull().default({}),
     colour: text({ enum: noteColourValues }).notNull(),
     visibility: text({ enum: noteVisibilityValues }).notNull().default('SHARED'),
-    createdById: text(),
+    createdById: text().references(() => users.id, { onDelete: 'cascade' }),
     createdAt: instant().notNull(),
     updatedAt: instant().notNull(),
   },
   (table) => [
     index().on(table.boardId),
     index().on(table.boardId, table.assigneeId),
+    // Deleting a user finds their notes and assignments through these (foreign keys).
+    index().on(table.createdById),
+    index().on(table.assigneeId),
     oneOf('notes_status_check', table.status, noteStatusValues),
     oneOf('notes_priority_check', table.priority, notePriorityValues),
     oneOf('notes_horizon_check', table.horizon, noteHorizonValues),
@@ -94,11 +98,12 @@ export const noteHistory = pgTable(
       .references(() => notes.id, { onDelete: 'cascade' }),
     type: text({ enum: noteHistoryEventTypeValues }).notNull(),
     occurredAt: instant().notNull(),
-    actorId: text(),
+    actorId: text().references(() => users.id, { onDelete: 'cascade' }),
     metadata: jsonb().$type<Record<string, unknown>>(),
   },
   (table) => [
     index().on(table.noteId, table.occurredAt),
+    index().on(table.actorId),
     oneOf('note_history_type_check', table.type, noteHistoryEventTypeValues),
   ],
 ).enableRLS();

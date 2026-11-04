@@ -35,4 +35,11 @@ describe('LoginPage', () => {
     );
     auth.current = { status: 'unauthenticated', expired: null };
   });
+
+  it('confirms a deleted account once, then forgets it', () => {
+    sessionStorage.setItem('wally.accountDeleted', '1');
+    renderWithProviders(<LoginPage />, { route: '/login' });
+    expect(screen.getByRole('status')).toHaveTextContent('Your account is deleted.');
+    expect(sessionStorage.getItem('wally.accountDeleted')).toBeNull();
+  });
 });

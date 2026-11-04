@@ -14,7 +14,7 @@ export const whiteboards = pgTable(
     id: text().primaryKey(),
     ownerId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text().notNull(),
     revision: integer().notNull().default(1),
     /** Set by board.delete; the board then reads as absent until cleanup removes it. */
@@ -33,7 +33,7 @@ export const boardMembers = pgTable(
     boardId: text()
       .notNull()
       .references(() => whiteboards.id, { onDelete: 'cascade' }),
-    userId: text(),
+    userId: text().references(() => users.id, { onDelete: 'cascade' }),
     /** Always stored lowercase. */
     invitedEmail: text(),
     role: text({ enum: whiteboardRoleValues }).notNull(),

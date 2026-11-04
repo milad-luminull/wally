@@ -1,13 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { eq } from 'drizzle-orm';
-import { MAX_REMEMBERED_BOARDS, meDtoSchema, meUpdateSchema } from '@wally/shared';
+import {
+  MAX_REMEMBERED_BOARDS,
+  accountExportSchema,
+  meDtoSchema,
+  meUpdateSchema,
+} from '@wally/shared';
 import { userPreferences } from '../lib/db/records.js';
 import type { StoredPreferences } from '../lib/db/types.js';
 import { toMeDto } from '../lib/dto.js';
 import { AppError } from '../lib/errors.js';
 import { withTransaction } from '../lib/postgres/transaction.js';
 import { users } from '../lib/postgres/schema/index.js';
+import { accountIdentity, eraseAccount } from '../lib/account/erase.js';
+import { exportAccount } from '../lib/account/export.js';
+import type { Auth0UserDeleter } from '../lib/auth/management.js';
 
 /**
  * The caller's own profile. Authenticated but not board-scoped: the global auth preHandler
@@ -18,7 +26,10 @@ import { users } from '../lib/postgres/schema/index.js';
  * rather than from the request — so a caller can only ever address their own profile, and
  * there is no id to authorize.
  */
-export default async function meRoutes(fastify: FastifyInstance) {
+export default async function meRoutes(
+  fastify: FastifyInstance,
+  options: { auth0UserDeleter?: Auth0UserDeleter | null },
+) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
   // Zero reads: the auth preHandler already read the user on this very request and
@@ -75,4 +86,53 @@ export default async function meRoutes(fastify: FastifyInstance) {
       return toMeDto({ ...request.user, ...stored });
     },
   );
+
+  /** Everything the caller can see, as one JSON file (GDPR Art. 15 and 20). */
+  app.get(
+    '/me/export',
+    { schema: { response: { 200: accountExportSchema } } },
+    async (request, reply) => {
+      const data = await exportAccount(request.server.db, request.user);
+      return reply
+        .header(
+          'content-disposition',
+          `attachment; filename="wally-export-${data.exportedAt.slice(0, 10)}.json"`,
+        )
+        .send(data);
+    },
+  );
+
+  /**
+   * Deletes the caller's account at once (the account deletion design). The Auth0 user goes
+   * first, outside any transaction, so the transaction's retries never call Auth0 twice; if it
+   * fails nothing is erased. If the database step then fails, the person can no longer sign
+   * in and the owner finishes the deletion by hand (docs/DEPLOY.md), from the logged user id.
+   */
+  app.delete('/me', async (request, reply) => {
+    const userId = request.user.id;
+    const identity = await accountIdentity(request.server.db, userId);
+    let auth0Deleted = false;
+    if (options.auth0UserDeleter && identity) {
+      try {
+        await options.auth0UserDeleter.deleteUser(identity.subject);
+        auth0Deleted = true;
+      } catch (error) {
+        request.log.error({ err: error, userId }, 'auth0 user deletion failed');
+        throw new AppError(
+          502,
+          'ACCOUNT_DELETE_FAILED',
+          'The account could not be deleted. Try again.',
+        );
+      }
+    } else {
+      request.log.info({ userId }, 'auth0 step skipped');
+    }
+    try {
+      await eraseAccount(request.server.db, userId, identity);
+    } catch (error) {
+      request.log.error({ err: error, userId, auth0Deleted }, 'account erase failed');
+      throw error;
+    }
+    return reply.code(204).send();
+  });
 }

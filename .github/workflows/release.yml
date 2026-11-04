@@ -25,6 +25,7 @@ env:
   MCP_ENABLED: ${{ vars.MCP_ENABLED || 'false' }}
   MCP_WRITES_ENABLED: ${{ vars.MCP_WRITES_ENABLED || 'false' }}
   MCP_CLIENT_ID: ${{ vars.MCP_CLIENT_ID }}
+  AUTH0_MANAGEMENT_CLIENT_ID: ${{ vars.AUTH0_MANAGEMENT_CLIENT_ID }}
   VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
 
 jobs:

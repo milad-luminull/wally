@@ -167,6 +167,7 @@ describe('members business logic', () => {
     it('does not claim a pending invitation already linked to another account', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       await createTestUser(db, 'claimant', 'claimant@example.com');
+      await createTestUser(db, 'different-account', 'different@example.com');
       const board = await createTestBoard(db, 'owner');
       const id = await createTestMembership(db, board, {
         userId: 'different-account',
@@ -384,6 +385,7 @@ describe('members business logic', () => {
     it('never claims a row already linked to a different user', async () => {
       await createTestUser(db, 'owner', 'owner@example.com');
       await createTestUser(db, 'redeemer', 'r@example.com');
+      await createTestUser(db, 'someone-else', 'someone-else@example.com');
       const board = await createTestBoard(db, 'owner');
       // The legacy shape: activation used to leave invitedEmail populated next to a uid.
       await createTestMembership(db, board, {

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { INITIAL_BOARD_NAME, type Language } from '@wally/shared';
 import type { VerifiedIdentity } from './auth0.js';
 import type { Database } from '../postgres/client.js';
 import { withTransaction } from '../postgres/transaction.js';
-import { authIdentities, users, whiteboards } from '../postgres/schema/index.js';
+import { authIdentities, deletedIdentities, users, whiteboards } from '../postgres/schema/index.js';
 import { normalizeEmail, type Queryable } from '../db/records.js';
 import { AppError } from '../errors.js';
 
@@ -71,6 +71,19 @@ export async function resolveOrCreateIdentity(
     const mapping = await mappingFor(tx, identity);
     // The mapping cascades with its user, so an existing mapping always has one.
     if (mapping) return { userId: mapping.userId, created: false };
+    // An account deleted within the hour: its browser may still hold a valid token, which
+    // must not quietly sign up again (lib/account/erase.ts).
+    const [tombstone] = await tx
+      .select({ subject: deletedIdentities.subject })
+      .from(deletedIdentities)
+      .where(
+        and(
+          eq(deletedIdentities.issuer, identity.issuer),
+          eq(deletedIdentities.subject, identity.subject),
+          gt(deletedIdentities.expiresAt, new Date()),
+        ),
+      );
+    if (tombstone) throw new AppError(401, 'ACCOUNT_DELETED', 'This account was deleted');
     // Every user writer stores normalizeEmail(email). Checked inside the same serializable
     // transaction as creation, so concurrent first logins cannot bypass the collision check.
     const [collision] = await tx

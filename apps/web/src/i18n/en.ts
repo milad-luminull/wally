@@ -3,12 +3,22 @@ export const en = {
   accountData: {
     title: 'Account and data',
     exportTitle: 'Your data',
-    exportHint:
-      'Downloading your data from Wally is coming soon. Until then, email privacy@luminull.com and we will send you a copy.',
+    exportHint: 'Download everything you can see in Wally as one JSON file.',
     download: 'Download my data',
+    exportFailed: 'Your data could not be downloaded. Try again.',
     deleteTitle: 'Delete account',
-    deleteHint:
-      'Deleting your account from Wally is coming soon. Until then, email privacy@luminull.com and we will delete it for you.',
+    deleteHint: 'Deletes your account and everything you created, at once. This cannot be undone.',
+    deleteBoards: 'These boards are deleted for everyone:',
+    deleteNoBoards: 'You own no boards.',
+    deleteSharedWith: 'shared with {{names}}',
+    deleteNotes:
+      "Your notes on other people's boards are deleted too. Cards you were only assigned to stay.",
+    deleteTypeEmail: 'Type {{email}} to confirm',
+    deleteConfirm: 'Delete my account',
+    deleteFailed: 'Your account could not be deleted. Try again.',
+    deleteLoading: 'Loading your boards…',
+    deleteListFailed: 'Your boards could not be loaded. Close this and try again.',
+    deleted: 'Your account is deleted.',
   },
   privacy: {
     title: 'Privacy information',
@@ -22,7 +32,7 @@ export const en = {
       'Auth0 (Okta) handles login, signup and recovery. Supabase stores Wally’s data. Google runs the Wally server. Cloudflare serves the web app and forwards requests to the server. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider, currently Google (Vertex AI). When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
     retentionTitle: 'Retention and account controls',
     retention:
-      'Your boards and cards do not expire automatically. To receive a copy of your data or have your account deleted, email privacy@luminull.com. Self-service export and deletion in Account and data are coming soon. Operational history and provider backups may follow separate retention schedules; contact us for details.',
+      'Your boards and cards do not expire automatically. Under Account and data you can download a copy of your data or delete your account; deletion takes effect at once. Records other members keep of their own actions can mention you until they expire: after 7 or 30 days, and for an assistant conversation 30 days after its last message. Operational history and provider backups may follow separate retention schedules; contact privacy@luminull.com for details.',
     rightsTitle: 'Your choices',
     rights:
       'You can request access, correction, deletion or portability of your personal data and object to processing based on legitimate interests. You may complain to your competent data-protection authority. Provider arrangements, international-transfer safeguards and the legal bases for processing are subject to the operator’s release approval.',

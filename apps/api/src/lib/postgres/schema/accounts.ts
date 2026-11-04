@@ -78,6 +78,21 @@ export const mcpConnections = pgTable(
 
 export const mcpLimitKindValues = ['writes', 'requests'] as const;
 
+/**
+ * An identity whose account was deleted in the last hour. A browser can still hold a valid
+ * access token for it, and with signup open that token would create a new account; while a
+ * row matches, sign-in refuses instead. Expires through purge_expired().
+ */
+export const deletedIdentities = pgTable(
+  'deleted_identities',
+  {
+    issuer: text().notNull(),
+    subject: text().notNull(),
+    expiresAt: instant().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.issuer, table.subject] }), index().on(table.expiresAt)],
+).enableRLS();
+
 /** A user's MCP request or write count in the current one-minute window. */
 export const mcpLimits = pgTable(
   'mcp_limits',

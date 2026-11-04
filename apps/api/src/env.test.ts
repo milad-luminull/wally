@@ -105,3 +105,19 @@ describe('the fixed Auth0 values', () => {
     _resetEnvCacheForTests();
   });
 });
+
+describe('the Auth0 Management settings', () => {
+  const base = { DATABASE_URL: 'postgres://localhost/wally' };
+  it('come as a pair', () => {
+    _resetEnvCacheForTests();
+    expect(() => loadEnv({ ...base, AUTH0_MANAGEMENT_CLIENT_ID: 'id' })).toThrow(
+      /AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET/,
+    );
+    _resetEnvCacheForTests();
+  });
+  it('are not needed to load the configuration, even in production (migrations run without them)', () => {
+    _resetEnvCacheForTests();
+    expect(loadEnv({ ...base, NODE_ENV: 'production' }).AUTH0_MANAGEMENT_CLIENT_ID).toBeUndefined();
+    _resetEnvCacheForTests();
+  });
+});

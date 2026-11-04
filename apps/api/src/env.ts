@@ -29,6 +29,12 @@ const envSchema = z.object({
   AUTH0_ISSUER: z.literal(AUTH0_ISSUER).optional(),
   AUTH0_AUDIENCE: z.literal(AUTH0_AUDIENCE).optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // The machine-to-machine client that deletes a deleted account's Auth0 user (only
+  // `delete:users`). Both or neither. The production API refuses to start without them
+  // (buildApp); the migration and maintenance commands do not need them. Without them,
+  // account deletion skips Auth0 and logs that it did (local development and CI).
+  AUTH0_MANAGEMENT_CLIENT_ID: z.string().min(1).optional(),
+  AUTH0_MANAGEMENT_CLIENT_SECRET: z.string().min(1).optional(),
   // The assistant's deployment switch. Off by default: with it off, the board response
   // reports `assistantEnabled: false` and every assistant operation answers 404.
   ASSISTANT_ENABLED: z
@@ -69,6 +75,14 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (parsed.data.ASSISTANT_ENABLED && !parsed.data.ASSISTANT_VERTEX_PROJECT)
     throw new Error(
       'Invalid environment configuration: ASSISTANT_VERTEX_PROJECT is required when ASSISTANT_ENABLED=true',
+    );
+  const management = [
+    parsed.data.AUTH0_MANAGEMENT_CLIENT_ID,
+    parsed.data.AUTH0_MANAGEMENT_CLIENT_SECRET,
+  ].filter(Boolean).length;
+  if (management === 1)
+    throw new Error(
+      'Invalid environment configuration: set AUTH0_MANAGEMENT_CLIENT_ID and AUTH0_MANAGEMENT_CLIENT_SECRET together',
     );
   if (parsed.data.MCP_LOCAL_URL) {
     const url = new URL(parsed.data.MCP_LOCAL_URL);
