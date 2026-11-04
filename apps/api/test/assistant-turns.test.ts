@@ -21,6 +21,7 @@ import {
   registerTestUser,
   resetDatabase,
   type TestContext,
+  untilAborted,
 } from './helpers.js';
 
 const usage = { inputTokens: 100, cachedInputTokens: 0, outputTokens: 20, reasoningTokens: 0 };
@@ -157,9 +158,7 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
   }
   if (message === 'slow-last') {
     // The deadline fires while the last step's tool runs; the tool still returns.
-    await new Promise<void>((resolve) =>
-      input.abortSignal?.addEventListener('abort', () => resolve(), { once: true }),
-    );
+    await untilAborted(input.abortSignal);
     return finish('Too late.');
   }
   if (message === 'limit') {
@@ -170,11 +169,8 @@ const fakeRunner: TurnRunner = async (input: TurnInput): Promise<TurnOutput> => 
     return finish('never');
   }
   if (message === 'hang') {
-    await new Promise<never>((_, reject) =>
-      input.abortSignal?.addEventListener('abort', () => reject(input.abortSignal!.reason), {
-        once: true,
-      }),
-    );
+    await untilAborted(input.abortSignal);
+    throw input.abortSignal!.reason;
   }
   if (message === 'echo-instructions') return finish(input.instructions);
   return finish(`Answer to: ${message}`);

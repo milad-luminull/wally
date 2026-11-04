@@ -22,6 +22,18 @@ import { createTestDatabase } from './postgres.js';
 
 export { createTestDatabase, type TestDatabase } from './postgres.js';
 
+/**
+ * Settles once `signal` aborts, at once if it already has: a fake model that never answers.
+ * A fake that awaits something first (onAttempt's database write) can miss an abort that
+ * fired meanwhile, because an `abort` listener added later never runs.
+ */
+export function untilAborted(signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    signal?.addEventListener('abort', () => resolve(), { once: true });
+  });
+}
+
 /** The identity a test registers for a token: the user id it should resolve to, and its profile. */
 export interface TestIdentity {
   uid: string;
