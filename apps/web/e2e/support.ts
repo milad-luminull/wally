@@ -28,11 +28,8 @@ export async function completeSignIn(page: Page) {
   const current = () => new URL(page.url());
   if (onLogin(current()) && !current().pathname.startsWith('/u/consent')) {
     // Passkey progressive enrollment after a password login: CI keeps the password path.
-    const later = /^(Remind me later|Not now|Skip|Später erinnern|Jetzt nicht|Überspringen)$/;
-    await page
-      .getByRole('button', { name: later })
-      .or(page.getByRole('link', { name: later }))
-      .click();
+    // The label is Auth0's, read from the live enrollment page (2026-11-04).
+    await page.getByRole('button', { name: 'Continue without passkeys' }).click();
     await page.waitForURL(
       (url) => inApp(url) || (onLogin(url) && url.pathname.startsWith('/u/consent')),
     );
