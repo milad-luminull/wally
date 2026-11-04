@@ -49,8 +49,8 @@ is the user's ongoing use. This is the owner's decision; GDPR.md records it as s
 1. A share link stops working when its expiry passes, and is deleted soon after. Everyone who
    joined through it loses access at the same moment, and when the owner regenerates or turns
    off the link.
-2. The owner chooses a link's expiry, sees when it expires, sees when it was last used, and
-   sees which members joined through it.
+2. The owner chooses a link's expiry, sees when it expires, and sees which members joined
+   through it.
 3. A pending invite stops being claimable 30 days after it was made, and the row and its
    email address are deleted soon after.
 4. Assistant usage rows older than 12 months are deleted.
@@ -104,59 +104,43 @@ is the user's ongoing use. This is the owner's decision; GDPR.md records it as s
 
 ### Share links
 
-**Schema** (`share_links`), three new columns:
+**Schema** (`share_links`): one new column, `expires_at` (timestamptz, nullable): when the link
+stops working; null means it never expires. The owner's choice of duration (7 days, 30 days,
+never) is an input only and is not stored.
 
-| Column             | Type                  | Meaning                                                                                |
-| ------------------ | --------------------- | -------------------------------------------------------------------------------------- |
-| `expiry`           | text, not null        | The owner's choice: `DAYS_7`, `DAYS_30` or `NEVER` (a check constraint, as `role` has) |
-| `expires_at`       | timestamptz, nullable | When it stops working; null exactly when `expiry` is `NEVER` (a check constraint)      |
-| `last_redeemed_at` | timestamptz, nullable | The last successful redemption by someone other than the board owner                   |
-
-`expiry` is stored so that rotating a link can give the new token the same duration.
-
-**Migration of existing rows:** `expiry = 'DAYS_30'`, `expires_at` = the migration's run time
-plus 30 days (owner decision: existing links expire 30 days after the release; the migration
-runs in the release, so its run time is the release time). `last_redeemed_at` stays null.
+**Migration of existing rows:** `expires_at` = the migration's run time plus 30 days (owner
+decision: existing links expire 30 days after the release; the migration runs in the
+release, so its run time is the release time).
 
 **Contract** (`packages/shared`):
 
-- `shareLinkExpiryValues = ['DAYS_7', 'DAYS_30', 'NEVER']` in the shared enums.
-- `link.create` input: `{ role, expiry }`, `expiry` defaulting to `DAYS_30` when absent so old
-  clients keep working.
-- `link.update` input: `{ role?, expiry? }`, at least one. Changing `expiry` restarts the clock
-  from now (7 or 30 days from the change) or clears it (`NEVER`). Changing only `role` leaves
-  `expires_at` alone.
-- `link.rotate`: new token, same `expiry`, `expires_at` restarted from now, `last_redeemed_at`
-  cleared (it is a new link).
-- `ShareLinkDto` gains `expiry`, `expiresAt` (ISO string or null) and `lastRedeemedAt` (ISO
-  string or null).
+- `shareLinkDurationValues = ['DAYS_7', 'DAYS_30', 'NEVER']` in the shared enums.
+- `link.create` input: `{ role, expiresIn }`, `expiresIn` defaulting to `DAYS_30` when absent
+  so old clients keep working.
+- `link.update` input: `{ role?, expiresIn? }`, at least one. `expiresIn` sets `expires_at`
+  counted from now (or null for `NEVER`). Changing only `role` leaves `expires_at` alone.
+- `link.rotate`: new token, same `expires_at` (Claude's call: regenerating replaces the
+  token, not the deadline).
+- `ShareLinkDto` gains `expiresAt` (ISO string or null).
 
-**Enforcement:**
-
-- `link.redeem`: a link whose `expires_at <= now` is treated exactly like a missing link (the
-  existing 404). The owner opening their own expired link gets the same 404; the owner's
-  "is this my board" shortcut runs after the expiry check.
-- On a successful redemption by a non-owner, set `last_redeemed_at = now`. The token is never
-  logged.
-- `getShareLink` (the owner's view): an expired row not yet purged is returned as no link
-  (404), so the share sheet shows "no link" the moment it expires, not up to an hour later.
-- `link.create` when an expired, not-yet-purged row exists: replace it as if it were absent,
-  rather than the 409 `SHARE_LINK_EXISTS`.
-- `link.update` and `link.rotate` on an expired, not-yet-purged row: 404, as if there were no
-  link. Otherwise setting its expiry to "never" would give its old members their access back.
+**Enforcement — expire on touch:** every link command (`link.create`, `link.update`,
+`link.rotate`, `link.delete`, `link.redeem`) starts by checking the board's link. If it has
+expired, the command removes the link's members (below) and deletes the link, and from then
+on behaves as if there were no link: create succeeds, the others return the existing 404.
+This one step means an expired link can never be changed back to life, and the owner opening
+their own expired link gets the same 404 as anyone (the owner shortcut in `link.redeem` comes
+after it). `getShareLink` (the owner's read-only view) leaves an expired row out, so the share
+sheet shows "no link" the moment it expires. The token is never logged.
 
 **Purge:** `purge_expired()` deletes `share_links` rows with `expires_at <= at`. Rows with a
 null `expires_at` are never touched.
 
 **Web** (`apps/web/src/features/board/Share/ShareLinkControls.tsx`):
 
-- Creating a link: an expiry select next to the role select, with "7 days", "30 days"
-  (pre-selected) and "Never".
-- An existing link: the same select, showing its current choice; changing it sends
-  `link.update` with the new `expiry`.
-- Under the link: "Expires on {{date}}" or "Never expires", and "Last used {{date}}" or "Not used
-  yet". Dates in the user's locale, date only.
-- New strings in `en.ts` and `de.ts`.
+- Creating a link: a duration select with "7 days", "30 days" (pre-selected) and "Never".
+- An existing link: "Expires on {{date}}" or "Never expires", and a "Change expiry" select
+  with the same three options, counted from today.
+- Dates in the user's locale, date only. New strings in `en.ts` and `de.ts`.
 
 ### Members who joined through a link
 
@@ -195,7 +179,7 @@ link joins from invites).
   and the rule exists once. Callers bump the board revision. These are database functions,
   unlike the rest of Wally's logic (ADR-0020), only because the hourly purge runs inside
   the database.
-  - `link.rotate`, `link.delete` and `link.create` over an expired row call it in their own
+  - `link.rotate`, `link.delete` and the expire-on-touch step call it in the command's own
     transaction. No cleanup jobs: the cleanup jobs that exist today are drained only right
     after the command that queued them, or by hand with `pnpm maintenance --cleanup`, so a
     job queued from the hourly purge would never run.
@@ -211,8 +195,7 @@ link joins from invites).
   owner can see who will lose access.
 - Under the link controls, one line: "People who joined through this link lose access when
   it expires, is regenerated or turned off."
-- The confirmations for "Regenerate" and "Turn off" (or, where none exists today, the hint
-  next to the buttons) say the same.
+- That line is the only place the warning appears (Claude's call).
 
 ### Pending invites
 
@@ -223,10 +206,9 @@ No schema change. A pending invite's expiry is `invited_at + 30 days`.
   builder finds every place that claims a `PENDING` row by `invited_email` (at least
   `link.redeem` in `administration.ts` and first-request provisioning) and applies the same
   rule through one shared helper.
-- **Re-inviting** the same address while the invite is still pending restarts the 30 days
-  (`invited_at = now`). Today `member.invite` keeps the old row unchanged except for the
-  role; this changes it to also refresh `invited_at`. (Claude's call: the owner asking again
-  is a fresh purpose.)
+- **Re-inviting** the same address while the invite is still pending changes nothing about
+  its expiry (today's behaviour). To give someone another 30 days, the owner removes the
+  invite and invites again (owner, 2026-11-04).
 - **Member list:** a pending invite shows "Invite expires on {{date}}" instead of the plain
   "Pending" label. Expired rows not yet purged are left out of the list.
 - **Purge:** `purge_expired()` deletes `board_members` rows with `status = 'PENDING'` and
@@ -299,54 +281,55 @@ the owner as a question in the PR, not into the table as a decision.
 
 ## Tests
 
-- **API unit and integration:** redeem refuses an expired link and an expired invite (one
-  second past); redeem sets `last_redeemed_at` for a non-owner and not for the owner;
-  `link.update` with only `role` keeps `expires_at`; with `expiry` restarts it; rotate keeps
-  `expiry`, restarts `expires_at`, clears `last_redeemed_at`; `link.create` over an expired
-  row succeeds; `getShareLink` hides an expired row; re-invite restarts `invited_at`; the
-  migration gives existing links `DAYS_30` and run time plus 30 days; `purge_expired()`
-  deletes exactly the expired links, the old pending invites (not old `ACTIVE` rows) and
-  usage rows older than 12 months, and leaves the rest.
+- **API unit and integration:** every link command treats an expired link as gone (update
+  and rotate 404, create succeeds, members stay locked out); redeem refuses an expired link
+  and an expired invite (one second past), the owner included; `link.update` with only
+  `role` keeps `expires_at`, with `expiresIn` sets it from now; rotate keeps `expires_at`;
+  `getShareLink` hides an expired row; `purge_expired()` deletes exactly the expired links,
+  the old pending invites (not old `ACTIVE` rows) and usage rows older than 12 months, and
+  leaves the rest.
 - **Link members:** redeem sets `joined_by_link`; claiming an invite or being invited by
   email clears it; a link member loses access one second past expiry before any purge;
   rotate and delete remove link members and release their assignments; the purge removes
   them with an expired link and their assignments are released; members with
   `joined_by_link = false` are never touched.
-- **Web unit:** the expiry select, its default, and the expiry and last-used lines; the
+- **Web unit:** the duration select and its default, the expiry and warning lines, the
   member list's expiry line and "Joined by link" label.
 - **E2E** (`apps/web/e2e/share.spec.ts`): create a link with "7 days", see "Expires on" with
   the right date; change it to "Never", see "Never expires". The existing assertion on the
   "Pending" label (`Ausstehend`) changes to the new expiry line. No second-user step: CI has
-  one Auth0 test account, so "Last used" and link-member removal are covered by API and web
-  unit tests (owner, 2026-11-04). Expiry itself is covered by the API tests (a real E2E
-  cannot wait seven days).
+  one Auth0 test account, so link-member removal is covered by API tests (owner,
+  2026-11-04). Expiry itself is covered by the API tests (a real E2E cannot wait seven
+  days).
 
 ## Left to the builder
 
 - Exact names of constants, helpers and i18n keys.
 - How the select and date lines are laid out within the existing share sheet style.
-- Whether the invite-age rule lives in SQL (`invited_at > now() - interval`) or in
-  TypeScript, as long as one helper defines it.
 - How the plan splits into tasks.
 - Known details from the builder check: `purgeExpired`'s `TABLES` map in
   `apps/api/src/lib/db/purge.ts` needs the new keys; the member upsert's
-  `onConflictDoUpdate` must also set `invitedAt` (re-invite) and `joinedByLink`; `MemberDto`
-  gains `inviteExpiresAt` (computed by the API for pending rows, so the 30-day rule lives only
-  on the server) and `joinedByLink`; the create flow has no role select today, only a
-  button that creates a VIEW link, so where the expiry select goes is a layout choice; seed
-  links and invites need the new values.
+  `onConflictDoUpdate` must also set `joinedByLink`; `MemberDto` gains `inviteExpiresAt`
+  (computed by the API for pending rows, so the 30-day rule lives only on the server) and
+  `joinedByLink`; the create flow has no role select today, only a button that creates a
+  VIEW link, so where the duration select goes is a layout choice; seed links and members
+  need the new values.
+
+## Simplified on 2026-11-04 (owner)
+
+After two reviews the owner chose to drop "last used" (`last_redeemed_at`), to store only
+`expires_at` (not the chosen duration), to keep re-inviting as it is today, to show the
+link-member warning in one place only, to handle an expired link in one expire-on-touch
+step, and to use two migrations instead of three.
 
 ## Claude's calls (the owner can overrule any)
 
-1. `expiry` is stored as well as `expires_at`, so rotation keeps the duration.
-2. Changing a link's expiry restarts the clock from the change; changing only its role does
-   not.
-3. Rotation restarts the clock and clears "last used".
-4. An expired link shows the same "not found" state as a deleted one.
-5. Re-inviting a pending address restarts its 30 days.
-6. The owner's own use of a link does not count as "last used".
-7. No warning before expiry, and no invitation email until Wally sends email.
-8. Members who exist before the release are migrated as invited (`joined_by_link = false`),
+1. Changing a link's expiry counts from the change; changing only its role does not touch
+   it.
+2. Regenerating a link keeps its end date.
+3. An expired link shows the same "not found" state as a deleted one.
+4. No warning before expiry, and no invitation email until Wally sends email.
+5. Members who exist before the release are migrated as invited (`joined_by_link = false`),
    so nobody loses access at the release.
-9. Inviting a link member by email makes them permanent; a role change does not.
-10. The member list labels link members "Joined by link".
+6. Inviting a link member by email makes them permanent; a role change does not.
+7. The member list labels link members "Joined by link".
