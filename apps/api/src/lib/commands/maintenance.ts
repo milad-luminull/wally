@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../postgres/client.js';
 import { withTransaction } from '../postgres/transaction.js';
 import { boardCleanup, notes, whiteboards } from '../postgres/schema/index.js';
@@ -21,21 +21,13 @@ export async function drainCleanupJob(db: Database, id: string): Promise<void> {
       // Subtasks and history cascade with the note.
       await tx.delete(notes).where(eq(notes.id, job.noteId!));
     } else if (job.kind === 'member.remove') {
-      // Rejoining or a new grant while the job waited must never erase a now-valid assignment.
+      // Rejoining or a new grant while the job waited must never erase a now-valid assignment;
+      // release_assignments (drizzle/0005_retention.sql) checks that, and skips private notes.
       const board = await liveBoard(tx, job.boardId);
-      if (board && board.ownerId !== job.userId && !board.memberRoles[job.userId!])
-        await tx
-          .update(notes)
-          .set({ assigneeId: null, updatedAt: new Date(), revision: sql`${notes.revision} + 1` })
-          .where(
-            and(
-              eq(notes.boardId, job.boardId),
-              eq(notes.assigneeId, job.userId!),
-              isNull(notes.deletedAt),
-              // A private note stays its creator's, hidden, until they rejoin (PRIVATE_NOTES §3).
-              ne(notes.visibility, 'PRIVATE'),
-            ),
-          );
+      if (board)
+        await tx.execute(
+          sql`select release_assignments(${job.boardId}, ${job.userId}, ${new Date().toISOString()}::timestamptz)`,
+        );
     } else {
       const board = await anyBoard(tx, job.boardId);
       if (board && !board.deletedAt) throw new Error('Invalid board deletion cleanup target');

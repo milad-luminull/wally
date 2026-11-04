@@ -40,6 +40,12 @@ export const boardMembers = pgTable(
     status: text({ enum: membershipStatusValues }).notNull(),
     invitedAt: instant().notNull(),
     activatedAt: instant(),
+    /**
+     * Joined by redeeming the share link, not by an email invite. Such members lose access
+     * when the link expires, is regenerated or is turned off (remove_link_members, migration
+     * 0005_retention). An email invite clears it: that membership is permanent.
+     */
+    joinedByLink: boolean().notNull().default(false),
   },
   (table) => [
     index().on(table.boardId, table.userId),
@@ -61,6 +67,8 @@ export const shareLinks = pgTable(
       .unique()
       .references(() => whiteboards.id, { onDelete: 'cascade' }),
     role: text({ enum: whiteboardRoleValues }).notNull(),
+    /** Null: never expires. Expired links fail at redeem and go with the hourly purge. */
+    expiresAt: instant(),
     createdAt: instant().notNull(),
     updatedAt: instant().notNull(),
   },
