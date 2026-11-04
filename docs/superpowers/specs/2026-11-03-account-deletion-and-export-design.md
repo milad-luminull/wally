@@ -224,9 +224,10 @@ database step failed.
 ### Exporting data
 
 **API:** `GET /me/export` returns `application/json` with
-`Content-Disposition: attachment; filename="wally-export-YYYY-MM-DD.json"`. It is built in
-**one read-only transaction**, from the API's existing queries and DTO mappers
-(`lib/dto.ts`), so it matches what the app shows:
+`Content-Disposition: attachment; filename="wally-export-YYYY-MM-DD.json"`. It is built from
+the API's existing read queries (`listBoards`, `listMembers`, `listNotes`), each its own
+snapshot, plus one query for the subtasks and one for the history of each board's listed
+notes, and the existing DTO mappers (`lib/dto.ts`), so it matches what the app shows:
 
 - `exportedAt` and a `formatVersion`;
 - `profile` (as `/me` returns it);
@@ -280,9 +281,9 @@ the user is gone and in Wally that nothing of it is left. DEPLOY.md holds the st
     and unassigns the rest; other people's data is untouched;
   - a pending invite to their email survives;
   - an Auth0 failure leaves everything in place;
-  - a database conflict re-runs the transaction without calling Auth0 again;
   - without the settings, Auth0 is never called;
-  - an MCP token cannot call `DELETE /me`;
+  - an MCP token cannot call `DELETE /me` (already covered: the REST verifier accepts only
+    the REST audience, `mcp.test.ts`);
   - the tombstone refuses a new account for the old token and expires;
   - export visibility: other people's private notes never appear.
 - **Web unit test:** the Delete button stays disabled until the typed email matches.
