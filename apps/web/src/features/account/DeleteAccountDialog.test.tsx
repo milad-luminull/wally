@@ -40,7 +40,7 @@ function member(
   email: string,
   role: MemberDto['role'],
 ): MemberDto {
-  return { id: userId, userId, displayName, email, role, status: 'ACTIVE' };
+  return { id: userId, userId, displayName, email, role, status: 'ACTIVE', joinedByLink: false };
 }
 
 beforeEach(() => {

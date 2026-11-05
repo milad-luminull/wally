@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Check, Copy, Link2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { whiteboardRoleValues, type WhiteboardRole } from '@wally/shared';
+import {
+  shareLinkDurationValues,
+  whiteboardRoleValues,
+  type ShareLinkDuration,
+  type WhiteboardRole,
+} from '@wally/shared';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -27,7 +32,7 @@ import {
 } from '../hooks/mutations/useShareLinkMutations';
 
 export function ShareLinkControls({ boardId }: { boardId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { whiteboardRole } = useEnumLabels();
   const query = useShareLink(boardId, true);
   const save = useCreateOrUpdateShareLink(boardId);
@@ -35,7 +40,13 @@ export function ShareLinkControls({ boardId }: { boardId: string }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
+  const [newExpiry, setNewExpiry] = useState<ShareLinkDuration>('DAYS_30');
   const link = query.data;
+  const expiryOptions = shareLinkDurationValues.map((duration) => (
+    <SelectItem key={duration} value={duration}>
+      {t(`share.expiry.${duration}`)}
+    </SelectItem>
+  ));
   const busy = save.isPending || change.isPending || query.isFetching;
   useEffect(() => {
     setCopied(false);
@@ -90,7 +101,7 @@ export function ShareLinkControls({ boardId }: { boardId: string }) {
               disabled={busy}
               onValueChange={(role) => {
                 change.reset();
-                save.mutate(role as WhiteboardRole);
+                save.mutate({ role: role as WhiteboardRole });
               }}
             >
               <SelectTrigger aria-label={t('share.linkRoleAria')} className="h-8 w-[120px] text-12">
@@ -103,6 +114,31 @@ export function ShareLinkControls({ boardId }: { boardId: string }) {
                   </SelectItem>
                 ))}
               </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-13 text-fg-2">
+              {link.expiresAt
+                ? t('share.expiresOn', {
+                    date: new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(
+                      new Date(link.expiresAt),
+                    ),
+                  })
+                : t('share.neverExpires')}
+            </span>
+            {/* Re-mounts on every new date, so it always reads "Change expiry" again. */}
+            <Select
+              key={link.expiresAt ?? 'never'}
+              disabled={busy}
+              onValueChange={(duration) => {
+                change.reset();
+                save.mutate({ expiresIn: duration as ShareLinkDuration });
+              }}
+            >
+              <SelectTrigger aria-label={t('share.changeExpiry')} className="h-8 w-[140px] text-12">
+                <SelectValue placeholder={t('share.changeExpiry')} />
+              </SelectTrigger>
+              <SelectContent>{expiryOptions}</SelectContent>
             </Select>
           </div>
           <input
@@ -119,6 +155,7 @@ export function ShareLinkControls({ boardId }: { boardId: string }) {
           <p className="text-12 text-fg-3">
             {t(link.role === 'EDIT' ? 'share.linkHint.EDIT' : 'share.linkHint.VIEW')}
           </p>
+          <p className="text-12 text-fg-3">{t('share.linkMembersHint')}</p>
           {copyFailed && (
             <p role="alert" className="text-12 text-status-danger">
               {t('share.copyFailed')}
@@ -153,16 +190,29 @@ export function ShareLinkControls({ boardId }: { boardId: string }) {
       ) : (
         <>
           <p className="text-12 text-fg-3">{t('share.linkDisabled')}</p>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              change.reset();
-              save.mutate('VIEW');
-            }}
-          >
-            {t('share.enable')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select
+              value={newExpiry}
+              disabled={busy}
+              onValueChange={(duration) => setNewExpiry(duration as ShareLinkDuration)}
+            >
+              <SelectTrigger aria-label={t('share.expiryAria')} className="h-9 w-[120px] text-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>{expiryOptions}</SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => {
+                change.reset();
+                save.mutate({ expiresIn: newExpiry });
+              }}
+            >
+              {t('share.enable')}
+            </Button>
+          </div>
         </>
       )}
       {query.isError && query.data !== undefined && (

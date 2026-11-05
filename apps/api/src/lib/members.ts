@@ -87,6 +87,8 @@ export async function activatePendingInvitesForEmail(
             role: fresh.role,
             status: 'ACTIVE',
             activatedAt: survivor.activatedAt ?? timestamp,
+            // The invite makes membership permanent, even if it began with the share link.
+            joinedByLink: false,
           })
           .where(eq(boardMembers.id, survivor.id));
         // Any further rows are pre-existing corruption; collapse them too rather than

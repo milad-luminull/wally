@@ -4,7 +4,12 @@ import {
   whiteboardCreateSchema,
   whiteboardRenameSchema,
 } from './board.js';
-import { inviteCreateSchema, memberRoleUpdateSchema, shareLinkRoleSchema } from './member.js';
+import {
+  inviteCreateSchema,
+  memberRoleUpdateSchema,
+  shareLinkCreateSchema,
+  shareLinkUpdateSchema,
+} from './member.js';
 import {
   noteAssignSchema,
   noteCreateSchema,
@@ -85,11 +90,9 @@ export const boardCommandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('member.delete'), ...board, memberId: id, input: empty }).strict(),
   z
-    .object({ type: z.literal('link.create'), ...board, input: shareLinkRoleSchema.strict() })
+    .object({ type: z.literal('link.create'), ...board, input: shareLinkCreateSchema.strict() })
     .strict(),
-  z
-    .object({ type: z.literal('link.update'), ...board, input: shareLinkRoleSchema.strict() })
-    .strict(),
+  z.object({ type: z.literal('link.update'), ...board, input: shareLinkUpdateSchema }).strict(),
   z.object({ type: z.literal('link.rotate'), ...board, input: empty }).strict(),
   z.object({ type: z.literal('link.delete'), ...board, input: empty }).strict(),
   z.object({ type: z.literal('link.redeem'), token: id, input: empty }).strict(),

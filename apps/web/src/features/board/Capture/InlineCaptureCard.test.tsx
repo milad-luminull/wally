@@ -107,6 +107,7 @@ describe('InlineCaptureCard', () => {
           displayName: 'Anna Kowalski',
           role: 'EDIT',
           status: 'ACTIVE',
+          joinedByLink: false,
         },
       ]);
   });

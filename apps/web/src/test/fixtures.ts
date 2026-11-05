@@ -46,6 +46,7 @@ export function makeMember(overrides: Partial<MemberDto> = {}): MemberDto {
     displayName: 'Nora Falk',
     role: 'EDIT',
     status: 'ACTIVE',
+    joinedByLink: false,
     ...overrides,
   };
 }

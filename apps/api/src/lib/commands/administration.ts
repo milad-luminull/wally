@@ -1,5 +1,10 @@
-import { and, eq, isNull } from 'drizzle-orm';
-import { MAX_OWN_BOARDS, type BoardCommand, type WhiteboardRole } from '@wally/shared';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import {
+  MAX_OWN_BOARDS,
+  type BoardCommand,
+  type ShareLinkDuration,
+  type WhiteboardRole,
+} from '@wally/shared';
 import { loadUsers } from '../db/records.js';
 import { newId } from '../db/ids.js';
 import type { MemberRow } from '../db/types.js';
@@ -16,6 +21,16 @@ import { AppError } from '../errors.js';
 import { strongestRole } from '../members.js';
 import { generateShareToken } from '../tokens.js';
 import { notFound, type Actor, type CommandContext, type CommandResult } from './context.js';
+
+const DURATION_DAYS: Record<ShareLinkDuration, number | null> = {
+  DAYS_7: 7,
+  DAYS_30: 30,
+  NEVER: null,
+};
+const expiresAtFor = (duration: ShareLinkDuration, from: Date): Date | null => {
+  const days = DURATION_DAYS[duration];
+  return days === null ? null : new Date(from.getTime() + days * 86_400_000);
+};
 
 export function rolesFromMembers(
   rows: MemberRow[],
@@ -162,8 +177,9 @@ export async function executeAdminCommand(
           (user && row.userId === user.id) ||
           (row.userId === null && row.invitedEmail === command.input.email),
       );
+      // An email invite makes membership permanent, even for someone who joined by link.
       next = existing
-        ? { ...existing, role: command.input.role }
+        ? { ...existing, role: command.input.role, joinedByLink: false }
         : {
             id: newId(),
             boardId: board.id,
@@ -173,6 +189,7 @@ export async function executeAdminCommand(
             status: 'PENDING',
             invitedAt: timestamp,
             activatedAt: null,
+            joinedByLink: false,
           };
       if (user)
         next = {
@@ -227,16 +244,19 @@ export async function executeAdminCommand(
         role,
         status: 'ACTIVE',
         activatedAt: existing?.activatedAt ?? timestamp,
+        // Only a membership this link created goes with the link. A claimed invite, or any
+        // existing row that did not come from the link, makes it permanent.
+        joinedByLink: matching.every((row) => row.status === 'ACTIVE' && row.joinedByLink),
       };
       for (const duplicate of matching.slice(1))
         await tx.delete(boardMembers).where(eq(boardMembers.id, duplicate.id));
       nextRows = [...rows.filter((row) => !matching.some((match) => match.id === row.id)), next];
     }
     if (next) {
-      const { userId, invitedEmail, role, status, activatedAt } = next;
+      const { userId, invitedEmail, role, status, activatedAt, joinedByLink } = next;
       await tx.insert(boardMembers).values(next).onConflictDoUpdate({
         target: boardMembers.id,
-        set: { userId, invitedEmail, role, status, activatedAt },
+        set: { userId, invitedEmail, role, status, activatedAt, joinedByLink },
       });
     }
     const memberRoles = rolesFromMembers(nextRows, board.ownerId);
@@ -261,17 +281,35 @@ export async function executeAdminCommand(
     if (command.type === 'link.create' && existing)
       throw new AppError(409, 'SHARE_LINK_EXISTS', 'A share link already exists for this board');
     if (command.type !== 'link.create' && !existing) notFound();
+    // Regenerating or turning off the link takes everyone who joined through it along
+    // (remove_link_members, drizzle/0005_retention.sql); updateBoard bumps the revision.
+    if (command.type === 'link.rotate' || command.type === 'link.delete')
+      await tx.execute(
+        sql`select remove_link_members(${board.id}, ${timestamp.toISOString()}::timestamptz)`,
+      );
     if (command.type === 'link.delete') {
       await tx.delete(shareLinks).where(eq(shareLinks.token, existing!.token));
       await updateBoard();
       return result(null, 204);
     }
-    if (command.type === 'link.update' && existing!.role === command.input.role)
+    let expiresAt = existing?.expiresAt ?? null;
+    if (command.type === 'link.create')
+      expiresAt = expiresAtFor(command.input.expiresIn, timestamp);
+    if (command.type === 'link.update' && command.input.expiresIn)
+      expiresAt = expiresAtFor(command.input.expiresIn, timestamp);
+    const role =
+      command.type === 'link.rotate' ? existing!.role : (command.input.role ?? existing!.role);
+    if (
+      command.type === 'link.update' &&
+      existing!.role === role &&
+      command.input.expiresIn === undefined
+    )
       return result(toShareLinkDto(existing!, ctx.baseUrl), 200, board.revision);
     const link = {
       token: command.type === 'link.update' ? existing!.token : generateShareToken(),
       boardId: board.id,
-      role: command.type === 'link.rotate' ? existing!.role : command.input.role,
+      role,
+      expiresAt,
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };

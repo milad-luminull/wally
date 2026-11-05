@@ -1,8 +1,8 @@
 import { captureBoardMutation } from './shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSessionMutation as useMutation } from '@/lib/useSessionMutation';
-import type { ShareLinkDto, WhiteboardRole } from '@wally/shared';
-import { shareLinkApi } from '@/lib/resources';
+import type { ShareLinkDto } from '@wally/shared';
+import { shareLinkApi, type ShareLinkChange } from '@/lib/resources';
 import { useQueryKeys } from '../queryKeys';
 
 export function useCreateOrUpdateShareLink(boardId: string) {
@@ -11,23 +11,25 @@ export function useCreateOrUpdateShareLink(boardId: string) {
 
   return useMutation({
     meta: { silentError: true },
-    mutationFn: (role: WhiteboardRole) =>
+    mutationFn: (change: ShareLinkChange) =>
       shareLinkApi.createOrUpdate(
         boardId,
-        role,
+        change,
         Boolean(queryClient.getQueryData(keys.shareLink(boardId))),
         captureBoardMutation(queryClient, keys, boardId, 'shareLink'),
       ),
-    onMutate: (role) => {
+    // Only a role change is shown before the server answers; a new expiry date comes back
+    // from the server.
+    onMutate: ({ role }) => {
       void queryClient.cancelQueries({ queryKey: keys.shareLink(boardId) });
       const previous = queryClient.getQueryData<ShareLinkDto>(keys.shareLink(boardId));
-      if (previous)
+      if (previous && role)
         queryClient.setQueryData<ShareLinkDto>(keys.shareLink(boardId), { ...previous, role });
       return { previous };
     },
-    onError: (_err, role, context) => {
+    onError: (_err, { role }, context) => {
       const before = context?.previous;
-      if (before)
+      if (before && role)
         queryClient.setQueryData<ShareLinkDto>(keys.shareLink(boardId), (current) =>
           current?.token === before.token && current.role === role
             ? { ...current, role: before.role }
@@ -61,6 +63,10 @@ export function useChangeShareLink(boardId: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: keys.shareLink(boardId) });
+      // Regenerating or turning off the link removes the people who joined through it and
+      // unassigns their notes on the server.
+      void queryClient.invalidateQueries({ queryKey: keys.members(boardId) });
+      void queryClient.invalidateQueries({ queryKey: keys.notes(boardId) });
     },
   });
 }

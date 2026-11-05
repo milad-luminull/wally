@@ -32,7 +32,7 @@ export const en = {
       'Auth0 (Okta) handles login, signup and recovery. Supabase stores Wally’s data. Google runs the Wally server. Cloudflare serves the web app and forwards requests to the server. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider, currently Google (Vertex AI). When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
     retentionTitle: 'Retention and account controls',
     retention:
-      'Your boards and cards do not expire automatically. Under Account and data you can download a copy of your data or delete your account; deletion takes effect at once. Records other members keep of their own actions can mention you until they expire: after 7 or 30 days, and for an assistant conversation 30 days after its last message. Operational history and provider backups may follow separate retention schedules; contact privacy@luminull.com for details.',
+      'Your boards and cards do not expire automatically; they stay until you delete them. Invitations to people without a Wally account are deleted, with the email address, after 30 days. Share links expire after the period the board owner picks (7 days, 30 days or never), and people who joined through a link lose access when it expires, is regenerated or turned off. Daily assistant usage counts are kept for 30 days. Under Account and data you can download a copy of your data or delete your account; deletion takes effect at once. Records other members keep of their own actions can mention you until they expire: after 7 or 30 days, and for an assistant conversation 30 days after its last message. Operational history and provider backups may follow separate retention schedules; contact privacy@luminull.com for details.',
     rightsTitle: 'Your choices',
     rights:
       'You can request access, correction, deletion or portability of your personal data and object to processing based on legitimate interests. You may complain to your competent data-protection authority. Provider arrangements, international-transfer safeguards and the legal bases for processing are subject to the operator’s release approval.',
@@ -978,7 +978,7 @@ export const en = {
     regenerate: 'Regenerate link',
     replace: 'Replace link',
     regenerateHint:
-      'The old link will stop working. People already added to this board keep their access.',
+      'The old link will stop working, and people who joined through it lose access. People invited by email keep theirs.',
     linkDisabled: 'Link sharing is off. Only people already added to this board can access it.',
     linkSaveFailed: 'Could not update link settings. Please try again.',
     linkUrlAria: 'Board share link',
@@ -987,6 +987,17 @@ export const en = {
     title: 'Share “{{name}}”',
     copy: 'Copy board link',
     copied: 'Copied',
+    expiry: {
+      DAYS_7: '7 days',
+      DAYS_30: '30 days',
+      NEVER: 'Never',
+    },
+    expiryAria: 'How long the link works',
+    changeExpiry: 'Change expiry',
+    expiresOn: 'Expires on {{date}}',
+    neverExpires: 'Never expires',
+    linkMembersHint:
+      'People who joined through this link lose access when it expires, is regenerated or turned off.',
     linkRoleAria: 'Role for the link',
     linkLabel: 'Anyone with the link',
     linkHint: {
@@ -997,6 +1008,7 @@ export const en = {
     privateNotesHint: 'Members can keep private notes that only they can see.',
     members: {
       pending: 'Pending',
+      joinedByLink: 'Joined by link',
       roleAria: "{{name}}'s role",
       remove: 'Remove {{name}}',
     },

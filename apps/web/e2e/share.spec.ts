@@ -25,4 +25,16 @@ test('inviting a colleague and copying the share link', async ({ page, context }
   if (await enable.isVisible()) await enable.click();
   await page.getByRole('button', { name: 'Board-Link kopieren' }).click();
   await expect(page.getByRole('button', { name: 'Kopiert' })).toBeVisible();
+
+  // Expiry (retention, 2026-11-04): seven days from today, then never. The run ends on
+  // "never", so the shared test board's link never expires between runs.
+  const inSevenDays = new Intl.DateTimeFormat('de', { dateStyle: 'medium' }).format(
+    new Date(Date.now() + 7 * 86_400_000),
+  );
+  await page.getByRole('combobox', { name: 'Ablauf ändern' }).click();
+  await page.getByRole('option', { name: '7 Tage' }).click();
+  await expect(page.getByText(`Läuft ab am ${inSevenDays}`)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Ablauf ändern' }).click();
+  await page.getByRole('option', { name: 'Nie' }).click();
+  await expect(page.getByText('Läuft nie ab')).toBeVisible();
 });

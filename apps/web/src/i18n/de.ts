@@ -40,7 +40,7 @@ export const de = {
       'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Supabase speichert die Daten von Wally. Google betreibt den Wally-Server. Cloudflare liefert die Web-App aus und leitet Anfragen an den Server weiter. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter, derzeit Google (Vertex AI). Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
     retentionTitle: 'Aufbewahrung und Kontofunktionen',
     retention:
-      'Boards und Karten laufen nicht automatisch ab. Unter Konto und Daten kannst du eine Kopie deiner Daten herunterladen oder dein Konto löschen; die Löschung wirkt sofort. Aufzeichnungen anderer Mitglieder über ihre eigenen Aktionen können dich erwähnen, bis sie ablaufen: nach 7 oder 30 Tagen, bei einem Assistenten-Gespräch 30 Tage nach seiner letzten Nachricht. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere privacy@luminull.com für Details.',
+      'Boards und Karten laufen nicht automatisch ab; sie bleiben, bis du sie löschst. Einladungen an Personen ohne Wally-Konto werden nach 30 Tagen samt E-Mail-Adresse gelöscht. Freigabelinks laufen nach der Frist ab, die der Board-Eigentümer wählt (7 Tage, 30 Tage oder nie), und wer über einen Link beigetreten ist, verliert den Zugang, wenn der Link abläuft, neu erstellt oder deaktiviert wird. Die tägliche Nutzung des Assistenten wird 30 Tage gespeichert. Unter Konto und Daten kannst du eine Kopie deiner Daten herunterladen oder dein Konto löschen; die Löschung wirkt sofort. Aufzeichnungen anderer Mitglieder über ihre eigenen Aktionen können dich erwähnen, bis sie ablaufen: nach 7 oder 30 Tagen, bei einem Assistenten-Gespräch 30 Tage nach seiner letzten Nachricht. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere privacy@luminull.com für Details.',
     rightsTitle: 'Deine Möglichkeiten',
     rights:
       'Du kannst Auskunft, Berichtigung, Löschung oder Übertragbarkeit deiner personenbezogenen Daten verlangen und einer Verarbeitung aufgrund berechtigter Interessen widersprechen. Du kannst dich bei deiner zuständigen Datenschutzaufsichtsbehörde beschweren. Anbietervereinbarungen, Schutzmaßnahmen für internationale Übermittlungen und Rechtsgrundlagen müssen vor der Veröffentlichung vom Betreiber freigegeben werden.',
@@ -1017,7 +1017,7 @@ export const de = {
     regenerate: 'Link erneuern',
     replace: 'Link ersetzen',
     regenerateHint:
-      'Der alte Link funktioniert danach nicht mehr. Personen, die bereits zu diesem Board hinzugefügt wurden, behalten ihren Zugriff.',
+      'Der alte Link funktioniert danach nicht mehr, und wer über ihn beigetreten ist, verliert den Zugang. Per E-Mail eingeladene Personen behalten ihn.',
     linkDisabled:
       'Die Link-Freigabe ist aus. Nur Personen, die bereits zu diesem Board hinzugefügt wurden, haben Zugriff.',
     linkSaveFailed:
@@ -1028,6 +1028,17 @@ export const de = {
     title: '„{{name}}“ teilen',
     copy: 'Board-Link kopieren',
     copied: 'Kopiert',
+    expiry: {
+      DAYS_7: '7 Tage',
+      DAYS_30: '30 Tage',
+      NEVER: 'Nie',
+    },
+    expiryAria: 'Wie lange der Link gilt',
+    changeExpiry: 'Ablauf ändern',
+    expiresOn: 'Läuft ab am {{date}}',
+    neverExpires: 'Läuft nie ab',
+    linkMembersHint:
+      'Wer über diesen Link beigetreten ist, verliert den Zugang, wenn der Link abläuft, neu erstellt oder deaktiviert wird.',
     linkRoleAria: 'Rolle für den Link',
     linkLabel: 'Jeder mit dem Link',
     linkHint: {
@@ -1038,6 +1049,7 @@ export const de = {
     privateNotesHint: 'Mitglieder können private Notizen anlegen, die nur sie selbst sehen.',
     members: {
       pending: 'Ausstehend',
+      joinedByLink: 'Über den Link beigetreten',
       roleAria: 'Rolle von {{name}}',
       remove: '{{name}} entfernen',
     },
