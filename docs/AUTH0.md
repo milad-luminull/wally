@@ -7,10 +7,10 @@ removed ([DEPLOY.md](DEPLOY.md#firebase-retired)). The decision is
 [ADR-0016](adr/ADR-0016-auth0-for-web-and-mcp.md); delivery history is in
 [the rollout](rfcs/RFC-0006-auth0-mcp-rollout.md).
 
-Where the browser talks to Supabase (Realtime, planned), Supabase trusts the Auth0 ID token
-through Third-Party Auth
-([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)). Not built
-yet: the Post Login Action does not add the `role` claim Supabase requires.
+Where the browser talks to Supabase (planned), Supabase trusts the Auth0 ID token through
+Third-Party Auth, as a custom OIDC provider
+([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)). Setup:
+[Supabase Third-Party Auth](#supabase-third-party-auth).
 
 ## Configuration
 
@@ -73,6 +73,10 @@ The issuer and audiences are pinned in code, not supplied by variables. See
   refresh-token exchange whose `email_verified` is not `true` (reason `EMAIL_NOT_VERIFIED`,
   shown by the web app as "verify your email"). It then adds signed email,
   email-verification and name claims for the REST and MCP audiences only.
+- The same Action adds `role: authenticated` to the **ID token** of Wally's web app client
+  (`Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp`) and nowhere else. Supabase requires that literal
+  claim ([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md));
+  access tokens never carry it, so Supabase runs them as `anon`.
 - Missing claims fail closed. The browser cannot supply a trusted email or verification
   flag.
 - Board authorization always runs in Wally.
@@ -178,6 +182,25 @@ Auth0's hosted page offers two connections
 The E2E helper (`apps/web/e2e/support.ts`) signs in with a password on either login layout
 and skips the passkey prompt with Auth0's **Continue without passkeys** button. CI cannot
 enter a passkey.
+
+## Supabase Third-Party Auth
+
+Supabase trusts the tenant's ID tokens through a **custom OIDC provider**, not the dedicated
+Auth0 integration: that integration only knows `<tenant>.auth0.com` issuers, and Wally's
+tokens are issued by `https://login.luminull.com/`
+([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)).
+
+**Setup, in this order** (owner, after the PR that adds the `role` claim is merged):
+
+1. Deploy `infra/auth0-post-login.cjs` to the tenant's Post Login Action.
+2. Supabase Dashboard > project `wally` > Authentication > Third-Party Auth > add a
+   **Custom OIDC** provider with the issuer `https://login.luminull.com/`
+   ([custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc)). If the
+   form refuses the custom domain, stop: no fallback is chosen.
+3. Leave every sign-in method in Supabase Auth off; Wally creates no users there.
+
+Nothing in Wally sends the ID token to Supabase yet; the first feature that does is the
+first real check.
 
 ## MCP client
 
