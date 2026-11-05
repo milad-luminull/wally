@@ -1,7 +1,7 @@
 # ADR-0027: Supabase trusts Auth0 tokens through Third-Party Auth
 
 - **Status:** accepted
-- **Date:** 2026-11-03
+- **Date:** 2026-11-03, amended 2026-11-05 (custom OIDC provider; no proof)
 - **Deciders:** Milad Rezazadeh
 
 ## Context and problem statement
@@ -25,7 +25,7 @@ then know who the browser is. Which token does it trust?
 
 ## Considered options
 
-1. **Supabase Third-Party Auth with Auth0 as the provider:**
+1. **Supabase Third-Party Auth trusting Wally's Auth0 tenant:**
    - Good: documented, and Supabase's APIs only verify, never issue, these tokens.
    - Bad: database policies depend on the shape of an Auth0 token.
 2. **Fastify mints Supabase-format tokens with the project's signing secret:**
@@ -40,13 +40,26 @@ then know who the browser is. Which token does it trust?
 
 Chosen option: **option 1**.
 
-- **Trust:** the Supabase project adds Auth0 as a third-party provider. It needs
-  asymmetrically signed tokens with a `kid`; Auth0's RS256 is supported, HS256 and PS256
-  are not ([Auth0 integration](https://supabase.com/docs/guides/auth/third-party/auth0)).
+- **Trust:** the Supabase project adds a **custom OIDC provider** with the issuer
+  `https://login.luminull.com/` (Authentication > Third-Party Auth). Supabase requires the
+  discovery document at `<issuer>/.well-known/openid-configuration`, asymmetrically signed
+  tokens with a `kid`, and a `role` claim; symmetric HS256 is not supported
+  ([custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc)). Wally's
+  tenant serves that document at its custom domain, with the same issuer, and signs ID
+  tokens with RS256 (checked 2026-11-05).
+- **Not the dedicated Auth0 integration:** it is configured by tenant ID and region only
+  ([Auth0 integration](https://supabase.com/docs/guides/auth/third-party/auth0)), and the
+  Supabase CLI derives its issuer as `https://<tenant>[.<region>].auth0.com`
+  ([CLI source](https://github.com/supabase/cli/blob/main/packages/config/src/auth/third_party.ts)).
+  Wally's tokens are issued by the custom domain, which passkeys are bound to
+  ([ADR-0028](ADR-0028-one-auth0-identity-per-account-with-passkeys.md)), so that
+  integration would refuse them.
 - **Token:** the browser passes its Auth0 **ID token** through supabase-js's `accessToken`
   option. Supabase requires a literal `role` claim, and Auth0 strips non-namespaced claims
   from access tokens, so Wally's Post Login Action sets `role: authenticated` on the ID
-  token only (same page).
+  token only, and only for Wally's web app client (same page). `authenticated` is the
+  PostgreSQL role Supabase runs signed-in requests as, and Supabase's docs name that
+  value; Wally adds no role of its own.
 - **Access tokens stay out:** REST and MCP access tokens carry no `role` claim, so Supabase
   runs them as `anon` ([custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc)).
   Policies grant only `authenticated` and also check `iss` and `aud` (the SPA client),
@@ -70,19 +83,16 @@ Chosen option: **option 1**.
   ([usage](https://supabase.com/docs/guides/platform/manage-your-usage/monthly-active-users-third-party)).
 - Bad: Realtime and Storage policies depend on Auth0's claim names and on one Action.
 - Bad: a rotated Auth0 signing key can take up to 30 minutes to reach Supabase (overview).
-- Neutral: Wally's tokens are issued by the custom domain `https://login.luminull.com/`.
-  Whether the Auth0 integration, configured by tenant ID, accepts that issuer is
-  _unverified_; Supabase's custom OIDC provider takes any HTTPS issuer with a discovery
-  document and is the fallback.
+- Neutral: whether the dashboard's custom OIDC form accepts the custom-domain issuer is
+  _unverified_ until the owner adds it; the documentation states no restriction on the
+  issuer beyond HTTPS and the discovery document.
 
 ### Confirmation
 
-Before the first feature that uses it, a proof on a free project shows that:
-
-- an Auth0 ID token from `login.luminull.com` joins the user's own private Realtime
-  channel, with the Data API off;
-- the same token cannot join another user's channel;
-- REST and MCP access tokens are refused.
+- Tests of the Post Login Action (`scripts/auth0-post-login.test.mjs`) show that only the
+  web app's ID token carries `role: authenticated`, and no access token does.
+- No separate proof (owner, 2026-11-05). The first feature that sends this token to
+  Supabase shows that Supabase accepts it, and that REST and MCP access tokens are refused.
 
 ## More information
 

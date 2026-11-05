@@ -5,6 +5,10 @@ exports.onExecutePostLogin = async (event, api) => {
     api.access.deny('EMAIL_NOT_VERIFIED');
     return;
   }
+  // Supabase Third-Party Auth (ADR-0027) needs a literal `role` claim. Only the web app's
+  // ID token gets it; access tokens never do, so Supabase runs them as `anon`.
+  if (event.client?.client_id === 'Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp')
+    api.idToken.setCustomClaim('role', 'authenticated');
   const audience = event.resource_server?.identifier;
   if (
     audience !== 'https://api.wally.luminull.com' &&
