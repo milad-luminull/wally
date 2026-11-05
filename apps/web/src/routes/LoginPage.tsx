@@ -9,7 +9,7 @@ import { AuthLayout } from './AuthLayout';
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { status, expired } = useAuth();
+  const { status, expired, signedOut } = useAuth();
   const location = useLocation();
   // Read once, cleared after render: the message shows on the page the deletion lands on.
   const [deleted] = useState(() => {
@@ -19,13 +19,16 @@ export function LoginPage() {
       return false;
     }
   });
+  // signOut() marks the session signed out before it leaves for Auth0's logout, so the
+  // protected route can show this page first. Only the page Auth0 returns to clears the flag.
   useEffect(() => {
+    if (signedOut) return;
     try {
       sessionStorage.removeItem(ACCOUNT_DELETED_FLAG);
     } catch {
       /* Storage blocked. */
     }
-  }, []);
+  }, [signedOut]);
   // Navigate only after AuthProvider has a usable token; entering the protected route
   // early would lose the return path.
   const target = boardEntryWithReturn(readReturnPath(location.state));
