@@ -74,7 +74,8 @@ The issuer and audiences are pinned in code, not supplied by variables. See
   shown by the web app as "verify your email"). It then adds signed email,
   email-verification and name claims for the REST and MCP audiences only.
 - The same Action adds `role: authenticated` to the **ID token** of Wally's web app client
-  (`Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp`) and nowhere else. Supabase requires that literal
+  and nowhere else. It reads that client's ID from the Action secret `WEB_CLIENT_ID`; without
+  the secret, no token gets the claim. Supabase requires that literal
   claim ([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md));
   access tokens never carry it, so Supabase runs them as `anon`.
 - Missing claims fail closed. The browser cannot supply a trusted email or verification
@@ -192,12 +193,24 @@ tokens are issued by `https://login.luminull.com/`
 
 **Setup, in this order** (owner, after the PR that adds the `role` claim is merged):
 
-1. Deploy `infra/auth0-post-login.cjs` to the tenant's Post Login Action.
-2. Supabase Dashboard > project `wally` > Authentication > Third-Party Auth > add a
-   **Custom OIDC** provider with the issuer `https://login.luminull.com/`
-   ([custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc)). If the
-   form refuses the custom domain, stop: no fallback is chosen.
-3. Leave every sign-in method in Supabase Auth off; Wally creates no users there.
+1. In the Post Login Action's editor, add the secret `WEB_CLIENT_ID` (key icon > Add Secret)
+   with the web app's client ID, the value of the `VITE_AUTH0_CLIENT_ID` variable
+   ([Actions secrets](https://auth0.com/docs/customize/actions/write-your-first-action)).
+   The ID is public, but Auth0's editor flags any literal that looks like a key.
+2. Deploy `infra/auth0-post-login.cjs` to the tenant's Post Login Action.
+3. Supabase Dashboard > project `wally` > Authentication > Sign In / Providers >
+   **Third-Party Auth** tab > **Add provider** > **Custom OIDC**, Issuer URL
+   `https://login.luminull.com/`
+   ([custom OIDC](https://supabase.com/docs/guides/auth/third-party/custom-oidc)). Not the
+   **Custom Providers** section at the bottom of the Supabase Auth providers list: that
+   adds a sign-in method to Supabase Auth, which Wally does not use. If the form refuses the
+   custom domain, stop: no fallback is chosen.
+4. Turn every Supabase Auth sign-in method off; Wally creates no users there. On the same
+   **Sign In / Providers** page: turn off **Allow new users to sign up** and **Allow
+   anonymous sign-ins**; open **Email** and turn the provider off (it is on by default);
+   keep Phone, every social provider and **Custom Providers** off or empty. Authentication >
+   Users stays empty. Third-Party Auth does not need any of them: Supabase only verifies
+   the Auth0 token.
 
 Nothing in Wally sends the ID token to Supabase yet; the first feature that does is the
 first real check.

@@ -57,7 +57,8 @@ Chosen option: **option 1**.
 - **Token:** the browser passes its Auth0 **ID token** through supabase-js's `accessToken`
   option. Supabase requires a literal `role` claim, and Auth0 strips non-namespaced claims
   from access tokens, so Wally's Post Login Action sets `role: authenticated` on the ID
-  token only, and only for Wally's web app client (same page). `authenticated` is the
+  token only, and only for Wally's web app client, whose ID the Action reads from its
+  secret `WEB_CLIENT_ID` (same page). `authenticated` is the
   PostgreSQL role Supabase runs signed-in requests as, and Supabase's docs name that
   value; Wally adds no role of its own.
 - **Access tokens stay out:** REST and MCP access tokens carry no `role` claim, so Supabase
