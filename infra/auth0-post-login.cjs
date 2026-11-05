@@ -6,8 +6,10 @@ exports.onExecutePostLogin = async (event, api) => {
     return;
   }
   // Supabase Third-Party Auth (ADR-0027) needs a literal `role` claim. Only the web app's
-  // ID token gets it; access tokens never do, so Supabase runs them as `anon`.
-  if (event.client?.client_id === 'Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp')
+  // ID token gets it; access tokens never do, so Supabase runs them as `anon`. The client ID
+  // comes from the Action secret WEB_CLIENT_ID; without it, no token gets the claim.
+  const webClientId = event.secrets?.WEB_CLIENT_ID;
+  if (webClientId && event.client?.client_id === webClientId)
     api.idToken.setCustomClaim('role', 'authenticated');
   const audience = event.resource_server?.identifier;
   if (
