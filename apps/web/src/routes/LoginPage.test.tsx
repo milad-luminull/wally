@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 
 const auth = vi.hoisted(() => ({
-  current: { status: 'unauthenticated', expired: null } as {
+  current: { status: 'unauthenticated', expired: null, signedOut: false } as {
     status: string;
     expired: { unsaved: number } | null;
+    signedOut: boolean;
   },
 }));
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -28,12 +29,12 @@ describe('LoginPage', () => {
   });
 
   it('says the session ended, and how many unsaved changes could not be kept', () => {
-    auth.current = { status: 'unauthenticated', expired: { unsaved: 2 } };
+    auth.current = { status: 'unauthenticated', expired: { unsaved: 2 }, signedOut: false };
     renderWithProviders(<LoginPage />, { route: '/login' });
     expect(screen.getByRole('status')).toHaveTextContent(
       'Your session ended, and 2 unsaved changes couldn’t be kept.',
     );
-    auth.current = { status: 'unauthenticated', expired: null };
+    auth.current = { status: 'unauthenticated', expired: null, signedOut: false };
   });
 
   it('confirms a deleted account once, then forgets it', () => {
@@ -41,5 +42,16 @@ describe('LoginPage', () => {
     renderWithProviders(<LoginPage />, { route: '/login' });
     expect(screen.getByRole('status')).toHaveTextContent('Your account is deleted.');
     expect(sessionStorage.getItem('wally.accountDeleted')).toBeNull();
+  });
+
+  // Signing out sets the status first, so the protected route shows /login before the browser
+  // leaves for Auth0's logout. That page must keep the flag for the page Auth0 returns to.
+  it('keeps the deleted flag while the sign-out is still on its way to Auth0', () => {
+    sessionStorage.setItem('wally.accountDeleted', '1');
+    auth.current = { status: 'unauthenticated', expired: null, signedOut: true };
+    renderWithProviders(<LoginPage />, { route: '/login' });
+    expect(sessionStorage.getItem('wally.accountDeleted')).toBe('1');
+    auth.current = { status: 'unauthenticated', expired: null, signedOut: false };
+    sessionStorage.removeItem('wally.accountDeleted');
   });
 });
