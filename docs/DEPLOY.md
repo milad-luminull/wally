@@ -1433,7 +1433,7 @@ start without the client, and the release refuses to build without its ID.
 ### Proof after the release
 
 CI and local runs never call Auth0, so the token exchange and the delete first run in
-production. Right after the release:
+production. Right after the release (done for v0.16.0 on 2026-11-05, all five checks passed):
 
 1. Sign up at `https://wally.luminull.com` with a throwaway address, and create a note.
 2. **Account and data** → **Download my data**: the file holds the profile and the note.

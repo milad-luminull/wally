@@ -107,8 +107,8 @@ The invariants:
   - Settling happens exactly once, and releasing keeps the charge.
 - **Assistant records:** conversation turn-count guards, and compare-and-set claims on
   suggestions and tidies.
-- **Account export and deletion:** not built today. They are rebuilt on PostgreSQL
-  later, against the new schema.
+- **Account export and deletion:** rebuilt on PostgreSQL against the new schema, live since
+  v0.16.0 (2026-11-05, [GDPR.md](../GDPR.md) GAP-01, GAP-02).
 - **Invites:** activation only for a verified email. Duplicate rows collapse. An invite
   for the board owner is removed.
 - **Error codes:** today Firestore's gRPC codes map to Wally errors (5 → 404, contention
