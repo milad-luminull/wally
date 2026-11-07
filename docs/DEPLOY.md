@@ -5,8 +5,10 @@ deployed to Google Cloud before. Every command is meant to be copy-pasted in ord
 
 Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
-> **Where production stands (2026-11-01).** Production runs v0.13.0: the API on Cloud Run
-> reads and writes Supabase PostgreSQL through the transaction pooler, and the edge is
+> **Where production stands (2026-11-07).** Production runs v0.17.2: the API on Cloud Run
+> in `luminull-wally-prod`, created with Terraform
+> ([Infrastructure in Terraform](#infrastructure-in-terraform)), reads and writes Supabase
+> PostgreSQL through the transaction pooler, and the edge is
 > Cloudflare ([ADR-0022](adr/ADR-0022-cloudflare-pages-and-api-proxy.md)). The Worker
 > `wally-web` serves the web app's static files at `wally.luminull.com`, and the Worker
 > `wally-api-proxy` forwards `api.wally.luminull.com` to Cloud Run. The release deploys both
@@ -1474,7 +1476,8 @@ Removed in PR #76 with self-service account export and deletion; its cloud resou
 Wally's infrastructure moves into Terraform ([ADR-0026](adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
 [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **The foundation is applied (2026-11-07).** The release
 deploys to the project the `GCP_*` variables name. From the switch (RFC-0011 section 10,
-step 2) that is `luminull-wally-prod`, at `https://wally-api-ttkwy6mnka-ew.a.run.app`.
+step 2, live since v0.17.2 on 2026-11-07) that is `luminull-wally-prod`, at
+`https://wally-api-ttkwy6mnka-ew.a.run.app`.
 Sections 3 to 9 describe the hand setup of `luminull-wally`; they are rewritten when that
 project is retired (step 3).
 

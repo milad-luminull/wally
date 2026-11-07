@@ -3,7 +3,8 @@
 - **Status:** accepted by the owner on 2026-10-26; open decisions settled on 2026-10-27
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
   (both 2026-11-01). Workstream 6 (Firebase retired) is live since v0.14.0
-  (2026-11-01). See section 4.
+  (2026-11-01), and workstream 7 (Terraform, the new Google Cloud project) since v0.17.2
+  (2026-11-07). See section 4.
 - **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03, 2026-11-05 and
   2026-11-07
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
@@ -426,7 +427,10 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
    leaves the service's labels to the release, which writes the commit into them. The first
    release into the new service needs a Wally revision serving there first
    ([DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform)): v0.17.0 stopped safely for that
-   reason, and the next tag completes the switch.
+   reason, and the next tag completes the switch. **Done 2026-11-07 with v0.17.2.** v0.17.1
+   stopped at the production smoke test, 0.2 s after deploying a correct web bundle, while the
+   previous Worker version still answered some requests, and rolled itself back; the check
+   now retries for a minute (#116).
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).
