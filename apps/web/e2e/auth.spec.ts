@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { completeSignIn, hasE2eCredentials } from './support';
 
+// These specs test the sign-in itself, so they start signed out, not from the saved session.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test('sign in with email/password loads the seeded board', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
 

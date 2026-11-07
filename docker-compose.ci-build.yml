@@ -1,0 +1,10 @@
+# CI only (.github/workflows/ci.yml, E2E job). Names the images that docker/bake-action builds
+# once, with layers cached in GitHub Actions' cache, so `docker compose up` finds them and does
+# not build again. `migrate` runs the API image.
+services:
+  migrate:
+    image: wally-ci-api
+  api:
+    image: wally-ci-api
+  web:
+    image: wally-ci-web

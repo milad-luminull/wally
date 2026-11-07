@@ -108,8 +108,11 @@ jobs:
       # records a real incident where typecheck was clean and the production build failed.
       - run: pnpm turbo run typecheck build --cache-dir=.turbo/cache
 
-  unit-tests:
-    name: Unit & integration tests
+  # The API's suites need PostgreSQL and run on their own runner; the others (web and
+  # api-proxy) run on another, without the database. `Unit & integration tests`
+  # below is the required check and passes only when both passed.
+  unit-api:
+    name: Unit & integration tests (API)
     # Skipped when a pull request has no app impact (the `changes` job, ADR-0029).
     needs: [changes]
     if: needs.changes.outputs.app == 'true'
@@ -139,7 +142,46 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Run tests
-        run: pnpm turbo run test
+        run: pnpm turbo run test --filter=@wally/api
+
+  unit-rest:
+    name: Unit tests (web and API proxy)
+    needs: [changes]
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: ./.github/actions/setup
+
+      - name: Run tests
+        run: pnpm turbo run test --filter='!@wally/api'
+
+  # The required check keeps its name (the ruleset on main requires it) and gathers the two.
+  # It passes when both passed, or when both were skipped because the `changes` job found no
+  # app impact; any other result, a failed `changes` job included, fails it.
+  unit-tests:
+    name: Unit & integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [changes, unit-api, unit-rest]
+    if: always()
+    steps:
+      - name: Require both unit jobs to have passed
+        env:
+          API: ${{ needs.unit-api.result }}
+          REST: ${{ needs.unit-rest.result }}
+          NO_APP_IMPACT: ${{ needs.changes.result == 'success' && needs.changes.outputs.app == 'false' }}
+        run: |
+          set -euo pipefail
+          echo "API: $API, web and API proxy: $REST"
+          if [ "$API" = "success" ] && [ "$REST" = "success" ]; then exit 0; fi
+          if [ "$NO_APP_IMPACT" = "true" ] && [ "$API" = "skipped" ] && [ "$REST" = "skipped" ]; then
+            echo "Skipped: this pull request has no app impact (ADR-0029)."; exit 0
+          fi
+          echo "::error title=Unit tests failed::API=$API, web and API proxy=$REST"
+          exit 1
 
   e2e:
     name: E2E (full stack)
@@ -149,7 +191,7 @@ jobs:
       # CI signs in with Auth0, as production does, through the hosted login page. The app and
       # API are served over HTTPS under their production names, mapped to loopback inside this
       # runner only (docker-compose.auth0-ci.yml and the preparation step below).
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml:docker-compose.auth0-ci.yml
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml:docker-compose.ci-build.yml:docker-compose.auth0-ci.yml
       PLAYWRIGHT_BASE_URL: https://wally.luminull.com
     # Only run where the secrets actually exist. `github.event.pull_request` is null for
     # push, so the event check short-circuits and the job runs on main, whose result
@@ -191,13 +233,32 @@ jobs:
             fi
           done
 
-      # chromium AND webkit: the mobile-list-only project uses devices['iPhone 13'], whose
-      # defaultBrowserType is 'webkit'. Installing only chromium silently breaks it.
-      - if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @wally/web exec playwright install --with-deps chromium webkit
-      # The cache holds browser binaries, not the apt libraries they link against.
-      - if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @wally/web exec playwright install-deps chromium webkit
+      # The browsers' system libraries (apt, about 45 s) install in the background while the
+      # images build, then the job waits for them. chromium AND webkit: the mobile-list-only
+      # project uses devices['iPhone 13'], whose defaultBrowserType is 'webkit'. Installing
+      # only chromium silently breaks it. The cache holds browser binaries, not the apt
+      # libraries they link against. libnss3-tools is for the HTTPS step below.
+      - name: Start installing the browsers' dependencies
+        env:
+          CACHE_HIT: ${{ steps.pw-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/browser-deps.log"
+          (
+            status=0
+            {
+              if [ "$CACHE_HIT" = "true" ]; then
+                pnpm --filter @wally/web exec playwright install-deps chromium webkit
+              else
+                pnpm --filter @wally/web exec playwright install --with-deps chromium webkit
+              fi
+              sudo apt-get install -y libnss3-tools
+            } > "$log" 2>&1 || status=$?
+            echo "$status" > "$RUNNER_TEMP/browser-deps.status"
+          ) < /dev/null > /dev/null 2>&1 &
+          # Detached from this step's output, so the step ends now and the install carries on.
+          disown
+          echo "started; log at $log"
 
       # docker-compose.yml declares `env_file: .env` non-optionally, so compose aborts if
       # the file is missing. Optional variables are left out rather than blanked: env_file
@@ -221,6 +282,38 @@ jobs:
           ASSISTANT_ENABLED=false
           EOF
 
+      # Builds the api and web images once, reusing layers from GitHub Actions' cache, and
+      # loads them under the names in docker-compose.ci-build.yml. docker-compose.auth0-ci.yml
+      # is left out: it builds nothing and needs AUTH0_CI_TLS_DIR, which is set later.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the images
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
+        with:
+          source: .
+          files: |
+            docker-compose.yml
+            docker-compose.ci.yml
+            docker-compose.ci-build.yml
+          targets: api,web
+          load: true
+          set: |
+            api.cache-from=type=gha,scope=e2e-api
+            api.cache-to=type=gha,scope=e2e-api
+            web.cache-from=type=gha,scope=e2e-web
+            web.cache-to=type=gha,scope=e2e-web
+
+      - name: Wait for the browsers' dependencies
+        run: |
+          set -euo pipefail
+          status_file="$RUNNER_TEMP/browser-deps.status"
+          for _ in $(seq 1 300); do
+            [ -f "$status_file" ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/browser-deps.log"
+          [ -f "$status_file" ] || { echo "::error::browser dependencies still installing after 5 minutes"; exit 1; }
+          [ "$(cat "$status_file")" = "0" ] || { echo "::error::installing the browser dependencies failed"; exit 1; }
+
       # Same-site HTTPS is necessary for memory-only Auth0 session restoration.
       # Trust an ephemeral CA only inside this disposable runner; never ignore TLS errors.
       - name: Prepare isolated Auth0 HTTPS origins
@@ -242,7 +335,6 @@ jobs:
           chmod 600 "$tls_dir/ca.key" "$tls_dir/server.key"
           sudo cp "$tls_dir/ca.crt" /usr/local/share/ca-certificates/wally-ci.crt
           sudo update-ca-certificates
-          sudo apt-get install -y libnss3-tools
           mkdir -p "$HOME/.pki/nssdb"
           if [ ! -f "$HOME/.pki/nssdb/cert9.db" ]; then
             certutil -N --empty-password -d "sql:$HOME/.pki/nssdb"
@@ -258,11 +350,12 @@ jobs:
           echo "NODE_EXTRA_CA_CERTS=$tls_dir/ca.crt" >> "$GITHUB_ENV"
 
       # NOT `make up`: that is `docker compose up -d` with no wait, so a container that dies
-      # at boot surfaces as an opaque Playwright timeout instead of a readable error.
+      # at boot surfaces as an opaque Playwright timeout instead of a readable error. No
+      # --build: the images are built above, and compose uses them by name.
       - name: Start the stack
         run: |
           docker compose \
-            up -d --build --wait --wait-timeout 300
+            up -d --wait --wait-timeout 300
 
       # --wait honours the compose healthchecks, but those run INSIDE the containers and say
       # nothing about the published ports; `web` has no healthcheck at all. Assert from the
@@ -327,7 +420,7 @@ jobs:
       - name: Fail if the suite was vacuously green
         if: always()
         env:
-          MIN_EXECUTED: '26' # 24 under chromium-desktop + 1 under mobile-list-only + 1 under account-deletion
+          MIN_EXECUTED: '27' # 1 under setup + 24 under chromium-desktop + 1 under mobile-list-only + 1 under account-deletion
         run: |
           set -euo pipefail
           REPORT=apps/web/playwright-results.json
@@ -354,8 +447,8 @@ jobs:
             echo "::error title=Vacuous E2E run::only $EXECUTED test(s) executed, expected at least $MIN_EXECUTED"
             exit 1
           fi
-          if [ "$PROJECTS" -lt 3 ]; then
-            echo "::error title=Vacuous E2E run::only $PROJECTS Playwright project(s) produced results; expected chromium-desktop, mobile-list-only and account-deletion"
+          if [ "$PROJECTS" -lt 4 ]; then
+            echo "::error title=Vacuous E2E run::only $PROJECTS Playwright project(s) produced results; expected setup, chromium-desktop, mobile-list-only and account-deletion"
             exit 1
           fi
           echo "E2E: $EXECUTED executed, 0 skipped, across $PROJECTS projects."
@@ -388,9 +481,9 @@ jobs:
   # `e2e` is skipped there — and a skipped required check counts as passing, which would let
   # exactly the least-trusted PRs merge with no E2E at all.
   #
-  # It also stands guard for `Typecheck & build` and `Unit & integration tests`: they skip
-  # when the `changes` job fails, and those skips pass as required checks too. If that job
-  # failed, NO_APP_IMPACT below is false, so the gate fails.
+  # It also stands guard for `Typecheck & build`: it skips when the `changes` job fails, and
+  # that skip passes as a required check too. If that job failed, NO_APP_IMPACT below is
+  # false, so the gate fails. (`Unit & integration tests` checks the same itself.)
   e2e-gate:
     name: E2E gate
     runs-on: ubuntu-24.04

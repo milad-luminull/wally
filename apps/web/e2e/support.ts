@@ -1,9 +1,18 @@
-import { expect, type Page } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+import { expect, test, type Page } from '@playwright/test';
 
 export const EMAIL = process.env.E2E_USER_EMAIL ?? '';
 const PASSWORD = process.env.E2E_USER_PASSWORD ?? '';
 
 export const hasE2eCredentials = Boolean(EMAIL && PASSWORD);
+
+/**
+ * Where auth.setup.ts saves the signed-in browser state. It holds the Auth0 session cookie, so
+ * it stays out of test-results/ and playwright-report/, which CI uploads (.gitignore covers it).
+ */
+export const STORAGE_STATE = fileURLToPath(
+  new URL('../playwright/.auth/state.json', import.meta.url),
+);
 
 /** Start from Wally's login page; sign in on Auth0's hosted page, never bypassing API verification. */
 export async function completeSignIn(page: Page) {
@@ -42,7 +51,30 @@ export async function completeSignIn(page: Page) {
   await page.waitForURL(/\/boards(\/[^/?#]+)?(\?.*)?$/);
 }
 
+/**
+ * Opens the test account's first board. In a project that starts from auth.setup.ts's saved
+ * state, the stored Auth0 session signs the app in on page load; landing on /login there is
+ * a failure, never a reason to sign in again. Elsewhere it signs in through Auth0.
+ */
 export async function signIn(page: Page) {
+  if (test.info().project.use.storageState) {
+    await page.goto('/boards');
+    const openBoard = page.getByRole('link', { name: 'Meine Wand öffnen' }).first();
+    const path = () => new URL(page.url()).pathname;
+    await expect
+      .poll(
+        async () => /^\/boards\/[^/]+/.test(path()) || path() === '/login' || openBoard.isVisible(),
+      )
+      .toBe(true);
+    if (path() === '/login') {
+      throw new Error('The saved Auth0 session did not sign the app in (see e2e/auth.setup.ts).');
+    }
+    if (path() === '/boards') {
+      await openBoard.click();
+      await page.waitForURL(/\/boards\/.+/);
+    }
+    return;
+  }
   await page.goto('/login');
   await completeSignIn(page);
   if (new URL(page.url()).pathname === '/boards') {

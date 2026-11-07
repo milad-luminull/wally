@@ -1040,14 +1040,14 @@ Deliberately out of scope, in rough order of when you will want them:
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on
 pushes to `main`, in six jobs:
 
-| Job                                   | What it proves                                                                                                                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Lint & format**                     | `prettier --check` and `eslint` across the workspace.                                                                                                                                       |
-| **Typecheck & build**                 | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed.                          |
-| **Unit & integration tests**          | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).                                     |
-| **E2E (full stack)**                  | Playwright against a real `docker compose` stack.                                                                                                                                           |
-| **Detect changes without app impact** | Whether a pull request changes anything besides documentation, Terraform, the Auth0 Action and a few files no CI job reads (see below). Typecheck & build, the unit suites and E2E read it. |
-| **E2E gate**                          | Passes when E2E passed, or was skipped for a pull request without app impact; fails otherwise. See below.                                                                                   |
+| Job                                   | What it proves                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Lint & format**                     | `prettier --check` and `eslint` across the workspace.                                                                                                                                                                                                              |
+| **Typecheck & build**                 | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed.                                                                                                 |
+| **Unit & integration tests**          | Passes when both unit jobs passed: the API's Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose, where each API test file clones its own database (ADR-0025); and the web and API-proxy suites, on a runner of their own. |
+| **E2E (full stack)**                  | Playwright against a real `docker compose` stack.                                                                                                                                                                                                                  |
+| **Detect changes without app impact** | Whether a pull request changes anything besides documentation, Terraform, the Auth0 Action and a few files no CI job reads (see below). Typecheck & build, the unit suites and E2E read it.                                                                        |
+| **E2E gate**                          | Passes when E2E passed, or was skipped for a pull request without app impact; fails otherwise. See below.                                                                                                                                                          |
 
 ### Two things about the E2E job that are easy to get wrong
 
@@ -1060,8 +1060,8 @@ and the data is disposable. Production only ever gets read-only smoke checks.
 **A green E2E job is not automatically a meaningful one.** Every spec opens with
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
 nothing. The workflow parses Playwright's JSON report and fails if any test reported
-`skipped`, if fewer than `MIN_EXECUTED` (26: 24 under chromium-desktop, 1 under
-mobile-list-only and 1 under account-deletion) executed, or if fewer than three projects
+`skipped`, if fewer than `MIN_EXECUTED` (27: 1 under setup, 24 under chromium-desktop, 1
+under mobile-list-only and 1 under account-deletion) executed, or if fewer than four projects
 produced results.
 
 ### Pull requests without app impact

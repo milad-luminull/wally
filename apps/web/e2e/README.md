@@ -19,9 +19,18 @@ No more." — they intentionally don't chase edge cases; that's what the Vitest 
 again; an `afterEach` removes any `E2E …` board a failed run left behind, because a second
 board makes sign-in land on the board home instead of the board.
 
+The specs sign in through Auth0's hosted page once. The `setup` project
+(`auth.setup.ts`) signs in and saves the browser state to `playwright/.auth/state.json`, and
+the `chromium-desktop` and `mobile-list-only` projects start from it: the app keeps its tokens
+in memory, and Auth0's session cookie in that state signs it in again on each page load.
+`signIn()` then only opens the board, and fails if a spec lands on `/login`. The file holds
+that session cookie, so it is gitignored and sits outside `test-results/` and
+`playwright-report/`, which CI uploads. `auth.spec.ts` starts signed out, because it tests the
+sign-in itself.
+
 `account-delete.spec.ts` deletes the test account's Wally data. It runs in its own
 Playwright project, `account-deletion`, which depends on the other two and so starts only
-after they have passed. CI's database is new for every run, so the next run's seed creates
+after they have passed. It signs in through Auth0 on its own. CI's database is new for every run, so the next run's seed creates
 the account again, and CI has no Auth0 Management secret, so the Auth0 test user is never
 deleted.
 
