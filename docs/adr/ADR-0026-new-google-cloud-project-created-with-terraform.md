@@ -1,9 +1,9 @@
 # ADR-0026: Wally's infrastructure in Terraform, starting with a new Google Cloud project
 
 - **Status:** accepted
-- **Date:** 2026-11-01; scope widened from Google Cloud to every provider on 2026-11-05, and
-  Supabase deferred on 2026-11-06, edited in place by the owner's decision rather than
-  superseded
+- **Date:** 2026-11-01; scope widened from Google Cloud to every provider on 2026-11-05,
+  Supabase deferred on 2026-11-06, and Auth0's Google connection deferred to the cutover on
+  2026-11-07, edited in place by the owner's decision rather than superseded
 - **Deciders:** Milad Rezazadeh
 
 ## Context and problem statement
@@ -44,7 +44,9 @@ Chosen option: **4**. The rules:
 - **Imported, never recreated:** the Auth0 tenant's configuration, the Workers' Custom Domains,
   Supabase's Third-Party Auth provider, and the GitHub environment and variables. They hold
   users, passkeys, hostnames or trust, and Terraform's `import` blocks adopt them as they are
-  ([import](https://developer.hashicorp.com/terraform/language/import)).
+  ([import](https://developer.hashicorp.com/terraform/language/import)). Auth0's Google
+  connection is adopted at the cutover, with a new Google OAuth client: the current one lives
+  in `luminull-wally`, and importing the connection stores its secret.
 - **One owner per setting:** Terraform owns the infrastructure; the release owns the API image,
   its environment and the Worker versions; the Drizzle migrations own the schema and pg_cron;
   `wrangler.jsonc` owns Worker settings. Terraform ignores what another owner sets
@@ -78,8 +80,8 @@ Supabase database and the Auth0 tenant do not change.
 - Bad: the Supabase project stays by hand. Importing it leaves the password empty in state, so
   the next apply resets the live password, and the one setting Wally changed, the Data API
   switch, cannot be expressed (owner, 2026-11-06).
-- Bad: Terraform holds long-lived credentials (a GitHub App key, and tokens for Auth0 and
-  Cloudflare), stored as secrets of a protected GitHub environment, each scoped as narrowly as
+- Bad: Terraform holds long-lived credentials (a GitHub App key, an Auth0 client secret, and
+  Cloudflare and Supabase tokens), stored as secrets of a protected GitHub environment, each scoped as narrowly as
   its provider allows. Access to the state bucket is limited to Terraform's identity and the
   owner ([security](https://docs.cloud.google.com/docs/terraform/best-practices/security)).
 - Bad: a cutover with its own checks. The new Cloud Run service gets a new `run.app` address,

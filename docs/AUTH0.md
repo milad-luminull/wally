@@ -12,6 +12,13 @@ Third-Party Auth, as a custom OIDC provider
 ([ADR-0027](adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md)). Setup:
 [Supabase Third-Party Auth](#supabase-third-party-auth).
 
+**Terraform holds the tenant's configuration for Wally** ([`auth0.tf`](../infra/terraform/wally/auth0.tf),
+[DEPLOY.md](DEPLOY.md#infrastructure-in-terraform)): the tenant settings, the login prompt,
+`login.luminull.com`, the email connection, the Wally Web, Wally ChatGPT (PKCE) and Wally
+account deletion applications with their grants, both APIs and the post-login Action. Change
+them there: the next plan shows a dashboard change as drift and reverts it. Users stay in the
+dashboard, and so does the Google connection until the cutover (RFC-0011 section 10).
+
 ## Configuration
 
 The root `.env` feeds Docker Compose. `.env.example` turns signup on for local use and
@@ -180,6 +187,8 @@ Auth0's hosted page offers two connections
 4. On `Username-Password-Authentication`: turn **Requires Username** off and enable
    **passkeys**, with progressive enrollment on (Authentication Methods > Passkey).
 
+Terraform now holds steps 2 to 4; step 1 stays by hand for any new CI account.
+
 The E2E helper (`apps/web/e2e/support.ts`) signs in with a password on either login layout
 and skips the passkey prompt with Auth0's **Continue without passkeys** button. CI cannot
 enter a passkey.
@@ -211,6 +220,10 @@ tokens are issued by `https://login.luminull.com/`
    keep Phone, every social provider and **Custom Providers** off or empty. Authentication >
    Users stays empty. Third-Party Auth does not need any of them: Supabase only verifies
    the Auth0 token.
+
+Terraform now holds steps 1 to 3: the Action's `WEB_CLIENT_ID` is a write-only secret taken
+from the web client, never stored in state. Step 4 stays by hand, because Supabase Auth's own
+settings belong to the project, which stays outside Terraform.
 
 Nothing in Wally sends the ID token to Supabase yet; the first feature that does is the
 first real check.

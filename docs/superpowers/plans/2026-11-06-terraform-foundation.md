@@ -1,6 +1,6 @@
 # Terraform foundation Implementation Plan
 
-**Status:** in progress on branch `claude/infra-as-code-rfc-ed34cc`.
+**Status:** done: merged in #108 and #109, applied on 2026-11-07.
 
 **Goal:** Slice 1 of RFC-0011 workstream 7 ([section 10](../../rfcs/RFC-0011-platform-migration.md#10-infrastructure-in-terraform-workstream-7)):
 the Terraform code for the new Google Cloud project `luminull-wally-prod` and for GitHub, the
