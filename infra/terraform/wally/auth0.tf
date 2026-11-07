@@ -1,6 +1,5 @@
 # The Auth0 tenant's configuration for Wally, imported as it was on 2026-11-07 (ADR-0026).
-# Users stay in Auth0. The Google connection follows at the cutover with its new OAuth client
-# (RFC-0011 section 10). Other apps in the tenant, Terraform's own among them, are not managed.
+# Users stay in Auth0. Other apps in the tenant, Terraform's own among them, are not managed.
 
 locals {
   auth0_domain = "dev-4tuhqfy0z1yepp5h.eu.auth0.com"
@@ -124,6 +123,32 @@ resource "auth0_connection" "email" {
 import {
   to = auth0_connection.email
   id = "con_Tedbh7n8BICpjEfw"
+}
+
+# Google sign-in, through the OAuth client in luminull-wally-prod (RFC-0011 section 10). The
+# client secret is write-only: sent from the pipeline's secret, never read back or stored. Bump
+# options_client_secret_wo_version to send a new one.
+resource "auth0_connection" "google" {
+  name                 = "google-oauth2"
+  strategy             = "google-oauth2"
+  is_domain_connection = true
+
+  options_client_secret_wo         = var.google_oauth_client_secret
+  options_client_secret_wo_version = 1
+
+  options {
+    client_id = "299735685184-9mvp3p834clnm95sl553e28dm0ks1r8p.apps.googleusercontent.com"
+    scopes    = ["email", "profile"]
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+import {
+  to = auth0_connection.google
+  id = "con_xzyPDBmxaJGgEUCH"
 }
 
 resource "auth0_resource_server" "api" {
