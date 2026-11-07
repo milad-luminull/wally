@@ -1,6 +1,6 @@
 COMPOSE := docker compose
 
-.PHONY: up down logs test lint typecheck format seed
+.PHONY: up down logs test lint typecheck format seed status
 
 ## Build and start the whole stack (PostgreSQL, api, web).
 up:
@@ -37,3 +37,7 @@ format:
 ## Load development seed data (idempotent).
 seed:
 	$(COMPOSE) run --rm api pnpm --filter @wally/api seed
+
+## Where every change stands: PRs, approvals, Terraform, release. Read-only (docs/DEPLOY.md).
+status:
+	@scripts/status.sh

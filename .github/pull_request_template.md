@@ -15,6 +15,14 @@ From `docs/SETUP.md` — CI enforces the first three; the rest are yours to conf
 - [ ] Docs updated, or not needed. A decision that is hard to reverse has an ADR under `docs/adr/` (see `docs/adr/README.md`)
 - [ ] Any RFC or ADR this builds, changes or removes has its **In production** cell updated in `docs/rfcs/README.md` or `docs/adr/README.md`
 
+## After merge
+
+<!-- Filled in by whoever opens the PR: tick what the merge starts, and list any manual step (a change to infra/terraform/bootstrap is one: the owner applies it by hand). -->
+
+- [ ] Terraform plan/apply will run (approve Apply): this changes `infra/terraform/wally/` or `infra/auth0-post-login.cjs`
+- [ ] Release needed (app code changed): this changes `apps/web`, `apps/api`, `apps/api-proxy` or `packages`, so a `v*` tag follows
+- [ ] Manual steps, in order, with who does each:
+
 ## Anything reviewers should know
 
 <!-- Trade-offs, things deliberately left out, follow-ups worth filing. -->

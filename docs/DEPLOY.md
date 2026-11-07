@@ -15,6 +15,32 @@ Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 > Cloud Run domain mapping is deleted. Firebase is retired
 > ([Firebase retired](#firebase-retired)).
 
+## Lifecycle of a change
+
+Every change takes the same path. The owner acts at the steps in bold; everything else
+runs by itself.
+
+1. **A pull request** against `main`. Its description's "After merge" section says what the
+   merge will start: a Terraform plan, a release, or manual steps.
+2. **CI** runs on it ([section 17](#17-continuous-integration)). A pull request that changes
+   only documentation, Terraform or the Auth0 Action skips the slow jobs
+   ([ADR-0029](adr/ADR-0029-skip-slow-ci-jobs-on-pull-requests-without-app-impact.md)). The
+   ruleset on `main` blocks the merge until the required checks pass.
+3. **The owner merges.** The push to `main` runs CI again, in full.
+4. If Terraform changed (`infra/terraform/wally/` or the Auth0 Action), the Infrastructure
+   workflow plans at once and shows the plan in the run summary. **The owner reads it and
+   approves Apply** ([Infrastructure in Terraform](#infrastructure-in-terraform)).
+5. If app code changed (`apps/web`, `apps/api`, `apps/api-proxy`, `packages`), a `v*` tag is
+   pushed, by the owner or by a Claude session the owner asked
+   ([section 13](#13-deploying-again-later)).
+6. **The owner approves the deploy** on the `production` environment. Then the change is
+   live.
+
+`make status` shows where things stand: open pull requests and their checks, runs waiting
+for an approval, the last Terraform run on `main`, whether a release is due, and a list of
+what is waiting on you. It only reads; it never approves, merges, tags or pushes. It needs
+`gh` signed in as `milad-luminull` and `jq`.
+
 ---
 
 ## 1. What you are actually deploying
@@ -718,7 +744,10 @@ below, in the same order, then smoke-tests the result:
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-The run pauses on the `production` GitHub Environment until someone approves it. It
+`make status` says whether a release is due and suggests the next tag. A Claude session may
+push the tag when the owner asks it to (decided 2026-11-07). Pushing a tag deploys nothing
+by itself: the run pauses on the `production` GitHub Environment until the owner approves
+it, and that approval is the gate. It
 authenticates with Workload Identity Federation, so there is no key to manage — which is
 just as well, since the organization blocks service-account key creation entirely.
 
@@ -1007,14 +1036,14 @@ Deliberately out of scope, in rough order of when you will want them:
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on
 pushes to `main`, in six jobs:
 
-| Job                          | What it proves                                                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Lint & format**            | `prettier --check` and `eslint` across the workspace.                                                                                                              |
-| **Typecheck & build**        | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
-| **Unit & integration tests** | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).            |
-| **E2E (full stack)**         | Playwright against a real `docker compose` stack.                                                                                                                  |
-| **Detect docs-only changes** | Whether a pull request changes anything besides `*.md` files and `docs/`. Only the E2E job reads it.                                                               |
-| **E2E gate**                 | The required check: passes when E2E passed or was skipped for a docs-only change, fails otherwise. See below.                                                      |
+| Job                                   | What it proves                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Lint & format**                     | `prettier --check` and `eslint` across the workspace.                                                                                                              |
+| **Typecheck & build**                 | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
+| **Unit & integration tests**          | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).            |
+| **E2E (full stack)**                  | Playwright against a real `docker compose` stack.                                                                                                                  |
+| **Detect changes without app impact** | Whether a pull request changes anything besides documentation, Terraform and the Auth0 Action. Typecheck & build, the unit suites and E2E read it.                 |
+| **E2E gate**                          | Passes when E2E passed, or was skipped for a pull request without app impact; fails otherwise. See below.                                                          |
 
 ### Two things about the E2E job that are easy to get wrong
 
@@ -1030,13 +1059,30 @@ nothing. The workflow parses Playwright's JSON report and fails if any test repo
 `skipped`, if fewer than `MIN_EXECUTED` (22, every listed test) executed, or if fewer than
 two projects produced results.
 
-### Documentation-only pull requests
+### Pull requests without app impact
 
-When every file a pull request changes is a `*.md` file or sits under `docs/`, the E2E job is
-skipped and `E2E gate` passes, saying why. Everything else still runs, so Markdown is still
-format-checked. Pushes to `main` always run E2E, because the release workflow requires `main`'s
-full CI run before it deploys. The reasoning is in
-[ADR-0012](adr/ADR-0012-skip-e2e-on-documentation-only-pull-requests.md).
+When every file a pull request changes is a `*.md` file, sits under `docs/` or
+`infra/terraform/`, or is `infra/auth0-post-login.cjs`, nothing CI builds or tests can change.
+Typecheck & build, the unit suites and E2E are skipped, and `E2E gate` passes, saying why.
+Lint & format still runs, so Markdown is still format-checked and the Auth0 Action's test
+(`scripts/auth0-post-login.test.mjs`) still runs; Terraform gets its own `Format and validate`
+check from the Infrastructure workflow. Any other file, `.github/` included, runs everything.
+Pushes to `main` always run everything, because the release workflow requires `main`'s full CI
+run before it deploys. The reasoning is in
+[ADR-0029](adr/ADR-0029-skip-slow-ci-jobs-on-pull-requests-without-app-impact.md), which
+widened [ADR-0012](adr/ADR-0012-skip-e2e-on-documentation-only-pull-requests.md).
+
+### Required checks on `main`
+
+A repository ruleset, managed by Terraform (`github_repository_ruleset.main` in
+[`infra/terraform/wally/github.tf`](../infra/terraform/wally/github.tf)), makes `main` change
+only through a pull request whose `E2E gate`, `Lint & format`, `Typecheck & build` and
+`Unit & integration tests` checks passed. A skipped check counts as passed, which is what lets
+the skips above through. No approving review is required, because the owner opens and merges
+their own pull requests. The owner, as the repository's admin, may bypass the ruleset on a
+pull request, for a fix while CI is red for an outside reason; GitHub records each bypass.
+Direct pushes and force pushes to `main` are refused. Tags are not covered: the release's own
+gate is the `production` approval.
 
 ### Pull requests from forks
 
@@ -1044,7 +1090,7 @@ The repository is public, so anyone can open a pull request. GitHub withholds se
 fork PRs, which is the desired behaviour — but it means the E2E job cannot run. It is
 therefore skipped there, and a separate **`E2E gate`** job fails with an explanation.
 
-Make `E2E gate` the required status check, **not** `E2E (full stack)`: a skipped required
+`E2E gate` is the required status check, **not** `E2E (full stack)`: a skipped required
 check counts as passing, which would let exactly the least-trusted pull requests merge with
 no end-to-end coverage at all.
 
@@ -1480,36 +1526,40 @@ project is retired (step 3).
 
 ### What Terraform manages
 
-| Root                                                         | Applied by                                                                | Manages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`infra/terraform/bootstrap`](../infra/terraform/bootstrap/) | The owner, from their machine                                             | The project `luminull-wally-prod`, its billing link and budget, its APIs, the state bucket `luminull-wally-prod-tfstate`, and Terraform's own identity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| [`infra/terraform/wally`](../infra/terraform/wally/)         | [Infrastructure](../.github/workflows/infrastructure.yml), after approval | In the new project: `wally-api` and `github-deployer`, the release's Workload Identity Federation, Artifact Registry, the two secrets without their values, and the Cloud Run service. On GitHub: the `production` environment and the release's variables. In Auth0: the tenant settings, the login prompt, `login.luminull.com`, the email and Google connections, the Wally Web, Wally ChatGPT (PKCE) and Wally account deletion applications with their grants, the two APIs, and the post-login Action, deployed from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs). On Cloudflare: the two Custom Domains. On Supabase: the Third-Party Auth provider |
+| Root                                                         | Applied by                                                                | Manages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`infra/terraform/bootstrap`](../infra/terraform/bootstrap/) | The owner, from their machine                                             | The project `luminull-wally-prod`, its billing link and budget, its APIs, the state bucket `luminull-wally-prod-tfstate`, and Terraform's own identity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| [`infra/terraform/wally`](../infra/terraform/wally/)         | [Infrastructure](../.github/workflows/infrastructure.yml), after approval | In the new project: `wally-api` and `github-deployer`, the release's Workload Identity Federation, Artifact Registry, the two secrets without their values, and the Cloud Run service. On GitHub: the `production` environment, the release's variables and the ruleset on `main`. In Auth0: the tenant settings, the login prompt, `login.luminull.com`, the email and Google connections, the Wally Web, Wally ChatGPT (PKCE) and Wally account deletion applications with their grants, the two APIs, and the post-login Action, deployed from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs). On Cloudflare: the two Custom Domains. On Supabase: the Third-Party Auth provider |
 
 Change these in the code, not in a dashboard. A dashboard change to a setting the code holds
 shows in the next plan and is reverted by its apply; a plan runs only when the code changes.
 
 **The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
-without credentials. A push to `main` that touches `infra/terraform/wally/` waits for the
-owner's approval, then saves a plan and prints it in the run summary; a second approval
-applies exactly that plan. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
+without credentials. A push to `main` that touches `infra/terraform/wally/` or the Auth0
+Action saves a plan at once and prints it in the run summary (the Plan job, in the
+`infrastructure-plan` environment). The owner reads it and approves the Apply job (the
+`infrastructure` environment), which applies exactly that plan: one approval per change. Plan
+runs with Terraform's credentials without a click; that is acceptable because both
+environments allow `main` only and the Workload Identity provider accepts tokens from `main`
+alone, so only code on `main` can run it. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
 no secret value.
 
 ### What stays outside Terraform, and how it is checked
 
-| Part                                                                                                                                                                          | Why                                                                                                                                                                                                                        | Kept true by                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Organization policies, the organization's roles, the billing account                                                                                                          | They belong to the organization, not to Wally                                                                                                                                                                              | The bootstrap's first apply fails on a missing role; the budget emails on spend                  |
-| Terraform's own access: the `infrastructure` environment, the GitHub App, the `wally-terraform` Auth0 application, the Cloudflare and Supabase tokens, the state bucket's IAM | The pipeline's root does not manage them. Terraform's identity may grant only the three roles that root grants, but it can change the project's service accounts and identity pools, so read each plan before approving it | The bootstrap steps below; the environment's settings page                                       |
-| Secret values (`wally-database-url`, `wally-auth0-management-client-secret`)                                                                                                  | Kept out of state                                                                                                                                                                                                          | `gcloud secrets versions list`; Cloud Run does not start an instance whose secret it cannot read |
-| The API image, its variables and traffic; the Worker versions                                                                                                                 | Owned by the release                                                                                                                                                                                                       | The release's smoke tests (section 13)                                                           |
-| Worker settings in `wrangler.jsonc`; zone-wide Cloudflare settings                                                                                                            | Wrangler's configuration is Cloudflare's source of truth; the zone is shared with other sites                                                                                                                              | The release; [Zone security](#zone-security-for-luminullcom)                                     |
-| Supabase: the project, the Data API switch, backups                                                                                                                           | Importing the project resets its database password on the next apply; the Data API switch is dashboard-only                                                                                                                | `curl https://<ref>.supabase.co/rest/v1/` answers 503 (RFC-0011 section 8)                       |
-| The schema and the pg_cron job                                                                                                                                                | Owned by the Drizzle migrations                                                                                                                                                                                            | `migrate-cli --require-purge-job` in every release                                               |
-| Auth0 users and the tenant itself                                                                                                                                             | Data, and tenants cannot be created through Auth0's API                                                                                                                                                                    | [AUTH0.md](AUTH0.md)                                                                             |
-| The Google OAuth client in `luminull-wally-prod` (branding, audience, scopes, the client)                                                                                     | Made in the console: no Terraform resource for it is verified; its secret reaches Auth0 as a write-only value                                                                                                              | A Google sign-in after each change                                                               |
-| Other Auth0 applications and Workers Custom Domains (`luminull.com`)                                                                                                          | Not Wally's                                                                                                                                                                                                                | —                                                                                                |
-| GitHub secret values, the E2E fixture variables (`E2E_*`), the repository's own settings                                                                                      | The provider would keep secret values in state; fixtures are test data, not infrastructure                                                                                                                                 | `gh secret list`; CI fails without its fixtures                                                  |
-| Vertex AI model access                                                                                                                                                        | Not a resource: a model answers per project and location                                                                                                                                                                   | One assistant question after the cutover (RFC-0011 section 10)                                   |
+| Part                                                                                                                                                                                                     | Why                                                                                                                                                                                                                        | Kept true by                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Organization policies, the organization's roles, the billing account                                                                                                                                     | They belong to the organization, not to Wally                                                                                                                                                                              | The bootstrap's first apply fails on a missing role; the budget emails on spend                  |
+| Terraform's own access: the `infrastructure` and `infrastructure-plan` environments, the GitHub App, the `wally-terraform` Auth0 application, the Cloudflare and Supabase tokens, the state bucket's IAM | The pipeline's root does not manage them. Terraform's identity may grant only the three roles that root grants, but it can change the project's service accounts and identity pools, so read each plan before approving it | The bootstrap steps below; the environment's settings page                                       |
+| Secret values (`wally-database-url`, `wally-auth0-management-client-secret`)                                                                                                                             | Kept out of state                                                                                                                                                                                                          | `gcloud secrets versions list`; Cloud Run does not start an instance whose secret it cannot read |
+| The API image, its variables and traffic; the Worker versions                                                                                                                                            | Owned by the release                                                                                                                                                                                                       | The release's smoke tests (section 13)                                                           |
+| Worker settings in `wrangler.jsonc`; zone-wide Cloudflare settings                                                                                                                                       | Wrangler's configuration is Cloudflare's source of truth; the zone is shared with other sites                                                                                                                              | The release; [Zone security](#zone-security-for-luminullcom)                                     |
+| Supabase: the project, the Data API switch, backups                                                                                                                                                      | Importing the project resets its database password on the next apply; the Data API switch is dashboard-only                                                                                                                | `curl https://<ref>.supabase.co/rest/v1/` answers 503 (RFC-0011 section 8)                       |
+| The schema and the pg_cron job                                                                                                                                                                           | Owned by the Drizzle migrations                                                                                                                                                                                            | `migrate-cli --require-purge-job` in every release                                               |
+| Auth0 users and the tenant itself                                                                                                                                                                        | Data, and tenants cannot be created through Auth0's API                                                                                                                                                                    | [AUTH0.md](AUTH0.md)                                                                             |
+| The Google OAuth client in `luminull-wally-prod` (branding, audience, scopes, the client)                                                                                                                | Made in the console: no Terraform resource for it is verified; its secret reaches Auth0 as a write-only value                                                                                                              | A Google sign-in after each change                                                               |
+| Other Auth0 applications and Workers Custom Domains (`luminull.com`)                                                                                                                                     | Not Wally's                                                                                                                                                                                                                | —                                                                                                |
+| GitHub secret values, the E2E fixture variables (`E2E_*`), the repository's own settings                                                                                                                 | The provider would keep secret values in state; fixtures are test data, not infrastructure                                                                                                                                 | `gh secret list`; CI fails without its fixtures                                                  |
+| Vertex AI model access                                                                                                                                                                                   | Not a resource: a model answers per project and location                                                                                                                                                                   | One assistant question after the cutover (RFC-0011 section 10)                                   |
 
 ### Bootstrap (owner, once)
 
@@ -1594,6 +1644,50 @@ gcloud auth application-default login
    Set them before a change to these providers reaches `main`; without them, its plan fails
    before it reads anything.
 
+   **The `infrastructure-plan` environment**, where the Plan job runs: `main` only, like
+   `infrastructure`, but with no required reviewer. It needs the same five variables and five
+   secrets, because environment secrets are visible only to jobs in their own environment.
+   Create it before a workflow names it: GitHub creates a missing environment on first use,
+   with no branch policy.
+
+   ```bash
+   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure-plan \
+     -F 'deployment_branch_policy[protected_branches]=false' \
+     -F 'deployment_branch_policy[custom_branch_policies]=true'
+   gh api -X POST repos/milad-luminull/wally/environments/infrastructure-plan/deployment-branch-policies \
+     -f name=main -f type=branch
+
+   # The variables are public identifiers: copy them across.
+   gh variable list -R milad-luminull/wally --env infrastructure --json name,value \
+     --jq '.[] | [.name, .value] | @tsv' |
+     while IFS=$'\t' read -r name value; do
+       gh variable set "$name" -R milad-luminull/wally --env infrastructure-plan --body "$value"
+     done
+
+   gh secret set TERRAFORM_GITHUB_APP_PRIVATE_KEY -R milad-luminull/wally --env infrastructure-plan < <path to the .pem>
+   gh secret set TERRAFORM_AUTH0_CLIENT_SECRET -R milad-luminull/wally --env infrastructure-plan
+   gh secret set TERRAFORM_CLOUDFLARE_API_TOKEN -R milad-luminull/wally --env infrastructure-plan
+   gh secret set TERRAFORM_SUPABASE_ACCESS_TOKEN -R milad-luminull/wally --env infrastructure-plan
+   gh secret set TERRAFORM_GOOGLE_OAUTH_CLIENT_SECRET -R milad-luminull/wally --env infrastructure-plan
+   ```
+
+   GitHub never shows a secret's value again, so take each one from its source:
+
+   - **GitHub App key:** generate a second private key on the `wally-terraform` App's page;
+     an App can hold more than one. Delete the `.pem` once the secret is set.
+   - **Auth0:** the `wally-terraform` application's client secret, on its Settings page.
+   - **Cloudflare and Supabase:** a token is shown only when it is created, so create a
+     second one with the same permissions as above. Rolling the first one would break the
+     `infrastructure` environment's copy.
+   - **Google OAuth client secret:** the same value as on `infrastructure`.
+
+   Then gh lists the same names in both environments:
+
+   ```bash
+   gh variable list -R milad-luminull/wally --env infrastructure-plan
+   gh secret list -R milad-luminull/wally --env infrastructure-plan
+   ```
+
 4. **A pipeline run that imports**, as the first one did (2026-11-07): the plan must show the
    imports with no changes, apart from what the pull request names. Anything else, stop and
    reconcile the code first.
@@ -1603,5 +1697,19 @@ gcloud auth application-default login
    and `gcloud secrets versions add` (Terraform already created the secrets and their
    readers).
 
-**Changing the bootstrap later:** edit `infra/terraform/bootstrap`, then `terraform plan` and
-`terraform apply` from your machine. The pipeline only validates it.
+**Changing the bootstrap later:** edit `infra/terraform/bootstrap`, then plan and apply from
+your machine, with the `terraform.tfvars` from step 1. The pipeline only validates it.
+
+```bash
+gcloud auth application-default login
+cd infra/terraform/bootstrap
+terraform init
+terraform plan -out=bootstrap.tfplan
+terraform apply bootstrap.tfplan
+rm bootstrap.tfplan
+```
+
+Read the plan before applying it. The change that let the Plan job run without an approval
+(2026-11-07) is one update in place: the `attribute_condition` of
+`google_iam_workload_identity_pool_provider.github` accepts the `infrastructure-plan`
+environment as well, and only tokens from `refs/heads/main`.
