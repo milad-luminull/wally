@@ -4,16 +4,16 @@ name: Infrastructure
 # credentials. On main, a plan is saved and shown in the run summary, and the same plan is
 # applied only after the owner approves it. infra/terraform/bootstrap is applied by the owner
 # from their machine, never here. See docs/DEPLOY.md, "Infrastructure in Terraform".
+#
+# It runs only when Terraform code changes: no other change starts it.
 on:
   pull_request:
     paths:
       - 'infra/terraform/**'
-      - '.github/workflows/infrastructure.yml'
   push:
     branches: [main]
     paths:
       - 'infra/terraform/wally/**'
-      - '.github/workflows/infrastructure.yml'
   workflow_dispatch:
 
 permissions: {}

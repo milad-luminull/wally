@@ -1488,7 +1488,7 @@ slice.
 **The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
 without credentials. A push to `main` that touches `infra/terraform/wally/` waits for the
 owner's approval, then saves a plan and prints it in the run summary; a second approval
-applies exactly that plan. The repository is public, so the summary is too: the plan holds
+applies exactly that plan. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
 no secret value.
 
 ### What stays outside Terraform, and how it is checked
