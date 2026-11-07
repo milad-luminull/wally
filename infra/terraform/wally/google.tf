@@ -31,7 +31,7 @@ resource "google_iam_workload_identity_pool" "github" {
 resource "google_iam_workload_identity_pool_provider" "release" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "wally-prod"
-  display_name                       = "${local.github_repo} production"
+  display_name                       = "GitHub: production"
 
   attribute_mapping = {
     "google.subject"       = "assertion.sub"

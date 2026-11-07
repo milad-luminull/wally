@@ -172,7 +172,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = google_project.wally.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.terraform.workload_identity_pool_id
   workload_identity_pool_provider_id = "github"
-  display_name                       = "${local.github_repo} infrastructure"
+  display_name                       = "GitHub: infrastructure"
 
   attribute_mapping = {
     "google.subject"       = "assertion.sub"
