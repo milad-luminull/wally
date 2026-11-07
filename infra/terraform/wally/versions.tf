@@ -10,6 +10,18 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.13"
     }
+    auth0 = {
+      source  = "auth0/auth0"
+      version = "~> 1.60"
+    }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.28"
+    }
+    supabase = {
+      source  = "supabase/supabase"
+      version = "~> 1.11"
+    }
   }
 
   backend "gcs" {
@@ -30,3 +42,14 @@ provider "google" {
 provider "github" {
   owner = "milad-luminull"
 }
+
+# The other providers read their credentials from the environment as well, so none reaches a
+# saved plan: AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET (the `wally-terraform` application),
+# CLOUDFLARE_API_TOKEN and SUPABASE_ACCESS_TOKEN.
+provider "auth0" {
+  domain = local.auth0_domain
+}
+
+provider "cloudflare" {}
+
+provider "supabase" {}

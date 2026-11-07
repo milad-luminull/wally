@@ -4,7 +4,8 @@
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
   (both 2026-11-01). Workstream 6 (Firebase retired) is live since v0.14.0
   (2026-11-01). See section 4.
-- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03 and 2026-11-05
+- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03, 2026-11-05 and
+  2026-11-07
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
@@ -334,6 +335,16 @@ Decided on 2026-11-06:
   provider is imported (section 10).
 - **The new project is `luminull-wally-prod`.** Terraform reaches GitHub as a GitHub App.
 
+Decided on 2026-11-07:
+
+- **Auth0's Google connection moves at the cutover,** not in slice 2. Its Google OAuth client
+  lives in `luminull-wally`, so deleting that project would end Google sign-in, and importing
+  the connection stores its client secret in state and in the saved plan (section 10).
+- **Only Wally's Auth0 configuration is imported.** The owner deletes the apps Wally does not
+  use; Terraform's own application and other sites' Custom Domains stay out.
+- **Each provider gets its own credential for Terraform,** scoped to what it manages
+  ([DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform), bootstrap step 3).
+
 Still open:
 
 - **Rollback windows** for the remaining cutovers, including how long `luminull-wally` is kept
@@ -376,27 +387,40 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
 
 ### Slices
 
-1. **Foundation** ([plan](../superpowers/plans/2026-11-06-terraform-foundation.md)): a
+1. **Foundation** ([plan](../superpowers/plans/2026-11-06-terraform-foundation.md); applied
+   2026-11-07): a
    bootstrap root the owner applies (the project `luminull-wally-prod`, its billing link and
    budget, the state bucket, Terraform's identity), and the `wally` root the pipeline applies
    (Google Cloud in the new project, and the GitHub `production` environment and variables,
    imported).
-2. **Auth0, Cloudflare and Supabase's Third-Party Auth, imported.** Their configuration is
-   generated from the live tenant and account with the owner's credentials (`auth0 tf
-generate`; the Custom Domain IDs from Cloudflare's API), then cleaned by hand. Generated
-   configuration is experimental in both Terraform and the Auth0 CLI, so it is only a draft.
-   The Action's `WEB_CLIENT_ID` secret goes through the write-only `secrets_wo`. Supabase's
-   custom OIDC provider (v0.16.0) is imported as `supabase_third_party_auth`; the Supabase
-   project itself stays out. Proof: the plan shows no changes.
+2. **Auth0, Cloudflare and Supabase's Third-Party Auth, imported.** Import blocks name each
+   of Wally's resources, by the IDs their APIs list, and Terraform generates their
+   configuration with the credentials the pipeline uses
+   ([generating configuration](https://developer.hashicorp.com/terraform/language/import/generating-configuration)).
+   The feature is experimental, so the output is only a draft, cleaned by hand. The Auth0 CLI's `auth0 tf generate` wraps the same
+   feature for a whole tenant, also experimental, so it is not used. The Action's
+   `WEB_CLIENT_ID` goes through the write-only `secrets_wo`, from the web client's ID.
+   Supabase's custom OIDC provider (v0.16.0) is imported as `supabase_third_party_auth`; the
+   Supabase project stays out. Proof: the plan shows the imports with one change, the Action,
+   whose `WEB_CLIENT_ID` is sent again with the same value and which is deployed from
+   `infra/auth0-post-login.cjs`, unchanged.
 3. **Cutover,** below.
 
 ### Cutover order
 
 1. **Build:** the foundation is applied and the secret values are set in the new project.
-   Check Gemini 3.8 Flash on the `eu` endpoint from the new project.
+   Check Gemini 3.8 Flash on the `eu` endpoint from the new project. Create a Google OAuth
+   client for Auth0 in the new project, with the same scopes (`email`, `profile`) and Auth0's
+   callback on `login.luminull.com`, and put its secret in the `infrastructure` environment.
+   The client is made by hand: no Terraform resource for it is verified.
 2. **Switch** in one release: the proxy's `ORIGIN` names the new `run.app` URL (the `api_url`
    output), and Terraform points the `GCP_*` variables at the new project. The release's checks
    run as usual. Until step 3, reverting both and releasing again is the rollback.
+   Separately, Terraform imports the Google connection with the new client's ID and its
+   secret as the write-only `options_client_secret_wo`. Then one existing Google account
+   signs in and keeps its Auth0 user ID; that Google's subject is the same across OAuth
+   clients is not verified until then. Once it works, delete the old OAuth client at once:
+   the import stored its secret in state and in the saved plan, which is kept for 7 days.
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).

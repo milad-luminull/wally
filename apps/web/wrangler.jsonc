@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   // The web app as static files, with no script: asset requests on Workers Free are free and
   // unlimited only while no script runs first (ADR-0022). The Custom Domain
-  // wally.luminull.com is added in the dashboard at cutover, so no routes are declared here.
+  // wally.luminull.com is managed by Terraform (infra/terraform/wally), so no routes here.
   "name": "wally-web",
   "compatibility_date": "2026-10-26",
   "assets": {

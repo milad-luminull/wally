@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   // Forwards every request on api.wally.luminull.com to Cloud Run, unchanged (ADR-0022).
-  // The Custom Domain is added in the dashboard at cutover, so no routes are declared here.
+  // Its Custom Domain is managed by Terraform (infra/terraform/wally), so no routes here.
   "name": "wally-api-proxy",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-26",
