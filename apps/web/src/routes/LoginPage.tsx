@@ -36,7 +36,7 @@ export function LoginPage() {
     return <Navigate to={target.pathname} state={target.state} replace />;
 
   return (
-    <AuthLayout title={t('routes.login.title')} subtitle={t('routes.login.subtitle')}>
+    <AuthLayout title={t('routes.login.title')} subtitle={t('routes.login.subtitle')} agreement>
       {deleted && (
         <p role="status" className="rounded-md bg-inset px-3 py-2 text-13 text-fg-2">
           {t('accountData.deleted')}

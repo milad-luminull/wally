@@ -16,7 +16,7 @@ export function SignupPage() {
     return <Navigate to={target.pathname} state={target.state} replace />;
 
   return (
-    <AuthLayout title={t('routes.signup.title')} subtitle={t('routes.signup.subtitle')}>
+    <AuthLayout title={t('routes.signup.title')} subtitle={t('routes.signup.subtitle')} agreement>
       <HostedLogin signup />
     </AuthLayout>
   );

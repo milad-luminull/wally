@@ -225,6 +225,8 @@ export function WelcomePage() {
           </span>
           <a href="#how">{t('landing.nav.how')}</a>
           <a href="#faq">{t('landing.nav.faq')}</a>
+          <a href="/privacy">{t('legal.privacy')}</a>
+          <a href="/terms">{t('legal.terms')}</a>
           <span>{t('landing.copyright', { year: new Date().getFullYear() })}</span>
         </div>
       </footer>

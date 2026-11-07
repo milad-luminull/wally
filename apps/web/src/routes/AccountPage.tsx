@@ -32,9 +32,15 @@ export function AccountSettings() {
           {t('connections.back')}
         </Link>
         <h1 className="text-2xl font-semibold">{t('accountData.title')}</h1>
-        <Link to="/privacy" className="text-sm underline underline-offset-4">
-          {t('privacy.title')}
-        </Link>
+        {/* Plain links: the legal pages are static HTML outside the React app. */}
+        <div className="flex gap-4 text-sm">
+          <a href="/privacy" className="underline underline-offset-4">
+            {t('legal.privacy')}
+          </a>
+          <a href="/terms" className="underline underline-offset-4">
+            {t('legal.terms')}
+          </a>
+        </div>
       </div>
       <section className="space-y-3" aria-labelledby="export-title">
         <h2 id="export-title" className="text-lg font-semibold">

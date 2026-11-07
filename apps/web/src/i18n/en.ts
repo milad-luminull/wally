@@ -20,22 +20,11 @@ export const en = {
     deleteListFailed: 'Your boards could not be loaded. Close this and try again.',
     deleted: 'Your account is deleted.',
   },
-  privacy: {
-    title: 'Privacy information',
-    intro:
-      'Wally is operated by Luminull. Contact privacy@luminull.com for privacy questions, access requests, corrections or deletion help.',
-    serviceTitle: 'Account and shared content',
-    service:
-      'We process your email address, display name, login identifiers, preferences, boards, cards, membership and activity records to provide Wally. People with access to a shared board can see its shared content and member details. Private cards remain visible only to their author. Service data is processed to provide your account; limited security and operational records protect the service.',
-    providersTitle: 'Login, hosting and AI',
-    providers:
-      'Auth0 (Okta) handles login, signup and recovery. Supabase stores Wally’s data. Google runs the Wally server. Cloudflare serves the web app and forwards requests to the server. If you use Google sign-in, Google also authenticates you. The built-in assistant processes relevant board content through its configured model provider, currently Google (Vertex AI). When you connect ChatGPT, Claude or another supported provider, that provider can receive content from boards you can access and perform supported edits where you have permission. Its own privacy terms and account settings govern its processing and retention. Disconnecting in Wally prevents future requests; it does not erase copies already held by that provider.',
-    retentionTitle: 'Retention and account controls',
-    retention:
-      'Your boards and cards do not expire automatically; they stay until you delete them. Invitations to people without a Wally account are deleted, with the email address, after 30 days. Share links expire after the period the board owner picks (7 days, 30 days or never), and people who joined through a link lose access when it expires, is regenerated or turned off. Daily assistant usage counts are kept for 30 days. Under Account and data you can download a copy of your data or delete your account; deletion takes effect at once. Records other members keep of their own actions can mention you until they expire: after 7 or 30 days, and for an assistant conversation 30 days after its last message. Operational history and provider backups may follow separate retention schedules; contact privacy@luminull.com for details.',
-    rightsTitle: 'Your choices',
-    rights:
-      'You can request access, correction, deletion or portability of your personal data and object to processing based on legitimate interests. You may complain to your competent data-protection authority. Provider arrangements, international-transfer safeguards and the legal bases for processing are subject to the operator’s release approval.',
+  legal: {
+    privacy: 'Privacy Policy',
+    terms: 'Terms of Service',
+    agreement:
+      'By continuing, you agree to the <terms>Terms of Service</terms> and acknowledge the <privacy>Privacy Policy</privacy>.',
   },
   connections: {
     title: 'Connected apps',

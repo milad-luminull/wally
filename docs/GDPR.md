@@ -374,20 +374,30 @@ records and cleanup jobs.
 
 ### GAP-03 — Privacy notice · ~~**High**~~ · Art. 13 · **resolved, pending the controller's review**
 
-**Resolved in code since v0.8.1.** `/privacy`
-([`apps/web/src/routes/PrivacyPage.tsx`](../apps/web/src/routes/PrivacyPage.tsx)) shows a
-notice in **both DE and EN** (the `privacy` messages in `apps/web/src/i18n/de.ts` and
-`en.ts`). It is linked from the sign-in and sign-up layout
-([`AuthLayout.tsx`](../apps/web/src/routes/AuthLayout.tsx)), the one surface an
-unauthenticated person sees, and from the Account and data page
-([`AccountPage.tsx`](../apps/web/src/routes/AccountPage.tsx)), which the account menu opens.
-It names the operator and contact, the data processed, the member-visibility disclosure from
-§2, the sign-in, hosting and AI providers, that boards and cards do not expire, and the
-rights.
+**Resolved in code since v0.8.1; replaced on 2026-11-07.** The notice is now a full privacy
+policy at `/privacy` ([`apps/web/privacy.html`](../apps/web/privacy.html)), with Terms of
+Service at `/terms` ([`apps/web/terms.html`](../apps/web/terms.html)), both in English only
+(owner, 2026-11-07). They are static HTML entries of the Vite build, not React routes, because
+Google's OAuth branding review reads the served HTML without running JavaScript and rejected the
+client-rendered page as having no content. Cloudflare serves `/privacy` from `privacy.html`
+(its default `auto-trailing-slash` HTML handling), and so do nginx in CI and Vite's dev server.
 
-**Still open:** the text has not been reviewed by the controller (ORG-04). It says itself
-that provider arrangements, transfer safeguards and legal bases await the operator's
-approval, and it cannot state retention periods until GAP-04 sets them.
+The policy covers every Art. 13 item from this document: the operator (Luminull, a personal,
+non-commercial project) and contact, the data in §2, the member-visibility disclosure, the
+legal bases (ORG-01), the processors and transfer safeguards, the retention periods from
+GAP-04, Cloud Run's 30-day request log with IP addresses (GAP-05), browser storage, the
+rights, and the Google user-data disclosure with the Limited Use statement that Google's API
+Services User Data Policy asks for. The landing page footer, the login and sign-up pages (with
+an agreement line) and the Account and data page link to both.
+[`legalPages.test.ts`](../apps/web/src/legal/legalPages.test.ts) and
+[`legal-pages.spec.ts`](../apps/web/e2e/legal-pages.spec.ts) pin the content and that it is in
+the served HTML.
+
+**Still open:** the policy names the operator only as Luminull, without a person's name or
+postal address, by the owner's choice (2026-11-07). Art. 13(1)(a) asks for the controller's
+identity and contact details, so this is a known gap until the owner adds them; an imprint
+(§ 5 DDG) waits for the same details. The transfer section assumes the processors' agreements
+are in place (ORG-02, ORG-08).
 
 ---
 
@@ -595,7 +605,7 @@ cost. Items 3, 4, 5, 6, 7 and 9 are done; item 7's text still awaits the control
 
 - [x] GAP-01 Account deletion (Art. 17) — self-service and the owner's runbook; live since v0.16.0, proven in production 2026-11-05
 - [x] GAP-02 Data export (Art. 15, 20) — `GET /me/export`; live since v0.16.0
-- [x] GAP-03 Privacy notice (Art. 13) — `/privacy` live since v0.8.1; text pending the controller's review (ORG-04)
+- [x] GAP-03 Privacy notice (Art. 13) — full policy and terms as static pages since 2026-11-07; operator name and address still open
 - [x] GAP-04 Retention policy (Art. 5(1)(e)) — §2; vendor list to follow
 - [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done
 - [x] GAP-06 Share-link expiry (Art. 5(1)(e), 32) — live since v0.16.0
