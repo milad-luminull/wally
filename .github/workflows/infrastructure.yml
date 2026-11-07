@@ -1,0 +1,133 @@
+name: Infrastructure
+
+# Terraform for infra/terraform/wally (ADR-0026). Pull requests are checked without any
+# credentials. On main, a plan is saved and shown in the run summary, and the same plan is
+# applied only after the owner approves it. infra/terraform/bootstrap is applied by the owner
+# from their machine, never here. See docs/DEPLOY.md, "Infrastructure in Terraform".
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/infrastructure.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/terraform/wally/**'
+      - '.github/workflows/infrastructure.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TERRAFORM_VERSION: 1.17.1
+
+jobs:
+  check:
+    name: Format and validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Validate each root
+        run: |
+          for root in infra/terraform/bootstrap infra/terraform/wally; do
+            terraform -chdir="$root" init -backend=false -input=false
+            terraform -chdir="$root" validate
+          done
+
+  plan:
+    name: Plan
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # One plan or apply at a time, pull request checks aside. A newer run replaces one that is
+    # still waiting, so the latest main is what gets planned.
+    concurrency:
+      group: infrastructure
+      cancel-in-progress: false
+    timeout-minutes: 15
+    # The environment requires the owner's approval and allows main only. Its WIF provider
+    # accepts no token from any other environment.
+    environment: infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/terraform/wally
+    env:
+      GITHUB_APP_ID: ${{ vars.TERRAFORM_GITHUB_APP_ID }}
+      GITHUB_APP_INSTALLATION_ID: ${{ vars.TERRAFORM_GITHUB_APP_INSTALLATION_ID }}
+      GITHUB_APP_PEM_FILE: ${{ secrets.TERRAFORM_GITHUB_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - run: terraform init -input=false
+      - run: terraform plan -input=false -lock-timeout=5m -out=tfplan
+      - name: Show the plan in the run summary
+        run: |
+          {
+            echo '### Terraform plan'
+            echo '```'
+            terraform show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tfplan
+          path: infra/terraform/wally/tfplan
+          # Long enough for an approval that waits a few days. A plan made before the state
+          # changed is refused at apply anyway.
+          retention-days: 7
+
+  apply:
+    name: Apply the saved plan
+    needs: plan
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: infrastructure
+      cancel-in-progress: false
+    timeout-minutes: 15
+    # A second approval, after the owner has read the plan in the run summary.
+    environment: infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/terraform/wally
+    env:
+      GITHUB_APP_ID: ${{ vars.TERRAFORM_GITHUB_APP_ID }}
+      GITHUB_APP_INSTALLATION_ID: ${{ vars.TERRAFORM_GITHUB_APP_INSTALLATION_ID }}
+      GITHUB_APP_PEM_FILE: ${{ secrets.TERRAFORM_GITHUB_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.TERRAFORM_WIF_PROVIDER }}
+          service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tfplan
+          path: infra/terraform/wally
+      - run: terraform init -input=false
+      # A saved plan is refused if the state changed since it was made; plan again then.
+      - run: terraform apply -input=false -lock-timeout=5m tfplan
