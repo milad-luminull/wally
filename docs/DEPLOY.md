@@ -1478,6 +1478,20 @@ step 2) that is `luminull-wally-prod`, at `https://wally-api-ttkwy6mnka-ew.a.run
 Sections 3 to 9 describe the hand setup of `luminull-wally`; they are rewritten when that
 project is retired (step 3).
 
+**A new Cloud Run service needs one Wally revision serving before its first full release.**
+Terraform creates the service with Google's sample container, and the release's Worker
+preview smoke test goes through the service URL, which serves whatever holds the traffic.
+v0.17.0 therefore stopped at that test on 2026-11-07, with production unchanged. Its
+candidate had passed its own smoke test, so the owner moved the new service's traffic to it
+(nobody reached that service yet). A rerun of the same tag then refuses by design (Cloud Run
+must not serve the release's own revision, [When a release fails](#when-a-release-fails)), so
+the next tag, on a new commit, completes the switch:
+
+```bash
+gcloud run services update-traffic wally-api --region=europe-west1 \
+  --project=<new project> --to-revisions=<candidate revision>=100
+```
+
 ### What Terraform manages
 
 | Root                                                         | Applied by                                                                | Manages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
