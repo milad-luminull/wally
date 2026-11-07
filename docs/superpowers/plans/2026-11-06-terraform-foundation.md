@@ -41,5 +41,5 @@ stage:
    how it is checked. ADR-0026 and RFC-0011 section 10 updated to the 2026-11-06 decisions.
 4. `terraform fmt -check` and `validate` on both roots; one whole-branch review.
 
-Slice 2 imports Auth0, the Cloudflare Custom Domains and Supabase's Third-Party Auth provider. Slice 3 is the cutover (RFC-0011
-section 10).
+Slice 2 imports Auth0, the Cloudflare Custom Domains and Supabase's Third-Party Auth provider.
+Slice 3 is the cutover (RFC-0011 section 10).
