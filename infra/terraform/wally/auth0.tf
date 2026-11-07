@@ -53,15 +53,21 @@ import {
   id = "cd_7vp16Uj8zpRpyybp"
 }
 
-# Email sign-in, with passkeys first and the password as fallback (ADR-0028).
+# Email sign-in, with passkeys first and the password as fallback (ADR-0028). Every option the
+# tenant holds is written out: an update sends `options` whole, and anything missing here would
+# be reset to Auth0's default without showing in the plan.
 resource "auth0_connection" "email" {
   name                 = "Username-Password-Authentication"
   strategy             = "auth0"
   is_domain_connection = true
 
   options {
-    brute_force_protection = true
-    requires_username      = false
+    strategy_version               = 2
+    brute_force_protection         = true
+    requires_username              = false
+    disable_signup                 = false
+    import_mode                    = false
+    enabled_database_customization = false
 
     authentication_methods {
       passkey {
@@ -82,7 +88,25 @@ resource "auth0_connection" "email" {
 
     password_options {
       complexity {
-        min_length = 15
+        min_length            = 15
+        character_types       = []
+        character_type_rule   = "all"
+        identical_characters  = "allow"
+        sequential_characters = "allow"
+        max_length_exceeded   = "error"
+      }
+      dictionary {
+        active  = false
+        default = "en_10k"
+        custom  = []
+      }
+      history {
+        active = false
+        size   = 5
+      }
+      profile_data {
+        active         = false
+        blocked_fields = []
       }
     }
 
@@ -303,8 +327,9 @@ import {
   id = "cgr_AcRTbdwi32KjDurQ"
 }
 
-# Deployed on every change to infra/auth0-post-login.cjs. WEB_CLIENT_ID is write-only, so it is
-# never read back or stored; bump secrets_wo_version to send it again.
+# Deployed on every change to infra/auth0-post-login.cjs, which starts the pipeline too.
+# WEB_CLIENT_ID is write-only, so it is never read back or stored; bump secrets_wo_version to
+# send it again. prevent_destroy: replacing the Action would drop the email_verified denial.
 resource "auth0_action" "token_profile" {
   name    = "Wally token profile"
   runtime = "node22"
@@ -321,6 +346,10 @@ resource "auth0_action" "token_profile" {
     value = auth0_client.web.client_id
   }
   secrets_wo_version = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 import {

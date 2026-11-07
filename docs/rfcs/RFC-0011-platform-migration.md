@@ -397,8 +397,7 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
    of Wally's resources, by the IDs their APIs list, and Terraform generates their
    configuration with the credentials the pipeline uses
    ([generating configuration](https://developer.hashicorp.com/terraform/language/import/generating-configuration)).
-   The feature is experimental, so the output is only a draft, cleaned by hand. It writes
-   provider-marked secrets as `null`. The Auth0 CLI's `auth0 tf generate` wraps the same
+   The feature is experimental, so the output is only a draft, cleaned by hand. The Auth0 CLI's `auth0 tf generate` wraps the same
    feature for a whole tenant, also experimental, so it is not used. The Action's
    `WEB_CLIENT_ID` goes through the write-only `secrets_wo`, from the web client's ID.
    Supabase's custom OIDC provider (v0.16.0) is imported as `supabase_third_party_auth`; the

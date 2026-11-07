@@ -1482,8 +1482,8 @@ Wally's infrastructure moves into Terraform ([ADR-0026](adr/ADR-0026-new-google-
 | [`infra/terraform/bootstrap`](../infra/terraform/bootstrap/) | The owner, from their machine                                             | The project `luminull-wally-prod`, its billing link and budget, its APIs, the state bucket `luminull-wally-prod-tfstate`, and Terraform's own identity                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | [`infra/terraform/wally`](../infra/terraform/wally/)         | [Infrastructure](../.github/workflows/infrastructure.yml), after approval | In the new project: `wally-api` and `github-deployer`, the release's Workload Identity Federation, Artifact Registry, the two secrets without their values, and the Cloud Run service. On GitHub: the `production` environment and the release's variables. In Auth0: the tenant settings, the login prompt, `login.luminull.com`, the email connection, the Wally Web, Wally ChatGPT (PKCE) and Wally account deletion applications with their grants, the two APIs, and the post-login Action, deployed from [`infra/auth0-post-login.cjs`](../infra/auth0-post-login.cjs). On Cloudflare: the two Custom Domains. On Supabase: the Third-Party Auth provider |
 
-Change these in the code, not in a dashboard: the next plan shows a dashboard change as drift
-and reverts it.
+Change these in the code, not in a dashboard. A dashboard change to a setting the code holds
+shows in the next plan and is reverted by its apply; a plan runs only when the code changes.
 
 **The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
 without credentials. A push to `main` that touches `infra/terraform/wally/` waits for the

@@ -10,10 +10,12 @@ on:
   pull_request:
     paths:
       - 'infra/terraform/**'
+      - 'infra/auth0-post-login.cjs'
   push:
     branches: [main]
     paths:
       - 'infra/terraform/wally/**'
+      - 'infra/auth0-post-login.cjs'
   workflow_dispatch:
 
 permissions: {}

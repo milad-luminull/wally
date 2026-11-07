@@ -51,9 +51,11 @@ Chosen option: **4**. The rules:
   its environment and the Worker versions; the Drizzle migrations own the schema and pg_cron;
   `wrangler.jsonc` owns Worker settings. Terraform ignores what another owner sets
   ([lifecycle](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle)).
-- **Secret values are never set by Terraform:** it creates each secret and its readers, and the
-  value is added by hand, so it never reaches state
+- **Secret values never reach state:** Terraform creates each secret and its readers, and the
+  value is added by hand
   ([sensitive data in state](https://developer.hashicorp.com/terraform/language/state/sensitive-data)).
+  Where a provider takes a secret only through a write-only argument, Terraform sends it and
+  never stores it ([write-only arguments](https://developer.hashicorp.com/terraform/language/manage-sensitive-data/write-only)).
 - **What holds data, users or traffic is protected** from `terraform destroy`, with
   `prevent_destroy` or the resource's own deletion protection, as Google advises for stateful
   resources ([style](https://docs.cloud.google.com/docs/terraform/best-practices/general-style-structure)).
@@ -75,7 +77,8 @@ Supabase database and the Auth0 tenant do not change.
 
 ### Consequences
 
-- Good: Google Cloud can be rebuilt from code, and a plan shows drift on every provider.
+- Good: Google Cloud can be rebuilt from code, and a plan shows drift in what the code sets,
+  on every provider.
 - Good: no Firebase plan switch that can unlink billing.
 - Bad: the Supabase project stays by hand. Importing it leaves the password empty in state, so
   the next apply resets the live password, and the one setting Wally changed, the Data API
