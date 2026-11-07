@@ -180,16 +180,11 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 
   # GitHub mints the environment claim only for a job that declares the environment, after
-  # its protection rules have passed. `infrastructure` (Apply) requires the owner's approval
-  # and allows main only. `infrastructure-plan` (Plan) allows main only and has no reviewer:
-  # Plan runs with these credentials without a click, which is acceptable because only code
-  # on main can run it. The ref check says so here too, independent of the environments'
-  # settings, which live outside Terraform.
+  # its protection rules (required reviewer, main only) have passed.
   attribute_condition = join(" && ", [
     "assertion.repository_owner_id == \"${local.github_owner_id}\"",
     "assertion.repository_id == \"${local.github_repo_id}\"",
-    "(assertion.environment == \"infrastructure\" || assertion.environment == \"infrastructure-plan\")",
-    "assertion.ref == \"refs/heads/main\"",
+    "assertion.environment == \"infrastructure\"",
   ])
 
   oidc {

@@ -29,7 +29,8 @@ runs by itself.
 3. **The owner merges.** The push to `main` runs CI again, in full.
 4. If Terraform changed (`infra/terraform/wally/` or the Auth0 Action), the Infrastructure
    workflow plans at once and shows the plan in the run summary. **The owner reads it and
-   approves Apply** ([Infrastructure in Terraform](#infrastructure-in-terraform)).
+   approves "Approve the plan"**; Apply then applies exactly that plan
+   ([Infrastructure in Terraform](#infrastructure-in-terraform)).
 5. If app code changed (`apps/web`, `apps/api`, `apps/api-proxy`, `packages`), a `v*` tag is
    pushed, by the owner or by a Claude session the owner asked
    ([section 13](#13-deploying-again-later)).
@@ -1056,8 +1057,9 @@ and the data is disposable. Production only ever gets read-only smoke checks.
 **A green E2E job is not automatically a meaningful one.** Every spec opens with
 `test.skip(!hasE2eCredentials, …)`, so a missing secret produces a passing run that tested
 nothing. The workflow parses Playwright's JSON report and fails if any test reported
-`skipped`, if fewer than `MIN_EXECUTED` (22, every listed test) executed, or if fewer than
-two projects produced results.
+`skipped`, if fewer than `MIN_EXECUTED` (26: 24 under chromium-desktop, 1 under
+mobile-list-only and 1 under account-deletion) executed, or if fewer than three projects
+produced results.
 
 ### Pull requests without app impact
 
@@ -1536,30 +1538,31 @@ shows in the next plan and is reverted by its apply; a plan runs only when the c
 
 **The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
 without credentials. A push to `main` that touches `infra/terraform/wally/` or the Auth0
-Action saves a plan at once and prints it in the run summary (the Plan job, in the
-`infrastructure-plan` environment). The owner reads it and approves the Apply job (the
-`infrastructure` environment), which applies exactly that plan: one approval per change. Plan
-runs with Terraform's credentials without a click; that is acceptable because both
-environments allow `main` only and the Workload Identity provider accepts tokens from `main`
-alone, so only code on `main` can run it. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
+Action saves a plan at once and prints it in the run summary. The owner reads it and approves
+the job "Approve the plan", whose `infrastructure-approval` environment requires them and
+holds nothing else; then Apply applies exactly that plan. One approval per change
+([ADR-0030](adr/ADR-0030-one-approval-for-terraform-in-a-gate-environment.md)). Plan and Apply
+run in `infrastructure`, which holds Terraform's credentials, allows `main` only and has no
+reviewer, so Plan runs with those credentials without a click. That is acceptable because
+only code on `main` can run it. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
 no secret value.
 
 ### What stays outside Terraform, and how it is checked
 
-| Part                                                                                                                                                                                                     | Why                                                                                                                                                                                                                        | Kept true by                                                                                     |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Organization policies, the organization's roles, the billing account                                                                                                                                     | They belong to the organization, not to Wally                                                                                                                                                                              | The bootstrap's first apply fails on a missing role; the budget emails on spend                  |
-| Terraform's own access: the `infrastructure` and `infrastructure-plan` environments, the GitHub App, the `wally-terraform` Auth0 application, the Cloudflare and Supabase tokens, the state bucket's IAM | The pipeline's root does not manage them. Terraform's identity may grant only the three roles that root grants, but it can change the project's service accounts and identity pools, so read each plan before approving it | The bootstrap steps below; the environment's settings page                                       |
-| Secret values (`wally-database-url`, `wally-auth0-management-client-secret`)                                                                                                                             | Kept out of state                                                                                                                                                                                                          | `gcloud secrets versions list`; Cloud Run does not start an instance whose secret it cannot read |
-| The API image, its variables and traffic; the Worker versions                                                                                                                                            | Owned by the release                                                                                                                                                                                                       | The release's smoke tests (section 13)                                                           |
-| Worker settings in `wrangler.jsonc`; zone-wide Cloudflare settings                                                                                                                                       | Wrangler's configuration is Cloudflare's source of truth; the zone is shared with other sites                                                                                                                              | The release; [Zone security](#zone-security-for-luminullcom)                                     |
-| Supabase: the project, the Data API switch, backups                                                                                                                                                      | Importing the project resets its database password on the next apply; the Data API switch is dashboard-only                                                                                                                | `curl https://<ref>.supabase.co/rest/v1/` answers 503 (RFC-0011 section 8)                       |
-| The schema and the pg_cron job                                                                                                                                                                           | Owned by the Drizzle migrations                                                                                                                                                                                            | `migrate-cli --require-purge-job` in every release                                               |
-| Auth0 users and the tenant itself                                                                                                                                                                        | Data, and tenants cannot be created through Auth0's API                                                                                                                                                                    | [AUTH0.md](AUTH0.md)                                                                             |
-| The Google OAuth client in `luminull-wally-prod` (branding, audience, scopes, the client)                                                                                                                | Made in the console: no Terraform resource for it is verified; its secret reaches Auth0 as a write-only value                                                                                                              | A Google sign-in after each change                                                               |
-| Other Auth0 applications and Workers Custom Domains (`luminull.com`)                                                                                                                                     | Not Wally's                                                                                                                                                                                                                | —                                                                                                |
-| GitHub secret values, the E2E fixture variables (`E2E_*`), the repository's own settings                                                                                                                 | The provider would keep secret values in state; fixtures are test data, not infrastructure                                                                                                                                 | `gh secret list`; CI fails without its fixtures                                                  |
-| Vertex AI model access                                                                                                                                                                                   | Not a resource: a model answers per project and location                                                                                                                                                                   | One assistant question after the cutover (RFC-0011 section 10)                                   |
+| Part                                                                                                                                                                                                         | Why                                                                                                                                                                                                                        | Kept true by                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Organization policies, the organization's roles, the billing account                                                                                                                                         | They belong to the organization, not to Wally                                                                                                                                                                              | The bootstrap's first apply fails on a missing role; the budget emails on spend                  |
+| Terraform's own access: the `infrastructure` and `infrastructure-approval` environments, the GitHub App, the `wally-terraform` Auth0 application, the Cloudflare and Supabase tokens, the state bucket's IAM | The pipeline's root does not manage them. Terraform's identity may grant only the three roles that root grants, but it can change the project's service accounts and identity pools, so read each plan before approving it | The bootstrap steps below; the environment's settings page                                       |
+| Secret values (`wally-database-url`, `wally-auth0-management-client-secret`)                                                                                                                                 | Kept out of state                                                                                                                                                                                                          | `gcloud secrets versions list`; Cloud Run does not start an instance whose secret it cannot read |
+| The API image, its variables and traffic; the Worker versions                                                                                                                                                | Owned by the release                                                                                                                                                                                                       | The release's smoke tests (section 13)                                                           |
+| Worker settings in `wrangler.jsonc`; zone-wide Cloudflare settings                                                                                                                                           | Wrangler's configuration is Cloudflare's source of truth; the zone is shared with other sites                                                                                                                              | The release; [Zone security](#zone-security-for-luminullcom)                                     |
+| Supabase: the project, the Data API switch, backups                                                                                                                                                          | Importing the project resets its database password on the next apply; the Data API switch is dashboard-only                                                                                                                | `curl https://<ref>.supabase.co/rest/v1/` answers 503 (RFC-0011 section 8)                       |
+| The schema and the pg_cron job                                                                                                                                                                               | Owned by the Drizzle migrations                                                                                                                                                                                            | `migrate-cli --require-purge-job` in every release                                               |
+| Auth0 users and the tenant itself                                                                                                                                                                            | Data, and tenants cannot be created through Auth0's API                                                                                                                                                                    | [AUTH0.md](AUTH0.md)                                                                             |
+| The Google OAuth client in `luminull-wally-prod` (branding, audience, scopes, the client)                                                                                                                    | Made in the console: no Terraform resource for it is verified; its secret reaches Auth0 as a write-only value                                                                                                              | A Google sign-in after each change                                                               |
+| Other Auth0 applications and Workers Custom Domains (`luminull.com`)                                                                                                                                         | Not Wally's                                                                                                                                                                                                                | —                                                                                                |
+| GitHub secret values, the E2E fixture variables (`E2E_*`), the repository's own settings                                                                                                                     | The provider would keep secret values in state; fixtures are test data, not infrastructure                                                                                                                                 | `gh secret list`; CI fails without its fixtures                                                  |
+| Vertex AI model access                                                                                                                                                                                       | Not a resource: a model answers per project and location                                                                                                                                                                   | One assistant question after the cutover (RFC-0011 section 10)                                   |
 
 ### Bootstrap (owner, once)
 
@@ -1596,14 +1599,25 @@ gcloud auth application-default login
    `milad-luminull/wally` only, and generate a private key. Administration is what creates
    environments and their tag policies, and it is broad: the key is a production secret.
 
-3. **The `infrastructure` environment**, with the owner as required reviewer and `main` as
-   its only branch:
+3. **Terraform's two environments.** `infrastructure-approval` is the gate: the owner as
+   required reviewer, `main` as its only branch, and nothing stored in it. `infrastructure`
+   holds the credentials: `main` only, no reviewer. Create the gate first: a workflow that
+   names a missing environment creates it with no protection, and Apply would then run
+   unapproved.
 
    ```bash
-   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure \
-     -F 'reviewers[][type]=User' -F 'reviewers[][id]=331026245' \
-     -F 'deployment_branch_policy[protected_branches]=false' \
-     -F 'deployment_branch_policy[custom_branch_policies]=true'
+   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure-approval --input - <<'JSON'
+   {"prevent_self_review": false,
+    "reviewers": [{"type": "User", "id": 331026245}],
+    "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+   JSON
+   gh api -X POST repos/milad-luminull/wally/environments/infrastructure-approval/deployment-branch-policies \
+     -f name=main -f type=branch
+
+   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure --input - <<'JSON'
+   {"reviewers": [],
+    "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+   JSON
    gh api -X POST repos/milad-luminull/wally/environments/infrastructure/deployment-branch-policies \
      -f name=main -f type=branch
 
@@ -1644,49 +1658,28 @@ gcloud auth application-default login
    Set them before a change to these providers reaches `main`; without them, its plan fails
    before it reads anything.
 
-   **The `infrastructure-plan` environment**, where the Plan job runs: `main` only, like
-   `infrastructure`, but with no required reviewer. It needs the same five variables and five
-   secrets, because environment secrets are visible only to jobs in their own environment.
-   Create it before a workflow names it: GitHub creates a missing environment on first use,
-   with no branch policy.
+   **Moving from two approvals to one (once, 2026-11-07).** Until then `infrastructure`
+   required the owner, and no `infrastructure-approval` existed. Right before merging the pull
+   request that adds "Approve the plan", in this order:
 
-   ```bash
-   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure-plan \
-     -F 'deployment_branch_policy[protected_branches]=false' \
-     -F 'deployment_branch_policy[custom_branch_policies]=true'
-   gh api -X POST repos/milad-luminull/wally/environments/infrastructure-plan/deployment-branch-policies \
-     -f name=main -f type=branch
+   1. Create `infrastructure-approval`: the first two commands above. Check it shows the
+      owner as reviewer and `main` as its only branch:
 
-   # The variables are public identifiers: copy them across.
-   gh variable list -R milad-luminull/wally --env infrastructure --json name,value \
-     --jq '.[] | [.name, .value] | @tsv' |
-     while IFS=$'\t' read -r name value; do
-       gh variable set "$name" -R milad-luminull/wally --env infrastructure-plan --body "$value"
-     done
+      ```bash
+      gh api repos/milad-luminull/wally/environments/infrastructure-approval \
+        --jq '{reviewers: [.protection_rules[]? | select(.type == "required_reviewers") | .reviewers[].reviewer.login], branch_policy: .deployment_branch_policy}'
+      gh api repos/milad-luminull/wally/environments/infrastructure-approval/deployment-branch-policies \
+        --jq '[.branch_policies[].name]'
+      ```
 
-   gh secret set TERRAFORM_GITHUB_APP_PRIVATE_KEY -R milad-luminull/wally --env infrastructure-plan < <path to the .pem>
-   gh secret set TERRAFORM_AUTH0_CLIENT_SECRET -R milad-luminull/wally --env infrastructure-plan
-   gh secret set TERRAFORM_CLOUDFLARE_API_TOKEN -R milad-luminull/wally --env infrastructure-plan
-   gh secret set TERRAFORM_SUPABASE_ACCESS_TOKEN -R milad-luminull/wally --env infrastructure-plan
-   gh secret set TERRAFORM_GOOGLE_OAUTH_CLIENT_SECRET -R milad-luminull/wally --env infrastructure-plan
-   ```
+   2. Only then remove the reviewer from `infrastructure`: the third command above (its
+      `main` policy exists already, so skip the POST after it). Check with the same two
+      commands for `infrastructure`: no reviewer, and `["main"]`. If the list is empty, run
+      that POST.
 
-   GitHub never shows a secret's value again, so take each one from its source:
-
-   - **GitHub App key:** generate a second private key on the `wally-terraform` App's page;
-     an App can hold more than one. Delete the `.pem` once the secret is set.
-   - **Auth0:** the `wally-terraform` application's client secret, on its Settings page.
-   - **Cloudflare and Supabase:** a token is shown only when it is created, so create a
-     second one with the same permissions as above. Rolling the first one would break the
-     `infrastructure` environment's copy.
-   - **Google OAuth client secret:** the same value as on `infrastructure`.
-
-   Then gh lists the same names in both environments:
-
-   ```bash
-   gh variable list -R milad-luminull/wally --env infrastructure-plan
-   gh secret list -R milad-luminull/wally --env infrastructure-plan
-   ```
+   Removing the reviewer first would leave a window in which Plan and Apply both run
+   unapproved. So would another Terraform change reaching `main` between step 2 and the merge,
+   because the workflow on `main` still runs both jobs in `infrastructure`.
 
 4. **A pipeline run that imports**, as the first one did (2026-11-07): the plan must show the
    imports with no changes, apart from what the pull request names. Anything else, stop and
@@ -1709,7 +1702,4 @@ terraform apply bootstrap.tfplan
 rm bootstrap.tfplan
 ```
 
-Read the plan before applying it. The change that let the Plan job run without an approval
-(2026-11-07) is one update in place: the `attribute_condition` of
-`google_iam_workload_identity_pool_provider.github` accepts the `infrastructure-plan`
-environment as well, and only tokens from `refs/heads/main`.
+Read the plan before applying it.

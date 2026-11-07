@@ -1,6 +1,6 @@
 # The `production` environment and the release's variables, imported as they were on
-# 2026-11-06, and the ruleset on `main`. The `infrastructure` and `infrastructure-plan`
-# environments are Terraform's own access and stay outside it, and so do the E2E test
+# 2026-11-06, and the ruleset on `main`. The `infrastructure` environment (Terraform's own
+# access) and `infrastructure-approval` (its gate) stay outside it, and so do the E2E test
 # fixtures and every secret value (docs/DEPLOY.md).
 
 locals {

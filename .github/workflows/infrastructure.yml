@@ -2,9 +2,9 @@ name: Infrastructure
 
 # Terraform for infra/terraform/wally (ADR-0026). Pull requests are checked without any
 # credentials. On main, a plan is saved and shown in the run summary without waiting for
-# anyone, and the same plan is applied only after the owner has read it and approved. One
-# approval per change. infra/terraform/bootstrap is applied by the owner from their machine,
-# never here. See docs/DEPLOY.md, "Infrastructure in Terraform".
+# anyone; the owner reads it and approves "Approve the plan", and then the same plan is
+# applied. One approval per change (ADR-0030). infra/terraform/bootstrap is applied by the
+# owner from their machine, never here. See docs/DEPLOY.md, "Infrastructure in Terraform".
 #
 # It runs only when Terraform code changes: no other change starts it.
 on:
@@ -56,14 +56,11 @@ jobs:
       group: infrastructure
       cancel-in-progress: false
     timeout-minutes: 15
-    # No approval here: the owner approves once, at Apply, after reading this plan. The
-    # trade-off is that Plan runs with Terraform's credentials, which can write, without a
-    # click. That is acceptable because only code on main can run it: the environment allows
-    # main only, and the WIF provider accepts no token from another environment or ref
-    # (infra/terraform/bootstrap). Code that reaches main can change this workflow anyway.
-    # The environment holds its own copy of the secrets and variables below
-    # (docs/DEPLOY.md, "Bootstrap").
-    environment: infrastructure-plan
+    # The environment holds Terraform's credentials and allows main only; its WIF provider
+    # accepts no token from any other environment. It has no reviewer, so Plan runs with
+    # credentials that can write, without a click. That is acceptable because only code on
+    # main can run it, and code that reaches main could change this workflow anyway.
+    environment: infrastructure
     permissions:
       contents: read
       id-token: write
@@ -107,16 +104,32 @@ jobs:
           # changed is refused at apply anyway.
           retention-days: 7
 
+  # The one approval. Its environment requires the owner and allows main only, and holds no
+  # secret or variable: it only gates, so it gets no token permissions either.
+  approve:
+    name: Approve the plan
+    needs: plan
+    runs-on: ubuntu-24.04
+    # In Plan and Apply's group, so a newer run waits while this one waits for the owner.
+    concurrency:
+      group: infrastructure
+      cancel-in-progress: false
+    timeout-minutes: 5
+    environment: infrastructure-approval
+    permissions: {}
+    steps:
+      - run: echo "Approved after reading the plan in this run's summary (the Plan job)."
+
   apply:
     name: Apply the saved plan
-    needs: plan
+    needs: approve
     runs-on: ubuntu-24.04
     concurrency:
       group: infrastructure
       cancel-in-progress: false
     timeout-minutes: 15
-    # The one approval: the environment requires the owner, who reads the plan in the run
-    # summary first. Main only, like the plan's.
+    # No approval here: it runs only after "Approve the plan". Same environment and
+    # credentials as Plan.
     environment: infrastructure
     permissions:
       contents: read
