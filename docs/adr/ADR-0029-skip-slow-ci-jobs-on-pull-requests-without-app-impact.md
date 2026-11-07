@@ -59,8 +59,9 @@ full run, including `ci.yml`, `release.yml`, `.github/actions/` and
 in `Typecheck & build`.
 
 Why the files next to the app are safe to skip: no CI job reads them. E2E runs the compose
-stack, which serves the web app with nginx and never the Workers; the web build is Vite alone;
-the release, not CI, deploys the Workers and smoke-tests their previews. And every push to
+stack, where the web app runs on Vite's dev server behind an nginx TLS proxy, never on the
+Workers; the web build is Vite alone; the release, not CI, deploys the Workers and
+smoke-tests their previews. And every push to
 `main` still runs the full suite, which the release requires for the commit it deploys, so a
 mistake shows on `main` before it can ship.
 
