@@ -1468,3 +1468,109 @@ after Auth0 (the API logs `account erase failed` with the `userId`):
 
 Removed in PR #76 with self-service account export and deletion; its cloud resources and its
 `accountDeletionJobs` and `accountDenials` collections were deleted on 2026-10-27.
+
+## Infrastructure in Terraform
+
+Wally's infrastructure moves into Terraform ([ADR-0026](adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
+[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **Not applied yet (2026-11-06):**
+production still runs in `luminull-wally`, as everything above describes, until the cutover.
+
+### What Terraform manages
+
+| Root                                                         | Applied by                                                                | Manages                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`infra/terraform/bootstrap`](../infra/terraform/bootstrap/) | The owner, from their machine                                             | The project `luminull-wally-prod`, its billing link and budget, its APIs, the state bucket `luminull-wally-prod-tfstate`, and Terraform's own identity                                                                                                     |
+| [`infra/terraform/wally`](../infra/terraform/wally/)         | [Infrastructure](../.github/workflows/infrastructure.yml), after approval | In the new project: `wally-api` and `github-deployer`, the release's Workload Identity Federation, Artifact Registry, the two secrets without their values, and the Cloud Run service. On GitHub: the `production` environment and the release's variables |
+
+Auth0, the Cloudflare Custom Domains and Supabase's Third-Party Auth provider follow in the next
+slice.
+
+**The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
+without credentials. A push to `main` that touches `infra/terraform/wally/` waits for the
+owner's approval, then saves a plan and prints it in the run summary; a second approval
+applies exactly that plan. Any other change starts nothing. The repository is public, so the summary is too: the plan holds
+no secret value.
+
+### What stays outside Terraform, and how it is checked
+
+| Part                                                                                             | Why                                                                                                                                                                                                                        | Kept true by                                                                                     |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Organization policies, the organization's roles, the billing account                             | They belong to the organization, not to Wally                                                                                                                                                                              | The bootstrap's first apply fails on a missing role; the budget emails on spend                  |
+| Terraform's own access: the `infrastructure` environment, the GitHub App, the state bucket's IAM | The pipeline's root does not manage them. Terraform's identity may grant only the three roles that root grants, but it can change the project's service accounts and identity pools, so read each plan before approving it | The bootstrap steps below; the environment's settings page                                       |
+| Secret values (`wally-database-url`, `wally-auth0-management-client-secret`)                     | Kept out of state                                                                                                                                                                                                          | `gcloud secrets versions list`; Cloud Run does not start an instance whose secret it cannot read |
+| The API image, its variables and traffic; the Worker versions                                    | Owned by the release                                                                                                                                                                                                       | The release's smoke tests (section 13)                                                           |
+| Worker settings in `wrangler.jsonc`; zone-wide Cloudflare settings                               | Wrangler's configuration is Cloudflare's source of truth; the zone is shared with other sites                                                                                                                              | The release; [Zone security](#zone-security-for-luminullcom)                                     |
+| Supabase: the project, the Data API switch, backups                                              | Importing the project resets its database password on the next apply; the Data API switch is dashboard-only                                                                                                                | `curl https://<ref>.supabase.co/rest/v1/` answers 503 (RFC-0011 section 8)                       |
+| The schema and the pg_cron job                                                                   | Owned by the Drizzle migrations                                                                                                                                                                                            | `migrate-cli --require-purge-job` in every release                                               |
+| Auth0 users and the tenant itself                                                                | Data, and tenants cannot be created through Auth0's API                                                                                                                                                                    | [AUTH0.md](AUTH0.md)                                                                             |
+| GitHub secret values, the E2E fixture variables (`E2E_*`), the repository's own settings         | The provider would keep secret values in state; fixtures are test data, not infrastructure                                                                                                                                 | `gh secret list`; CI fails without its fixtures                                                  |
+| Vertex AI model access                                                                           | Not a resource: a model answers per project and location                                                                                                                                                                   | One assistant question after the cutover (RFC-0011 section 10)                                   |
+
+### Bootstrap (owner, once)
+
+You need [Terraform 1.17.1](https://developer.hashicorp.com/terraform/install), and on the
+organization **Project Creator**, on the billing account **Billing Account User** and **Billing
+Account Costs Manager** (the budget). Sign in for Application Default Credentials:
+
+```bash
+gcloud auth application-default login
+```
+
+1. **The project, the state bucket and Terraform's identity.** The first apply keeps its state
+   locally, because the bucket it stores state in does not exist yet; then the state moves into
+   it. `*.tfvars` and `*_override.tf` are gitignored.
+
+   ```bash
+   cd infra/terraform/bootstrap
+   printf 'org_id          = "<organization id>"\nbilling_account = "<billing account id>"\n' > terraform.tfvars
+   printf 'terraform {\n  backend "local" {}\n}\n' > backend_override.tf
+   terraform init
+   terraform apply
+   rm backend_override.tf
+   terraform init -migrate-state
+   rm terraform.tfstate terraform.tfstate.backup
+   ```
+
+   Keep `terraform.tfvars` for later bootstrap changes. Delete the local state files only
+   after `terraform init -migrate-state` has said it copied the state.
+
+2. **The GitHub App.** GitHub → Settings → Developer settings → GitHub Apps → **New GitHub
+   App**: name `wally-terraform`, no webhook, repository permissions **Administration**,
+   **Environments** and **Variables**, each read and write, and **Actions** read-only (it reads
+   environments and their tag policies). Install it on
+   `milad-luminull/wally` only, and generate a private key. Administration is what creates
+   environments and their tag policies, and it is broad: the key is a production secret.
+
+3. **The `infrastructure` environment**, with the owner as required reviewer and `main` as
+   its only branch:
+
+   ```bash
+   gh api -X PUT repos/milad-luminull/wally/environments/infrastructure \
+     -F 'reviewers[][type]=User' -F 'reviewers[][id]=331026245' \
+     -F 'deployment_branch_policy[protected_branches]=false' \
+     -F 'deployment_branch_policy[custom_branch_policies]=true'
+   gh api -X POST repos/milad-luminull/wally/environments/infrastructure/deployment-branch-policies \
+     -f name=main -f type=branch
+
+   cd infra/terraform/bootstrap
+   gh variable set TERRAFORM_WIF_PROVIDER --env infrastructure --body "$(terraform output -raw terraform_wif_provider)"
+   gh variable set TERRAFORM_SERVICE_ACCOUNT --env infrastructure --body "$(terraform output -raw terraform_service_account)"
+   gh variable set TERRAFORM_GITHUB_APP_ID --env infrastructure --body '<app id>'
+   gh variable set TERRAFORM_GITHUB_APP_INSTALLATION_ID --env infrastructure --body '<installation id>'
+   gh secret set TERRAFORM_GITHUB_APP_PRIVATE_KEY --env infrastructure < <path to the .pem>
+   ```
+
+   The installation ID is the number at the end of the App's installation page URL. Delete
+   the downloaded `.pem` once the secret is set.
+
+4. **The first pipeline run**, after the merge: the plan must show only creations in
+   `luminull-wally-prod`, and imports with no changes for GitHub. Anything else, stop and
+   reconcile the code first.
+
+5. **The secret values**, before the cutover: add each one as in section 7 and
+   [Account deletion setup](#account-deletion-setup), with `--project=luminull-wally-prod`
+   and `gcloud secrets versions add` (Terraform already created the secrets and their
+   readers).
+
+**Changing the bootstrap later:** edit `infra/terraform/bootstrap`, then `terraform plan` and
+`terraform apply` from your machine. The pipeline only validates it.

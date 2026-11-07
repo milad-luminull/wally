@@ -4,13 +4,13 @@
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
   (both 2026-11-01). Workstream 6 (Firebase retired) is live since v0.14.0
   (2026-11-01). See section 4.
-- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01 and 2026-11-03
+- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03 and 2026-11-05
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
   [ADR-0023](../adr/ADR-0023-supabase-realtime-for-notification-events.md) (notification events),
-  [ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md) (a new Google
-  Cloud project, created with Terraform),
+  [ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md) (infrastructure
+  in Terraform, starting with a new Google Cloud project),
   [ADR-0027](../adr/ADR-0027-supabase-trusts-auth0-tokens-through-third-party-auth.md) (Supabase
   trusts Auth0 tokens). Identity stays with Auth0 ([ADR-0016](../adr/ADR-0016-auth0-for-web-and-mcp.md)).
 
@@ -53,8 +53,9 @@ The brief's table is authoritative for the choice of provider. In short:
 - Resend for notification email.
 - Supabase Storage for uploads ([uploads RFC](RFC-0009-uploads-and-retrieval.md)).
 - GitHub Actions to Artifact Registry to Cloud Run.
-- Terraform for infrastructure, including a new Google Cloud project for Wally
-  ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md)).
+- Terraform for infrastructure on every provider, including a new Google Cloud project for
+  Wally ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
+  section 10).
 
 **Budget (replaces the €30/month ceiling of 2026-10-19):**
 
@@ -101,15 +102,16 @@ The brief's table is authoritative for the choice of provider. In short:
 Each workstream is one or more slices, each with its own plan, its own PR from `main`,
 and its own E2E specs. Plans are not stacked.
 
-| #   | Workstream                                                                | Depends on                    | Detail                                            |
-| --- | ------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- |
-| 0   | **Proofs on a free project** (no production change), including backups    | none                          | Section 5                                         |
-| 1   | **Postgres foundation:** schema, migrations, local database, test harness | none (built first)            | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
-| 2   | **Persistence switch** (no data to carry over)                            | 0, 1                          | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
-| 3   | **Third-Party Auth:** Supabase trusts Auth0 tokens                        | none (proof dropped)          | ADR-0027                                          |
-| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting         | none (smallest; can go first) | ADR-0022                                          |
-| 5   | **Background service, Realtime notifications, Resend**                    | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
-| 6   | **Decommission** Firestore, Firebase Auth and Firebase Hosting            | all, plus rollback windows    | Section 6                                         |
+| #   | Workstream                                                                 | Depends on                    | Detail                                            |
+| --- | -------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| 0   | **Proofs on a free project** (no production change), including backups     | none                          | Section 5                                         |
+| 1   | **Postgres foundation:** schema, migrations, local database, test harness  | none (built first)            | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 2   | **Persistence switch** (no data to carry over)                             | 0, 1                          | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
+| 3   | **Third-Party Auth:** Supabase trusts Auth0 tokens                         | none (proof dropped)          | ADR-0027                                          |
+| 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting          | none (smallest; can go first) | ADR-0022                                          |
+| 5   | **Background service, Realtime notifications, Resend**                     | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
+| 6   | **Decommission** Firestore, Firebase Auth and Firebase Hosting             | all, plus rollback windows    | Section 6                                         |
+| 7   | **Infrastructure in Terraform** and the move to a new Google Cloud project | none                          | Section 10, ADR-0026                              |
 
 **Status (2026-11-01):**
 
@@ -316,11 +318,26 @@ Decided on 2026-11-01:
   Wally moves to a new project created with Terraform, when Terraform is adopted; not now, by
   hand ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md)).
 
+Decided on 2026-11-05:
+
+- **Terraform scope:** every provider with an official Terraform provider. Google Cloud is
+  rebuilt in a new project; Auth0, the Cloudflare Custom Domains and GitHub are imported,
+  never recreated ([ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
+  section 10).
+- **State:** a versioned Cloud Storage bucket in the EU, a few cents a month (spend approved).
+- **Apply:** from GitHub Actions, the saved plan, after the owner approves it.
+
+Decided on 2026-11-06:
+
+- **The Supabase project stays out of Terraform,** replacing "import it now" of 2026-11-05:
+  importing it would reset its database password on the next apply. Its Third-Party Auth
+  provider is imported (section 10).
+- **The new project is `luminull-wally-prod`.** Terraform reaches GitHub as a GitHub App.
+
 Still open:
 
-- **Rollback windows** for the remaining cutovers.
-- **Terraform scope:** which resources it manages first. The new Google Cloud project of
-  ADR-0026 is part of it.
+- **Rollback windows** for the remaining cutovers, including how long `luminull-wally` is kept
+  after the move (section 10).
 
 ## 9. Operations the brief expects from day one
 
@@ -350,3 +367,36 @@ Still open:
   - AI spend.
 - **Email volume:** Resend's free allowance is 3,000 emails a month and 100 a day (owner
   brief). Notification email shares that limit.
+
+## 10. Infrastructure in Terraform (workstream 7)
+
+The rules are in [ADR-0026](../adr/ADR-0026-new-google-cloud-project-created-with-terraform.md);
+what Terraform manages, what stays outside it and how that is checked, and the bootstrap
+commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
+
+### Slices
+
+1. **Foundation** ([plan](../superpowers/plans/2026-11-06-terraform-foundation.md)): a
+   bootstrap root the owner applies (the project `luminull-wally-prod`, its billing link and
+   budget, the state bucket, Terraform's identity), and the `wally` root the pipeline applies
+   (Google Cloud in the new project, and the GitHub `production` environment and variables,
+   imported).
+2. **Auth0, Cloudflare and Supabase's Third-Party Auth, imported.** Their configuration is
+   generated from the live tenant and account with the owner's credentials (`auth0 tf
+generate`; the Custom Domain IDs from Cloudflare's API), then cleaned by hand. Generated
+   configuration is experimental in both Terraform and the Auth0 CLI, so it is only a draft.
+   The Action's `WEB_CLIENT_ID` secret goes through the write-only `secrets_wo`. Supabase's
+   custom OIDC provider (v0.16.0) is imported as `supabase_third_party_auth`; the Supabase
+   project itself stays out. Proof: the plan shows no changes.
+3. **Cutover,** below.
+
+### Cutover order
+
+1. **Build:** the foundation is applied and the secret values are set in the new project.
+   Check Gemini 3.8 Flash on the `eu` endpoint from the new project.
+2. **Switch** in one release: the proxy's `ORIGIN` names the new `run.app` URL (the `api_url`
+   output), and Terraform points the `GCP_*` variables at the new project. The release's checks
+   run as usual. Until step 3, reverting both and releasing again is the rollback.
+3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
+   `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
+   ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).

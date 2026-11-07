@@ -22,3 +22,10 @@ skills-lock.json
 # Wrangler's local state and local secrets.
 .wrangler/
 .dev.vars
+# Terraform: provider downloads, local state, inputs and local overrides. The lock file is committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*_override.tf
+tfplan
