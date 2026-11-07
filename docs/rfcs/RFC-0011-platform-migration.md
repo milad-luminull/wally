@@ -423,7 +423,10 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
 2. **Switch** in one release: the proxy's `ORIGIN` names the new `run.app` URL (the `api_url`
    output), and Terraform points the `GCP_*` variables at the new project. The release's checks
    run as usual. Until step 3, reverting both and releasing again is the rollback. Terraform
-   leaves the service's labels to the release, which writes the commit into them.
+   leaves the service's labels to the release, which writes the commit into them. The first
+   release into the new service needs a Wally revision serving there first
+   ([DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform)): v0.17.0 stopped safely for that
+   reason, and the next tag completes the switch.
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).
