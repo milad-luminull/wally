@@ -5,15 +5,14 @@
 locals {
   repository = "wally"
 
-  # Repository variables. The four GCP_* values still name luminull-wally; the cutover
-  # points them at luminull-wally-prod (RFC-0011 section 10, step 2).
+  # Repository variables. The release deploys to the project and identity this root creates.
   repository_variables = {
     API_BASE_URL         = "https://api.wally.luminull.com"
     ASSISTANT_ENABLED    = "true"
-    GCP_DEPLOY_SA        = "github-deployer@luminull-wally.iam.gserviceaccount.com"
-    GCP_PROJECT_ID       = "luminull-wally"
-    GCP_REGION           = "europe-west1"
-    GCP_WIF_PROVIDER     = "projects/128432325938/locations/global/workloadIdentityPools/github/providers/wally-prod"
+    GCP_DEPLOY_SA        = google_service_account.deployer.email
+    GCP_PROJECT_ID       = local.project_id
+    GCP_REGION           = local.region
+    GCP_WIF_PROVIDER     = google_iam_workload_identity_pool_provider.release.name
     VITE_AUTH0_CLIENT_ID = "Ck830qbC3GVTQDL3W3ku4yRA43O1R5hp"
     WEB_ORIGIN           = "https://wally.luminull.com"
   }

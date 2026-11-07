@@ -148,8 +148,9 @@ resource "google_secret_manager_secret_iam_member" "auth0_management_client_secr
 # ─── the API service ────────────────────────────────────────────────────────────────────────
 
 # Terraform owns the service; the release owns what runs in it. Every release replaces the
-# template (image, variables, secrets) and moves traffic with gcloud, so Terraform ignores
-# both. The first revision is Google's sample container until the first release.
+# template (image, variables, secrets), labels the service with its commit and moves traffic
+# with gcloud, so Terraform ignores all three. The first revision is Google's sample container
+# until the first release.
 resource "google_cloud_run_v2_service" "api" {
   name                = "wally-api"
   location            = local.region
@@ -169,6 +170,6 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   lifecycle {
-    ignore_changes = [template, traffic, client, client_version]
+    ignore_changes = [template, traffic, labels, client, client_version]
   }
 }

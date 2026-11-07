@@ -15,6 +15,6 @@
   "dependencies_instrumentation": { "enabled": false },
   "vars": {
     // The Cloud Run service URL. Public, not a secret; the release checks it still matches.
-    "ORIGIN": "https://wally-api-d5xbuta4ya-ew.a.run.app",
+    "ORIGIN": "https://wally-api-ttkwy6mnka-ew.a.run.app",
   },
 }

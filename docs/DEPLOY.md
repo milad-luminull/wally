@@ -1472,8 +1472,11 @@ Removed in PR #76 with self-service account export and deletion; its cloud resou
 ## Infrastructure in Terraform
 
 Wally's infrastructure moves into Terraform ([ADR-0026](adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
-[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **The foundation is applied (2026-11-07),** but production still runs in
-`luminull-wally`, as everything above describes, until the cutover.
+[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **The foundation is applied (2026-11-07).** The release
+deploys to the project the `GCP_*` variables name. From the switch (RFC-0011 section 10,
+step 2) that is `luminull-wally-prod`, at `https://wally-api-ttkwy6mnka-ew.a.run.app`.
+Sections 3 to 9 describe the hand setup of `luminull-wally`; they are rewritten when that
+project is retired (step 3).
 
 ### What Terraform manages
 

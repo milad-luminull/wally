@@ -417,10 +417,13 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
    write-only `options_client_secret_wo`. One existing Google account signs in and keeps its
    Auth0 user ID; that Google's subject is the same across OAuth clients is not verified until
    then. Once it works, delete the old OAuth client at once, and the run's plan artifact: the
-   import stored the old secret in state and in that saved plan.
+   import stored the old secret in state and in that saved plan. **Done 2026-11-07,** as the
+   owner reported: Gemini answered from the new project, the owner's Google sign-in reached
+   the existing account, and the old client and the artifact are deleted.
 2. **Switch** in one release: the proxy's `ORIGIN` names the new `run.app` URL (the `api_url`
    output), and Terraform points the `GCP_*` variables at the new project. The release's checks
-   run as usual. Until step 3, reverting both and releasing again is the rollback.
+   run as usual. Until step 3, reverting both and releasing again is the rollback. Terraform
+   leaves the service's labels to the release, which writes the commit into them.
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).
