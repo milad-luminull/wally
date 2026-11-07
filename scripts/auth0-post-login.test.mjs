@@ -55,3 +55,56 @@ test('a login without an explicitly verified email is denied before any claim', 
     }
   }
 });
+const webClient = 'web-client-id';
+const secrets = { WEB_CLIENT_ID: webClient };
+test("Wally's web client gets role authenticated on its ID token only", async () => {
+  for (const identifier of ['https://api.wally.luminull.com', undefined]) {
+    const idClaims = {};
+    const accessClaims = {};
+    await onExecutePostLogin(
+      {
+        secrets,
+        client: { client_id: webClient },
+        resource_server: identifier ? { identifier } : undefined,
+        user: { email: 'user@example.com', email_verified: true, name: 'User' },
+      },
+      {
+        idToken: { setCustomClaim: (key, value) => (idClaims[key] = value) },
+        accessToken: { setCustomClaim: (key, value) => (accessClaims[key] = value) },
+      },
+    );
+    assert.deepEqual(idClaims, { role: 'authenticated' });
+    assert.equal('role' in accessClaims, false);
+  }
+});
+test('other clients and unverified logins get no role claim', async () => {
+  await onExecutePostLogin(
+    {
+      secrets,
+      client: { client_id: 'some-mcp-client' },
+      resource_server: { identifier: 'https://api.wally.luminull.com/mcp' },
+      user: { email_verified: true },
+    },
+    {
+      idToken: { setCustomClaim: () => assert.fail('role set for another client') },
+      accessToken: { setCustomClaim: () => {} },
+    },
+  );
+  const denied = [];
+  await onExecutePostLogin(
+    { secrets, client: { client_id: webClient }, user: { email_verified: false } },
+    {
+      access: { deny: (reason) => denied.push(reason) },
+      idToken: { setCustomClaim: () => assert.fail('role set for an unverified user') },
+    },
+  );
+  assert.deepEqual(denied, ['EMAIL_NOT_VERIFIED']);
+});
+test('without the WEB_CLIENT_ID secret no token gets the role claim', async () => {
+  for (const secrets of [undefined, {}, { WEB_CLIENT_ID: '' }]) {
+    await onExecutePostLogin(
+      { secrets, client: { client_id: '' }, user: { email_verified: true } },
+      { idToken: { setCustomClaim: () => assert.fail('role set without the secret') } },
+    );
+  }
+});

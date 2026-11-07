@@ -25,11 +25,11 @@ stage:
 
 - ADR-0026 edited in place; state in the EU (approved spend); apply from GitHub Actions after
   approval; a GitHub App for Terraform's GitHub access; project ID `luminull-wally-prod`.
-- **Supabase stays out of Terraform until workstream 3** (2026-11-06): importing the project
-  would reset its database password on the next apply, and nothing Wally changed there is
-  expressible. Replaces the 2026-11-05 "import it now".
-- **Auth0 and Cloudflare are imported in slice 2,** from config generated with the owner's
-  credentials (`auth0 tf generate`, and the Cloudflare domain IDs), cleaned by hand.
+- **The Supabase project stays out of Terraform** (2026-11-06): importing it would reset its
+  database password on the next apply, and nothing Wally changed there is expressible.
+  Replaces the 2026-11-05 "import it now".
+- **Auth0, Cloudflare and Supabase's Third-Party Auth provider are imported in slice 2,** from
+  config generated with the owner's credentials, cleaned by hand.
 
 ## Tasks
 
@@ -41,5 +41,5 @@ stage:
    how it is checked. ADR-0026 and RFC-0011 section 10 updated to the 2026-11-06 decisions.
 4. `terraform fmt -check` and `validate` on both roots; one whole-branch review.
 
-Slice 2 imports Auth0 and the Cloudflare Custom Domains. Slice 3 is the cutover (RFC-0011
+Slice 2 imports Auth0, the Cloudflare Custom Domains and Supabase's Third-Party Auth provider. Slice 3 is the cutover (RFC-0011
 section 10).

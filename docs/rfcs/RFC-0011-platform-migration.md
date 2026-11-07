@@ -107,7 +107,7 @@ and its own E2E specs. Plans are not stacked.
 | 0   | **Proofs on a free project** (no production change), including backups     | none                          | Section 5                                         |
 | 1   | **Postgres foundation:** schema, migrations, local database, test harness  | none (built first)            | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
 | 2   | **Persistence switch** (no data to carry over)                             | 0, 1                          | [Data RFC](RFC-0008-firestore-to-supabase.md)     |
-| 3   | **Third-Party Auth:** Supabase trusts Auth0 tokens                         | the proof in section 5        | ADR-0027                                          |
+| 3   | **Third-Party Auth:** Supabase trusts Auth0 tokens                         | none (proof dropped)          | ADR-0027                                          |
 | 4   | **Cloudflare Pages and API Worker**, then retire Firebase Hosting          | none (smallest; can go first) | ADR-0022                                          |
 | 5   | **Background service, Realtime notifications, Resend**                     | 2, 3                          | [Durable workers](RFC-0010-durable-ai-workers.md) |
 | 6   | **Decommission** Firestore, Firebase Auth and Firebase Hosting             | all, plus rollback windows    | Section 6                                         |
@@ -136,7 +136,7 @@ and its own E2E specs. Plans are not stacked.
 **The foundation goes first (owner, 2026-10-27).** Workstream 1 changes nothing in
 production and needs no Supabase account, so it is built before the proofs. Each proof
 still gates the slice that depends on it: database connectivity and the Data API switch
-gate workstream 2 (backups were dropped as a gate by the owner on 2026-10-31); the Third-Party Auth proof gates workstream 3; the Worker proof gates
+gate workstream 2 (backups were dropped as a gate by the owner on 2026-10-31); the Third-Party Auth proof was dropped by the owner on 2026-11-05; the Worker proof gates
 workstream 4. The foundation's design is in
 [the slice 1 design](../superpowers/specs/2026-10-27-postgres-foundation-design.md).
 
@@ -151,12 +151,10 @@ Each has to be proven on a free project before the slice that depends on it.
    - The direct endpoint is IPv6 unless the IPv4 add-on is bought
      ([connecting](https://supabase.com/docs/guides/database/connecting-to-postgres)).
    - Measure latency for the heaviest board command transaction.
-2. **Supabase trusts Wally's Auth0 tokens** (ADR-0027):
-   - An Auth0 ID token issued by `https://login.luminull.com/` joins the user's own private
-     Realtime channel and no other. Whether the Auth0 integration accepts the custom-domain
-     issuer is _unverified_; the custom OIDC provider is the fallback
-     ([Third-Party Auth](https://supabase.com/docs/guides/auth/third-party/overview)).
-   - REST and MCP access tokens are refused.
+2. **Supabase trusts Wally's Auth0 tokens** (ADR-0027): **dropped** by the owner on
+   2026-11-05. Supabase trusts the tenant through a custom OIDC provider with the issuer
+   `https://login.luminull.com/`, because the dedicated Auth0 integration only knows
+   `auth0.com` issuers. The first feature that sends the token to Supabase shows it works.
 3. **Data API switched off** while Realtime private channels still work. Switching
    off the Data API is documented
    ([securing your API](https://supabase.com/docs/guides/api/securing-your-api)). Running
@@ -331,9 +329,9 @@ Decided on 2026-11-05:
 
 Decided on 2026-11-06:
 
-- **Supabase stays out of Terraform until workstream 3,** replacing "import it now" of
-  2026-11-05: importing the project would reset its database password on the next apply
-  (section 10).
+- **The Supabase project stays out of Terraform,** replacing "import it now" of 2026-11-05:
+  importing it would reset its database password on the next apply. Its Third-Party Auth
+  provider is imported (section 10).
 - **The new project is `luminull-wally-prod`.** Terraform reaches GitHub as a GitHub App.
 
 Still open:
@@ -383,14 +381,14 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
    budget, the state bucket, Terraform's identity), and the `wally` root the pipeline applies
    (Google Cloud in the new project, and the GitHub `production` environment and variables,
    imported).
-2. **Auth0 and Cloudflare, imported.** Their configuration is generated from the live tenant
-   and account with the owner's credentials (`auth0 tf generate`; the Custom Domain IDs from
-   Cloudflare's API), then cleaned by hand. Generated configuration is experimental in both
-   Terraform and the Auth0 CLI, so it is only a draft. Proof: the plan shows no changes.
+2. **Auth0, Cloudflare and Supabase's Third-Party Auth, imported.** Their configuration is
+   generated from the live tenant and account with the owner's credentials (`auth0 tf
+generate`; the Custom Domain IDs from Cloudflare's API), then cleaned by hand. Generated
+   configuration is experimental in both Terraform and the Auth0 CLI, so it is only a draft.
+   The Action's `WEB_CLIENT_ID` secret goes through the write-only `secrets_wo`. Supabase's
+   custom OIDC provider (v0.16.0) is imported as `supabase_third_party_auth`; the Supabase
+   project itself stays out. Proof: the plan shows no changes.
 3. **Cutover,** below.
-
-Supabase joins with workstream 3, through the provider's `supabase_third_party_auth`. Whether
-it accepts Auth0's custom-domain issuer is unverified (section 5, item 2).
 
 ### Cutover order
 

@@ -42,10 +42,9 @@ Chosen option: **4**. The rules:
   Cloud Run service and its runtime account, Artifact Registry, Secret Manager, Workload
   Identity Federation and the deploy account, Vertex AI access and the billing budget.
 - **Imported, never recreated:** the Auth0 tenant's configuration, the Workers' Custom Domains,
-  and the GitHub environment and variables. They hold users, passkeys or hostnames, and
-  Terraform's `import` blocks adopt them as they are
-  ([import](https://developer.hashicorp.com/terraform/language/import)). Supabase joins with
-  Third-Party Auth (workstream 3).
+  Supabase's Third-Party Auth provider, and the GitHub environment and variables. They hold
+  users, passkeys, hostnames or trust, and Terraform's `import` blocks adopt them as they are
+  ([import](https://developer.hashicorp.com/terraform/language/import)).
 - **One owner per setting:** Terraform owns the infrastructure; the release owns the API image,
   its environment and the Worker versions; the Drizzle migrations own the schema and pg_cron;
   `wrangler.jsonc` owns Worker settings. Terraform ignores what another owner sets
@@ -65,7 +64,7 @@ Chosen option: **4**. The rules:
   the pipeline's root grants
   ([limits on granting roles](https://docs.cloud.google.com/iam/docs/setting-limits-on-granting-roles)).
 - **Not in Terraform:** creating the accounts themselves, Terraform's own access, secret values,
-  data, zone-wide Cloudflare settings, organization policies and, for now, Supabase.
+  data, zone-wide Cloudflare settings, organization policies and the Supabase project.
   [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform) lists each with how it is checked.
 
 `luminull-wally` stays in service until the cutover and is deleted by hand after it. The
@@ -76,9 +75,9 @@ Supabase database and the Auth0 tenant do not change.
 
 - Good: Google Cloud can be rebuilt from code, and a plan shows drift on every provider.
 - Good: no Firebase plan switch that can unlink billing.
-- Bad: Supabase stays by hand until workstream 3. Importing its project leaves the password
-  empty in state, so the next apply resets the live password, and the one setting Wally
-  changed, the Data API switch, cannot be expressed (owner, 2026-11-06).
+- Bad: the Supabase project stays by hand. Importing it leaves the password empty in state, so
+  the next apply resets the live password, and the one setting Wally changed, the Data API
+  switch, cannot be expressed (owner, 2026-11-06).
 - Bad: Terraform holds long-lived credentials (a GitHub App key, and tokens for Auth0 and
   Cloudflare), stored as secrets of a protected GitHub environment, each scoped as narrowly as
   its provider allows. Access to the state bucket is limited to Terraform's identity and the

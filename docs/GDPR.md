@@ -49,7 +49,7 @@ single source of truth for stored shapes; field names are the row types' in
 [`apps/api/src/lib/db/types.ts`](../apps/api/src/lib/db/types.ts), and columns are their
 snake_case form. A new personal-data column is a change to the schema and to this table.
 
-**Where the data lives (2026-11-01).** Production runs v0.14.0, which stores everything in
+**Where the data lives (2026-11-06).** Production runs v0.16.0, which stores everything in
 PostgreSQL, in the Supabase project in Ireland (`eu-west-1`). Nothing was copied across from
 Cloud Firestore, the earlier store: PostgreSQL started empty, and the Firestore database was
 deleted on 2026-11-01 ([DEPLOY.md](DEPLOY.md#firebase-retired)).
@@ -593,13 +593,13 @@ cost. Items 3, 4, 5, 6, 7 and 9 are done; item 7's text still awaits the control
 
 ### Checklist
 
-- [x] GAP-01 Account deletion (Art. 17) — self-service and the owner's runbook
-- [x] GAP-02 Data export (Art. 15, 20) — `GET /me/export`
+- [x] GAP-01 Account deletion (Art. 17) — self-service and the owner's runbook; live since v0.16.0, proven in production 2026-11-05
+- [x] GAP-02 Data export (Art. 15, 20) — `GET /me/export`; live since v0.16.0
 - [x] GAP-03 Privacy notice (Art. 13) — `/privacy` live since v0.8.1; text pending the controller's review (ORG-04)
 - [x] GAP-04 Retention policy (Art. 5(1)(e)) — §2; vendor list to follow
 - [ ] GAP-05 Platform request log and EU log bucket (Art. 5(1)(c), 44) — **deferred** 2026-10-14; the API's own log is done
-- [x] GAP-06 Share-link expiry (Art. 5(1)(e), 32)
-- [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14) — expiry done; the invitation-email notice waits for email
+- [x] GAP-06 Share-link expiry (Art. 5(1)(e), 32) — live since v0.16.0
+- [ ] GAP-07 Invite expiry (Art. 5(1)(e), 14) — expiry live since v0.16.0; the invitation-email notice waits for email
 - [ ] GAP-08 History purpose (Art. 5(1)(b))
 - [ ] GAP-09 TOM documentation (Art. 32)
 - [x] GAP-10 Seed data (Art. 5(1)(c)) — closed

@@ -1433,7 +1433,7 @@ start without the client, and the release refuses to build without its ID.
 ### Proof after the release
 
 CI and local runs never call Auth0, so the token exchange and the delete first run in
-production. Right after the release:
+production. Right after the release (done for v0.16.0 on 2026-11-05, all five checks passed):
 
 1. Sign up at `https://wally.luminull.com` with a throwaway address, and create a note.
 2. **Account and data** → **Download my data**: the file holds the profile and the note.
@@ -1482,8 +1482,8 @@ production still runs in `luminull-wally`, as everything above describes, until 
 | [`infra/terraform/bootstrap`](../infra/terraform/bootstrap/) | The owner, from their machine                                             | The project `luminull-wally-prod`, its billing link and budget, its APIs, the state bucket `luminull-wally-prod-tfstate`, and Terraform's own identity                                                                                                     |
 | [`infra/terraform/wally`](../infra/terraform/wally/)         | [Infrastructure](../.github/workflows/infrastructure.yml), after approval | In the new project: `wally-api` and `github-deployer`, the release's Workload Identity Federation, Artifact Registry, the two secrets without their values, and the Cloud Run service. On GitHub: the `production` environment and the release's variables |
 
-Auth0 and the Cloudflare Custom Domains follow in the next slice, Supabase's Third-Party Auth
-with workstream 3.
+Auth0, the Cloudflare Custom Domains and Supabase's Third-Party Auth provider follow in the next
+slice.
 
 **The pipeline.** A pull request that touches `infra/terraform/` is formatted and validated,
 without credentials. A push to `main` that touches `infra/terraform/wally/` waits for the
