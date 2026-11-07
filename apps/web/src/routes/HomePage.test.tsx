@@ -26,6 +26,21 @@ it('keeps the landing and signup entry points available to visitors', () => {
   }
 });
 
+// Google's OAuth branding review requires the home page to link the privacy policy.
+it('links the privacy policy and the terms from the footer', () => {
+  auth.status = 'unauthenticated';
+  renderWithProviders(<HomePage />);
+  const footer = screen.getByRole('contentinfo');
+  expect(within(footer).getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+    'href',
+    '/privacy',
+  );
+  expect(within(footer).getByRole('link', { name: 'Terms of Service' })).toHaveAttribute(
+    'href',
+    '/terms',
+  );
+});
+
 it('offers the boards from every landing CTA when already signed in', () => {
   auth.status = 'authenticated';
   renderWithProviders(<HomePage />);

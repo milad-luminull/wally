@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy · Wally</title>
+    <meta
+      name="description"
+      content="How Wally, the shared to-do board operated by Luminull, collects, uses, stores and protects personal data, and the rights you have under the GDPR."
+    />
+    <link rel="canonical" href="https://wally.luminull.com/privacy" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Follows the theme chosen in the app (THEME_STORAGE_KEY in src/lib/theme.tsx). The
+         text never depends on this script. -->
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem('wally.theme');
+          if (theme === 'dark' || theme === 'light') document.documentElement.classList.add(theme);
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="stylesheet" href="/src/styles/legal.css" />
+  </head>
+  <body>
+    <!-- The operator details below (name, contact) appear in terms.html too. Keep them in step. -->
+    <header class="legal-header">
+      <a class="legal-brand" href="/"
+        ><img src="/favicon.svg" width="24" height="24" alt="" />wally</a
+      >
+      <nav aria-label="Legal">
+        <a href="/privacy" aria-current="page">Privacy</a>
+        <a href="/terms">Terms</a>
+      </nav>
+    </header>
+
+    <main class="legal-main">
+      <h1>Privacy Policy</h1>
+      <p class="legal-meta">Effective 7 November 2026 · Last updated 7 November 2026</p>
+
+      <div class="legal-summary">
+        <p><strong>The short version</strong></p>
+        <ul>
+          <li>
+            We use your data only to run Wally for you: your account, your boards and notes, and the
+            features you choose to use.
+          </li>
+          <li>
+            We do not sell your data, show ads, use analytics or tracking tools, or use your content
+            to train AI models.
+          </li>
+          <li>
+            Wally's database and servers are in the European Union. Some service providers are US
+            companies; we name each one below.
+          </li>
+          <li>
+            You can download all your data or delete your account at any time, yourself, under
+            <strong>Account and data</strong> in the app.
+          </li>
+        </ul>
+      </div>
+
+      <nav class="legal-toc" aria-label="Contents">
+        <p>Contents</p>
+        <ol>
+          <li><a href="#controller">Who is responsible</a></li>
+          <li><a href="#data">What data we process</a></li>
+          <li><a href="#google">Signing in with Google</a></li>
+          <li><a href="#purposes">Purposes and legal bases</a></li>
+          <li><a href="#sharing">Who receives your data</a></li>
+          <li><a href="#ai">AI features and connected apps</a></li>
+          <li><a href="#transfers">Transfers outside the EU</a></li>
+          <li><a href="#retention">How long we keep data</a></li>
+          <li><a href="#storage">Cookies and browser storage</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#rights">Your rights</a></li>
+          <li><a href="#other">Other information</a></li>
+          <li><a href="#changes">Changes to this policy</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="controller">1. Who is responsible</h2>
+      <p>
+        Wally (<a href="https://wally.luminull.com">wally.luminull.com</a>) is a shared to-do board
+        for individuals and small teams. It is a free, non-commercial personal project operated
+        under the name <strong>Luminull</strong> (“we”, “us”). Luminull is the controller
+        responsible for the processing of your personal data in Wally within the meaning of the EU
+        General Data Protection Regulation (GDPR).
+      </p>
+      <p>
+        For anything about your personal data, including requests to exercise your rights, contact
+        us at
+        <a href="mailto:privacy@luminull.com">privacy@luminull.com</a>. We have not appointed a data
+        protection officer, because the legal requirements for one (Art. 37 GDPR) do not apply to
+        us.
+      </p>
+
+      <h2 id="data">2. What data we process</h2>
+      <p>We only process the data needed to provide Wally. Depending on how you use it, that is:</p>
+
+      <h3>Account data</h3>
+      <ul>
+        <li>
+          Your email address, display name and whether your email address is verified. You provide
+          these when you sign up, or they come from Google if you sign in with Google (see
+          <a href="#google">section 3</a>).
+        </li>
+        <li>
+          A random Wally user ID, and the identifier of your login at our sign-in provider, which
+          links the two.
+        </li>
+        <li>
+          Your language and your settings in the app, such as theme, colour palette, board view and
+          filter choices, the board you last opened, and whether the assistant may apply its
+          suggestions automatically.
+        </li>
+        <li>When your account was created and last changed.</li>
+      </ul>
+      <p>
+        Your password, if you sign up with email and password, is handled only by our sign-in
+        provider Auth0. Wally never sees or stores it.
+      </p>
+
+      <h3>Content you create</h3>
+      <ul>
+        <li>
+          Boards (their names), notes (title, description, tags, custom properties, subtasks, due
+          dates, links between notes, assignee and visibility).
+        </li>
+        <li>
+          A short history for each note: who created it or moved it, and when. This lets members of
+          a board see how a note got where it is.
+        </li>
+      </ul>
+      <p>
+        Notes are free text. Please do not enter sensitive information about yourself or others (for
+        example health data) into Wally; it is not designed for that.
+      </p>
+
+      <h3>Sharing and membership</h3>
+      <ul>
+        <li>
+          Who is a member of which board, with their role, and when they were invited or joined.
+        </li>
+        <li>
+          The email address of people you invite to a board, including people who do not have a
+          Wally account yet.
+        </li>
+        <li>Share links you create, with their role and expiry.</li>
+      </ul>
+
+      <h3>Assistant data</h3>
+      <p>
+        If you use the built-in assistant, we process your questions, the assistant's answers and
+        suggestions, the board content it reads to answer you, your decisions on its suggestions,
+        and how much you used it (number of requests, tokens and cost), so we can enforce fair-use
+        limits.
+      </p>
+
+      <h3>Connected apps</h3>
+      <p>
+        If you connect an external AI app (for example ChatGPT or Claude) to Wally, we store a
+        record of the connection: the app's identifier, the permissions you granted, and when the
+        connection was created or revoked, plus a log of the changes it made on your behalf. We
+        never store the app's access tokens in these records.
+      </p>
+
+      <h3>Technical data</h3>
+      <p>
+        When your browser talks to Wally, our hosting providers necessarily process your IP address,
+        the requested address (URL), the time, your browser's user agent and similar connection
+        data. Wally's own server log records only the request method and path and whether it
+        succeeded, never your IP address. Our cloud provider's platform log does record the IP
+        address and user agent of each request (see
+        <a href="#retention">section 8</a> for how long).
+      </p>
+
+      <h3>When you contact us</h3>
+      <p>
+        If you email us, we process your email address and the content of your message to answer
+        you.
+      </p>
+
+      <p>
+        <strong>What we do not collect:</strong> We do not use analytics, advertising, tracking
+        pixels, session recordings or third-party fonts or scripts. We do not collect your location,
+        contacts, or any data from other apps on your device.
+      </p>
+
+      <h2 id="google">3. Signing in with Google</h2>
+      <p>
+        You can create a Wally account and sign in with your Google account. If you choose “Continue
+        with Google”, Google asks for your permission and then shares the following with our sign-in
+        provider Auth0, using only the basic scopes <code>openid</code>, <code>email</code> and
+        <code>profile</code>:
+      </p>
+      <ul>
+        <li>your name,</li>
+        <li>your email address and whether Google has verified it,</li>
+        <li>your Google account identifier, and</li>
+        <li>your profile picture address and language setting, if your Google profile has them.</li>
+      </ul>
+      <p>
+        <strong>How we use it.</strong> Wally uses your name, email address and verification status
+        only to create your account, sign you in, show your name to members of boards you share, and
+        let you accept invitations sent to your address. Wally does not use your profile picture. We
+        do not request access to your Gmail, Google Drive, Calendar, Contacts or any other Google
+        data.
+      </p>
+      <p>
+        <strong>How we store and share it.</strong> Your name, email address and the link to your
+        Google login are kept with your account, in our sign-in provider Auth0 and in Wally's
+        database in the EU, until you delete your account. We do not sell this data, do not use it
+        for advertising, and do not share it with anyone except the service providers named in
+        <a href="#sharing">section 5</a> who process it for us, and the other members of boards you
+        join.
+      </p>
+      <p>
+        Wally's use and transfer to any other app of information received from Google APIs will
+        adhere to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy"
+          >Google API Services User Data Policy</a
+        >, including the Limited Use requirements.
+      </p>
+      <p>
+        You can remove Wally's access to your Google account at any time in your
+        <a href="https://myaccount.google.com/connections">Google account settings</a>. This does
+        not delete your Wally account; to do that, use <strong>Account and data</strong> in the app.
+        Google's own processing is governed by the
+        <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.
+      </p>
+
+      <h2 id="purposes">4. Purposes and legal bases</h2>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Purpose</th>
+              <th scope="col">Data</th>
+              <th scope="col">Legal basis (GDPR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Providing your account, boards, notes, sharing and the features you use</td>
+              <td>Account data, content, sharing and membership data</td>
+              <td>
+                Art. 6(1)(b): necessary to perform our agreement with you (the
+                <a href="/terms">Terms of Service</a>)
+              </td>
+            </tr>
+            <tr>
+              <td>Answering your questions with the assistant, when you use it</td>
+              <td>Assistant data, the board content it needs</td>
+              <td>Art. 6(1)(b)</td>
+            </tr>
+            <tr>
+              <td>Letting an external AI app you connected read and edit your boards</td>
+              <td>Connected-app data, board content</td>
+              <td>Art. 6(1)(b)</td>
+            </tr>
+            <tr>
+              <td>Storing the email address of someone you invite to a board</td>
+              <td>The invited email address</td>
+              <td>
+                Art. 6(1)(f): our and your legitimate interest in letting you invite people to
+                collaborate
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Keeping Wally secure and available: preventing abuse, enforcing usage limits,
+                finding and fixing errors
+              </td>
+              <td>Technical data, usage counters, change logs</td>
+              <td>Art. 6(1)(f): our legitimate interest in a secure, working service</td>
+            </tr>
+            <tr>
+              <td>Answering your messages and requests</td>
+              <td>Your email and its content</td>
+              <td>
+                Art. 6(1)(b), and Art. 6(1)(c) where the law requires us to answer (for example a
+                data access request)
+              </td>
+            </tr>
+            <tr>
+              <td>Complying with legal obligations and defending legal claims</td>
+              <td>The data needed in the individual case</td>
+              <td>Art. 6(1)(c) and Art. 6(1)(f)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        We do not rely on your consent for any of this processing, because all of it is necessary to
+        provide the service you asked for or protects it. Where we rely on legitimate interests, you
+        have the right to object (see <a href="#rights">section 11</a>).
+      </p>
+      <p>
+        You need to provide an email address to create an account; without one we cannot provide
+        Wally to you. Everything else you enter is up to you.
+      </p>
+
+      <h2 id="sharing">5. Who receives your data</h2>
+
+      <h3>Other Wally users</h3>
+      <p>
+        When you are a member of a board, the other members can see your display name and email
+        address (so they can assign notes to you), and everything on that board except private
+        notes. A private note is visible only to the person who created it. If you invite someone,
+        the members of that board see the invited email address. Anyone with a share link can join
+        the board with the role the owner chose.
+      </p>
+
+      <h3>Our service providers (processors)</h3>
+      <p>
+        These companies process personal data on our behalf, under data processing agreements (Art.
+        28 GDPR), and only for the purposes described here:
+      </p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Provider</th>
+              <th scope="col">What it does for Wally</th>
+              <th scope="col">Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Auth0 (Okta, Inc., USA)</td>
+              <td>Sign-up, sign-in, password reset and email verification</td>
+              <td>EU tenant</td>
+            </tr>
+            <tr>
+              <td>Supabase, Inc. (USA)</td>
+              <td>Hosts Wally's database</td>
+              <td>Ireland (EU)</td>
+            </tr>
+            <tr>
+              <td>Google Cloud (Google Ireland Limited / Google LLC)</td>
+              <td>
+                Runs Wally's server (Cloud Run), stores secrets and logs, and runs the AI model
+                behind the assistant (Vertex AI)
+              </td>
+              <td>
+                Belgium and the EU multi-region; platform logs in a location Google does not tie to
+                a region
+              </td>
+            </tr>
+            <tr>
+              <td>Cloudflare, Inc. (USA)</td>
+              <td>
+                Delivers the web app and forwards requests to Wally's server, with protection
+                against attacks
+              </td>
+              <td>Global network; requests are handled at the data centre nearest you</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Independent controllers</h3>
+      <ul>
+        <li>
+          <strong>Google</strong>, when you sign in with Google (see
+          <a href="#google">section 3</a>).
+        </li>
+        <li><strong>External AI apps you connect</strong> (see <a href="#ai">section 6</a>).</li>
+        <li>
+          <strong>Authorities and courts</strong>, only if we are legally required to disclose data.
+        </li>
+      </ul>
+      <p>We do not sell or rent personal data to anyone.</p>
+
+      <h2 id="ai">6. AI features and connected apps</h2>
+      <h3>The built-in assistant</h3>
+      <p>
+        When you use Wally's assistant, the question you ask and the board content it needs to
+        answer are sent to Google's Vertex AI service in the EU, which runs the language model and
+        returns the answer to us. Google processes this data as our processor and, under its Google
+        Cloud terms, does not use it to train its models. The assistant only proposes changes: it
+        applies them only when you accept them, or automatically if you have turned that setting on.
+        It makes no decisions about you that have legal or similarly significant effects (Art. 22
+        GDPR).
+      </p>
+      <p>AI output can be wrong. Please check suggestions before relying on them.</p>
+      <h3>External AI apps (MCP connections)</h3>
+      <p>
+        You can connect an external AI app such as ChatGPT or Claude to Wally. Once you approve the
+        connection, that app can read the boards you have access to (but never other people's
+        private notes) and make the changes your role allows. The app's provider receives this
+        content as an independent controller, under its own privacy policy and your settings there;
+        we have no control over how it stores or uses the data. You can disconnect an app at any
+        time under <strong>Connected apps</strong> in Wally. This stops future access but cannot
+        delete copies the provider already holds.
+      </p>
+
+      <h2 id="transfers">7. Transfers outside the EU</h2>
+      <p>
+        We store Wally's data in the EU. Some of our service providers are US companies, or use
+        subprocessors outside the European Economic Area, and Cloudflare handles requests at
+        whichever of its data centres is nearest you. Where personal data is transferred to a
+        country without an adequacy decision, the transfer is protected by:
+      </p>
+      <ul>
+        <li>
+          the European Commission's adequacy decision for the EU–U.S. Data Privacy Framework (Art.
+          45 GDPR), for providers certified under it, or
+        </li>
+        <li>
+          the European Commission's Standard Contractual Clauses (Art. 46(2)(c) GDPR), which form
+          part of our providers' data processing agreements.
+        </li>
+      </ul>
+      <p>You can ask us for more information about these safeguards.</p>
+
+      <h2 id="retention">8. How long we keep data</h2>
+      <p>
+        We keep personal data only as long as needed for its purpose. Timed deletions run
+        automatically every hour.
+      </p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">How long</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Your account and settings</td>
+              <td>Until you delete your account</td>
+            </tr>
+            <tr>
+              <td>Boards, notes and note history</td>
+              <td>Until you (or the board owner) delete them, or your account is deleted</td>
+            </tr>
+            <tr>
+              <td>Invitations to people without an account, with their email address</td>
+              <td>30 days after the invitation</td>
+            </tr>
+            <tr>
+              <td>Share links, and memberships that came from one</td>
+              <td>
+                Until the link expires (7 days, 30 days or never, as the owner chooses), is
+                regenerated or is turned off
+              </td>
+            </tr>
+            <tr>
+              <td>Assistant conversations</td>
+              <td>30 days after the last message</td>
+            </tr>
+            <tr>
+              <td>Assistant suggestions and usage records</td>
+              <td>7 days; daily usage counters 30 days</td>
+            </tr>
+            <tr>
+              <td>Change logs for the assistant and connected apps</td>
+              <td>30 days</td>
+            </tr>
+            <tr>
+              <td>Records that make retries safe (command receipts)</td>
+              <td>7 days</td>
+            </tr>
+            <tr>
+              <td>Platform request logs with IP addresses (Google Cloud)</td>
+              <td>30 days</td>
+            </tr>
+            <tr>
+              <td>Emails to us</td>
+              <td>As long as needed to handle your request, and any legally required period</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <strong>When you delete your account</strong>, it takes effect immediately: your login at
+        Auth0, your account, the boards you own (for all their members), every note you created on
+        any board, and your memberships are deleted. Notes you were only assigned to stay on their
+        board, unassigned. Records other members keep of their own activity can still mention you
+        until they expire, at most 30 days later. Our providers' backups are overwritten on their
+        own schedules.
+      </p>
+
+      <h2 id="storage">9. Cookies and browser storage</h2>
+      <p>
+        Wally does not use advertising or tracking cookies, so it shows no cookie banner. It stores
+        only what is strictly necessary to provide the service you asked for (§ 25(2) TDDDG):
+      </p>
+      <ul>
+        <li>
+          in your browser's local storage: your language, theme and colour palette, a flag that
+          hides a hint you have seen, and the time of your last sign-out (so other open tabs sign
+          out too);
+        </li>
+        <li>
+          from our sign-in provider Auth0: a cookie that remembers that you are signed in, and
+          temporary data that carries the sign-in across the redirect to the login page. Auth0's
+          login page sets its own session cookies to keep you signed in.
+        </li>
+      </ul>
+      <p>
+        You can delete this data at any time in your browser settings; you will then be signed out
+        and your display preferences reset.
+      </p>
+
+      <h2 id="security">10. Security</h2>
+      <p>
+        We protect your data with technical and organisational measures appropriate to the risk
+        (Art. 32 GDPR), including: encryption of all connections (HTTPS/TLS); a database that only
+        Wally's server can reach, with every request checked against your role on the board; sign-in
+        through a dedicated identity provider, with verified email addresses; share links that
+        cannot be guessed and expire; minimal logging; and limits on requests to prevent abuse. No
+        system is perfectly secure; if a breach affects your data, we will notify the authority and
+        you as the GDPR requires.
+      </p>
+
+      <h2 id="rights">11. Your rights</h2>
+      <p>Under the GDPR you have the right to:</p>
+      <ul>
+        <li><strong>access</strong> the personal data we hold about you (Art. 15);</li>
+        <li><strong>rectification</strong> of inaccurate data (Art. 16);</li>
+        <li><strong>erasure</strong> (Art. 17);</li>
+        <li><strong>restriction</strong> of processing (Art. 18);</li>
+        <li>
+          <strong>data portability</strong>: receive your data in a structured, machine-readable
+          format (Art. 20);
+        </li>
+        <li>
+          <strong>object</strong> to processing based on legitimate interests, on grounds relating
+          to your particular situation (Art. 21).
+        </li>
+      </ul>
+      <p>
+        Most of this you can do yourself in the app: <strong>Account and data</strong> lets you
+        download all your data as a JSON file and delete your account; you can edit or delete your
+        notes and boards at any time. For anything else, email
+        <a href="mailto:privacy@luminull.com">privacy@luminull.com</a>. We answer within one month
+        (Art. 12(3) GDPR). We may need to confirm your identity first, normally by replying from the
+        email address of your account.
+      </p>
+      <p>
+        You also have the right to lodge a complaint with a data protection supervisory authority
+        (Art. 77 GDPR), in particular in the EU member state where you live or work, or where you
+        think an infringement took place. We would appreciate the chance to address your concern
+        first.
+      </p>
+
+      <h2 id="other">12. Other information</h2>
+      <p>
+        <strong>Children.</strong> Wally is not intended for children under 16, and we do not
+        knowingly process their data. If you believe a child has given us personal data, please
+        contact us and we will delete it.
+      </p>
+      <p>
+        <strong>Automated decisions.</strong> We do not make decisions based solely on automated
+        processing, including profiling, that have legal or similarly significant effects on you.
+      </p>
+      <p>
+        <strong>People invited to a board.</strong> If someone invited you to a Wally board by email
+        and you have no account, we hold only your email address and the invitation, because the
+        person who invited you entered it. It is deleted automatically 30 days after the invitation.
+        You can ask us to delete it sooner.
+      </p>
+
+      <h2 id="changes">13. Changes to this policy</h2>
+      <p>
+        We update this policy when Wally or the law changes. The date at the top shows the latest
+        version. If a change materially affects how we use your data, we will tell you in the app
+        before it takes effect.
+      </p>
+    </main>
+
+    <footer class="legal-footer">
+      <span>© 2026 Luminull</span>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="mailto:privacy@luminull.com">privacy@luminull.com</a>
+    </footer>
+  </body>
+</html>

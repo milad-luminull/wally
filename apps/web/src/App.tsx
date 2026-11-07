@@ -1,4 +1,3 @@
-import { PrivacyPage } from '@/routes/PrivacyPage';
 import { AccountPage } from '@/routes/AccountPage';
 import { MutationRecovery } from '@/features/board/MutationRecovery';
 import { BrowserRouter, Route, Routes } from 'react-router';
@@ -30,7 +29,6 @@ export function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/" element={<HomePage />} />

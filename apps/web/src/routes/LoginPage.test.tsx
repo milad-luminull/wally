@@ -28,6 +28,19 @@ describe('LoginPage', () => {
     expect(screen.getByText('Sign in to see your boards.')).toBeInTheDocument();
   });
 
+  // Google sign-in creates an account from this page too, so it states the Terms apply.
+  it('links the terms and the privacy policy that continuing accepts', () => {
+    renderWithProviders(<LoginPage />, { route: '/login' });
+    expect(screen.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute(
+      'href',
+      '/terms',
+    );
+    expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
+  });
+
   it('says the session ended, and how many unsaved changes could not be kept', () => {
     auth.current = { status: 'unauthenticated', expired: { unsaved: 2 }, signedOut: false };
     renderWithProviders(<LoginPage />, { route: '/login' });

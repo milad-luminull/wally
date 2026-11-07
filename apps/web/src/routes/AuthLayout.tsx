@@ -1,5 +1,4 @@
-import { Link } from 'react-router';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { PublicHeader } from '@/components/PublicHeader';
 import { BrandMark } from '@/components/BrandMark';
@@ -7,14 +6,20 @@ import { BrandMark } from '@/components/BrandMark';
 /**
  * Shell for /login, /signup, share redemption and the 404 page: one narrow column on the
  * dotted wall, with a faint marigold glow from above. No card — the form is the page.
+ *
+ * `agreement` marks the pages where an account can be created (login and signup: Google
+ * sign-in creates one on either), which state that continuing accepts the Terms. The legal
+ * links are plain anchors: the pages are static HTML outside the React app.
  */
 export function AuthLayout({
   title,
   subtitle,
+  agreement = false,
   children,
 }: {
   title: string;
   subtitle?: string;
+  agreement?: boolean;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -34,12 +39,19 @@ export function AuthLayout({
             </div>
           </div>
           {children}
-          <Link
-            to="/privacy"
-            className="text-center text-sm text-fg-3 underline underline-offset-4"
-          >
-            {t('privacy.title')}
-          </Link>
+          <p className="text-center text-13 text-fg-3 [&_a:hover]:text-fg-1 [&_a]:underline [&_a]:underline-offset-4">
+            {agreement ? (
+              <Trans
+                i18nKey="legal.agreement"
+                components={{ terms: <a href="/terms" />, privacy: <a href="/privacy" /> }}
+              />
+            ) : (
+              <span className="flex justify-center gap-4">
+                <a href="/privacy">{t('legal.privacy')}</a>
+                <a href="/terms">{t('legal.terms')}</a>
+              </span>
+            )}
+          </p>
         </div>
       </main>
     </div>

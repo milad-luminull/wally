@@ -28,22 +28,11 @@ export const de = {
       'Deine Wände konnten nicht geladen werden. Schließ das Fenster und versuch es noch einmal.',
     deleted: 'Dein Konto ist gelöscht.',
   },
-  privacy: {
-    title: 'Datenschutzinformationen',
-    intro:
-      'Wally wird von Luminull betrieben. Für Datenschutzfragen, Auskünfte, Berichtigungen oder Hilfe bei der Löschung kontaktiere privacy@luminull.com.',
-    serviceTitle: 'Konto und geteilte Inhalte',
-    service:
-      'Wir verarbeiten E-Mail-Adresse, Anzeigename, Anmeldekennungen, Einstellungen, Boards, Karten, Mitgliedschaften und Aktivitätsdaten, um Wally bereitzustellen. Personen mit Board-Zugriff sehen geteilte Inhalte und Mitgliederdaten. Private Karten sind nur für ihre Ersteller sichtbar. Dienstdaten dienen der Bereitstellung deines Kontos; begrenzte Sicherheits- und Betriebsdaten schützen den Dienst.',
-    providersTitle: 'Anmeldung, Hosting und KI',
-    providers:
-      'Auth0 (Okta) verarbeitet Anmeldung, Registrierung und Kontowiederherstellung. Supabase speichert die Daten von Wally. Google betreibt den Wally-Server. Cloudflare liefert die Web-App aus und leitet Anfragen an den Server weiter. Bei Google-Anmeldung authentifiziert dich auch Google. Der integrierte Assistent verarbeitet relevante Board-Inhalte über den konfigurierten Modellanbieter, derzeit Google (Vertex AI). Wenn du ChatGPT, Claude oder einen anderen unterstützten Anbieter verbindest, kann dieser Inhalte zugänglicher Boards erhalten und unterstützte Änderungen ausführen, soweit du bearbeiten darfst. Seine Datenschutzbedingungen und Kontoeinstellungen bestimmen Verarbeitung und Aufbewahrung. Das Trennen in Wally verhindert künftige Anfragen, löscht aber keine bereits beim Anbieter gespeicherten Kopien.',
-    retentionTitle: 'Aufbewahrung und Kontofunktionen',
-    retention:
-      'Boards und Karten laufen nicht automatisch ab; sie bleiben, bis du sie löschst. Einladungen an Personen ohne Wally-Konto werden nach 30 Tagen samt E-Mail-Adresse gelöscht. Freigabelinks laufen nach der Frist ab, die der Board-Eigentümer wählt (7 Tage, 30 Tage oder nie), und wer über einen Link beigetreten ist, verliert den Zugang, wenn der Link abläuft, neu erstellt oder deaktiviert wird. Die tägliche Nutzung des Assistenten wird 30 Tage gespeichert. Unter Konto und Daten kannst du eine Kopie deiner Daten herunterladen oder dein Konto löschen; die Löschung wirkt sofort. Aufzeichnungen anderer Mitglieder über ihre eigenen Aktionen können dich erwähnen, bis sie ablaufen: nach 7 oder 30 Tagen, bei einem Assistenten-Gespräch 30 Tage nach seiner letzten Nachricht. Betriebsverläufe und Anbieter-Backups können gesonderten Aufbewahrungsfristen unterliegen; kontaktiere privacy@luminull.com für Details.',
-    rightsTitle: 'Deine Möglichkeiten',
-    rights:
-      'Du kannst Auskunft, Berichtigung, Löschung oder Übertragbarkeit deiner personenbezogenen Daten verlangen und einer Verarbeitung aufgrund berechtigter Interessen widersprechen. Du kannst dich bei deiner zuständigen Datenschutzaufsichtsbehörde beschweren. Anbietervereinbarungen, Schutzmaßnahmen für internationale Übermittlungen und Rechtsgrundlagen müssen vor der Veröffentlichung vom Betreiber freigegeben werden.',
+  legal: {
+    privacy: 'Datenschutzerklärung',
+    terms: 'Nutzungsbedingungen',
+    agreement:
+      'Mit dem Fortfahren stimmst du den <terms>Nutzungsbedingungen</terms> zu und nimmst die <privacy>Datenschutzerklärung</privacy> zur Kenntnis.',
   },
   connections: {
     title: 'Verbundene Apps',
