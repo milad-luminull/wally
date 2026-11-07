@@ -408,19 +408,19 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
 
 ### Cutover order
 
-1. **Build:** the foundation is applied and the secret values are set in the new project.
-   Check Gemini 3.8 Flash on the `eu` endpoint from the new project. Create a Google OAuth
-   client for Auth0 in the new project, with the same scopes (`email`, `profile`) and Auth0's
-   callback on `login.luminull.com`, and put its secret in the `infrastructure` environment.
-   The client is made by hand: no Terraform resource for it is verified.
+1. **Build:** the foundation is applied and the secret values are set in the new project
+   (both 2026-11-07). Check Gemini 3.8 Flash on the `eu` endpoint from the new project. Create
+   a Google OAuth client for Auth0 in the new project, with the old one's settings, scopes
+   (`email`, `profile`) and URIs, and put its secret in the `infrastructure` environment (done
+   2026-11-07). The client is made by hand: no Terraform resource for it is verified. Then
+   Terraform imports the Google connection with the new client's ID and its secret as the
+   write-only `options_client_secret_wo`. One existing Google account signs in and keeps its
+   Auth0 user ID; that Google's subject is the same across OAuth clients is not verified until
+   then. Once it works, delete the old OAuth client at once, and the run's plan artifact: the
+   import stored the old secret in state and in that saved plan.
 2. **Switch** in one release: the proxy's `ORIGIN` names the new `run.app` URL (the `api_url`
    output), and Terraform points the `GCP_*` variables at the new project. The release's checks
    run as usual. Until step 3, reverting both and releasing again is the rollback.
-   Separately, Terraform imports the Google connection with the new client's ID and its
-   secret as the write-only `options_client_secret_wo`. Then one existing Google account
-   signs in and keeps its Auth0 user ID; that Google's subject is the same across OAuth
-   clients is not verified until then. Once it works, delete the old OAuth client at once:
-   the import stored its secret in state and in the saved plan, which is kept for 7 days.
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).

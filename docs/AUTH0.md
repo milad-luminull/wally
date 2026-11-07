@@ -14,10 +14,10 @@ Third-Party Auth, as a custom OIDC provider
 
 **Terraform holds the tenant's configuration for Wally** ([`auth0.tf`](../infra/terraform/wally/auth0.tf),
 [DEPLOY.md](DEPLOY.md#infrastructure-in-terraform)): the tenant settings, the login prompt,
-`login.luminull.com`, the email connection, the Wally Web, Wally ChatGPT (PKCE) and Wally
-account deletion applications with their grants, both APIs and the post-login Action. Change
-them there: the next plan shows a dashboard change as drift and reverts it. Users stay in the
-dashboard, and so does the Google connection until the cutover (RFC-0011 section 10).
+`login.luminull.com`, the email and Google connections, the Wally Web, Wally ChatGPT (PKCE)
+and Wally account deletion applications with their grants, both APIs and the post-login
+Action. Change them there: a dashboard change to a setting the code holds shows in the next
+plan and is reverted by its apply. Users stay in the dashboard.
 
 ## Configuration
 
@@ -168,7 +168,9 @@ Deleting an account (`DELETE /me`) deletes its Auth0 user first, then its Wally 
 Auth0's hosted page offers two connections
 ([ADR-0028](adr/ADR-0028-one-auth0-identity-per-account-with-passkeys.md)):
 
-- **Google** (`google-oauth2`), the main signup.
+- **Google** (`google-oauth2`), the main signup, through the Google OAuth client in
+  `luminull-wally-prod`. Its secret comes from the `infrastructure` environment as a
+  write-only value.
 - **Email** (`Username-Password-Authentication`), with passkeys first and the password as
   fallback. Auth0 requires passwords to stay enabled when passkeys are on, and progressive
   enrollment offers a passkey after a password login
