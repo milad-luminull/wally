@@ -23,7 +23,8 @@ runs by itself.
 1. **A pull request** against `main`. Its description's "After merge" section says what the
    merge will start: a Terraform plan, a release, or manual steps.
 2. **CI** runs on it ([section 17](#17-continuous-integration)). A pull request that changes
-   only documentation, Terraform or the Auth0 Action skips the slow jobs
+   only files without app impact (documentation, Terraform, the Auth0 Action and a few
+   others) skips the slow jobs
    ([ADR-0029](adr/ADR-0029-skip-slow-ci-jobs-on-pull-requests-without-app-impact.md)). The
    ruleset on `main` blocks the merge until the required checks pass.
 3. **The owner merges.** The push to `main` runs CI again, in full.
@@ -1037,14 +1038,14 @@ Deliberately out of scope, in rough order of when you will want them:
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on
 pushes to `main`, in six jobs:
 
-| Job                                   | What it proves                                                                                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Lint & format**                     | `prettier --check` and `eslint` across the workspace.                                                                                                              |
-| **Typecheck & build**                 | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed. |
-| **Unit & integration tests**          | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).            |
-| **E2E (full stack)**                  | Playwright against a real `docker compose` stack.                                                                                                                  |
-| **Detect changes without app impact** | Whether a pull request changes anything besides documentation, Terraform and the Auth0 Action. Typecheck & build, the unit suites and E2E read it.                 |
-| **E2E gate**                          | Passes when E2E passed, or was skipped for a pull request without app impact; fails otherwise. See below.                                                          |
+| Job                                   | What it proves                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lint & format**                     | `prettier --check` and `eslint` across the workspace.                                                                                                                                       |
+| **Typecheck & build**                 | `turbo run typecheck build`. Both, because they use different tsconfigs — section 8 records a real case where typecheck was clean and the production build failed.                          |
+| **Unit & integration tests**          | The Vitest suites against a `postgres` service on the same `supabase/postgres` image as compose; each API test file clones its own database (ADR-0025).                                     |
+| **E2E (full stack)**                  | Playwright against a real `docker compose` stack.                                                                                                                                           |
+| **Detect changes without app impact** | Whether a pull request changes anything besides documentation, Terraform, the Auth0 Action and a few files no CI job reads (see below). Typecheck & build, the unit suites and E2E read it. |
+| **E2E gate**                          | Passes when E2E passed, or was skipped for a pull request without app impact; fails otherwise. See below.                                                                                   |
 
 ### Two things about the E2E job that are easy to get wrong
 
@@ -1064,11 +1065,14 @@ produced results.
 ### Pull requests without app impact
 
 When every file a pull request changes is a `*.md` file, sits under `docs/` or
-`infra/terraform/`, or is `infra/auth0-post-login.cjs`, nothing CI builds or tests can change.
-Typecheck & build, the unit suites and E2E are skipped, and `E2E gate` passes, saying why.
-Lint & format still runs, so Markdown is still format-checked and the Auth0 Action's test
-(`scripts/auth0-post-login.test.mjs`) still runs; Terraform gets its own `Format and validate`
-check from the Infrastructure workflow. Any other file, `.github/` included, runs everything.
+`infra/terraform/`, or is `infra/auth0-post-login.cjs`, `.github/workflows/infrastructure.yml`,
+`.github/workflows/keepalive.yml`, `apps/web/wrangler.jsonc` or `.gitignore`, nothing CI builds
+or tests can change. Typecheck & build, the unit suites and E2E are skipped, and `E2E gate`
+passes, saying why. Lint & format still runs, so Markdown is still format-checked and the
+Auth0 Action's test (`scripts/auth0-post-login.test.mjs`) still runs; Terraform gets its own
+`Format and validate` check from the Infrastructure workflow. Any other file runs everything,
+including `ci.yml`, `release.yml`, `.github/actions/` and `apps/api-proxy/wrangler.jsonc` (the
+proxy's build reads it).
 Pushes to `main` always run everything, because the release workflow requires `main`'s full CI
 run before it deploys. The reasoning is in
 [ADR-0029](adr/ADR-0029-skip-slow-ci-jobs-on-pull-requests-without-app-impact.md), which

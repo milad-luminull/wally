@@ -21,10 +21,12 @@ env:
   DO_NOT_TRACK: 1
 
 jobs:
-  # Decides whether a pull request can affect the app at all. Documentation, Terraform and the
-  # Auth0 Action change nothing that typecheck, the unit suites or E2E test, so those three
-  # jobs read this and skip. Lint & format always runs: it keeps Markdown prettier-checked and
-  # runs scripts/auth0-post-login.test.mjs, the Action's own test. See ADR-0029.
+  # Decides whether a pull request can affect the app at all. Documentation, Terraform, the
+  # Auth0 Action, and a few files no CI job reads (the Infrastructure and Keepalive workflows,
+  # the web Worker's wrangler.jsonc, .gitignore) change nothing that typecheck, the unit
+  # suites or E2E test, so those three jobs read this and skip. Lint & format always runs: it
+  # keeps Markdown prettier-checked and runs scripts/auth0-post-login.test.mjs, the Action's
+  # own test. See ADR-0029.
   changes:
     name: Detect changes without app impact
     runs-on: ubuntu-24.04
@@ -52,10 +54,14 @@ jobs:
           while IFS= read -r file; do
             [ -n "$file" ] || continue
             # In a case pattern `*` also matches `/`, so `*.md` covers Markdown at any depth
-            # and `infra/terraform/*` everything below it. Anything else, .github/ included,
-            # counts as an app change.
+            # and `infra/terraform/*` everything below it. Anything else counts as an app
+            # change: ci.yml, release.yml and .github/actions/ among it, and
+            # apps/api-proxy/wrangler.jsonc, which the proxy's build (`wrangler deploy
+            # --dry-run`) reads in Typecheck & build.
             case "$file" in
-              docs/* | *.md | infra/terraform/* | infra/auth0-post-login.cjs)
+              docs/* | *.md | infra/terraform/* | infra/auth0-post-login.cjs | \
+                .github/workflows/infrastructure.yml | .github/workflows/keepalive.yml | \
+                apps/web/wrangler.jsonc | .gitignore)
                 echo "no app impact: $file" ;;
               *)
                 echo "app impact:    $file"
@@ -404,7 +410,7 @@ jobs:
           set -euo pipefail
           if [ "$RESULT" = "success" ]; then echo "E2E passed."; exit 0; fi
           if [ "$NO_APP_IMPACT" = "true" ] && [ "$RESULT" = "skipped" ]; then
-            echo "E2E skipped: this pull request changes only documentation, Terraform or the Auth0 Action."; exit 0
+            echo "E2E skipped: this pull request changes only files without app impact (ADR-0029)."; exit 0
           fi
           if [ "$IS_FORK" = "true" ] && [ "$RESULT" = "skipped" ]; then
             echo "::error title=E2E not run::This PR is from a fork, so it cannot access the E2E credentials. A maintainer must push the branch to this repository (gh pr checkout N && git push origin HEAD:pr-N) and merge from there."
