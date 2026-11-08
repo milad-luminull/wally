@@ -17,7 +17,12 @@ let setLanguage: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   setLanguage = vi.fn();
-  mockUseLanguage.mockReturnValue({ language: 'en', setLanguage, isSaving: false, saveFailed: false });
+  mockUseLanguage.mockReturnValue({
+    language: 'en',
+    setLanguage,
+    isSaving: false,
+    saveFailed: false,
+  });
 });
 
 function renderSelect() {
@@ -50,7 +55,12 @@ it('switches language', async () => {
 }, 60_000);
 
 it('announces a failed save rather than silently reverting', () => {
-  mockUseLanguage.mockReturnValue({ language: 'en', setLanguage, isSaving: false, saveFailed: true });
+  mockUseLanguage.mockReturnValue({
+    language: 'en',
+    setLanguage,
+    isSaving: false,
+    saveFailed: true,
+  });
   renderSelect();
   expect(screen.getByRole('status')).toHaveTextContent('Couldn’t save your language');
 });
