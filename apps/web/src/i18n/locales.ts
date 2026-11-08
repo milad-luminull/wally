@@ -21,3 +21,9 @@ export function normalizeLocale(raw: string | null | undefined): AppLocale | nul
   const primary = raw.toLowerCase().split('-')[0];
   return SUPPORTED_LOCALES.find((locale) => locale === primary) ?? null;
 }
+
+/**
+ * Endonyms — each language named in itself — and never translated: someone who lands in a
+ * language they cannot read has to be able to find their own in this list.
+ */
+export const LANGUAGE_ENDONYMS: Record<AppLocale, string> = { de: 'Deutsch', en: 'English' };

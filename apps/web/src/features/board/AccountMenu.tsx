@@ -3,15 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useLanguage } from '@/i18n/languageContext';
-import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
+import { LanguageSelect } from '@/features/settings/LanguageSelect';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MenuItem, MenuSeparator } from '@/components/ui/menu';
@@ -27,15 +19,6 @@ import { initialsOf } from './util/noteDerived';
  * since the first build, but nothing in the UI ever called it, so a signed-in user had no
  * way out of the app.
  */
-/**
- * Endonyms — each language named in itself — and never translated: someone who lands in a
- * language they cannot read has to be able to find their own in this list.
- */
-const LANGUAGE_ENDONYMS: Record<AppLocale, string> = {
-  de: 'Deutsch',
-  en: 'English',
-};
-
 /** `shortcuts`: off where no board's command layer is mounted to show the help. */
 export function AccountMenu({
   shortcuts = true,
@@ -43,7 +26,6 @@ export function AccountMenu({
 }: { shortcuts?: boolean; showName?: boolean } = {}) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
-  const { language, setLanguage, isSaving, saveFailed } = useLanguage();
   const [canvasPattern, setCanvasPattern] = useCanvasPattern();
   const [wallybot, setWallybot] = useWallybotPreferences();
   if (!user) return null;
@@ -114,28 +96,7 @@ export function AccountMenu({
           <Label htmlFor="account-language" className="text-12 font-medium text-fg-3">
             {t('account.language.label')}
           </Label>
-          <Select value={language} onValueChange={(next) => setLanguage(next as AppLocale)}>
-            <SelectTrigger id="account-language">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SUPPORTED_LOCALES.map((locale) => (
-                /* lang= switches the screen reader's voice for that one option (WCAG 3.1.2). */
-                <SelectItem key={locale} value={locale} lang={locale}>
-                  {LANGUAGE_ENDONYMS[locale]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {/* The whole UI changing language is silent otherwise. This confirms the switch to a
-              screen-reader user, and carries the rollback message when the save fails. */}
-          <p role="status" className="min-h-[1rem] text-12 text-fg-3">
-            {saveFailed
-              ? t('account.language.saveFailed')
-              : isSaving
-                ? t('account.language.saving')
-                : ''}
-          </p>
+          <LanguageSelect id="account-language" />
         </div>
 
         <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-1">

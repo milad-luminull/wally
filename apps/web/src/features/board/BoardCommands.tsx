@@ -37,7 +37,7 @@ import {
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/i18n/languageContext';
-import { SUPPORTED_LOCALES, type AppLocale } from '@/i18n/locales';
+import { LANGUAGE_ENDONYMS, SUPPORTED_LOCALES } from '@/i18n/locales';
 import { useTheme } from '@/lib/themeContext';
 import { useCanvasPattern } from '@/lib/preferences';
 import {
@@ -51,8 +51,6 @@ import {
 import { useBoards } from './hooks/useBoards';
 import type { BoardAxis, BoardView } from './hooks/useBoardViewState';
 import { SEARCH_INPUT_ID } from './FilterBar';
-
-const LANGUAGE_ENDONYMS: Record<AppLocale, string> = { de: 'Deutsch', en: 'English' };
 
 const GROUP_LABEL_KEYS = {
   horizon: 'shortcuts.groupHorizon',
