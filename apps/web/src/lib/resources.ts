@@ -23,6 +23,8 @@ import {
   subtaskCreateSchema,
   subtaskUpdateSchema,
   assistantTurnRequestSchema,
+  intakeRequestSchema,
+  intakeResponseSchema,
   assistantTurnResponseSchema,
   captureSuggestRequestSchema,
   captureSuggestResponseSchema,
@@ -34,6 +36,8 @@ import {
   tidyDecisionSchema,
   tidyDecisionResponseSchema,
   type AssistantTurnRequest,
+  type IntakeRequest,
+  type IntakeResponse,
   type AssistantTurnResponse,
   type CaptureSuggestRequest,
   type CaptureSuggestResponse,
@@ -149,6 +153,13 @@ export const notesApi = {
 };
 
 export const assistantApi = {
+  /** What the Wally box was given (the box spec, §4.1). */
+  intake: (boardId: string, body: IntakeRequest): Promise<IntakeResponse> =>
+    api.post(
+      `/whiteboards/${boardId}/assistant/intakes`,
+      intakeRequestSchema.parse(body),
+      intakeResponseSchema,
+    ),
   turn: (boardId: string, body: AssistantTurnRequest): Promise<AssistantTurnResponse> =>
     api.post(
       `/whiteboards/${boardId}/assistant/turns`,
