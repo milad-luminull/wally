@@ -71,7 +71,8 @@ Chosen option: **4**. The rules:
   data, zone-wide Cloudflare settings, organization policies and the Supabase project.
   [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform) lists each with how it is checked.
 
-`luminull-wally` stays in service until the cutover and is deleted by hand after it. The
+`luminull-wally` stays in service until the cutover and is deleted by hand after it
+(cutover 2026-11-07 with v0.17.2, deleted 2026-11-08). The
 cutover points the `wally-api-proxy` Worker at the new Cloud Run service; the hostnames, the
 Supabase database and the Auth0 tenant do not change.
 
@@ -99,7 +100,8 @@ Supabase database and the Auth0 tenant do not change.
   only ([free tier](https://docs.cloud.google.com/free/docs/free-cloud-features)); approved by
   the owner on 2026-11-05.
 - Neutral: until the move, DEPLOY's warning stands. Never unlink billing on `luminull-wally`,
-  and never switch its Firebase plan to Spark.
+  and never switch its Firebase plan to Spark. Since 2026-11-08 that project is deleted; never
+  unlinking billing still applies to `luminull-wally-prod`.
 
 ## More information
 

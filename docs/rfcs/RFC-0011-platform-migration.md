@@ -4,9 +4,9 @@
   (section 8). Workstreams 1 and 2 are live since v0.12.0, and workstream 4 since v0.13.0
   (both 2026-11-01). Workstream 6 (Firebase retired) is live since v0.14.0
   (2026-11-01), and workstream 7 (Terraform, the new Google Cloud project) since v0.17.2
-  (2026-11-07). See section 4.
-- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03, 2026-11-05 and
-  2026-11-07
+  (2026-11-07); `luminull-wally` was deleted on 2026-11-08. See section 4.
+- **Date:** 2026-10-26, updated 2026-10-27, 2026-10-31, 2026-11-01, 2026-11-03, 2026-11-05,
+  2026-11-07 and 2026-11-08
 - **Source:** the owner's [tech stack and architecture brief](../researches/2026-10-26-tech-stack-and-architecture.md)
 - **Decisions:** [ADR-0020](../adr/ADR-0020-supabase-postgres-through-the-api-with-drizzle.md) (data),
   [ADR-0022](../adr/ADR-0022-cloudflare-pages-and-api-proxy.md) (web hosting and API domain),
@@ -34,7 +34,7 @@ particular:
   Firestore data is exported or imported (owner, 2026-10-27), so every user starts with a
   new, empty account there. Accounts are never merged by email alone.
 
-The **Google Cloud project `luminull-wally` stays** for now. It also hosts Cloud Run, Artifact
+The **Google Cloud project `luminull-wally` stays** for now (until 2026-11-08, section 10). It also hosts Cloud Run, Artifact
 Registry, Workload Identity Federation and Secret Manager. Decommissioning Firebase means
 switching off Firebase products in that project, not deleting the project. Later, Wally moves
 to a new project created with Terraform, which has never been linked to Firebase
@@ -346,10 +346,11 @@ Decided on 2026-11-07:
 - **Each provider gets its own credential for Terraform,** scoped to what it manages
   ([DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform), bootstrap step 3).
 
-Still open:
+Decided on 2026-11-08:
 
-- **Rollback windows** for the remaining cutovers, including how long `luminull-wally` is kept
-  after the move (section 10).
+- **The rollback window for `luminull-wally` ends on 2026-11-08,** the day after the switch:
+  the owner found production working, and Google keeps a deleted project restorable for 30
+  days (section 10). Rollback windows for any later cutover are decided with it.
 
 ## 9. Operations the brief expects from day one
 
@@ -360,6 +361,8 @@ Still open:
   Checked on 2026-11-03, after the switch:
   - **Google Cloud:** a €10/month budget on `luminull-wally` alerts at 50, 90 and 100 % of
     actual spend, to the billing account's default recipients. AI spend alone may reach it.
+    The bootstrap gives `luminull-wally-prod` the same budget
+    ([DEPLOY.md](../DEPLOY.md#3-step-1--create-the-project-with-terraform)).
   - **Supabase:** the organization is on the Free plan, which is not charged. Going over a
     quota sends a notice to the billing email and starts a grace period
     ([usage](https://supabase.com/docs/guides/platform/manage-your-usage/monthly-active-users)).
@@ -434,3 +437,5 @@ commands are in [DEPLOY.md](../DEPLOY.md#infrastructure-in-terraform).
 3. **Retire** `luminull-wally` by hand, after the rollback window, and with it
    `scripts/bootstrap-gcp-cicd.sh`. Google keeps a deleted project restorable for 30 days
    ([delete](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).
+   **Done 2026-11-08:** the owner deleted the project; the script and `cloudbuild.yaml`, which
+   built into it, are removed, and DEPLOY.md sections 3 to 9 describe the Terraform setup.

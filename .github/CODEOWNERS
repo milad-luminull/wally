@@ -7,6 +7,5 @@
 /infra/                 @milad-luminull
 /apps/api-proxy/        @milad-luminull
 /apps/web/wrangler.jsonc @milad-luminull
-/cloudbuild.yaml        @milad-luminull
 /docker-compose.yml     @milad-luminull
 /docker-compose.ci.yml  @milad-luminull

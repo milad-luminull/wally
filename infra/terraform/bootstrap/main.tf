@@ -83,7 +83,7 @@ resource "google_billing_budget" "wally" {
     projects = ["projects/${google_project.wally.number}"]
   }
 
-  # In the billing account's currency, like the budget on luminull-wally (RFC-0011 section 9).
+  # In the billing account's currency, like the retired luminull-wally's budget (RFC-0011 section 9).
   amount {
     specified_amount {
       units = "10"

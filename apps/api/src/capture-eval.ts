@@ -7,7 +7,7 @@
  * package:
  *
  *   cd apps/api
- *   ASSISTANT_VERTEX_PROJECT=luminull-wally pnpm assistant:capture-eval
+ *   ASSISTANT_VERTEX_PROJECT=luminull-wally-prod pnpm assistant:capture-eval
  *
  * with the assistant variables from the root `.env` exported in the shell.
  *

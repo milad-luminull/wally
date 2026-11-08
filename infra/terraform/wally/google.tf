@@ -58,7 +58,7 @@ resource "google_service_account_iam_member" "deployer_from_github" {
 }
 
 # run.developer, not run.admin: the release never changes a service's IAM policy.
-# serviceUsageConsumer is carried over from luminull-wally (scripts/bootstrap-gcp-cicd.sh).
+# serviceUsageConsumer is carried over from the hand-made setup of the retired luminull-wally.
 resource "google_project_iam_member" "deployer" {
   for_each = toset(["roles/run.developer", "roles/serviceusage.serviceUsageConsumer"])
 

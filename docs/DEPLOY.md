@@ -5,7 +5,7 @@ deployed to Google Cloud before. Every command is meant to be copy-pasted in ord
 
 Budget about 45–90 minutes the first time. Most of it is waiting for builds.
 
-> **Where production stands (2026-11-07).** Production runs v0.17.2: the API on Cloud Run
+> **Where production stands (2026-11-08).** Production runs v0.18.0: the API on Cloud Run
 > in `luminull-wally-prod`, created with Terraform
 > ([Infrastructure in Terraform](#infrastructure-in-terraform)), reads and writes Supabase
 > PostgreSQL through the transaction pooler, and the edge is
@@ -112,11 +112,11 @@ These are already decided and deployed, and every command below has them filled 
 listed here so you recognise them when you see them, and so you know what to change if you
 ever stand up a second environment.
 
-| Name       | Meaning                                            | Value            |
-| ---------- | -------------------------------------------------- | ---------------- |
-| Project ID | The Google Cloud project ID (not the display name) | `luminull-wally` |
-| Region     | The Google Cloud region everything is deployed to  | `europe-west1`   |
-| Repo       | Artifact Registry repository holding the API image | `wally`          |
+| Name       | Meaning                                            | Value                 |
+| ---------- | -------------------------------------------------- | --------------------- |
+| Project ID | The Google Cloud project ID (not the display name) | `luminull-wally-prod` |
+| Region     | The Google Cloud region everything is deployed to  | `europe-west1`        |
+| Repo       | Artifact Registry repository holding the API image | `wally`               |
 
 **One region, everywhere.** Mixing regions is the single most common cause of confusing
 failures. `europe-west1` (Belgium) is a sensible default for a German company and is
@@ -124,39 +124,42 @@ supported by every service used here.
 
 ---
 
-## 3. Step 1 — Put the project on billing
+## 3. Step 1 — Create the project with Terraform
 
-**Cloud Run and Cloud Build** need a project with billing enabled. In the Google Cloud
-console, open **Billing**, select the project and link a billing account (you will need a
-credit card); Google describes the steps in
-[enable, disable, or change billing for a project](https://cloud.google.com/billing/docs/how-to/modify-project).
-This project was set up through Firebase as the Blaze plan, which is the same thing.
+The Google Cloud project `luminull-wally-prod` and everything in it come from Terraform
+([Infrastructure in Terraform](#infrastructure-in-terraform)). The owner applies the
+bootstrap root once, from their machine: it creates the project, links it to the billing
+account, enables the APIs Wally uses, sets a budget and creates the state bucket and
+Terraform's own identity. The pipeline then applies everything else after the owner approves
+each plan.
 
-> **Never unlink billing, and never switch the Firebase plan from Blaze to Spark.** The
-> Firebase plan is this project's billing link. Switching to Spark on 2026-11-01 (20:49 UTC)
-> unlinked the billing account, and Cloud Run stopped serving at once: the API answered 500
-> ("billing is disabled for this project"), then 429 and 503. Re-linking the account
-> (`gcloud billing projects link luminull-wally --billing-account=<id>`) brought it back
-> after about 28 minutes, within Google's documented delay: after billing is re-enabled,
-> Cloud Run resources "might experience a delay of up to 30 minutes" before they serve
-> again, and "there is no manual workaround"
-> ([Cloud Run known issues](https://docs.cloud.google.com/run/docs/known-issues)). A release
-> during that window fails its first check.
+The budget is 10 units of the billing account's currency a month, with alerts at 50, 90 and
+100 % ([`infra/terraform/bootstrap/main.tf`](../infra/terraform/bootstrap/main.tf)). Alerts
+are not caps: billing is pay-as-you-go. See [section 14](#14-what-this-will-cost) for what
+Wally realistically uses.
 
-Billing is pay-as-you-go, not a subscription. It keeps the same free allowances on top — see
-[section 14](#14-what-this-will-cost) for what Wally realistically uses. **Set a budget
-alert while you are here**: Google Cloud console → **Billing → Budgets & alerts → Create
-budget**. Set something small like €10/month so you find out early if something misbehaves.
+> **Never unlink billing.** On 2026-11-01 (20:49 UTC) the billing account was unlinked from
+> the previous project, `luminull-wally`, by switching its Firebase plan to Spark, and Cloud
+> Run stopped serving at once: the API answered 500 ("billing is disabled for this project"),
+> then 429 and 503. Re-linking the account brought it back after about 28 minutes, within
+> Google's documented delay: after billing is re-enabled, Cloud Run resources "might
+> experience a delay of up to 30 minutes" before they serve again, and "there is no manual
+> workaround" ([Cloud Run known issues](https://docs.cloud.google.com/run/docs/known-issues)).
+> A release during that window fails its first check.
+
+`luminull-wally`, the project that was set up by hand before Terraform, is retired
+([Infrastructure in Terraform](#infrastructure-in-terraform)).
 
 ---
 
 ## 4. Step 2 — Create the database
 
-**Partly done (2026-10-31).** The project exists: `wally` (ref `jztzhyxshwgjrwscibly`) in
-Ireland (`eu-west-1`), on the Free plan, PostgreSQL 17.11.0.003, the same image the local
-stack and CI run. Its connection string is in Secret Manager (section 7). Nothing has been
-migrated or deployed to it; the proofs in [RFC-0011](rfcs/RFC-0011-platform-migration.md)
-section 5 come first. Nothing is bought without the owner's approval.
+**Done (2026-10-31), in production since v0.12.0.** The project is `wally` (ref
+`jztzhyxshwgjrwscibly`) in Ireland (`eu-west-1`), on the Free plan, PostgreSQL 17.11.0.003,
+the same image the local stack and CI run. It stays outside Terraform
+([What stays outside Terraform](#what-stays-outside-terraform-and-how-it-is-checked)). Its
+connection string is in Secret Manager (section 7). Nothing is bought without the owner's
+approval.
 
 1. Create a Supabase project. Wally's is in Ireland (`eu-west-1`; the owner's choice,
    RFC-0011 section 8). A region cannot be changed after creation.
@@ -235,7 +238,7 @@ that the dashboard can no longer restore it, and the Free plan keeps no backup.
 
 ---
 
-## 5. Step 3 — Already done: Application Default Credentials on Cloud Run
+## 5. Step 3 — Application Default Credentials on Cloud Run
 
 The API never uses a service-account key. On Cloud Run, Google hands the container
 credentials automatically through **Application Default Credentials (ADC)**, so there is no
@@ -269,60 +272,43 @@ docker compose run --rm api pnpm turbo run typecheck test
 From the repo root:
 
 ```bash
-gcloud config set project luminull-wally
+gcloud config set project luminull-wally-prod
+gcloud auth application-default set-quota-project luminull-wally-prod
 ```
 
-Now enable the Google Cloud APIs you are about to use. This takes a minute and is a
-one-time thing per project:
+The second line makes the project the quota project of your Application Default Credentials
+([`set-quota-project`](https://cloud.google.com/sdk/gcloud/reference/auth/application-default/set-quota-project)),
+which local Vertex calls and Terraform's Google provider use.
 
-```bash
-gcloud services enable \
-  run.googleapis.com \
-  cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com
-```
-
-The Firebase APIs this project once used were disabled on 2026-11-01
-([Firebase retired](#firebase-retired)).
+There are no APIs to enable by hand: the bootstrap enables the ones Wally uses, listed in
+[`infra/terraform/bootstrap/main.tf`](../infra/terraform/bootstrap/main.tf).
 
 ---
 
-## 7. Step 5 — Store the connection string and apply the migrations
+## 7. Step 5 — Store the secret values and apply the migrations
 
-**Done (2026-10-31).** The owner created `wally-database-url` (version 1, replicated only in
-`europe-west3`) and ran the bootstrap script, which granted the two identities below; no one
-else can read it. The owner then applied both migrations by hand through the pooler (RFC-0011
-section 8); later migrations come with the releases.
-
-Store the transaction pooler URL from section 4 as the secret `wally-database-url`,
-replicated only in the EU. `read -rs` keeps the password out of your shell history:
+Terraform creates the two secrets, `wally-database-url` and
+`wally-auth0-management-client-secret`, replicated only in `europe-west3`, and grants their
+readers. It never holds their values, which the owner adds once
+([Infrastructure in Terraform](#infrastructure-in-terraform), bootstrap step 5). Add the
+transaction pooler URL from section 4 as a new version; `read -rs` keeps the password out of
+your shell history:
 
 ```bash
 read -rs DATABASE_URL
-printf '%s' "$DATABASE_URL" | gcloud secrets create wally-database-url \
-  --data-file=- --replication-policy=user-managed --locations=europe-west3
+printf '%s' "$DATABASE_URL" | gcloud secrets versions add wally-database-url \
+  --data-file=- --project=luminull-wally-prod
 ```
 
-Two identities read it. Grant each `roles/secretmanager.secretAccessor` on this one secret,
-not the project ([access control](https://docs.cloud.google.com/secret-manager/docs/access-control)):
-
-```bash
-gcloud secrets add-iam-policy-binding wally-database-url \
-  --member="serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-
-gcloud secrets add-iam-policy-binding wally-database-url \
-  --member="serviceAccount:github-deployer@luminull-wally.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-```
+Two identities read it, each with `roles/secretmanager.secretAccessor` on this one secret, not
+the project ([access control](https://docs.cloud.google.com/secret-manager/docs/access-control)),
+both granted in [`infra/terraform/wally/google.tf`](../infra/terraform/wally/google.tf):
 
 - **`wally-api`**, the runtime service account: Cloud Run reads the secret when an instance
   starts, and an instance whose secret cannot be read does not start
   ([Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets)).
 - **`github-deployer`**, the release's identity: the "Apply database migrations" step reads
-  the secret with `gcloud secrets versions access latest`. [`scripts/bootstrap-gcp-cicd.sh`](../scripts/bootstrap-gcp-cicd.sh)
-  does not grant this yet.
+  the secret with `gcloud secrets versions access latest`.
 
 ### Applying the migrations
 
@@ -337,7 +323,7 @@ you are about to deploy:
 ```bash
 read -rs DATABASE_URL && export DATABASE_URL
 docker run --rm -e DATABASE_URL \
-  europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api@<digest> \
+  europe-west1-docker.pkg.dev/luminull-wally-prod/wally/wally-api@<digest> \
   node dist/migrate-cli.js --require-purge-job
 ```
 
@@ -350,69 +336,43 @@ change is a new migration file ([SETUP.md](SETUP.md#docker)).
 
 ## 8. Step 6 — Build the API container image
 
-Cloud Run runs containers, so we need to build one and put it somewhere Cloud Run can pull
-it from. That "somewhere" is **Artifact Registry**.
+Cloud Run runs containers from **Artifact Registry**. Terraform creates the repository,
+`europe-west1-docker.pkg.dev/luminull-wally-prod/wally`, and grants the release's identity
+write access to it. The release builds the image on a GitHub runner and pushes it there
+(section 13).
 
-Create the repository once:
-
-```bash
-gcloud artifacts repositories create wally \
-  --repository-format=docker \
-  --location=europe-west1 \
-  --description="Wally container images"
-```
+The API's Dockerfile lives at `apps/api/Dockerfile` but needs the **monorepo root** as its
+build context: it copies `packages/shared` and the lockfile. Because `prod` is the last stage
+in that Dockerfile, it is what gets built — no `--target` needed.
 
 ### Why not `gcloud run deploy --source`?
 
 You will see that command in most tutorials. It does not work here. It looks for a
 `Dockerfile` at the root of the directory you point it at, and there is no flag to point it
-at a different path. Wally's API Dockerfile lives at `apps/api/Dockerfile` but needs the
-**monorepo root** as its build context (it copies `packages/shared` and the lockfile). So we
-use Cloud Build with an explicit config instead.
+at a different path.
 
-`cloudbuild.yaml` at the repo root (already committed):
+### Building by hand (break-glass)
 
-```yaml
-steps:
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - build
-      - '-f'
-      - 'apps/api/Dockerfile'
-      - '-t'
-      - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest'
-      - '.'
-images:
-  - 'europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest'
+Only when the release cannot run. From the repo root, with an account that may write to the
+repository (Artifact Registry Writer), sign Docker in to Artifact Registry once
+([Docker authentication](https://docs.cloud.google.com/artifact-registry/docs/docker/authentication))
+and build for `linux/amd64`, the platform Cloud Run runs; an Apple Silicon Mac builds arm64
+otherwise:
+
+```bash
+gcloud auth configure-docker europe-west1-docker.pkg.dev
+docker buildx build --platform linux/amd64 -f apps/api/Dockerfile \
+  -t europe-west1-docker.pkg.dev/luminull-wally-prod/wally/wally-api:manual-$(git rev-parse --short HEAD) \
+  --push .
 ```
 
 The `-f apps/api/Dockerfile ... .` is the important part: the Dockerfile comes from the
-subdirectory, the build context is `.` (the repo root). Because `prod` is the last stage in
-that Dockerfile, it is what gets built — no `--target` needed.
-
-Now build. This runs on Google's machines, not yours, which also sidesteps the Apple
-Silicon problem (your Mac is arm64; Cloud Run needs amd64):
-
-```bash
-gcloud builds submit --config cloudbuild.yaml .
-```
-
-First build takes 3–6 minutes. If it fails, the log URL printed at the end is the place to
-look.
+subdirectory, the build context is `.` (the repo root).
 
 ### If the build fails
 
-- **`storage.objects.get` denied on the `luminull-wally_cloudbuild` bucket:** the default
-  Cloud Build service account (`128432325938-compute@developer.gserviceaccount.com`) has no
-  build role. Grant `roles/cloudbuild.builds.builder` to it once, wait about a minute for IAM
-  to propagate, and re-run the build. Already granted on this project.
-
-  ```bash
-  gcloud projects add-iam-policy-binding luminull-wally \
-    --member="serviceAccount:128432325938-compute@developer.gserviceaccount.com" \
-    --role="roles/cloudbuild.builds.builder"
-  ```
-
+- **`COPY packages/shared` fails:** you ran the build from a subdirectory. Run it from the
+  repo root.
 - **A `rootDir` TypeScript error:** `apps/api/tsconfig.build.json` sets `rootDir: "src"` and
   excludes `**/*.test.ts`, because test files import helpers from `test/`. Keep that exclude.
 
@@ -420,39 +380,41 @@ look.
 
 ## 9. Step 7 — Deploy the API to Cloud Run
 
-### 9a. Create a service account for the API
+### 9a. The service accounts
 
-Cloud Run will run your container _as_ this identity — no keys involved. It needs no
-database role: it reads the database's connection string from Secret Manager, which takes
-the grant in section 7.
+Terraform creates both, with no keys
+([`infra/terraform/wally/google.tf`](../infra/terraform/wally/google.tf)):
 
-```bash
-gcloud iam service-accounts create wally-api \
-  --display-name="Wally API runtime"
-```
-
-It once held `roles/datastore.user`, for Firestore; that grant was removed on 2026-11-01
-([Firebase retired](#firebase-retired)).
+- **`wally-api`**, the runtime account Cloud Run runs the container as. It holds
+  `roles/aiplatform.user` for Vertex AI and reads the secrets in section 7. It needs no
+  database role.
+- **`github-deployer`**, the release's identity, reached from GitHub Actions through Workload
+  Identity Federation. It may act as `wally-api` only, deploy revisions
+  (`roles/run.developer`) and push images.
 
 > IAM changes take up to 5 minutes to take effect. If your first request fails with a
 > permission error, wait and retry before assuming something is broken.
 
 ### 9b. Deploy
 
-`--set-env-vars` **replaces** the service's whole set of variables, and production needs
-every one that `apiConfig` in [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs)
-defines: `NODE_ENV`, `CORS_ORIGIN`, `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`,
+Terraform creates the Cloud Run service `wally-api` and leaves its image, variables and
+traffic to the release. A new service starts with Google's sample container; see
+[Infrastructure in Terraform](#infrastructure-in-terraform) for its first release.
+
+By hand, `--set-env-vars` **replaces** the service's whole set of variables, and production
+needs every one that `apiConfig` in
+[`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs) defines:
+`NODE_ENV`, `CORS_ORIGIN`, `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`,
 `ASSISTANT_VERTEX_LOCATION`, `ASSISTANT_VERTEX_PROJECT`, `AUTH0_MANAGEMENT_CLIENT_ID`,
-`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A hand-typed list drops
-one easily, and a dropped `AUTH0_SIGNUP_ENABLED` turns production signup off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the functions the
-release uses.
-The values below are what production ran on 2026-11-01 (release v0.13.0), without the
-switch the Firebase retirement removed. Compare them with
-`gh variable list` and `gh variable list --env production` (which overrides it) before you
-deploy, and change any that differ:
+`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A
+hand-typed list drops one easily, and a dropped `AUTH0_SIGNUP_ENABLED` turns production
+signup off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the
+functions the release uses. Compare the values below with `gh variable list` and
+`gh variable list --env production` (which overrides it) before you deploy, and change any
+that differ:
 
 ```bash
-export GCP_PROJECT_ID=luminull-wally WEB_ORIGIN=https://wally.luminull.com \
+export GCP_PROJECT_ID=luminull-wally-prod WEB_ORIGIN=https://wally.luminull.com \
   ASSISTANT_ENABLED=true ASSISTANT_MODEL=vertex:gemini-3.8-flash ASSISTANT_VERTEX_LOCATION=eu \
   AUTH0_SIGNUP_ENABLED=true MCP_ENABLED=true MCP_WRITES_ENABLED=true \
   MCP_CLIENT_ID="$(gh variable get MCP_CLIENT_ID --env production)" \
@@ -466,9 +428,9 @@ RUN_SECRETS=$(node --input-type=module -e "
 echo "$RUN_ENV"; echo "$RUN_SECRETS"   # check both before deploying
 
 gcloud run deploy wally-api \
-  --image=europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest \
-  --region=europe-west1 \
-  --service-account=wally-api@luminull-wally.iam.gserviceaccount.com \
+  --image=europe-west1-docker.pkg.dev/luminull-wally-prod/wally/wally-api:<tag> \
+  --region=europe-west1 --project=luminull-wally-prod \
+  --service-account=wally-api@luminull-wally-prod.iam.gserviceaccount.com \
   --set-env-vars="$RUN_ENV" \
   --set-secrets="$RUN_SECRETS"
 ```
@@ -498,12 +460,8 @@ replaces the whole set from `apiConfig` anyway.
 
 The assistant is off unless `ASSISTANT_ENABLED=true` is set. When it is on, `ASSISTANT_MODEL`
 (`provider:model`, default `vertex:gemini-3.8-flash`), `ASSISTANT_VERTEX_LOCATION`
-(default `eu`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route,
-and the Cloud Run service account needs `roles/aiplatform.user`:
-
-```bash
-gcloud projects add-iam-policy-binding luminull-wally --member=serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com --role=roles/aiplatform.user
-```
+(default `eu`) and optionally `ASSISTANT_VERTEX_PROJECT` configure the route. The runtime
+account's `roles/aiplatform.user` comes from Terraform.
 
 `GET /health` reports the configured model without calling it. The release pipeline sets
 `ASSISTANT_ENABLED`, `ASSISTANT_MODEL` and `ASSISTANT_VERTEX_LOCATION` from the repository
@@ -512,10 +470,10 @@ API's defaults when a variable is absent; a value set by hand on the service is 
 the next release.
 
 The default is Gemini 3.8 Flash on the EU multi-region endpoint (location `eu`, served
-at `aiplatform.eu.rep.googleapis.com`), which keeps processing in the EU (D4). For this
-project the model answers 404 in `europe-west1`, `europe-west3` and `europe-west4`
-(checked 2026-10-19). Gemini 2.5 Flash, the earlier default, was retired by Google on
-2026-10-20.
+at `aiplatform.eu.rep.googleapis.com`), which keeps processing in the EU (D4). In the
+previous project the model answered 404 in `europe-west1`, `europe-west3` and
+`europe-west4` (checked 2026-10-19). Gemini 2.5 Flash, the earlier default, was retired by
+Google on 2026-10-20.
 
 Two caps bound spend: `ASSISTANT_DAILY_CAP_TOKENS` (default `300000`) is each user's daily
 token allowance on any key, and `ASSISTANT_MONTHLY_CAP_MICRO_USD` (default `15000000`, that
@@ -524,9 +482,9 @@ the price table in `apps/api/src/lib/assistant/budget/prices.ts`; check that tab
 the vendor's pricing page before changing `ASSISTANT_MODEL`.
 
 To call Vertex from a local machine, the API uses Application Default Credentials: run
-`gcloud auth application-default login` with an account that has `roles/aiplatform.user`,
-and the Vertex AI API (`aiplatform.googleapis.com`) must be enabled on the project. On Cloud
-Run the runtime service account applies. One real turn can be run by hand, against whatever
+`gcloud auth application-default login` with an account that has `roles/aiplatform.user` on
+`luminull-wally-prod`, and set `ASSISTANT_VERTEX_PROJECT=luminull-wally-prod`. On Cloud Run
+the runtime service account applies. One real turn can be run by hand, against whatever
 database `DATABASE_URL` names:
 
 ```bash
@@ -535,22 +493,18 @@ pnpm --filter @wally/api assistant:smoke <uid> <boardId> "<question>"
 
 ### 9c. Make the service publicly reachable
 
-Note what is _missing_ from the deploy command above: `--allow-unauthenticated`. Most
-tutorials include it, and it does not work in this organization.
-
 Cloud Run puts **two independent gates** in front of the container:
 
 1. **Cloud Run's own IAM invoker check** — the caller needs `roles/run.invoker`.
    `--allow-unauthenticated` is just shorthand for granting that role to the special
    `allUsers` principal.
 2. **Wally's own authentication** — every route goes through the auth preHandler, which
-   verifies an Auth0 access token and 401s
-   without one.
+   verifies an Auth0 access token and 401s without one.
 
 Wally deliberately relies on gate 2. Gate 1 exists for service-to-service auth and is
 redundant here — which is why making the service "public" does _not_ mean "no security".
 
-The problem: this organization enforces **domain-restricted sharing**
+This organization enforces **domain-restricted sharing**
 (`constraints/iam.allowedPolicyMemberDomains`, limited to the Workspace customer ID). That
 constraint exists precisely to stop public IAM bindings, and `allUsers` is not a domain, so
 there is **no allowlist value that permits it** — the binding fails with:
@@ -560,39 +514,26 @@ FAILED_PRECONDITION: One or more users named in the policy do not belong to a pe
 customer, perhaps due to an organization policy.
 ```
 
-Rather than weaken the org policy, disable gate 1 on this one service. This is
+So Terraform turns gate 1 off on this one service instead (`invoker_iam_disabled = true` in
+[`google.tf`](../infra/terraform/wally/google.tf)), which is
 [Google's documented answer](https://docs.cloud.google.com/run/docs/authenticating/public)
-for exactly this situation:
-
-```bash
-gcloud run services update wally-api \
-  --region=europe-west1 \
-  --no-invoker-iam-check
-```
-
-Same end result as `--allow-unauthenticated`, but **no IAM binding is created**, so
-domain-restricted sharing is never triggered. No organization policy changes, and the scope
-is this single service.
+for exactly this situation and the same as `gcloud run services update --no-invoker-iam-check`.
+No IAM binding is created, so domain-restricted sharing is never triggered, and the scope is
+this single service.
 
 > **Do not "fix" this by overriding the org policy to Allow All.** It works, but it disables
 > domain-restricted sharing for the entire project, so any external identity could be
-> granted any role on anything in it. The flag above is narrower and reversible
-> (`--invoker-iam-check` turns the gate back on).
+> granted any role on anything in it.
 
-The deploy prints a **Service URL**. For this project it is:
+The service's URL, the `api_url` output of the `wally` root, is:
 
 ```
-https://wally-api-d5xbuta4ya-ew.a.run.app
+https://wally-api-ttkwy6mnka-ew.a.run.app
 ```
 
-This native URL remains useful for diagnostics and tagged candidate checks. To print it again:
-
-```bash
-gcloud run services describe wally-api --region=europe-west1 --format='value(status.url)'
-```
-
-(Cloud Run also answers on a second, project-number-based hostname —
-`https://wally-api-128432325938.europe-west1.run.app`. Both reach the same service.)
+This native URL remains useful for diagnostics and tagged candidate checks. Cloud Run also
+answers on a second, project-number-based hostname,
+`https://wally-api-299735685184.europe-west1.run.app`; both reach the same service.
 
 The production browser API URL is **`https://api.wally.luminull.com`**, with no trailing
 slash. The `wally-api-proxy` Worker serves it, forwarding to the service's `status.url` (a
@@ -702,19 +643,21 @@ grep -c "localhost:4000" apps/web/dist/assets/*.js                      # expect
 Auth0's hosted login sends people back only to addresses listed on the SPA client. Already
 correct for this project: the client allows the callback, web origin and logout URL of
 `https://wally.luminull.com` and of `http://localhost:5174`
-([AUTH0.md](AUTH0.md#configuration)). Any other address you serve the web app from — another
-domain, or a second local copy on another port — has to be added to the SPA client in the
-Auth0 dashboard first, or sign-in stops at Auth0 with a callback error.
+([AUTH0.md](AUTH0.md#configuration)). The list is in
+[`infra/terraform/wally/auth0.tf`](../infra/terraform/wally/auth0.tf) (`auth0_client.web`):
+any other address you serve the web app from — another domain, or a second local copy on
+another port — has to be added there and applied first, or sign-in stops at Auth0 with a
+callback error. A change made in the Auth0 dashboard is reverted by the next apply.
 
 ### Check CORS matches
 
 Production requires `CORS_ORIGIN=https://wally.luminull.com`. It must match the browser
-origin **exactly**, including scheme and no trailing slash. To reconcile an older deployment:
+origin **exactly**, including scheme and no trailing slash. The release sets it from the
+`WEB_ORIGIN` variable through `apiConfig` (section 9b). To check the running service:
 
 ```bash
-gcloud run services update wally-api \
-  --region=europe-west1 \
-  --update-env-vars="CORS_ORIGIN=https://wally.luminull.com"
+gcloud run services describe wally-api --region=europe-west1 --project=luminull-wally-prod \
+  --format="value(spec.template.spec.containers[0].env)"
 ```
 
 ---
@@ -873,13 +816,12 @@ v0.13.0's are tagged `v0.13.0` (`wally-web` 5c3a20a1, `wally-api-proxy` 907ed2dc
 
 Still correct, and still what to reach for if Actions is down:
 
-**Backend changed:**
+**Backend changed:** build and push the image by hand (section 8), then deploy it:
 
 ```bash
-gcloud builds submit --config cloudbuild.yaml .
 gcloud run deploy wally-api \
-  --image=europe-west1-docker.pkg.dev/luminull-wally/wally/wally-api:latest \
-  --region=europe-west1
+  --image=europe-west1-docker.pkg.dev/luminull-wally-prod/wally/wally-api:<tag> \
+  --region=europe-west1 --project=luminull-wally-prod
 ```
 
 **Frontend changed:**
@@ -926,8 +868,8 @@ cannot be rolled back to; fix forward. Locally, the database now lives in the
 
 ## 14. What this will cost
 
-For an app this size, realistically **near zero**, but Blaze means "pay for what you use"
-rather than "free with a hard cap", so it is worth knowing the shape.
+For an app this size, realistically **near zero**, but Google Cloud bills "pay for what you
+use" rather than "free with a hard cap", so it is worth knowing the shape.
 
 The database is a Supabase project on the Free plan. Its budget is in
 [RFC-0011](rfcs/RFC-0011-platform-migration.md) section 2, and the Free plan's catches (no
@@ -944,7 +886,7 @@ proof measured 0–2 ms). Over the limit, requests fail with error 1027; whether
 Workers Paid ($5/month).
 
 The thing that would actually cost money is a runaway loop on Cloud Run or the assistant. That is
-exactly what the budget alert in [section 3](#3-step-1--put-the-project-on-billing)
+exactly what the budget alert in [section 3](#3-step-1--create-the-project-with-terraform)
 is for.
 
 ---
@@ -954,7 +896,8 @@ is for.
 **The new revision never starts, and its logs mention the secret**
 Cloud Run could not read `wally-database-url`: the `wally-api` account lacks
 `roles/secretmanager.secretAccessor` on it, or you are within the IAM propagation window.
-Re-run the grant from section 7 and wait.
+The grant is in [`google.tf`](../infra/terraform/wally/google.tf); check the last
+Infrastructure run applied it, and wait.
 
 **"Apply database migrations" fails in the release**
 The deploy identity cannot read the secret (section 7), or the runner cannot reach the
@@ -964,7 +907,7 @@ direct connection (section 4).
 **The API refuses to boot with `Invalid environment configuration: DATABASE_URL`**
 `DATABASE_URL` is missing or not a URL. On Cloud Run it comes only from `--set-secrets`;
 check the revision with
-`gcloud run services describe wally-api --region=europe-west1 --format="value(spec.template.spec.containers[0].env)"`.
+`gcloud run services describe wally-api --region=europe-west1 --project=luminull-wally-prod --format="value(spec.template.spec.containers[0].env)"`.
 
 **The app calls `localhost:4000`, or signs in against the wrong Auth0 client**
 The `VITE_*` variables were not present when you built. Confirm `apps/web/.env.production`
@@ -972,7 +915,7 @@ exists, then rebuild — the values are compiled in, so editing the file without
 changes nothing.
 
 **Auth0 shows a callback URL mismatch when signing in**
-Section 11 — add the address to the Auth0 SPA client.
+Section 11 — add the address to the Auth0 SPA client in `auth0.tf`.
 
 **CORS errors in the browser console**
 `CORS_ORIGIN` on Cloud Run does not exactly match the origin the browser is using. Compare
@@ -981,12 +924,8 @@ them character by character, including `https://` and the absence of a trailing 
 **Reading the actual logs** — this is the thing to reach for before guessing:
 
 ```bash
-gcloud run services logs read wally-api --region=europe-west1 --limit=50
+gcloud run services logs read wally-api --region=europe-west1 --project=luminull-wally-prod --limit=50
 ```
-
-**Cloud Build fails on `COPY packages/shared`**
-You ran the build from a subdirectory. It must run from the repo root, because the build
-context is the whole monorepo: `gcloud builds submit --config cloudbuild.yaml .`
 
 **A generic Google "Error 404 (Not Found)" HTML page instead of your app's response**
 This is never your app's 404 — your app answers in JSON. It means the request was stopped
@@ -995,8 +934,8 @@ paths are affected:
 
 - **Every path 404s** — the caller has no `roles/run.invoker`, so Cloud Run's front end
   refuses everything. (It returns 404 rather than 403 so it does not leak whether a private
-  service exists.) Fix: section 9c, `--no-invoker-iam-check`. Check the current state with
-  `gcloud run services describe wally-api --region=europe-west1 --format="value(metadata.annotations.'run.googleapis.com/invoker-iam-disabled')"`
+  service exists.) Fix: section 9c, `invoker_iam_disabled` in Terraform. Check the current state with
+  `gcloud run services describe wally-api --region=europe-west1 --project=luminull-wally-prod --format="value(metadata.annotations.'run.googleapis.com/invoker-iam-disabled')"`
   — `true` means the check is off.
 - **Exactly one path 404s while the rest work** — you hit a Google Front End reserved path.
   `/healthz` is the one that bites here; paths ending in `z` are reserved on Cloud Run.
@@ -1104,7 +1043,11 @@ no end-to-end coverage at all.
 
 ### Configuration
 
-Set once, by [`scripts/bootstrap-gcp-cicd.sh`](../scripts/bootstrap-gcp-cicd.sh) and by hand.
+The repository variables below, except the E2E account variables, and the `production`
+environment's variables come from Terraform
+([`infra/terraform/wally/github.tf`](../infra/terraform/wally/github.tf)); change them there.
+The E2E variables and every secret are set by hand
+([What stays outside Terraform](#what-stays-outside-terraform-and-how-it-is-checked)).
 
 **Repository variables** — public identifiers, not secrets. They are compiled into a bundle
 that anyone can download, so hiding them would buy nothing:
@@ -1440,22 +1383,20 @@ data ([AUTH0.md](AUTH0.md#account-deletion)).
 Once, by the owner, **before the release that ships it**: the production API refuses to
 start without the client, and the release refuses to build without its ID.
 
-1. **Auth0:** Dashboard → Applications → Create Application → **Machine to Machine** → the
-   **Auth0 Management API** → only the **`delete:users`** permission. Under Applications →
-   APIs → Auth0 Management API, the **Identifier** must read
+1. **Auth0:** a **Machine to Machine** application for the **Auth0 Management API** with
+   only the **`delete:users`** permission. It is `auth0_client.account_deletion` with its
+   grant in [`auth0.tf`](../infra/terraform/wally/auth0.tf). Under Applications → APIs →
+   Auth0 Management API, the **Identifier** must read
    `https://dev-4tuhqfy0z1yepp5h.eu.auth0.com/api/v2/` (`AUTH0_TENANT_DOMAIN` in
    [constants.ts](../apps/api/src/lib/auth/constants.ts)).
-2. **The secret,** in the EU like the database URL, read only by the runtime service account
-   (the release does not read it):
+2. **The secret's value.** Terraform creates the secret, in the EU like the database URL,
+   read only by the runtime service account (the release does not read it). Add the client's
+   secret as a version:
 
    ```bash
    read -rs AUTH0_MANAGEMENT_CLIENT_SECRET
-   printf '%s' "$AUTH0_MANAGEMENT_CLIENT_SECRET" | gcloud secrets create \
-     wally-auth0-management-client-secret \
-     --data-file=- --replication-policy=user-managed --locations=europe-west3
-   gcloud secrets add-iam-policy-binding wally-auth0-management-client-secret \
-     --member="serviceAccount:wally-api@luminull-wally.iam.gserviceaccount.com" \
-     --role="roles/secretmanager.secretAccessor"
+   printf '%s' "$AUTH0_MANAGEMENT_CLIENT_SECRET" | gcloud secrets versions add \
+     wally-auth0-management-client-secret --data-file=- --project=luminull-wally-prod
    ```
 
 3. **The client ID** as a production variable:
@@ -1526,12 +1467,14 @@ Removed in PR #76 with self-service account export and deletion; its cloud resou
 ## Infrastructure in Terraform
 
 Wally's infrastructure moves into Terraform ([ADR-0026](adr/ADR-0026-new-google-cloud-project-created-with-terraform.md),
-[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **The foundation is applied (2026-11-07).** The release
-deploys to the project the `GCP_*` variables name. From the switch (RFC-0011 section 10,
-step 2, live since v0.17.2 on 2026-11-07) that is `luminull-wally-prod`, at
-`https://wally-api-ttkwy6mnka-ew.a.run.app`.
-Sections 3 to 9 describe the hand setup of `luminull-wally`; they are rewritten when that
-project is retired (step 3).
+[RFC-0011](rfcs/RFC-0011-platform-migration.md) section 10). **Done.** Production runs in
+`luminull-wally-prod` since v0.17.2 (2026-11-07), at
+`https://wally-api-ttkwy6mnka-ew.a.run.app`; the release deploys to the project the `GCP_*`
+variables name. `luminull-wally`, the project set up by hand before, was deleted on
+2026-11-08 (RFC-0011 section 10, step 3); Google keeps a deleted project restorable for 30 days
+([delete and restore](https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects)).
+Its setup script, `scripts/bootstrap-gcp-cicd.sh`, is removed, and sections 3 to 9 describe
+the Terraform setup.
 
 **A new Cloud Run service needs one Wally revision serving before its first full release.**
 Terraform creates the service with Google's sample container, and the release's Worker
