@@ -42,11 +42,11 @@ it('says when the download failed', async () => {
   );
 });
 
-it('sits inside Settings: its title, groups, and no link back to the boards', () => {
+it('sits inside Settings: one row each for your data and your account, no link back', () => {
   renderWithProviders(<AccountSettings />);
   expect(screen.getByRole('heading', { level: 1, name: 'Account and data' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { level: 2, name: 'Your data' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { level: 2, name: 'Delete account' })).toBeInTheDocument();
+  expect(screen.getByText('Your data')).toBeInTheDocument();
+  expect(screen.getByText('Your account')).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Back to boards' })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
 });

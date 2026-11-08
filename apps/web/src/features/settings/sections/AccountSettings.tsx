@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DeleteAccountDialog } from '@/features/account/DeleteAccountDialog';
 import { downloadExport } from '@/features/account/downloadExport';
-import { SettingsGroupTitle, SettingsSection } from '../SettingsSection';
+import { SettingsSection } from '../SettingsSection';
 import { SettingRow } from '../SettingRow';
 
 /** Download everything you can see, or delete your account (the account deletion design). */
@@ -29,9 +29,8 @@ export function AccountSettings() {
 
   return (
     <SettingsSection id="account">
-      <SettingsGroupTitle>{t('accountData.exportTitle')}</SettingsGroupTitle>
       <SettingRow
-        label={t('accountData.download')}
+        label={t('accountData.exportTitle')}
         hint={t('accountData.exportHint')}
         hintId={exportHintId}
       >
@@ -49,9 +48,8 @@ export function AccountSettings() {
           </p>
         )}
       </SettingRow>
-      <SettingsGroupTitle>{t('accountData.deleteTitle')}</SettingsGroupTitle>
       <SettingRow
-        label={t('accountData.deleteTitle')}
+        label={t('settings.account.accountLabel')}
         hint={t('accountData.deleteHint')}
         hintId={deleteHintId}
       >

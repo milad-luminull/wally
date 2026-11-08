@@ -113,7 +113,8 @@ explains each setting without over-explaining; and Back that returns to the prev
   user card, styled like the rail's nav items, with a tooltip when the rail is collapsed.
 - **Profile popover** (rail, top bar and board-home header), slimmed to:
   1. name and email,
-  2. **Mode** — the System / Light / Dark switch (the owner chose to keep it here),
+  2. **Mode** — the System / Light / Dark switch (the owner chose to keep it here), labelled
+     "Mode" as in Settings,
   3. **Settings** (gear icon) — the first menu item,
   4. Keyboard shortcuts (only where a board is mounted, as today),
   5. Sign out.
@@ -193,17 +194,19 @@ rail (52px): icon only, centred, label as tooltip, like the other items.
   tall, hairline `--border-subtle` above and below. Selects are 220px wide; segmented
   controls keep their natural width. Below 520px of content width, the control moves under
   the label at full width.
-- **A group heading** (only where a section has more than one group, such as "Your data" and
-  "Delete account"): 13.5px / 600 / `--fg-1`, 32px above, 8px below, sentence case. No
+- **A group heading** (only where a section has more than one group, such as Connected apps'
+  setup steps): 13.5px / 600 / `--fg-1`, 32px above, 8px below, sentence case. No
   all-caps labels, no eyebrows, no numbering.
 - **Connected apps:** each connection is a row (name 13.5px / 500, status dot and text 12px
   under it, Disconnect or Reconnect on the right). The setup steps are a numbered list,
   because they really are a sequence. The URL and client-ID fields are read-only inputs with
   a copy button.
-- **Account and data:** Download is an outline button in its row. Delete account is a
-  `destructive` button in its own row at the bottom. No red tint, border or panel (brand rule:
-  status colour is never a fill, and the one filled red is the destructive action itself).
-  Privacy and Terms sit as quiet 12px `--fg-3` links at the foot of the section.
+- **Account and data:** two rows and no group headings (the copy review found the headings,
+  labels and buttons all repeating each other): "Your data" with the outline "Download my
+  data" button, then "Your account" with the `destructive` "Delete account" button at the
+  bottom. No red tint, border or panel (brand rule: status colour is never a fill, and the one
+  filled red is the destructive action itself). Privacy and Terms sit as quiet 12px `--fg-3`
+  links at the foot of the section.
 - **Phone list:** rows 52px tall (44px minimum target), with the label, the one line in 12px
   `--fg-3`, and a `ChevronRight` 16px `--fg-faint` on the right; 16px side padding.
 - **Touch** (`pointer: coarse`): every rail item and row target grows to 44px, matching the

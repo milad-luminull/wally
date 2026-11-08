@@ -68,7 +68,7 @@ describe('AccountMenu', () => {
 
   it('keeps the light and dark switch, and leads to Settings for the rest', async () => {
     await openMenu();
-    const mode = screen.getByRole('group', { name: 'Appearance' });
+    const mode = screen.getByRole('group', { name: 'Mode' });
     for (const name of ['System', 'Light', 'Dark']) {
       expect(within(mode).getByRole('button', { name })).toBeInTheDocument();
     }

@@ -101,7 +101,10 @@ test.describe('signed out', () => {
 test('signed-in palette and appearance survive a profile save and reload', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
   await signIn(page);
+  // Palette and mode live in Settings › Darstellung; the profile menu leads there.
   await page.getByRole('button', { name: 'Profil & Einstellungen', exact: true }).click();
+  await page.getByRole('link', { name: 'Einstellungen', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Darstellung' })).toBeVisible();
   await page.getByRole('combobox', { name: 'Farbpalette' }).click();
   await page.getByRole('option', { name: 'Minimal', exact: true }).click();
   const saved = page.waitForResponse(
@@ -111,8 +114,12 @@ test('signed-in palette and appearance survive a profile save and reload', async
       response.ok() &&
       response.request().postDataJSON()?.preferences?.theme === 'dark',
   );
-  await page.getByRole('button', { name: 'Dunkel', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'Modus' })
+    .getByRole('button', { name: 'Dunkel', exact: true })
+    .click();
   await saved;
+  await page.getByRole('button', { name: 'Zurück', exact: true }).click();
   await page.reload();
   await expect(
     page.getByRole('button', { name: 'Profil & Einstellungen', exact: true }),
@@ -128,5 +135,6 @@ test('signed-in palette and appearance survive a profile save and reload', async
     .poll(() => account.evaluate((el) => el.getBoundingClientRect().bottom))
     .toBeLessThanOrEqual(400);
   await account.click();
-  await expect(page.getByRole('combobox', { name: 'Farbpalette' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Einstellungen', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dunkel', exact: true })).toBeVisible();
 });

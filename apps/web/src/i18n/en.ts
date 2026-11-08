@@ -59,6 +59,9 @@ export const en = {
     wallybot: {
       hint: 'Suggestions wait for Enter instead of applying on their own.',
     },
+    account: {
+      accountLabel: 'Your account',
+    },
     copy: 'Copy {{label}}',
     copied: 'Copied',
   },

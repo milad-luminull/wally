@@ -57,8 +57,11 @@ export function AccountMenu({
         <MenuSeparator />
 
         <div className="flex flex-col gap-1.5 px-2 py-2">
-          <p className="text-12 font-medium text-fg-3">{t('account.theme.label')}</p>
-          <ThemeModeControl className="grid w-full grid-cols-3 [&>button]:justify-center" />
+          <p className="text-12 font-medium text-fg-3">{t('settings.appearance.mode')}</p>
+          <ThemeModeControl
+            label={t('settings.appearance.mode')}
+            className="grid w-full grid-cols-3 [&>button]:justify-center"
+          />
         </div>
 
         <MenuSeparator />

@@ -67,6 +67,9 @@ export const de = {
     wallybot: {
       hint: 'Vorschläge warten auf Enter, statt automatisch zu gelten.',
     },
+    account: {
+      accountLabel: 'Dein Konto',
+    },
     copy: '{{label}} kopieren',
     copied: 'Kopiert',
   },
