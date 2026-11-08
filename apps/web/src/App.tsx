@@ -1,4 +1,3 @@
-import { AccountPage } from '@/routes/AccountPage';
 import { MutationRecovery } from '@/features/board/MutationRecovery';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
@@ -10,7 +9,7 @@ import { BoardPage } from '@/routes/BoardPage';
 import { BoardsPage } from '@/routes/BoardsPage';
 import { NotFoundPage } from '@/routes/NotFoundPage';
 import { ShareRedeemPage } from '@/routes/ShareRedeemPage';
-import { ConnectionsPage } from '@/routes/ConnectionsPage';
+import { SettingsPage } from '@/routes/SettingsPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBar } from '@/components/OfflineBar';
 
@@ -22,24 +21,24 @@ export function App() {
         <OfflineBar />
         <Routes>
           <Route
-            path="/settings/account"
+            path="/settings"
             element={
               <ProtectedRoute>
-                <AccountPage />
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/:section"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
               </ProtectedRoute>
             }
           />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/" element={<HomePage />} />
-          <Route
-            path="/settings/connections"
-            element={
-              <ProtectedRoute>
-                <ConnectionsPage />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/app"
             element={
