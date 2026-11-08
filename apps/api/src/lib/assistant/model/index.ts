@@ -5,9 +5,14 @@
 export { createConfiguredTurnRunner, toolDefinitionsJson } from './runTurn.js';
 export { createConfiguredSuggestionRunner, suggestionSchemaJson } from './suggest.js';
 export { createConfiguredTidyRunner, tidySchemaJson } from './tidy.js';
+export { createConfiguredIntakeRunner, intakeSchemaJson } from './intake.js';
 export { parseModelRef } from './config.js';
 export { retryDelayMs, withOneRetry } from './retry.js';
 export type {
+  IntakeInput,
+  IntakeOutput,
+  IntakeRunner,
+  ModelIntakeItem,
   ModelSuggestion,
   ModelTidy,
   StoredMessage,

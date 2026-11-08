@@ -4,6 +4,8 @@ import { z } from 'zod';
 import {
   apiErrorSchema,
   assistantTurnRequestSchema,
+  intakeRequestSchema,
+  intakeResponseSchema,
   assistantTurnResponseSchema,
   captureSuggestRequestSchema,
   captureSuggestResponseSchema,
@@ -18,8 +20,10 @@ import {
 import { loadEnv } from '../env.js';
 import {
   createConfiguredSuggestionRunner,
+  createConfiguredIntakeRunner,
   createConfiguredTidyRunner,
   createConfiguredTurnRunner,
+  type IntakeRunner,
   type SuggestionRunner,
   type TidyRunner,
   type TurnRunner,
@@ -31,6 +35,7 @@ import {
 } from '../lib/assistant/suggestions.js';
 import { assistantEnabledFor } from '../lib/assistant/switch.js';
 import { decideTidy, proposeTidy } from '../lib/assistant/tidy.js';
+import { runIntake } from '../lib/assistant/intake.js';
 import { runAssistantTurn } from '../lib/assistant/turn.js';
 import { requireAccess } from '../lib/commands/context.js';
 import { liveBoard } from '../lib/db/records.js';
@@ -57,6 +62,7 @@ export interface AssistantRouteOptions {
   runner?: TurnRunner;
   suggestionRunner?: SuggestionRunner;
   tidyRunner?: TidyRunner;
+  intakeRunner?: IntakeRunner;
   enabled?: boolean;
   deadlineMs?: number;
 }
@@ -79,6 +85,8 @@ export default async function assistantRoutes(
   const getSuggestionRunner = () => (suggestionRunner ??= createConfiguredSuggestionRunner(env));
   let tidyRunner: TidyRunner | undefined = options.tidyRunner;
   const getTidyRunner = () => (tidyRunner ??= createConfiguredTidyRunner(env));
+  let intakeRunner: IntakeRunner | undefined = options.intakeRunner;
+  const getIntakeRunner = () => (intakeRunner ??= createConfiguredIntakeRunner(env));
 
   async function boardFor(
     request: Pick<FastifyRequest, 'server' | 'user'> & { params: { id: string } },
@@ -118,6 +126,34 @@ export default async function assistantRoutes(
         },
       );
       return { conversation };
+    },
+  );
+
+  // What the Wally box was given: notes, a question, or a question back (the box spec, §4.1).
+  // Read-only: the box writes the notes through the notes routes.
+  app.post(
+    '/whiteboards/:id/assistant/intakes',
+    {
+      schema: {
+        params,
+        body: intakeRequestSchema,
+        response: { 200: intakeResponseSchema, 429: refused },
+      },
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request) => {
+      const { board, role } = await boardFor(request);
+      return runIntake(
+        {
+          db: request.server.db,
+          env,
+          runner: getIntakeRunner(),
+          logger: request.log,
+          deadlineMs: options.deadlineMs,
+        },
+        { actor: request.user, language: request.user.language, board, role },
+        request.body,
+      );
     },
   );
 
