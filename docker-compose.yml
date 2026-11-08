@@ -64,6 +64,11 @@ services:
       - /app/apps/web/node_modules
       - /app/packages/shared/node_modules
       - /app/packages/config/node_modules
+      # Vertex from a laptop: the developer's Application Default Credentials
+      # (`gcloud auth application-default login`), read-only, at the place ADC looks for them
+      # in the container ($HOME/.config/gcloud). Without a login the folder is empty and only
+      # the assistant's calls fail. CI resets these volumes (docker-compose.ci.yml).
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
     healthcheck:
       test:
         [

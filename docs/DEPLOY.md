@@ -483,8 +483,13 @@ the vendor's pricing page before changing `ASSISTANT_MODEL`.
 
 To call Vertex from a local machine, the API uses Application Default Credentials: run
 `gcloud auth application-default login` with an account that has `roles/aiplatform.user` on
-`luminull-wally-prod`, and set `ASSISTANT_VERTEX_PROJECT=luminull-wally-prod`. On Cloud Run
-the runtime service account applies. One real turn can be run by hand, against whatever
+`luminull-wally-prod`, and set `ASSISTANT_VERTEX_PROJECT=luminull-wally-prod`. The compose
+stack's `api` container gets the same login: `docker-compose.yml` mounts `~/.config/gcloud`
+read-only at `/root/.config/gcloud`, the well-known place ADC reads it from
+([ADC search order](https://docs.cloud.google.com/docs/authentication/application-default-credentials);
+Google's [local container example](https://docs.cloud.google.com/run/docs/testing/local) mounts
+the file read-only too). After a new login, restart the container. On Cloud Run the runtime
+service account applies. One real turn can be run by hand, against whatever
 database `DATABASE_URL` names:
 
 ```bash
