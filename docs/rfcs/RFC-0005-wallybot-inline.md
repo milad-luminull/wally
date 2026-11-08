@@ -1,7 +1,9 @@
 # Wallybot inline
 
 **Status:** implemented, including smarter capture, inline editing, questions, Tidy and links.
-**Last checked:** 2026-10-19, against the current implementation.
+Since the Wally box (2026-11-08, [the box spec](../superpowers/specs/2026-11-08-wally-box-design.md)),
+writing starts in the box and its intake decides what a message holds (§3.1, §3.6).
+**Last checked:** 2026-11-08, against the current implementation.
 
 This is the interaction reference for the assistant in
 [RFC-0003-wally-agent.md](RFC-0003-wally-agent.md). It replaces the earlier question-panel and capture-preview
@@ -20,11 +22,13 @@ unrequested movement.
 
 ## 3. Experience
 
-### 3.1 Write and edit in place
+### 3.1 Write in the Wally box, edit in place
 
-- New note, `N`, and the board's placement actions start a focused card or list row.
-  A draft is created optimistically as typing begins; Enter or leaving the card commits it.
-  Shift+Enter adds a description; an empty capture can be dismissed. `⌘/Ctrl+Enter` opens details.
+- Writing starts in the Wally box, docked at the bottom centre of every board view. New note,
+  `N` and the palette focus it. A double-click on empty wall, or a zone's add action, moves the
+  same box to that spot, and a note written there lands there.
+- Enter sends and frees the box at once; Shift+Enter is a new line. `⌘/Ctrl+Enter` writes one
+  note as typed and opens its details. A note is created when it is sent, not while typing.
 - A double-click edits an existing note in place. Keep the detail panel for deliberate
   inspection and structured fields. Preserve focus and the user's words during async work.
 
@@ -71,15 +75,20 @@ Tidy is an explicit action on the horizon board. Show proposed moves first and a
 only on Enter/Keep, never by a countdown. Undo the batch without overwriting later edits;
 skip notes whose access or revision changed. Pending Tidy is not restored after reload.
 
-### 3.6 Questions
+### 3.6 What a message holds, and questions
 
-When assistance is enabled, committing a capture title ending in `?` asks the current board.
-The draft gives way to an answer card with readable note references. Questions are read-only;
-change requests explain that limitation. When assistance is disabled, the text is a normal note.
+When assistance is enabled, one model call (the intake) reads each message with the board's
+open notes and returns its items: notes (one or several, in the writer's words), a question, a
+note already on the wall, or a short question back for words too vague to act on. No keyword
+or `?` rule decides. Before Enter the box shows a local guess ("Adds a note" / "Asks Wally");
+Tab flips and pins it, and a pinned choice skips the intake. If the intake fails, a note is
+saved as written and a question goes back into the box. When assistance is disabled, every
+message is a note.
 
-Answers fade after reading time unless pinned. Hover and focus pause fading. Filter note
-references against current visibility. Show refusals and failures on the card. Preserve
-focus when the card appears or disappears; do not reopen the retired question panel.
+A question is answered in the box, never on the wall, with readable note references filtered
+against current visibility; those cards are briefly marked. Only the latest reply shows; a
+message sent while it shows is read as a possible follow-up. Questions are read-only; change
+requests explain that limitation. Refusals and failures are said in the box.
 
 ### 3.7 Settings
 
@@ -104,7 +113,8 @@ Cover capture and editing, parser chips, countdown/pause, partial keep, stale de
 undo after later edits, accessible links, question references and Tidy confirmation.
 Use the current controllers, shared schemas and their tests as implementation references:
 
-- [`Capture`](../../apps/web/src/features/board/Capture),
+- [`WallyBox`](../../apps/web/src/features/board/WallyBox),
+  [`Capture`](../../apps/web/src/features/board/Capture),
   [`Suggestions`](../../apps/web/src/features/board/Suggestions),
   [`Ask`](../../apps/web/src/features/board/Ask), [`Tidy`](../../apps/web/src/features/board/Tidy).
 - [`assistant.ts`](../../packages/shared/src/schemas/assistant.ts) and the API's
