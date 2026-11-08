@@ -41,7 +41,7 @@ test('one message becomes two notes', async ({ page }) => {
 test('a question is answered in the box with the notes it read', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
   const title = `E2E renewal ${Date.now()}`;
-  const question = 'Was blockiert die Verlängerung?';
+  const question = 'What is blocking the renewal?';
   await stubAssistant(page, {
     intake: (message) =>
       message === question
@@ -73,7 +73,7 @@ test('a question is answered in the box with the notes it read', async ({ page }
             },
             {
               role: 'assistant',
-              text: 'Die Verlängerung wartet auf das Angebot.',
+              text: 'The renewal waits on the offer.',
               chips: [{ id: noteId, title }],
               partial: false,
               stopped: null,
@@ -86,7 +86,7 @@ test('a question is answered in the box with the notes it read', async ({ page }
   });
 
   await send(page, question);
-  await expect(box(page).getByText('Die Verlängerung wartet auf das Angebot.')).toBeVisible();
+  await expect(box(page).getByText('The renewal waits on the offer.')).toBeVisible();
   await expect(box(page).getByText('Gelesene Notizen')).toBeVisible();
   await expect(box(page).getByRole('button', { name: new RegExp(title) })).toBeVisible();
   // Answers live in the box: nothing is drawn on the wall, and no note was written.
