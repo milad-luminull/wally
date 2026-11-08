@@ -1,4 +1,4 @@
-import { Cable, Languages, Palette, Sparkles, UserRound, type LucideIcon } from 'lucide-react';
+import { Cable, Languages, ListChecks, Palette, UserRound, type LucideIcon } from 'lucide-react';
 
 export type SettingsSectionId = 'appearance' | 'language' | 'wallybot' | 'connections' | 'account';
 
@@ -22,7 +22,7 @@ function section(id: SettingsSectionId, icon: LucideIcon): SettingsSectionMeta {
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   section('appearance', Palette),
   section('language', Languages),
-  section('wallybot', Sparkles),
+  section('wallybot', ListChecks),
   section('connections', Cable),
   section('account', UserRound),
 ];

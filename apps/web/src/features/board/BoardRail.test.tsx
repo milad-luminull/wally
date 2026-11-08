@@ -74,3 +74,17 @@ it('collapses and expands without losing navigation, capture or keyboard focus',
   );
   expect(screen.getByRole('link', { name: 'To your boards' })).toHaveAttribute('href', '/boards');
 });
+
+it('leads to Settings', () => {
+  renderWithProviders(
+    <BoardRail
+      boardId="b"
+      boardName="My board"
+      axis="horizon"
+      onSetAxis={vi.fn()}
+      onNewNote={vi.fn()}
+      newNoteVisibility="SHARED"
+    />,
+  );
+  expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+});

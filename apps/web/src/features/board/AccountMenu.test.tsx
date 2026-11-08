@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router';
 
 const mockUseAuth = vi.fn();
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -26,90 +27,74 @@ vi.mock('@/lib/preferences', async () => {
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { AccountMenu } from './AccountMenu';
 
-describe('AccountMenu', () => {
-  let setLanguage: ReturnType<typeof vi.fn>;
-  let setWallybot: ReturnType<typeof vi.fn>;
+function LocationProbe() {
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '';
+  return (
+    <p>
+      at {location.pathname} from {from}
+    </p>
+  );
+}
 
+describe('AccountMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setLanguage = vi.fn();
     mockUseAuth.mockReturnValue({
       user: { displayName: 'Mika Brandt', email: 'mika@example.com' },
       signOut: vi.fn(),
     });
     mockUseLanguage.mockReturnValue({
       language: 'en',
-      setLanguage,
+      setLanguage: vi.fn(),
       isSaving: false,
       saveFailed: false,
     });
-    setWallybot = vi.fn();
-    mockUseWallybotPreferences.mockReturnValue([{ autoApply: true }, setWallybot]);
+    mockUseWallybotPreferences.mockReturnValue([{ autoApply: true }, vi.fn()]);
   });
 
   async function openMenu() {
     const user = userEvent.setup();
-    renderWithProviders(<AccountMenu />);
+    renderWithProviders(
+      <>
+        <AccountMenu />
+        <LocationProbe />
+      </>,
+      { route: '/boards/b1?view=list' },
+    );
     await user.click(screen.getByRole('button', { name: 'Profile & preferences' }));
     return user;
   }
 
-  it('offers a labelled language control showing the active language', async () => {
+  it('keeps the light and dark switch, and leads to Settings for the rest', async () => {
     await openMenu();
-
-    // getByLabelText, not a test id: the label association is the accessibility contract.
-    expect(screen.getByLabelText('Language')).toHaveTextContent('English');
+    const mode = screen.getByRole('group', { name: 'Appearance' });
+    for (const name of ['System', 'Light', 'Dark']) {
+      expect(within(mode).getByRole('button', { name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+    expect(screen.queryByLabelText('Colour palette')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Language')).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Connected apps' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Account and data' })).not.toBeInTheDocument();
   });
 
-  it('links to account connection settings', async () => {
+  it('puts Settings first, before shortcuts and sign out', async () => {
     await openMenu();
-    expect(screen.getByRole('link', { name: 'Connected apps' })).toHaveAttribute(
-      'href',
-      '/settings/connections',
-    );
+    const items = screen
+      .getAllByRole('link')
+      .concat(screen.getAllByRole('button').filter((b) => !b.closest('[role="group"]')))
+      .filter((el) => el.closest('[data-radix-popper-content-wrapper]'))
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+      .map((el) => el.textContent?.trim());
+    expect(items[0]).toBe('Settings');
+    expect(items.slice(1)).toEqual(['Keyboard shortcuts?', 'Sign out']);
   });
 
-  /**
-   * Given a longer timeout than the 20s default: this drives two nested Radix layers (the
-   * popover, then the select), and Radix in jsdom costs ~8s per layer in this repo — see the
-   * runtimes on the ShareSheet and BoardSwitcher popover suites. It fits on a dev machine but
-   * tipped over the default inside the container.
-   */
-  it('switches language from the keyboard', async () => {
+  it('opens Settings remembering the board it was opened from', async () => {
     const user = await openMenu();
-
-    await user.click(screen.getByLabelText('Language'));
-    // Endonyms are never translated, so a user stranded in the wrong language can still
-    // recognise their own.
-    await user.click(await screen.findByRole('option', { name: 'Deutsch' }));
-
-    expect(setLanguage).toHaveBeenCalledWith('de');
-  }, 60_000);
-
-  it('announces a failed save rather than silently reverting', async () => {
-    mockUseLanguage.mockReturnValue({
-      language: 'en',
-      setLanguage,
-      isSaving: false,
-      saveFailed: true,
-    });
-
-    await openMenu();
-
-    expect(screen.getByRole('status')).toHaveTextContent('Couldn’t save your language');
-  });
-
-  it('offers "always ask me" for Wallybot and saves the switch', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<AccountMenu />);
-    await user.click(screen.getByRole('button', { name: 'Profile & preferences' }));
-    const alwaysAsk = screen.getByRole('switch', { name: 'Always ask me' });
-    expect(alwaysAsk).toHaveAttribute('aria-checked', 'false');
-    // The hint under the label is what the switch does; a screen reader hears it with it.
-    expect(alwaysAsk).toHaveAccessibleDescription(
-      'Always ask me: suggestions wait for Enter instead of applying on their own.',
-    );
-    await user.click(alwaysAsk);
-    expect(setWallybot).toHaveBeenCalledWith({ autoApply: false });
+    await user.click(screen.getByRole('link', { name: 'Settings' }));
+    expect(screen.getByText('at /settings from /boards/b1?view=list')).toBeInTheDocument();
   });
 });

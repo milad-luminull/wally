@@ -83,7 +83,11 @@ describe('status colour stays text', () => {
         offences.push(`${file}: ${match[0]}`);
       }
       for (const match of text.matchAll(/\b(bg|border|ring|fill)-status-[\w-]+/g)) {
-        if (file === 'routes/ConnectionsPage.tsx' && CONNECTION_LIGHTS.has(match[0])) continue;
+        if (
+          file === 'features/settings/sections/ConnectionsSettings.tsx' &&
+          CONNECTION_LIGHTS.has(match[0])
+        )
+          continue;
         offences.push(`${file}: ${match[0]}`);
       }
     }

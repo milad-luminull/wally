@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
+import { settingsLinkState } from '@/features/settings/origin';
 import { useTranslation } from 'react-i18next';
 import {
   Check,
@@ -19,6 +20,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Settings,
   Square,
   StickyNote,
   Sun,
@@ -202,6 +204,7 @@ function CommandPalette({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { data: boards = [] } = useBoards();
   const { theme, setTheme } = useTheme();
   const [canvasPattern, setCanvasPattern] = useCanvasPattern();
@@ -379,6 +382,15 @@ function CommandPalette({
             )}
 
             <CommandGroup heading={t('palette.groups.settings')}>
+              <CommandItem
+                value="open settings"
+                onSelect={() =>
+                  run(() => navigate('/settings', { state: settingsLinkState(location) }))
+                }
+              >
+                <Settings strokeWidth={1.75} />
+                <span className="flex-1">{t('palette.openSettings')}</span>
+              </CommandItem>
               {themeOptions.map(({ value, icon }) => (
                 <CommandItem
                   key={value}

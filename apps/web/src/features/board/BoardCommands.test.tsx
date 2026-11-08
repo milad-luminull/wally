@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router';
 
 vi.mock('@/features/auth/AuthProvider', async () => {
   const actual = await vi.importActual<typeof import('@/features/auth/AuthProvider')>(
@@ -85,8 +86,21 @@ function renderCommands(
   return { onDuplicateNote, onNewNote, unmount };
 }
 
+function SettingsProbe() {
+  const location = useLocation();
+  return <p>at {location.pathname}</p>;
+}
+
 describe('BoardCommands', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('opens Settings from the palette', async () => {
+    const user = userEvent.setup();
+    renderCommands({}, <SettingsProbe />);
+    await user.keyboard(PALETTE);
+    await user.click(await screen.findByRole('option', { name: /Open settings/ }));
+    await waitFor(() => expect(screen.getByText('at /settings')).toBeInTheDocument());
+  });
 
   it('reveals the board before focusing search from a shortcut or the palette', async () => {
     const user = userEvent.setup();
