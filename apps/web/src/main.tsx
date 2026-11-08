@@ -14,6 +14,7 @@ import './styles/palettes.css';
 import './styles/welcome.css';
 import './styles/landing.css';
 import './styles/board-shell.css';
+import './styles/settings.css';
 
 // Before render, and synchronously: the first authenticated API call is the one that
 // provisions the profile and names the board, and it has to carry the right Accept-Language.
