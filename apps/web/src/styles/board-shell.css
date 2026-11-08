@@ -715,32 +715,34 @@
   }
 }
 
-/* Smarter capture under review (Paper Wall v3): one card inside a moving gradient border. The
-   wrapper's padding is the border; the card inside drops its own edge and shadow. The angle
-   turns every 3 s; under reduced motion the border stands still. */
-@property --capture-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
+/* Wally at work (the box spec, Wallybot v3 3g): one thin accent ring with a soft halo, on the
+   box while a message is in flight, on a card under review, and for a moment on the cards an
+   answer is about. It stands still; only the dots after "Filling in" pulse. */
+.wally-ring {
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 6px color-mix(in oklab, var(--accent) 16%, transparent),
+    0 12px 26px -12px color-mix(in oklab, var(--accent) 45%, transparent);
+  transition: box-shadow 180ms ease;
 }
-@keyframes capture-spin {
-  to {
-    --capture-angle: 360deg;
-  }
+.board-shell [data-note-id] {
+  transition: box-shadow 180ms ease;
 }
+.board-shell [data-note-id][data-flash] {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 6px color-mix(in oklab, var(--accent) 16%, transparent);
+}
+/* A card under review: the wrapper's padding is the ring; the card inside drops its own edge
+   and shadow. */
 .capture-glow {
   padding: 1.5px;
   border-radius: 12.5px;
-  background: conic-gradient(
-    from var(--capture-angle),
-    var(--accent),
-    color-mix(in oklab, var(--accent) 35%, white),
-    color-mix(in oklab, var(--accent) 80%, #e5484d),
-    color-mix(in oklab, var(--accent) 15%, white),
-    var(--accent)
-  );
-  box-shadow: 0 12px 30px color-mix(in oklab, var(--accent) 22%, transparent);
-  animation: capture-spin 3s linear infinite;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--accent) 16%, transparent),
+    0 12px 26px -12px color-mix(in oklab, var(--accent) 45%, transparent);
 }
 .board-shell .capture-glow > .paper-note {
   box-shadow: none;
@@ -793,9 +795,12 @@ textarea.capture-shimmer:focus {
   animation: capture-dot 1s infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .capture-glow,
   .capture-dot {
     animation: none;
+  }
+  .wally-ring,
+  .board-shell [data-note-id] {
+    transition: none;
   }
   .capture-shimmer {
     animation: none;
@@ -804,12 +809,12 @@ textarea.capture-shimmer:focus {
   }
 }
 
-/* The list row under review: the same card inside the moving border (see .capture-glow). */
+/* The list row under review: the same card inside the accent ring (see .capture-glow). */
 .capture-row-card {
   border-radius: 11px;
 }
 /* `[data-pending]` outranks the dashed edge a pending row draws on its own: under review the
-   moving border is the only edge. */
+   accent ring is the only edge. */
 .capture-row-card > .paper-note-row[data-pending] {
   border: 0;
   box-shadow: none;

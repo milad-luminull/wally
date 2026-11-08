@@ -328,7 +328,7 @@ export function NoteRow({
       </div>
     );
   if (!reviewing) return row;
-  // The same card as on the wall (Paper Wall v3): inside the moving border, the row's own
+  // The same card as on the wall (Paper Wall v3): inside the accent ring, the row's own
   // button and, beside it, the rows and the footer; nothing nests in the button role.
   return (
     <div data-capture-card className="capture-glow" {...pause}>
