@@ -166,7 +166,9 @@ running text write Wally. Minimum 16px on screen — below that, the wordmark al
 
 `BrandMark.tsx` draws it in one 100-unit viewBox; `public/favicon.svg` repeats the same numbers
 and must be kept in step. The PNG favicons (16, 32, 48) and the 180px `apple-touch-icon.png` in
-`public/` come from the design source in `wally-design/wally-logos`.
+`public/` come from the design source in `wally-design/wally-logos`. Auth0's sign-in and consent
+pages load `https://wally.luminull.com/apple-touch-icon.png` as the logo
+([`auth0.tf`](../infra/terraform/wally/auth0.tf)), so keep that file at that path.
 
 **Don't**: tilt it · recolour it to match a palette · add a mouth or other features · put a letter in it.
 
