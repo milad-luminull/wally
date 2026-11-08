@@ -11,6 +11,8 @@ build/
 coverage/
 playwright-report/
 test-results/
+# Playwright's saved sign-in (apps/web/e2e/auth.setup.ts): it holds an Auth0 session cookie.
+playwright/.auth/
 .vite/
 *.tsbuildinfo
 .pnpm-store/

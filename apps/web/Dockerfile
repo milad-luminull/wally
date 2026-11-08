@@ -14,8 +14,15 @@ WORKDIR /repo
 # /repo/**/node_modules so the bind mount doesn't shadow the deps installed below.
 # ---------------------------------------------------------------------------
 FROM base AS dev
-COPY . .
+# Manifests first, as apps/api/Dockerfile does: the install layer then stays cached until a
+# dependency changes, instead of being rebuilt for every source change.
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY packages/config/package.json packages/config/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile
+COPY . .
 WORKDIR /repo/apps/web
 EXPOSE 5173
 # `dev` (package.json) already includes --host — Vite must bind 0.0.0.0, not just

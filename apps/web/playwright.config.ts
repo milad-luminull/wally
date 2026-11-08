@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { STORAGE_STATE } from './e2e/support';
 
 /**
  * Assumes apps/web is already served (dev server or preview) at BASE_URL, and the real
@@ -64,8 +65,17 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium-desktop',
+      // Signs in through Auth0 once and saves the session for the two projects below, so
+      // their specs skip the hosted login (e2e/auth.setup.ts). account-deletion signs in on
+      // its own: it ends the account.
+      name: 'setup',
       use: { ...devices['Desktop Chrome'] },
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: 'chromium-desktop',
+      use: { ...devices['Desktop Chrome'], storageState: STORAGE_STATE },
+      dependencies: ['setup'],
       // Without this, the default testMatch (**/*.spec.ts) also collects
       // mobile-list-only.spec.ts here, where its assertions (a "Wand" tab, no drag
       // affordance) are false by construction at 1280x720. That failure is invisible today
@@ -76,8 +86,9 @@ export default defineConfig({
       // devices['iPhone 13'] carries defaultBrowserType: 'webkit' — this project does NOT
       // run Chromium, so CI must install webkit as well.
       name: 'mobile-list-only',
-      use: { ...devices['iPhone 13'] },
+      use: { ...devices['iPhone 13'], storageState: STORAGE_STATE },
       testMatch: /mobile-list-only\.spec\.ts/,
+      dependencies: ['setup'],
     },
     {
       // Deletes the test account's Wally data, so it runs only after every other project
