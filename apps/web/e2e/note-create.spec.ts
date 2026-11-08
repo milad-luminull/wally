@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { captureNote, hasE2eCredentials, signIn } from './support';
+import { BOX_FIELD, captureNote, hasE2eCredentials, signIn } from './support';
 
-test('creating a note from the top bar writes it in place', async ({ page }) => {
+test('creating a note from the top bar writes it through the Wally box', async ({ page }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
 
   await signIn(page);
 
   const title = `E2E note ${Date.now()}`;
-  // Enter writes the note where the card stood; no panel opens.
+  // Enter writes the note; no panel opens.
   const panel = await captureNote(page, title);
   await expect(panel).toBeHidden();
 
@@ -33,23 +33,23 @@ test('creating a note from the top bar writes it in place', async ({ page }) => 
   ).toHaveCount(0);
 });
 
-test('a title ending in a question mark is a plain note while the board has no assistant', async ({
+test('with the assistant off, every message is a note, even one ending in a question mark', async ({
   page,
 }) => {
   test.skip(!hasE2eCredentials, 'E2E_USER_EMAIL / E2E_USER_PASSWORD not set — see e2e/README.md');
 
   await signIn(page);
 
-  // With the assistant off, nothing is asked: the hint never changes and Enter writes the note.
+  // With the assistant off, nothing is asked: the box shows no hint and Enter writes the note.
   const title = `E2E question ${Date.now()}?`;
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
-  const card = page.getByRole('group', { name: 'Neue Notiz schreiben' });
-  await card.getByLabel('Titel der neuen Notiz', { exact: true }).fill(title);
-  await expect(card.getByText('↵ anlegen · ⇧↵ Text · Esc verwerfen')).toBeVisible();
-  await card.getByLabel('Titel der neuen Notiz', { exact: true }).press('Enter');
-  await expect(card).toBeHidden();
+  await page.getByRole('button', { name: 'Neue Notiz' }).first().click();
+  const field = page.getByRole('textbox', { name: BOX_FIELD });
+  await field.fill(title);
+  await expect(page.getByText('Fragt Wally')).toHaveCount(0);
+  await expect(page.getByText('Legt eine Notiz an')).toHaveCount(0);
+  await field.press('Enter');
+  await expect(field).toHaveValue('');
 
-  await expect(page.locator('[data-ask-card]')).toHaveCount(0);
   await page.getByLabel('Notizen durchsuchen').fill(title);
   await expect(page.locator('[data-note-id]', { hasText: title })).toBeVisible();
 });
