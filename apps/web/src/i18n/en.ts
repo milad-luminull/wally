@@ -1,7 +1,6 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   accountData: {
-    title: 'Account and data',
     exportTitle: 'Your data',
     exportHint: 'Download everything you can see in Wally as one JSON file.',
     download: 'Download my data',
@@ -26,11 +25,48 @@ export const en = {
     agreement:
       'By continuing, you agree to the <terms>Terms of Service</terms> and acknowledge the <privacy>Privacy Policy</privacy>.',
   },
+  settings: {
+    title: 'Settings',
+    back: 'Back',
+    backToList: 'Back to settings',
+    sections: {
+      appearance: {
+        label: 'Appearance',
+        description: 'Colours, light or dark, and the canvas background.',
+      },
+      language: {
+        label: 'Language',
+        description: 'The language Wally uses.',
+      },
+      wallybot: {
+        label: 'Wallybot',
+        description: 'Whether suggestions apply on their own or wait for you.',
+      },
+      connections: {
+        label: 'Connected apps',
+        description: 'Let ChatGPT, Claude or other AI apps use your boards.',
+      },
+      account: {
+        label: 'Account and data',
+        description: 'Download your data or delete your account.',
+      },
+    },
+    appearance: {
+      mode: 'Mode',
+      modeHint: 'Follows your device when set to System.',
+    },
+    wallybot: {
+      hint: 'Suggestions wait for Enter instead of applying on their own.',
+    },
+    account: {
+      accountLabel: 'Your account',
+    },
+    copy: 'Copy {{label}}',
+    copied: 'Copied',
+  },
   connections: {
-    title: 'Connected apps',
-    back: 'Back to boards',
     description:
-      'Connected apps use your Wally permissions. They can read boards you can access and make supported changes where you can edit. Your private notes stay protected from other users.',
+      'A connected app can only do what you can do in Wally, and your private notes stay protected from other users.',
     loading: 'Loading connections…',
     loadError: 'Could not load connections.',
     retry: 'Try again',
@@ -429,9 +465,7 @@ export const en = {
       saveFailed: 'Couldn’t save your language',
     },
     wallybot: {
-      label: 'Wallybot',
       alwaysAsk: 'Always ask me',
-      hint: 'Always ask me: suggestions wait for Enter instead of applying on their own.',
     },
   },
   validation: {
@@ -528,6 +562,7 @@ export const en = {
       boards: 'Boards',
       settings: 'Settings',
     },
+    openSettings: 'Open settings',
     focusSearch: 'Filter notes',
     duplicateNote: 'Duplicate note',
     share: 'Share board',

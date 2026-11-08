@@ -9,7 +9,7 @@ vi.mock('@/features/account/DeleteAccountDialog', () => ({
 
 import { downloadExport } from '@/features/account/downloadExport';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { AccountSettings } from './AccountPage';
+import { AccountSettings } from './AccountSettings';
 
 beforeEach(() => {
   vi.mocked(downloadExport).mockReset();
@@ -40,4 +40,13 @@ it('says when the download failed', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Your data could not be downloaded. Try again.',
   );
+});
+
+it('sits inside Settings: one row each for your data and your account, no link back', () => {
+  renderWithProviders(<AccountSettings />);
+  expect(screen.getByRole('heading', { level: 1, name: 'Account and data' })).toBeInTheDocument();
+  expect(screen.getByText('Your data')).toBeInTheDocument();
+  expect(screen.getByText('Your account')).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Back to boards' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
 });

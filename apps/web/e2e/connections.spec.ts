@@ -21,7 +21,7 @@ test('the connections page shows the connector URL and the OAuth client ID', asy
   await signIn(page);
   await page.goto('/settings/connections');
 
-  await expect(page.getByLabel('Verbindungs-URL')).toHaveValue(/\/mcp$/);
-  await expect(page.getByLabel('OAuth-Client-ID')).toHaveValue('tpc_e2eClient');
+  await expect(page.getByLabel('Verbindungs-URL', { exact: true })).toHaveValue(/\/mcp$/);
+  await expect(page.getByLabel('OAuth-Client-ID', { exact: true })).toHaveValue('tpc_e2eClient');
   await expect(page.getByText(/Lass das Client-Secret leer/)).toBeVisible();
 });

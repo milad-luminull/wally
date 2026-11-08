@@ -25,14 +25,24 @@ export function renderWithProviders(
   {
     route = '/',
     state,
+    before = [],
     queryClient = createTestQueryClient(),
-  }: { route?: string; state?: unknown; queryClient?: QueryClient } = {},
+  }: {
+    route?: string;
+    state?: unknown;
+    /** History entries before `route`, e.g. the page a link was followed from. */
+    before?: string[];
+    queryClient?: QueryClient;
+  } = {},
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <MemoryRouter initialEntries={[state === undefined ? route : { pathname: route, state }]}>
+          <MemoryRouter
+            initialEntries={[...before, state === undefined ? route : { pathname: route, state }]}
+            initialIndex={before.length}
+          >
             {children}
           </MemoryRouter>
         </TooltipProvider>

@@ -1,6 +1,7 @@
-import { ChartNoAxesColumn, Columns3, PanelLeft, Plus } from 'lucide-react';
+import { ChartNoAxesColumn, Columns3, PanelLeft, Plus, Settings } from 'lucide-react';
 import { useState, type SVGProps } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
+import { settingsLinkState } from '@/features/settings/origin';
 import { useTranslation } from 'react-i18next';
 import type { NoteVisibility } from '@wally/shared';
 import { BrandMark } from '@/components/BrandMark';
@@ -48,6 +49,8 @@ export function BoardRail({
 }: Props) {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const settingsLabel = t('settings.title');
   const toggleLabel = t(collapsed ? 'board.rail.expand' : 'board.rail.collapse');
   const links = [
     {
@@ -124,6 +127,16 @@ export function BoardRail({
           <span>{newLabel}</span>
           <kbd aria-hidden>{'N'}</kbd>
         </button>
+        <Link
+          to="/settings"
+          state={settingsLinkState(location)}
+          className="board-rail-settings"
+          aria-label={settingsLabel}
+          title={collapsed ? settingsLabel : undefined}
+        >
+          <Settings size={15} strokeWidth={1.8} aria-hidden />
+          <span>{settingsLabel}</span>
+        </Link>
         <div className="board-rail-account">
           <AccountMenu showName={!collapsed} />
         </div>

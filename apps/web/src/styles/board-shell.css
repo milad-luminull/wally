@@ -54,7 +54,7 @@
   letter-spacing: -0.03em;
 }
 .board-rail-brand:focus-visible,
-.board-rail button:focus-visible,
+.board-rail :is(button, a):focus-visible,
 .board-tool:focus-visible,
 .paper-zone-add:focus-visible {
   outline: 2px solid var(--fg-1);
@@ -149,7 +149,8 @@
   flex-direction: column;
   gap: 1px;
 }
-.board-rail-nav button {
+.board-rail-nav :is(button, a),
+.board-rail-settings {
   width: 100%;
   height: 30px;
   display: flex;
@@ -161,10 +162,11 @@
   font-size: 13.5px;
   color: var(--fg-2);
 }
-.board-rail-nav button:hover {
+.board-rail-nav :is(button, a):hover,
+.board-rail-settings:hover {
   background: var(--inset-hover);
 }
-.board-rail-nav button[aria-current] {
+.board-rail-nav :is(button, a)[aria-current] {
   background: var(--surface);
   color: var(--fg-1);
   font-weight: 500;
@@ -198,6 +200,18 @@
   font-size: 10.5px;
   opacity: 0.65;
 }
+.board-rail-settings {
+  margin-top: 8px;
+}
+.board-rail-settings + .board-rail-account {
+  padding-top: 6px;
+}
+@media (pointer: coarse) {
+  .board-rail-nav :is(button, a),
+  .board-rail-settings {
+    height: 44px;
+  }
+}
 .board-rail-account {
   display: flex;
   align-items: center;
@@ -214,7 +228,8 @@
 .board-rail[data-collapsed='true'] .board-rail-brand,
 .board-rail[data-collapsed='true'] .board-wall-selector-label,
 .board-rail[data-collapsed='true'] .board-wall-selector > svg,
-.board-rail[data-collapsed='true'] .board-rail-nav button > span,
+.board-rail[data-collapsed='true'] .board-rail-nav :is(button, a) > span,
+.board-rail[data-collapsed='true'] .board-rail-settings > span,
 .board-rail[data-collapsed='true'] .board-rail-new > span,
 .board-rail[data-collapsed='true'] .board-rail-new > kbd,
 .board-rail[data-collapsed='true'] .board-rail-account > span {
@@ -226,7 +241,8 @@
 .board-rail[data-collapsed='true'] .board-wall-selector {
   padding: 0 7px;
 }
-.board-rail[data-collapsed='true'] .board-rail-nav button,
+.board-rail[data-collapsed='true'] .board-rail-nav :is(button, a),
+.board-rail[data-collapsed='true'] .board-rail-settings,
 .board-rail[data-collapsed='true'] .board-rail-new {
   justify-content: center;
   padding: 0;
@@ -234,6 +250,9 @@
 .board-rail[data-collapsed='true'] .board-rail-account {
   justify-content: center;
   padding: 12px 0 0;
+}
+.board-rail[data-collapsed='true'] .board-rail-settings + .board-rail-account {
+  padding-top: 6px;
 }
 /* One floating toolbar, matching the reference's 32px search well and icon controls. */
 .board-filter-toolbar {

@@ -7,7 +7,6 @@
  */
 export const de = {
   accountData: {
-    title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
     exportHint: 'Lade alles, was du in Wally siehst, als eine JSON-Datei herunter.',
     download: 'Meine Daten herunterladen',
@@ -34,11 +33,48 @@ export const de = {
     agreement:
       'Mit dem Fortfahren stimmst du den <terms>Nutzungsbedingungen</terms> zu und nimmst die <privacy>Datenschutzerklärung</privacy> zur Kenntnis.',
   },
+  settings: {
+    title: 'Einstellungen',
+    back: 'Zurück',
+    backToList: 'Zurück zu den Einstellungen',
+    sections: {
+      appearance: {
+        label: 'Darstellung',
+        description: 'Farben, hell oder dunkel und der Hintergrund der Wand.',
+      },
+      language: {
+        label: 'Sprache',
+        description: 'Die Sprache, die Wally verwendet.',
+      },
+      wallybot: {
+        label: 'Wallybot',
+        description: 'Ob Vorschläge sofort gelten oder auf dich warten.',
+      },
+      connections: {
+        label: 'Verbundene Apps',
+        description: 'Lass ChatGPT, Claude oder andere KI-Apps deine Wände nutzen.',
+      },
+      account: {
+        label: 'Konto und Daten',
+        description: 'Lade deine Daten herunter oder lösche dein Konto.',
+      },
+    },
+    appearance: {
+      mode: 'Modus',
+      modeHint: 'Bei System folgt Wally deinem Gerät.',
+    },
+    wallybot: {
+      hint: 'Vorschläge warten auf Enter, statt automatisch zu gelten.',
+    },
+    account: {
+      accountLabel: 'Dein Konto',
+    },
+    copy: '{{label}} kopieren',
+    copied: 'Kopiert',
+  },
   connections: {
-    title: 'Verbundene Apps',
-    back: 'Zurück zu den Boards',
     description:
-      'Verbundene Apps nutzen deine Wally-Berechtigungen. Sie können deine zugänglichen Boards lesen und dort unterstützte Änderungen vornehmen, wo du bearbeiten darfst. Deine privaten Notizen bleiben vor anderen Nutzern geschützt.',
+      'Eine verbundene App kann nur, was du in Wally kannst, und deine privaten Notizen bleiben vor anderen geschützt.',
     loading: 'Verbindungen werden geladen…',
     loadError: 'Verbindungen konnten nicht geladen werden.',
     retry: 'Erneut versuchen',
@@ -446,9 +482,7 @@ export const de = {
       saveFailed: 'Konnte die Sprache nicht speichern',
     },
     wallybot: {
-      label: 'Wallybot',
       alwaysAsk: 'Immer fragen',
-      hint: 'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
     },
   },
   validation: {
@@ -550,6 +584,7 @@ export const de = {
       boards: 'Wände',
       settings: 'Einstellungen',
     },
+    openSettings: 'Einstellungen öffnen',
     focusSearch: 'Notizen filtern',
     duplicateNote: 'Notiz duplizieren',
     share: 'Wand teilen',

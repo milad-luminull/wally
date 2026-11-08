@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { api } from '@/lib/apiClient';
-import { ConnectionsSettings } from './ConnectionsPage';
+import { ConnectionsSettings } from './ConnectionsSettings';
 import type { McpConnections } from '@wally/shared';
 vi.mock('@/lib/resources', () => ({ boardsApi: { list: vi.fn(async () => []) } }));
 vi.mock('@/lib/apiClient', () => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
@@ -104,4 +104,19 @@ it('shows disconnected as an issue and keeps reconnect available', async () => {
   renderWithProviders(<ConnectionsSettings />);
   expect(await screen.findByText('Disconnected')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Reconnect ChatGPT' })).toBeEnabled();
+});
+it('sits inside Settings: one page title and no link back to the boards', async () => {
+  renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findAllByRole('heading', { level: 1 })).toHaveLength(1);
+  expect(screen.queryByRole('link', { name: 'Back to boards' })).not.toBeInTheDocument();
+  expect(
+    screen.getByText('Let ChatGPT, Claude or other AI apps use your boards.'),
+  ).toBeInTheDocument();
+});
+it('copies the connector URL', async () => {
+  const user = userEvent.setup();
+  const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+  renderWithProviders(<ConnectionsSettings />);
+  await user.click(await screen.findByRole('button', { name: 'Copy Connector URL' }));
+  expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/mcp$/));
 });

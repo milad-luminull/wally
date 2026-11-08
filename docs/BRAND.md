@@ -8,13 +8,13 @@ The original **Graphite + Marigold** palette remains available as **Minimal**, w
 
 Palette and appearance are independent. Every palette has **Light**, **Dark** and OS-following **System** appearance. Available palettes are Minimal, Paper Wall (default), Clear Morning, Highlighter, Aurora, Daybreak, Sprout, Amber Poster and Neutral. These follow the local Luminull Brand Research and Wally Paper Wall v3 references; authored companion modes preserve each palette's hue identity with readable text.
 
-Select a palette beside appearance in account settings, or through the appearance/language menu before signing in. Signed-in choices save to `preferences.palette` and `preferences.theme`; signed-out choices stay on the device. The profile takes precedence when it loads. `wally.palette` and `wally.theme` mirror the selection so `index.html` applies it before first paint. Missing/unknown local palette IDs fall back to Paper Wall.
+Signed in, choose the palette, mode and canvas background in Settings › Appearance; the profile menu keeps a System / Light / Dark switch. Before signing in, use the appearance/language menu. Signed-in choices save to `preferences.palette` and `preferences.theme`; signed-out choices stay on the device. The profile takes precedence when it loads. `wally.palette` and `wally.theme` mirror the selection so `index.html` applies it before first paint. Missing/unknown local palette IDs fall back to Paper Wall.
 
 `apps/web/src/styles/globals.css` retains the original Minimal tokens. `styles/palettes.css` overrides those same semantic tokens for the eight reference palettes, with light/dark blocks per palette; `lib/palettes.ts` defines selector swatches. Components use semantic tokens, never a palette-specific branch. A palette change does not rewrite notes or their colour identifiers. Contrast tests cover body/secondary text, action labels, metadata and status text across all 18 variants.
 
 ## Layout
 
-At 1080px and wider, a 216px rail provides board switching, List, Horizon, Priority, Whiteboard, New note and account settings. Display still contains list grouping/reset. Search, filters, sharing, members, commands, rename and detail controls retain their existing behavior. Below that breakpoint, the existing list-only layout and top bar remain. Public pages and auth forms share responsive typography and appearance controls.
+At 1080px and wider, a 212px rail provides board switching, Horizon, Priority, Whiteboard, New note, Settings and the profile menu. Settings uses the same rail for its own menu (Appearance, Language, Wallybot, Connected apps, Account and data); below 1080px it shows the sections as a list. Display still contains list grouping/reset. Search, filters, sharing, members, commands, rename and detail controls retain their existing behavior. Below that breakpoint, the existing list-only layout and top bar remain. Public pages and auth forms share responsive typography and appearance controls.
 
 ## Colour
 
