@@ -81,7 +81,8 @@ When assistance is enabled, one model call (the intake) reads each message with 
 open notes and returns its items: notes (one or several, in the writer's words), a question, a
 note already on the wall, or a short question back for words too vague to act on. No keyword
 or `?` rule decides. Before Enter the box shows a local guess ("Adds a note" / "Asks Wally");
-Tab flips and pins it, and a pinned choice skips the intake. If the intake fails, a note is
+the hint is a button that flips and pins it (Tab is never taken from the field), and a
+pinned choice skips the intake. If the intake fails, a note is
 saved as written and a question goes back into the box. When assistance is disabled, every
 message is a note.
 

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type {
-  AssistantChip,
-  AssistantConversationDto,
-  AssistantEntry,
-  IntakeOption,
-  IntakeRequest,
-  NoteDto,
-  NoteVisibility,
-  SuggestionFieldKey,
+import {
+  INTAKE_MESSAGE_MAX,
+  type AssistantChip,
+  type AssistantConversationDto,
+  type AssistantEntry,
+  type IntakeOption,
+  type IntakeRequest,
+  type NoteDto,
+  type NoteVisibility,
+  type SuggestionFieldKey,
 } from '@wally/shared';
 import { guessIntent, type Intent } from '@/lib/capture/intentGuess';
 import { localDate } from '@/lib/localDate';
@@ -35,11 +36,14 @@ export type BoxReply =
   | { kind: 'status'; message: 'savedAsWritten' | 'truncated' | 'askFailed' };
 
 export interface SendOptions {
-  /** Tab's choice for this message; null lets the intake decide. */
+  /** The person's choice for this message (the hint button); null lets the intake decide. */
   pinned: Intent | null;
   /** Applied only when the message is one note. */
   fields: CaptureFields;
+  /** Every field the person decided: the kept chips and the place the note was written. */
   locked: SuggestionFieldKey[];
+  /** The fields decided by the place alone (a zone, a filter): they hold for every note. */
+  placementLocked: SuggestionFieldKey[];
   /** ⌘↵: open the note once written. */
   open: boolean;
   placement: CapturePlacement;
@@ -57,6 +61,14 @@ export interface WallyBoxController {
   send: (text: string, options: SendOptions) => void;
   choose: (choice: BoxChoice) => void;
   closeReply: () => void;
+  /**
+   * What is typed and not yet sent, and the hint the person pinned: one for the board, so the
+   * docked and the anchored box show the same words wherever the box moves.
+   */
+  draft: string;
+  setDraft: (text: string) => void;
+  pinned: Intent | null;
+  setPinned: (intent: Intent | null) => void;
 }
 
 interface Queued {
@@ -103,7 +115,6 @@ export function useWallyBox(args: {
   visibility: NoteVisibility;
   onNoteCreated: (noteId: string, locked: SuggestionFieldKey[]) => void;
   onOpenNote: (noteId: string) => void;
-  onRestoreText: (text: string) => void;
 }): WallyBoxController {
   const { boardId, assistantEnabled, visibility } = args;
   const queryClient = useQueryClient();
@@ -112,6 +123,10 @@ export function useWallyBox(args: {
   const askAssistant = useAskAssistant(boardId);
   const [pending, setPending] = useState<Queued[]>([]);
   const [reply, setReplyState] = useState<BoxReply | null>(null);
+  const [draft, setDraftState] = useState('');
+  const [pinned, setPinned] = useState<Intent | null>(null);
+  // The message being answered: its chip gives way to the answer's own line.
+  const [answering, setAnswering] = useState<string | null>(null);
 
   // Read through refs: a message is handled long after the render that queued it.
   const callbacks = useRef(args);
@@ -128,7 +143,20 @@ export function useWallyBox(args: {
   }, []);
   const queue = useRef<Queued[]>([]);
   const draining = useRef(false);
-  const lastPlacement = useRef<CapturePlacement>({ kind: 'list' });
+  /** Where the last message was written: a choice in its question back writes there too. */
+  const lastSent = useRef<{ placement: CapturePlacement; placementLocked: SuggestionFieldKey[] }>({
+    placement: { kind: 'list' },
+    placementLocked: [],
+  });
+  const setDraft = useCallback((text: string) => {
+    setDraftState(text);
+    if (!text.trim()) setPinned(null);
+  }, []);
+  /** A question that could not be answered goes back, above anything typed since. */
+  const restore = useCallback((text: string) => {
+    if (!mounted.current) return;
+    setDraftState((now) => (now.trim() ? `${text}\n${now}` : text));
+  }, []);
   const nextId = useRef(0);
 
   const writeNote = useCallback(
@@ -152,20 +180,28 @@ export function useWallyBox(args: {
   );
 
   const ask = useCallback(
-    async (question: string, conversationId: string | null) => {
+    async (id: string, question: string, conversationId: string | null) => {
+      // Nobody would read it: a board left behind asks nothing more.
+      if (!mounted.current) return;
+      setAnswering(id);
       setReply({ kind: 'asking', question });
-      const outcome = await askAssistant(question, conversationId);
-      setReply({ kind: 'answer', question, outcome });
+      try {
+        const outcome = await askAssistant(question, conversationId);
+        setReply({ kind: 'answer', question, outcome });
+      } finally {
+        if (mounted.current) setAnswering(null);
+      }
     },
     [askAssistant, setReply],
   );
 
   const handle = useCallback(
-    async ({ text, options }: Queued) => {
-      lastPlacement.current = options.placement;
+    async ({ id, text, options }: Queued) => {
+      lastSent.current = options;
       if (options.pinned === 'ask') {
         const showing = latestReply.current;
         await ask(
+          id,
           text,
           showing?.kind === 'answer' && showing.outcome.kind === 'answered'
             ? showing.outcome.conversation.id
@@ -189,7 +225,7 @@ export function useWallyBox(args: {
           await writeNote(text, options.placement, options);
           setReply({ kind: 'status', message: 'savedAsWritten' });
         } else {
-          callbacks.current.onRestoreText(text);
+          restore(text);
           setReply({ kind: 'status', message: 'askFailed' });
         }
         return;
@@ -201,10 +237,11 @@ export function useWallyBox(args: {
         await writeNote(
           item.text,
           placementAt(options.placement, index),
-          single ? options : { locked: [], open: false },
+          single ? options : { locked: options.placementLocked, open: false },
         );
       if (other?.kind === 'ask')
         await ask(
+          id,
           other.text,
           context && showing?.kind === 'answer' && showing.outcome.kind === 'answered'
             ? showing.outcome.conversation.id
@@ -216,7 +253,7 @@ export function useWallyBox(args: {
         setReply({ kind: 'clarify', question: other.question, options: other.options });
       else if (answer.truncated) setReply({ kind: 'status', message: 'truncated' });
     },
-    [ask, boardId, setReply, writeNote],
+    [ask, boardId, restore, setReply, writeNote],
   );
 
   const drain = useCallback(async () => {
@@ -242,8 +279,10 @@ export function useWallyBox(args: {
     (text, options) => {
       const words = text.trim();
       if (!words) return;
-      if (!assistantEnabled || options.pinned === 'note') {
-        lastPlacement.current = options.placement;
+      // A message longer than the intake reads is a note as written: a pasted page, not a
+      // question, and no words are cut.
+      if (!assistantEnabled || options.pinned === 'note' || words.length > INTAKE_MESSAGE_MAX) {
+        lastSent.current = options;
         void writeNote(words, options.placement, options).catch(() => {});
         return;
       }
@@ -264,7 +303,9 @@ export function useWallyBox(args: {
           return;
         case 'addAnyway':
         case 'note':
-          void writeNote(choice.text, lastPlacement.current).catch(() => {});
+          void writeNote(choice.text, lastSent.current.placement, {
+            locked: lastSent.current.placementLocked,
+          }).catch(() => {});
           return;
         case 'ask':
           queue.current.push({
@@ -274,8 +315,9 @@ export function useWallyBox(args: {
               pinned: 'ask',
               fields: NO_FIELDS,
               locked: [],
+              placementLocked: [],
               open: false,
-              placement: lastPlacement.current,
+              placement: lastSent.current.placement,
             },
           });
           setPending([...queue.current]);
@@ -289,13 +331,17 @@ export function useWallyBox(args: {
 
   return useMemo(
     () => ({
-      pending: pending.map(({ id, text }) => ({ id, text })),
+      pending: pending.filter(({ id }) => id !== answering).map(({ id, text }) => ({ id, text })),
       reply,
       working: pending.length > 0 || reply?.kind === 'asking',
       send,
       choose,
       closeReply,
+      draft,
+      setDraft,
+      pinned,
+      setPinned,
     }),
-    [choose, closeReply, pending, reply, send],
+    [answering, choose, closeReply, draft, pending, pinned, reply, send, setDraft],
   );
 }

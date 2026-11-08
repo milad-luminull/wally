@@ -13,7 +13,11 @@
  * Never used by tests.
  */
 import { loadEnv } from './env.js';
-import { acceptIntake, INTAKE_MAX_OUTPUT_TOKENS } from './lib/assistant/intake.js';
+import {
+  acceptIntake,
+  INTAKE_DEADLINE_MS,
+  INTAKE_MAX_OUTPUT_TOKENS,
+} from './lib/assistant/intake.js';
 import { buildIntakeInstructions, buildIntakePrompt } from './lib/assistant/intakePrompt.js';
 import { INTAKE_FIXTURES, scoreIntakeFixture } from './lib/assistant/eval/intakeFixtures.js';
 import { createConfiguredIntakeRunner } from './lib/assistant/model/index.js';
@@ -27,9 +31,12 @@ console.log(`model: ${env.ASSISTANT_MODEL}, ${INTAKE_FIXTURES.length} fixtures`)
 
 let right = 0;
 const errors: string[] = [];
+/** Each call's time, to set INTAKE_DEADLINE_MS from what the model takes. */
+const times: number[] = [];
 for (const fixture of INTAKE_FIXTURES) {
   const notes = fixture.board ?? [];
   const language = fixture.id.startsWith('de-') ? 'de' : 'en';
+  const started = Date.now();
   try {
     const output = await runner({
       instructions: buildIntakeInstructions({
@@ -41,6 +48,7 @@ for (const fixture of INTAKE_FIXTURES) {
       maxOutputTokens: INTAKE_MAX_OUTPUT_TOKENS,
       onAttempt: async () => ({ settle: async () => {}, release: async () => {} }),
     });
+    times.push(Date.now() - started);
     const answer = output.items
       ? acceptIntake(output.items, fixture.message, new Map(notes.map((n) => [n.id, n.title])))
       : null;
@@ -48,7 +56,7 @@ for (const fixture of INTAKE_FIXTURES) {
     if (ok) right++;
     const got = answer ? answer.items.map((item) => item.kind).join(', ') : 'nothing';
     console.log(
-      `${ok ? ' ' : '✗'} ${fixture.id.padEnd(28)} ${ok ? got : `expected ${fixture.expect.join(', ')}, got ${got}`}`,
+      `${ok ? ' ' : '✗'} ${fixture.id.padEnd(28)} ${String(times.at(-1)).padStart(6)} ms  ${ok ? got : `expected ${fixture.expect.join(', ')}, got ${got}`}`,
     );
   } catch (error) {
     // One provider error costs that fixture alone, not the rest of a paid run.
@@ -58,5 +66,11 @@ for (const fixture of INTAKE_FIXTURES) {
 }
 
 console.log(`\nright ${right} of ${INTAKE_FIXTURES.length}`);
+const sorted = [...times].sort((a, b) => a - b);
+const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+if (sorted.length)
+  console.log(
+    `time: median ${at(0.5)} ms, 95th percentile ${at(0.95)} ms, slowest ${sorted.at(-1)} ms (deadline ${INTAKE_DEADLINE_MS} ms)`,
+  );
 if (errors.length) console.log(`not scored (call failed): ${errors.join(', ')}`);
 process.exit(right < INTAKE_FIXTURES.length * PASS_RATIO || errors.length ? 1 : 0);

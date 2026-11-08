@@ -821,7 +821,7 @@ export const en = {
     placeholderNotesOnly: 'Write a note…',
     hintNote: 'Adds a note',
     hintAsk: 'Asks Wally',
-    hintFlip: 'Tab switches',
+    switchHint: '{{hint}}. Switch to: {{other}}',
     pinned: 'Switched to: {{hint}}',
     pendingAria: 'Working on: {{text}}',
     close: 'Close',

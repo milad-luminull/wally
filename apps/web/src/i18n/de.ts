@@ -855,7 +855,7 @@ export const de = {
     placeholderNotesOnly: 'Schreib eine Notiz…',
     hintNote: 'Legt eine Notiz an',
     hintAsk: 'Fragt Wally',
-    hintFlip: 'Tab wechselt',
+    switchHint: '{{hint}}. Wechseln zu: {{other}}',
     pinned: 'Gewechselt zu: {{hint}}',
     pendingAria: 'In Arbeit: {{text}}',
     close: 'Schließen',

@@ -32,7 +32,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { BoardCommands } from './BoardCommands';
 import { WallyBox } from './WallyBox/WallyBox';
 import { useWallyBox } from './WallyBox/useWallyBox';
-import type { CapturePlacement } from './WallyBox/placement';
+import { anchorShows, type CapturePlacement } from './WallyBox/placement';
+import { useDockClearance } from './WallyBox/dockClearance';
 import type { BoxSlot } from './WallyBox/boxSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
@@ -147,17 +148,17 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // The Wally box (docs/superpowers/specs/2026-11-08-wally-box-design.md): one controller, drawn
   // docked at the bottom of the board, or anchored where the person double-clicked the wall.
   // A note it writes is handed on for its fill-in, as one written in place was.
-  const [restored, setRestored] = useState<{ text: string; at: number } | null>(null);
   const box = useWallyBox({
     boardId,
     assistantEnabled: board.assistantEnabled,
     visibility: access.newNoteVisibility,
     onNoteCreated: onCommitted,
     onOpenNote: viewState.openNote,
-    onRestoreText: (text) => setRestored({ text, at: Date.now() }),
   });
   const [anchor, setAnchor] = useState<{ key: number; placement: CapturePlacement } | null>(null);
   const dockedInput = useRef<HTMLTextAreaElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
+  useDockClearance(dock);
   const startCapture = useCallback(
     (placement: CapturePlacement) =>
       setAnchor((prev) => ({ key: (prev?.key ?? 0) + 1, placement })),
@@ -169,7 +170,9 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   }, []);
   const boxSlot = useMemo<BoxSlot | null>(
     () =>
-      anchor && effectiveView === 'wall'
+      // Drawn only where the view can show it; anywhere else the docked box shows, with the
+      // same words, since the draft is the controller's.
+      anchor && anchorShows(effectiveView, viewState.axis, anchor.placement)
         ? {
             key: anchor.key,
             placement: anchor.placement,
@@ -199,6 +202,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
       dismissAnchor,
       effectiveView,
       notesQuery.data,
+      viewState.axis,
       viewState.openNote,
     ],
   );
@@ -396,7 +400,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
               />
             )}
             {/* Docked at the bottom of every view; away while it is anchored on the wall. */}
-            <div className={cn('wally-box-dock', boxSlot && 'hidden')}>
+            <div ref={dock} className={cn('wally-box-dock', boxSlot && 'hidden')}>
               <WallyBox
                 boardId={boardId}
                 box={box}
@@ -408,7 +412,6 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 visibilityChosen={access.visibilityChosen}
                 onOpenNote={viewState.openNote}
                 inputRef={dockedInput}
-                restored={restored}
               />
             </div>
           </div>

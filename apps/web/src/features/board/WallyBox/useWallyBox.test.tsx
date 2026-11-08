@@ -21,6 +21,7 @@ const send = (over: Partial<SendOptions> = {}): SendOptions => ({
   pinned: null,
   fields: NO_FIELDS,
   locked: [],
+  placementLocked: [],
   open: false,
   placement: at,
   ...over,
@@ -67,7 +68,6 @@ function setup(assistantEnabled = true) {
   const queryClient = createTestQueryClient();
   const onNoteCreated = vi.fn();
   const onOpenNote = vi.fn();
-  const onRestoreText = vi.fn();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
@@ -79,11 +79,10 @@ function setup(assistantEnabled = true) {
         visibility: 'SHARED',
         onNoteCreated,
         onOpenNote,
-        onRestoreText,
       }),
     { wrapper },
   );
-  return { ...hook, onNoteCreated, onOpenNote, onRestoreText };
+  return { ...hook, onNoteCreated, onOpenNote };
 }
 
 beforeEach(() => {
@@ -283,12 +282,96 @@ describe('useWallyBox', () => {
 
   it('puts a failed question back', async () => {
     const answer = holdIntake();
-    const { result, onRestoreText } = setup();
+    const { result } = setup();
     act(() => result.current.send('what is blocking munich', send()));
     await answer(new Error('504'));
     expect(notesApi.create).not.toHaveBeenCalled();
-    expect(onRestoreText).toHaveBeenCalledWith('what is blocking munich');
+    expect(result.current.draft).toBe('what is blocking munich');
     expect(result.current.reply).toEqual({ kind: 'status', message: 'askFailed' });
+  });
+
+  it('puts a failed question back above what is being typed', async () => {
+    const answer = holdIntake();
+    const { result } = setup();
+    act(() => result.current.send('what is blocking munich', send()));
+    act(() => result.current.setDraft('call irem'));
+    await answer(new Error('504'));
+    expect(result.current.draft).toBe('what is blocking munich\ncall irem');
+  });
+
+  it('keeps the draft and the pinned choice for whichever box is showing', () => {
+    const { result } = setup();
+    act(() => {
+      result.current.setDraft('half a thought');
+      result.current.setPinned('ask');
+    });
+    expect(result.current.draft).toBe('half a thought');
+    expect(result.current.pinned).toBe('ask');
+  });
+
+  it('gives placement locks to every note of a split message, chip locks to none', async () => {
+    const answer = holdIntake();
+    const { result, onNoteCreated } = setup();
+    act(() =>
+      result.current.send(
+        'call bob, email ann',
+        send({ locked: ['dueDate', 'horizon'], placementLocked: ['horizon'] }),
+      ),
+    );
+    await answer({
+      items: [
+        { kind: 'note', text: 'Call Bob' },
+        { kind: 'note', text: 'Email Ann' },
+      ],
+      truncated: false,
+    });
+    expect(onNoteCreated.mock.calls).toEqual([
+      ['n1', ['horizon']],
+      ['n2', ['horizon']],
+    ]);
+  });
+
+  it('saves a message longer than the intake reads as a note, without asking', async () => {
+    const { result } = setup();
+    const long = `meeting notes\n${'word '.repeat(500)}`;
+    act(() => result.current.send(long, send()));
+    await settle();
+    expect(assistantApi.intake).not.toHaveBeenCalled();
+    expect(notesApi.create).toHaveBeenCalledWith(
+      BOARD,
+      expect.objectContaining({ title: 'meeting notes' }),
+    );
+  });
+
+  it('lets the chip of a question give way to its answer', async () => {
+    const answer = holdIntake();
+    let answerTurn: (() => void) | undefined;
+    vi.mocked(assistantApi.turn).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answerTurn = () => resolve({ conversation: conversation('Due Friday.') });
+        }),
+    );
+    const { result } = setup();
+    act(() => result.current.send('what is due', send()));
+    await answer({ items: [{ kind: 'ask', text: 'what is due' }], truncated: false });
+    expect(result.current.reply).toEqual({ kind: 'asking', question: 'what is due' });
+    expect(result.current.pending).toEqual([]);
+    expect(result.current.working).toBe(true);
+    await act(async () => {
+      answerTurn?.();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(result.current.working).toBe(false);
+  });
+
+  it('asks nothing once the box is gone', async () => {
+    const answer = holdIntake();
+    const { result, unmount } = setup();
+    act(() => result.current.send('what is due', send()));
+    unmount();
+    await answer({ items: [{ kind: 'ask', text: 'what is due' }], truncated: false });
+    expect(assistantApi.turn).not.toHaveBeenCalled();
   });
 
   it('ignores a reply for a closed box but still creates its notes', async () => {

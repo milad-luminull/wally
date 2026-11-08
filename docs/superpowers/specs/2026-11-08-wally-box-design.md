@@ -82,14 +82,19 @@ The box never grows beyond a few lines; a long answer scrolls inside its reply a
 
 Enter sends. Shift+Enter is a new line; the intake decides whether lines are separate notes
 or one note with detail (the fill-in already moves detail into the description, so the box
-has no separate description field). Tab flips the hint (note ↔ ask) and pins it for this
-message. Esc closes the reply, then blurs the box.
+has no separate description field). The hint is a button after the field: pressing it (a
+click, or Tab to it and Space) flips it (note ↔ ask) and pins it for this message. Tab itself
+is never taken from the field: it moves to the chips and the hint like any control (WAI-ARIA
+APG, [keyboard interface](https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/)),
+so the chips stay reachable from the keyboard. ⌘/Ctrl+Enter sends as a note and opens it. Esc
+closes the reply, then blurs the box. _Changed from the design (3c "Tab switches it") on
+2026-11-08, after the whole-branch review found the chips unreachable by keyboard._
 
 ## 4. How Wally decides
 
 ### 4.1 The intake call
 
-On Enter, unless the hint was pinned with Tab, the text goes to a new API call, **intake**
+On Enter, unless the hint was pinned, the text goes to a new API call, **intake**
 (POST `/whiteboards/:id/assistant/intakes`). One structured-output model call, no tools,
 reads the text with the board as data and returns a list of items, each of one kind:
 
@@ -126,7 +131,7 @@ short deadline. It reuses the capture call's model and settings.
 ### 4.2 The hint before Enter
 
 The hint is a local guess (no network), shown so you know roughly what will happen and can
-flip it. The model has the final say unless you pinned the hint with Tab:
+flip it. The model has the final say unless you pinned the hint:
 
 - **Pinned "Adds a note":** no intake call; exactly one note, as written (the fastest path):
   the first line is its title, any further lines its description.
@@ -140,7 +145,7 @@ because the owner asked for understanding over keyword rules.
 ### 4.3 Without the model
 
 - Assistant off (deployment switch or the board owner's switch): the box only writes notes,
-  exactly as pinned "Adds a note" does; no hint, no Tab.
+  exactly as pinned "Adds a note" does; no hint.
 - Intake fails or times out: if the hint said note, the text is saved as one note as written
   (as above) and the box says "Saved as written." If it said ask, the box says Wally couldn't
   answer and puts the text back in the box. Nothing is ever lost.
@@ -175,7 +180,7 @@ If this proves slow in use, raising the in-flight limit is a separate decision f
 - The answer card on the wall (`AskCard`, `askSlot`) is retired.
 - The question prompt no longer says "changes are not available": a change request now goes
   to the intake. If one still reaches the question turn (pinned ask), it answers that changes
-  are made by writing them in the box without Tab.
+  are made by writing them in the box without pinning the hint.
 
 ### 5.3 Changes to named notes (3c, single notes only)
 
@@ -272,7 +277,7 @@ button is shown until voice works; a button that does nothing is not shipped.
 Three PRs, each cut from `origin/main` after the previous one merged (no stacking), each with
 its Playwright specs updated in the same PR:
 
-1. **The box:** docked and anchored box, hint and Tab, chips, intake (`notes`, `ask`,
+1. **The box:** docked and anchored box, hint button, chips, intake (`notes`, `ask`,
    `clarify`), answers in the box, `AskCard` and the `?` check removed, BRAND/RFC updates.
    E2E: `note-create.spec.ts` (capture through the box; the "?" test becomes "assistant off:
    every message is a note"), `capture-review.spec.ts`, plus a stubbed intake spec.

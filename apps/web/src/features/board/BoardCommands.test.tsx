@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -137,26 +138,33 @@ describe('BoardCommands', () => {
   });
 
   it('leaves n to the Wally box: it is a letter typed there, not a new note', async () => {
-    const { onNewNote } = renderCommands(
-      { noteOpen: false },
-      <WallyBox
-        boardId="board-1"
-        box={{
-          pending: [],
-          reply: null,
-          working: false,
-          send: vi.fn(),
-          choose: vi.fn(),
-          closeReply: vi.fn(),
-        }}
-        mode="anchored"
-        assistantEnabled
-        notes={[]}
-        placement={{ kind: 'list' }}
-        visibility="SHARED"
-        onOpenNote={vi.fn()}
-      />,
-    );
+    function Box() {
+      const [draft, setDraft] = useState('');
+      return (
+        <WallyBox
+          boardId="board-1"
+          box={{
+            pending: [],
+            reply: null,
+            working: false,
+            send: vi.fn(),
+            choose: vi.fn(),
+            closeReply: vi.fn(),
+            draft,
+            setDraft,
+            pinned: null,
+            setPinned: vi.fn(),
+          }}
+          mode="anchored"
+          assistantEnabled
+          notes={[]}
+          placement={{ kind: 'list' }}
+          visibility="SHARED"
+          onOpenNote={vi.fn()}
+        />
+      );
+    }
+    const { onNewNote } = renderCommands({ noteOpen: false }, <Box />);
     const field = screen.getByRole('textbox', { name: 'Write a note or ask Wally' });
     await waitFor(() => expect(field).toHaveFocus());
     await userEvent.keyboard('n');

@@ -80,7 +80,6 @@ function Wall({
     visibility: access.newNoteVisibility,
     onNoteCreated: vi.fn(),
     onOpenNote: vi.fn(),
-    onRestoreText: vi.fn(),
   });
   return (
     <WallView

@@ -12,7 +12,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import {
-  INTAKE_MESSAGE_MAX,
+  NOTE_DESCRIPTION_MAX_LENGTH,
   suggestionFieldKeys,
   type NoteDto,
   type NoteVisibility,
@@ -45,7 +45,7 @@ function initialChips(placement: CapturePlacement): ChipState {
 }
 
 /** The box's own controls; a press anywhere else in it must not take focus from them. */
-const OWN_CONTROLS = 'textarea, input, button, a';
+const OWN_CONTROLS = 'textarea, input, button, a, [data-box-reply]';
 
 /**
  * The Wally box (docs/superpowers/specs/2026-11-08-wally-box-design.md §3): the one place to
@@ -65,7 +65,6 @@ export function WallyBox({
   onOpenNote,
   onDismiss,
   inputRef,
-  restored,
 }: {
   boardId: string;
   box: WallyBoxController;
@@ -82,24 +81,18 @@ export function WallyBox({
   /** Anchored only: Esc on an empty box, a click away from it, or a message sent. */
   onDismiss?: () => void;
   inputRef?: Ref<HTMLTextAreaElement>;
-  /** Words to put back in an empty field: a question Wally could not answer. */
-  restored?: { text: string; at: number } | null;
 }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { activeMembers } = useActiveMembers(boardId);
-  const [text, setText] = useState('');
-  const [pinned, setPinned] = useState<Intent | null>(null);
+  // One draft for the board: the docked and the anchored box show the same words.
+  const { draft: text, setDraft: setText, pinned, setPinned } = box;
   const [chips, setChips] = useState<ChipState>(() => initialChips(placement));
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   const hintId = useId();
   const { reply } = box;
 
   useLayoutEffect(() => fitToContent(fieldRef.current), [text]);
-  // A question that failed comes back, unless the person has started typing something new.
-  useEffect(() => {
-    if (restored) setText((now) => (now.trim() ? now : restored.text));
-  }, [restored]);
   useEffect(() => {
     if (mode === 'anchored') fieldRef.current?.focus();
   }, [mode]);
@@ -148,18 +141,24 @@ export function WallyBox({
     assigneeId: parse?.assignee && applies('assignee') ? parse.assignee.memberId : null,
     priority: parse?.priority && applies('priority') ? parse.priority.value : null,
   };
-  /** What the person decided here: a kept chip, a band they placed it in, the Shared filter. */
-  const locked: SuggestionFieldKey[] = suggestionFieldKeys.filter((key) => {
-    const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
-    const pickedHorizon =
-      placement.kind === 'zone' && placement.axis === 'horizon' && placement.picked === true;
-    if (key === 'dueDate') return fields.dueDate !== null;
-    if (key === 'priority') return fields.priority !== null || placedByPriority;
-    if (key === 'assignee') return fields.assigneeId !== null;
-    if (key === 'horizon') return pickedHorizon;
-    if (key === 'visibility') return visibilityChosen;
-    return false;
-  });
+  /** What the place decided, for every note of the message: a band, the Shared filter. */
+  const placedByPriority = placement.kind === 'zone' && placement.axis === 'priority';
+  const pickedHorizon =
+    placement.kind === 'zone' && placement.axis === 'horizon' && placement.picked === true;
+  const placementLocked: SuggestionFieldKey[] = suggestionFieldKeys.filter(
+    (key) =>
+      (key === 'priority' && placedByPriority) ||
+      (key === 'horizon' && pickedHorizon) ||
+      (key === 'visibility' && visibilityChosen),
+  );
+  /** And what the kept chips decided, for a message that is one note. */
+  const locked: SuggestionFieldKey[] = suggestionFieldKeys.filter(
+    (key) =>
+      placementLocked.includes(key) ||
+      (key === 'dueDate' && fields.dueDate !== null) ||
+      (key === 'priority' && fields.priority !== null) ||
+      (key === 'assignee' && fields.assigneeId !== null),
+  );
 
   function reset() {
     setText('');
@@ -172,6 +171,7 @@ export function WallyBox({
       pinned: open ? 'note' : assistantEnabled ? pinned : null,
       fields,
       locked,
+      placementLocked,
       open,
       placement,
     });
@@ -187,9 +187,6 @@ export function WallyBox({
     if (event.key === 'Enter' && !event.shiftKey) {
       claim();
       send(event.metaKey || event.ctrlKey);
-    } else if (event.key === 'Tab' && !event.shiftKey && showsHint) {
-      claim();
-      setPinned(intent === 'note' ? 'ask' : 'note');
     } else if (event.key === 'Escape') {
       claim();
       if (reply) box.closeReply();
@@ -209,6 +206,7 @@ export function WallyBox({
     else if (inputRef) (inputRef as { current: HTMLTextAreaElement | null }).current = node;
   };
   const hint = t(intent === 'note' ? 'box.hintNote' : 'box.hintAsk');
+  const otherHint = t(intent === 'note' ? 'box.hintAsk' : 'box.hintNote');
 
   return (
     <div
@@ -223,11 +221,16 @@ export function WallyBox({
         box.working && 'wally-ring',
       )}
     >
-      {reply && (
-        <div
-          className="max-h-[40vh] overflow-y-auto border-b border-border-subtle px-4 pb-3 pt-3.5 animate-fade-in motion-reduce:animate-none"
-          aria-live="polite"
-        >
+      {/* Always in the page, so the first reply into it is announced; its words can be selected. */}
+      <div
+        data-box-reply
+        aria-live="polite"
+        className={cn(
+          reply &&
+            'max-h-[40vh] overflow-y-auto border-b border-border-subtle px-4 pb-3 pt-3.5 animate-fade-in motion-reduce:animate-none',
+        )}
+      >
+        {reply && (
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               {(reply.kind === 'asking' || reply.kind === 'answer') && (
@@ -299,8 +302,8 @@ export function WallyBox({
               </Button>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
       {box.pending.length > 0 && (
         <ul className="flex flex-wrap gap-1.5 px-3 pt-2.5 pl-[52px]">
           {box.pending.map((item) => (
@@ -326,22 +329,31 @@ export function WallyBox({
             ref={setRefs}
             value={text}
             parse={withoutDropped(parse, chips)}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (!e.target.value.trim()) setPinned(null);
-            }}
+            onChange={(e) => setText(e.target.value)}
             onKeyDown={onFieldKey}
             aria-label={t('box.aria')}
             aria-describedby={showsHint ? hintId : undefined}
             placeholder={t(assistantEnabled ? 'box.placeholder' : 'box.placeholderNotesOnly')}
-            maxLength={INTAKE_MESSAGE_MAX}
+            // A long paste is kept whole: past what the intake reads, it is a note as written.
+            maxLength={NOTE_DESCRIPTION_MAX_LENGTH}
           />
         </div>
         {showsHint && (
-          <span id={hintId} className="mt-1.5 shrink-0 text-12 text-fg-3">
+          // A button in the tab order, not a key taken from the field (WAI-ARIA APG: Tab moves
+          // between controls): pressing it switches what Enter does, and the choice holds.
+          <button
+            type="button"
+            id={hintId}
+            aria-label={t('box.switchHint', { hint, other: otherHint })}
+            onClick={() => setPinned(intent === 'note' ? 'ask' : 'note')}
+            className={cn(
+              'mt-0.5 h-7 shrink-0 rounded-full px-2.5 text-12 transition-colors duration-150',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
+              pinned ? 'bg-inset text-fg-1' : 'text-fg-3 hover:bg-inset hover:text-fg-1',
+            )}
+          >
             {hint}
-            <span className="ml-1.5 hidden text-fg-faint md:inline">· {t('box.hintFlip')}</span>
-          </span>
+          </button>
         )}
         <kbd className="mt-1.5 shrink-0 font-mono text-12 text-fg-faint [@media(pointer:coarse)]:hidden">
           ⏎

@@ -42,3 +42,14 @@ export function placementAt(placement: CapturePlacement, index: number): Capture
     ? { ...placement, y: placement.y + index * NOTE_STACK_GAP }
     : placement;
 }
+
+/** Whether the view can draw a box anchored at `placement`; if not, the docked box shows. */
+export function anchorShows(
+  view: 'wall' | 'list',
+  axis: 'horizon' | 'priority' | 'free',
+  placement: CapturePlacement,
+): boolean {
+  if (view !== 'wall') return false;
+  if (placement.kind === 'free') return axis === 'free';
+  return placement.kind === 'zone' && placement.axis === axis;
+}

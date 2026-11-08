@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { NOTE_DESCRIPTION_MAX_LENGTH } from '@wally/shared';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('@/lib/resources', async (importOriginal) => ({
@@ -21,6 +23,7 @@ vi.mock('@/i18n/languageContext', async (importOriginal) => {
 
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
+import type { Intent } from '@/lib/capture/intentGuess';
 import type { BoxReply, WallyBoxController } from './useWallyBox';
 import { WallyBox } from './WallyBox';
 
@@ -34,8 +37,36 @@ function controller(over: Partial<WallyBoxController> = {}): WallyBoxController 
     send: vi.fn(),
     choose: vi.fn(),
     closeReply: vi.fn(),
+    draft: '',
+    setDraft: vi.fn(),
+    pinned: null,
+    setPinned: vi.fn(),
     ...over,
   };
+}
+
+/** The box with a controller whose draft and pinned hint are real state, as the hook's are. */
+function Harness({
+  box,
+  ...props
+}: Omit<Parameters<typeof WallyBox>[0], 'box'> & { box: WallyBoxController }) {
+  const [draft, setDraft] = useState('');
+  const [pinned, setPinned] = useState<Intent | null>(null);
+  return (
+    <WallyBox
+      {...props}
+      box={{
+        ...box,
+        draft,
+        setDraft: (text) => {
+          setDraft(text);
+          if (!text.trim()) setPinned(null);
+        },
+        pinned,
+        setPinned,
+      }}
+    />
+  );
 }
 
 function renderBox(
@@ -48,7 +79,7 @@ function renderBox(
   } = {},
 ) {
   renderWithProviders(
-    <WallyBox
+    <Harness
       boardId="b1"
       box={box}
       mode={mode}
@@ -80,31 +111,21 @@ describe('WallyBox', () => {
   });
 
   it('no hint and the notes-only placeholder with the assistant off', async () => {
-    renderWithProviders(
-      <WallyBox
-        boardId="b1"
-        box={controller()}
-        mode="docked"
-        assistantEnabled={false}
-        notes={[]}
-        placement={placement}
-        visibility="SHARED"
-        onOpenNote={vi.fn()}
-      />,
-    );
-    const field = screen.getByRole('textbox', { name: 'Write a note or ask Wally' });
+    const { field } = renderBox(controller(), { assistantEnabled: false });
     expect(field).toHaveAttribute('placeholder', 'Write a note…');
     await userEvent.type(field, 'what is due?');
-    expect(screen.queryByText('Asks Wally')).toBeNull();
-    expect(screen.queryByText('Adds a note')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Asks Wally|Adds a note/ })).toBeNull();
   });
 
-  it('Tab flips the hint and pins it', async () => {
+  it('the hint is a button: pressing it switches the choice and pins it', async () => {
     const { field, box } = renderBox();
     await userEvent.type(field, 'call irem wed');
-    await userEvent.tab();
-    expect(field).toHaveFocus();
-    expect(screen.getByText('Asks Wally')).toBeVisible();
+    const hint = screen.getByRole('button', { name: 'Adds a note. Switch to: Asks Wally' });
+    await userEvent.click(hint);
+    expect(
+      screen.getByRole('button', { name: 'Asks Wally. Switch to: Adds a note' }),
+    ).toBeVisible();
+    field.focus();
     await userEvent.keyboard('{Enter}');
     expect(box.send).toHaveBeenCalledWith(
       'call irem wed',
@@ -112,11 +133,44 @@ describe('WallyBox', () => {
     );
   });
 
+  it('Tab moves on through the chips to the hint, and never changes the text or the choice', async () => {
+    const { field } = renderBox();
+    await userEvent.type(field, 'call irem friday urgent');
+    await userEvent.tab();
+    expect(field).not.toHaveFocus();
+    expect(field).toHaveValue('call irem friday urgent');
+    // The chips come first, then the hint; Space on the hint switches it.
+    let guard = 0;
+    while (!document.activeElement?.textContent?.includes('Adds a note') && guard++ < 10)
+      await userEvent.tab();
+    expect(document.activeElement).toHaveAccessibleName('Adds a note. Switch to: Asks Wally');
+    await userEvent.keyboard(' ');
+    expect(document.activeElement).toHaveAccessibleName('Asks Wally. Switch to: Adds a note');
+  });
+
   it('Tab on an empty box leaves focus to the browser', async () => {
     const { field } = renderBox();
     field.focus();
     await userEvent.tab();
     expect(field).not.toHaveFocus();
+  });
+
+  it('keeps its live region in the page before any reply, so the first reply is announced', () => {
+    renderBox();
+    expect(
+      document.querySelector('[data-wally-box] [aria-live="polite"][data-box-reply]'),
+    ).not.toBeNull();
+  });
+
+  it('takes a long paste whole, up to what a note can hold', () => {
+    const { field } = renderBox();
+    expect(field).toHaveAttribute('maxLength', String(NOTE_DESCRIPTION_MAX_LENGTH));
+  });
+
+  it('lets the words of an answer be selected', () => {
+    renderBox(controller({ reply: { kind: 'status', message: 'savedAsWritten' } }));
+    const words = screen.getByText('Saved as written.');
+    expect(fireEvent.mouseDown(words)).toBe(true);
   });
 
   it('Enter sends and clears at once', async () => {
