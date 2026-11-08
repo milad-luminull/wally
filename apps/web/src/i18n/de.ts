@@ -823,11 +823,7 @@ export const de = {
   },
   /** The answer card on the wall (RFC-0005-wallybot-inline.md §3.6). No name, no first person. */
   ask: {
-    cardAria: 'Antwort der Wand',
     asking: 'Die Wand wird gelesen',
-    pin: 'Antwort anheften',
-    unpin: 'Antwort lösen',
-    close: 'Antwort schließen',
     notesRead: 'Gelesene Notizen',
     partial: 'Nur ein Teil der passenden Notizen wurde gelesen.',
     stopped: {
@@ -849,15 +845,28 @@ export const de = {
     hint: '↵ speichern · ⇧↵ Text · Esc abbrechen',
     hintCoarse: 'Enter speichert',
   },
+  /**
+   * The Wally box (docs/superpowers/specs/2026-11-08-wally-box-design.md): one place to write a
+   * note or ask. No name for the AI in the first person, no exclamation marks.
+   */
+  box: {
+    aria: 'Schreib eine Notiz oder frag Wally',
+    placeholder: 'Schreib eine Notiz oder frag Wally…',
+    placeholderNotesOnly: 'Schreib eine Notiz…',
+    hintNote: 'Legt eine Notiz an',
+    hintAsk: 'Fragt Wally',
+    hintFlip: 'Tab wechselt',
+    pinned: 'Gewechselt zu: {{hint}}',
+    pendingAria: 'In Arbeit: {{text}}',
+    close: 'Schließen',
+    savedAsWritten: 'So gespeichert, wie du es geschrieben hast.',
+    truncated: 'Die ersten 10 Notizen sind angelegt. Schick den Rest noch einmal.',
+    askFailed: 'Wally konnte gerade nicht antworten. Deine Worte stehen wieder im Feld.',
+    duplicate: 'Du hast schon „{{title}}“.',
+    openIt: 'Öffnen',
+    addAnyway: 'Trotzdem anlegen',
+  },
   capture: {
-    cardAria: 'Neue Notiz schreiben',
-    titleAria: 'Titel der neuen Notiz',
-    descriptionAria: 'Text der neuen Notiz',
-    hint: '↵ anlegen · ⇧↵ Text · Esc verwerfen',
-    hintCoarse: 'Enter legt die Notiz an',
-    /** While the title ends in a question mark: Enter asks instead of writing a note (§3.6). */
-    hintAsk: '↵ fragt die Wand · ⇧↵ Text · Esc verwerfen',
-    hintAskCoarse: 'Enter fragt die Wand',
     chips: {
       due: 'Fällig {{date}}',
       assignee: 'Zuständig: {{name}}',

@@ -1,6 +1,4 @@
 import type { NoteCreateInput, NoteDto } from '@wally/shared';
-import type { BoardAxis, BoardView } from '../hooks/useBoardViewState';
-import { defaultZoneKey } from '../util/noteDerived';
 import { nextFreeNotePosition } from '../util/notePlacement';
 
 /** Where a note written in the box lands: the spot it was opened at, or the board's default. */
@@ -43,18 +41,4 @@ export function placementAt(placement: CapturePlacement, index: number): Capture
   return placement.kind === 'free' && index > 0
     ? { ...placement, y: placement.y + index * NOTE_STACK_GAP }
     : placement;
-}
-
-/** Where the docked box writes: what the New note button chose before the box. */
-export function dockedPlacement(
-  view: BoardView,
-  axis: BoardAxis,
-  notes: NoteDto[],
-): CapturePlacement {
-  if (view === 'list') return { kind: 'list' };
-  if (axis === 'free') {
-    const at = nextFreeNotePosition(notes);
-    return { kind: 'free', x: at.freeX, y: at.freeY };
-  }
-  return { kind: 'zone', axis, key: defaultZoneKey(axis), at: nextFreeNotePosition(notes) };
 }

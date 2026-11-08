@@ -124,7 +124,7 @@ export function NoteRow({
       role="button"
       tabIndex={0}
       // The same address the wall's cards carry, so the board can focus the row after a
-      // commit (useCaptureSession) and Enter keeps from there.
+      // commit and Enter keeps from there.
       data-note-id={note.id}
       data-selected={selected || undefined}
       aria-current={selected ? 'true' : undefined}

@@ -375,7 +375,8 @@
   align-items: stretch;
   gap: 32px;
   min-height: 100%;
-  padding: 28px 32px 96px;
+  /* Room under the last card for the docked Wally box. */
+  padding: 28px 32px 112px;
 }
 .paper-zone {
   display: flex;
@@ -591,7 +592,7 @@
 }
 /* A list uses the same paper, type scale and spacing, with one full-width note per row. */
 .paper-list {
-  padding: 28px 32px 96px;
+  padding: 28px 32px 112px;
   --board-grid-size: 22px;
 }
 .paper-list-content {
@@ -672,7 +673,7 @@
 }
 @media (max-width: 719px) {
   .paper-list {
-    padding: 20px 16px 64px;
+    padding: 20px 16px 96px;
   }
   .paper-note-row {
     grid-template-columns: 18px minmax(0, 1fr);
@@ -1253,4 +1254,14 @@ textarea.capture-shimmer:focus {
   line-height: 1.4;
   overflow-wrap: anywhere;
   color: var(--fg-1);
+}
+
+/* The Wally box, docked at the bottom centre of the board (the box spec, §3.1). */
+.wally-box-dock {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 40;
+  width: min(640px, calc(100% - 32px));
+  transform: translateX(-50%);
 }

@@ -9,7 +9,7 @@ import type { PendingProps } from './pendingProps';
  * and a control inside it (an ×, the checkbox) counts as staying focused.
  *
  * Hover always pauses. Focus pauses only when it arrives once the change is pending: the
- * board focuses the committed card itself while the mark is still asking (useCaptureSession),
+ * board focuses the committed card itself while the mark is still asking,
  * and that focus is not the person's. So when the mark turns pending, focus starts over as
  * "not focused", and a pointer already on the card pauses at once. A card that unmounts while
  * it holds the pause lets go of it.
