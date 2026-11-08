@@ -33,7 +33,7 @@ import { useActiveMembers } from '../hooks/useMembers';
 import { BoxAnswer } from './BoxAnswer';
 import { flashNotes } from './flash';
 import type { CapturePlacement } from './placement';
-import type { CaptureFields, WallyBoxController } from './useWallyBox';
+import { lastAnswer, type CaptureFields, type WallyBoxController } from './useWallyBox';
 
 /** Chips start kept, except a priority on the priority wall: the note stays in its band. */
 function initialChips(placement: CapturePlacement): ChipState {
@@ -107,7 +107,7 @@ export function WallyBox({
   useEffect(() => {
     if (reply?.kind === 'duplicate') flashNotes([reply.note.id]);
     if (reply?.kind === 'answer' && reply.outcome.kind === 'answered') {
-      const last = reply.outcome.conversation.entries.findLast((e) => e.role === 'assistant');
+      const last = lastAnswer(reply.outcome.conversation);
       if (last) flashNotes(last.chips.map((chip) => chip.id));
     }
   }, [reply]);

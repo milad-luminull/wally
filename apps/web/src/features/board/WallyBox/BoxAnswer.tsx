@@ -3,6 +3,7 @@ import type { NoteDto } from '@wally/shared';
 import { formatWhen } from '@/lib/formatWhen';
 import { AnswerNotes } from '../Ask/AnswerNotes';
 import type { AskOutcome } from '../Ask/useAskAssistant';
+import { lastAnswer } from './useWallyBox';
 
 /**
  * An answer in the box: its words, the notes it read listed underneath (BRAND.md AI rule 8),
@@ -35,7 +36,7 @@ export function BoxAnswer({
       </p>
     );
   }
-  const answer = outcome.conversation.entries.findLast((e) => e.role === 'assistant');
+  const answer = lastAnswer(outcome.conversation);
   const rows = answer
     ? notes
       ? answer.chips.filter((chip) => notes.some((n) => n.id === chip.id))

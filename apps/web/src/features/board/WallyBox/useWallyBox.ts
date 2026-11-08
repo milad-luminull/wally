@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type {
   AssistantChip,
+  AssistantConversationDto,
+  AssistantEntry,
   IntakeOption,
   IntakeRequest,
   NoteDto,
@@ -63,6 +65,11 @@ interface Queued {
   options: SendOptions;
 }
 
+/** The answer's own entry: the last one Wally wrote. */
+export function lastAnswer(conversation: AssistantConversationDto): AssistantEntry | undefined {
+  return [...conversation.entries].reverse().find((entry) => entry.role === 'assistant');
+}
+
 const NO_FIELDS: CaptureFields = { dueDate: null, assigneeId: null, priority: null };
 const ANSWER_CONTEXT_MAX = 4000;
 
@@ -75,7 +82,7 @@ const fieldsInput = (fields: CaptureFields) => ({
 /** The answer showing, as the intake reads it: so "and next week?" is a follow-up. */
 function contextOf(reply: BoxReply | null): IntakeRequest['context'] {
   if (reply?.kind !== 'answer' || reply.outcome.kind !== 'answered') return undefined;
-  const last = reply.outcome.conversation.entries.findLast((e) => e.role === 'assistant');
+  const last = lastAnswer(reply.outcome.conversation);
   if (!last) return undefined;
   return {
     question: reply.question.slice(0, 2000),

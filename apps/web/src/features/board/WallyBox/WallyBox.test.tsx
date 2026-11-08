@@ -42,7 +42,7 @@ function renderBox(
   box = controller(),
   {
     assistantEnabled = true,
-    mode = 'docked' as const,
+    mode = 'docked' as 'docked' | 'anchored',
     onDismiss = vi.fn(),
     onOpenNote = vi.fn(),
   } = {},
