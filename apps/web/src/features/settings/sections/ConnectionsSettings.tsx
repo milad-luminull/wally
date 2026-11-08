@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { mcpConnectionSchema, mcpConnectionsSchema } from '@wally/shared';
-import { HomeShell } from '@/features/boards/HomeShell';
 import { useQueryKeys } from '@/features/board/hooks/queryKeys';
 import { api } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { CopyField } from '../CopyField';
+import { SettingsGroupTitle, SettingsSection } from '../SettingsSection';
 
 function ConnectionStatus({
   tone,
@@ -21,7 +19,7 @@ function ConnectionStatus({
     tone
   ];
   return (
-    <span className="inline-flex items-center gap-2 text-sm text-fg-3">
+    <span className="inline-flex items-center gap-2 text-12 text-fg-3">
       <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
       {children}
     </span>
@@ -65,19 +63,15 @@ export function ConnectionsSettings() {
         ? mutation.variables.id === connection.id
         : mutation.variables?.clientId === connection.clientId));
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
-      <div className="space-y-3">
-        <Link to="/boards" className="text-13 text-fg-3 underline underline-offset-4">
-          {t('connections.back')}
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg-1">
-          {t('connections.title')}
-        </h1>
-        <p className="max-w-xl text-sm leading-relaxed text-fg-3">{t('connections.description')}</p>
-      </div>
-      {settings.isPending && <p role="status">{t('connections.loading')}</p>}
+    <SettingsSection id="connections">
+      <p className="settings-note mb-4">{t('connections.description')}</p>
+      {settings.isPending && (
+        <p role="status" className="settings-note">
+          {t('connections.loading')}
+        </p>
+      )}
       {settings.isError && (
-        <div role="alert" className="space-y-3">
+        <div role="alert" className="flex flex-col items-start gap-3">
           <ConnectionStatus tone="red">{t('connections.loadError')}</ConnectionStatus>
           <Button variant="outline" onClick={() => void settings.refetch()}>
             {t('connections.retry')}
@@ -86,22 +80,17 @@ export function ConnectionsSettings() {
       )}
       {data && (
         <>
-          {!data.enabled && (
-            <p className="rounded-lg border border-border bg-surface p-4 text-sm text-fg-3">
-              {t('connections.disabled')}
-            </p>
-          )}
+          {!data.enabled && <p className="settings-note mb-4">{t('connections.disabled')}</p>}
           {!connections.length && (
-            <ConnectionStatus tone="gray">{t('connections.none')}</ConnectionStatus>
+            <div className="setting-row">
+              <ConnectionStatus tone="gray">{t('connections.none')}</ConnectionStatus>
+            </div>
           )}
-          <ul className="space-y-3">
+          <ul>
             {connections.map((connection) => (
-              <li
-                key={connection.id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-surface p-4"
-              >
-                <div className="min-w-0 flex-1 space-y-2">
-                  <h2 className="font-medium">{connection.name}</h2>
+              <li key={connection.id} className="setting-row">
+                <div className="min-w-0 space-y-1">
+                  <h2 className="setting-row-label">{connection.name}</h2>
                   <ConnectionStatus
                     tone={connection.revokedAt || hasIssue(connection) ? 'red' : 'green'}
                   >
@@ -114,42 +103,44 @@ export function ConnectionsSettings() {
                     )}
                   </ConnectionStatus>
                   {connection.revokedAt && (
-                    <p className="text-sm text-fg-3">{t('connections.reconnectHint')}</p>
+                    <p className="setting-row-hint">{t('connections.reconnectHint')}</p>
                   )}
                 </div>
-                {!connection.revokedAt ? (
-                  <Button
-                    variant="outline"
-                    disabled={mutation.isPending}
-                    aria-label={t('connections.revokeNamed', { name: connection.name })}
-                    onClick={() => mutation.mutate({ kind: 'disconnect', id: connection.id })}
-                  >
-                    {t('connections.revoke')}
-                  </Button>
-                ) : (
-                  data.enabled &&
-                  connection.clientId === data.client?.id && (
+                <div className="setting-row-control">
+                  {!connection.revokedAt ? (
                     <Button
                       variant="outline"
                       disabled={mutation.isPending}
-                      aria-label={t('connections.reconnectNamed', { name: connection.name })}
-                      onClick={() =>
-                        mutation.mutate({ kind: 'connect', clientId: connection.clientId })
-                      }
+                      aria-label={t('connections.revokeNamed', { name: connection.name })}
+                      onClick={() => mutation.mutate({ kind: 'disconnect', id: connection.id })}
                     >
-                      {t('connections.reconnect')}
+                      {t('connections.revoke')}
                     </Button>
-                  )
-                )}
+                  ) : (
+                    data.enabled &&
+                    connection.clientId === data.client?.id && (
+                      <Button
+                        variant="outline"
+                        disabled={mutation.isPending}
+                        aria-label={t('connections.reconnectNamed', { name: connection.name })}
+                        onClick={() =>
+                          mutation.mutate({ kind: 'connect', clientId: connection.clientId })
+                        }
+                      >
+                        {t('connections.reconnect')}
+                      </Button>
+                    )
+                  )}
+                </div>
               </li>
             ))}
           </ul>
           {mutation.isError && (
-            <p role="alert" className="text-sm text-status-danger">
+            <p role="alert" className="mt-2 text-12 text-status-danger">
               {t('connections.saveError')}
             </p>
           )}
-          <p role="status" className="text-sm text-fg-3">
+          <p role="status" className="settings-note mt-2 min-h-[1rem]">
             {mutation.isPending
               ? t('connections.saving')
               : mutation.isSuccess
@@ -157,16 +148,13 @@ export function ConnectionsSettings() {
                 : ''}
           </p>
           {data.enabled && (
-            <section
-              aria-labelledby="connections-setup-title"
-              className="space-y-3 border-t border-border pt-6"
-            >
-              <h2 id="connections-setup-title" className="text-base font-semibold">
+            <section aria-labelledby="connections-setup-title">
+              <SettingsGroupTitle id="connections-setup-title">
                 {t('connections.setupTitle')}
-              </h2>
+              </SettingsGroupTitle>
               <ol
                 aria-label={t('connections.setupSteps')}
-                className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-fg-3"
+                className="list-decimal space-y-2 pl-5 text-13 leading-relaxed text-fg-3"
               >
                 <li>{t('connections.setupOpen')}</li>
                 <li>{t(localEndpoint ? 'connections.setupLocalUrl' : 'connections.setupUrl')}</li>
@@ -174,39 +162,26 @@ export function ConnectionsSettings() {
                 <li>{t('connections.setupSignIn')}</li>
               </ol>
               {localEndpoint && (
-                <p className="text-xs leading-relaxed text-fg-3">
-                  {t('connections.localSetupHint')}
-                </p>
+                <p className="settings-note mt-3">{t('connections.localSetupHint')}</p>
               )}
-              <Label htmlFor="connection-url">{t('connections.endpoint')}</Label>
-              <Input
-                id="connection-url"
-                readOnly
-                value={`${import.meta.env.VITE_API_BASE_URL}/mcp`}
-                onFocus={(event) => event.currentTarget.select()}
-              />
-              {data.client && (
-                <>
-                  <Label htmlFor="connection-client-id">{t('connections.clientId')}</Label>
-                  <Input
+              <div className="mt-5 flex flex-col gap-2">
+                <CopyField
+                  id="connection-url"
+                  label={t('connections.endpoint')}
+                  value={`${import.meta.env.VITE_API_BASE_URL}/mcp`}
+                />
+                {data.client && (
+                  <CopyField
                     id="connection-client-id"
-                    readOnly
+                    label={t('connections.clientId')}
                     value={data.client.id}
-                    onFocus={(event) => event.currentTarget.select()}
                   />
-                </>
-              )}
+                )}
+              </div>
             </section>
           )}
         </>
       )}
-    </div>
-  );
-}
-export function ConnectionsPage() {
-  return (
-    <HomeShell>
-      <ConnectionsSettings />
-    </HomeShell>
+    </SettingsSection>
   );
 }

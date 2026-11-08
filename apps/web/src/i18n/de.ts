@@ -72,7 +72,6 @@ export const de = {
   },
   connections: {
     title: 'Verbundene Apps',
-    back: 'Zurück zu den Boards',
     description:
       'Eine verbundene App kann nur, was du in Wally kannst, und deine privaten Notizen bleiben vor anderen geschützt.',
     loading: 'Verbindungen werden geladen…',

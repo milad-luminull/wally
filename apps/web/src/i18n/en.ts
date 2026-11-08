@@ -64,7 +64,6 @@ export const en = {
   },
   connections: {
     title: 'Connected apps',
-    back: 'Back to boards',
     description:
       'A connected app can only do what you can do in Wally, and your private notes stay protected from other users.',
     loading: 'Loading connections…',
