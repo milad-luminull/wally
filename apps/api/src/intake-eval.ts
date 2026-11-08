@@ -8,11 +8,11 @@
  *   cd apps/api
  *   ASSISTANT_VERTEX_PROJECT=luminull-wally-prod pnpm assistant:intake-eval
  *
- * with the assistant variables from the root `.env` exported in the shell.
+ * It reads only the model's settings (`loadModelEnv`): no database is needed.
  *
  * Never used by tests.
  */
-import { loadEnv } from './env.js';
+import { loadModelEnv } from './env.js';
 import {
   acceptIntake,
   INTAKE_DEADLINE_MS,
@@ -25,7 +25,7 @@ import { createConfiguredIntakeRunner } from './lib/assistant/model/index.js';
 /** The bar the plan sets: 21 of 24. */
 const PASS_RATIO = 21 / 24;
 
-const env = loadEnv();
+const env = loadModelEnv();
 const runner = createConfiguredIntakeRunner(env);
 console.log(`model: ${env.ASSISTANT_MODEL}, ${INTAKE_FIXTURES.length} fixtures`);
 
