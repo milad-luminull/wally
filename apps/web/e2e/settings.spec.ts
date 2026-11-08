@@ -71,6 +71,18 @@ test('phone: list, section, list, back to the board', async ({ page }) => {
   await page.getByRole('button', { name: 'Zurück', exact: true }).click();
   await expect(page).toHaveURL(board);
 
+  // CI runs with app connections off, which hides the setup fields; answer as production does
+  // (as connections.spec.ts does) so the page shows its widest content.
+  await page.route(/\/me\/connections$/, (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        writesEnabled: true,
+        client: { id: 'tpc_e2eClient', name: 'ChatGPT' },
+        connections: [],
+      },
+    }),
+  );
   await page.setViewportSize({ width: 320, height: 760 });
   await page.goto('/settings/connections');
   // Wait for the longest content (the copy fields), then check the scroller itself: the page
