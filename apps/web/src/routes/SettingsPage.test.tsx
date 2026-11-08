@@ -145,6 +145,7 @@ it('shows the list on a narrow screen, then a section, then the list again', asy
   const user = userEvent.setup();
   renderSettings('/settings', { from: '/boards/b1' });
   expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+  expect(screen.getByRole('navigation', { name: 'Settings' })).toBeInTheDocument();
   for (const description of [
     'Colours, light or dark, and the canvas background.',
     'The language Wally uses.',

@@ -47,7 +47,7 @@ export function AccountMenu({
         {showName && <span className="board-rail-profile-name">{name}</span>}
       </PopoverTrigger>
 
-      <PopoverContent className="max-h-[85dvh] w-64 overflow-y-auto p-1">
+      <PopoverContent className="max-h-[85dvh] w-72 overflow-y-auto p-1">
         <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1.5">
           {user.displayName && (
             <p className="truncate text-13 font-medium text-fg-1">{user.displayName}</p>

@@ -54,7 +54,7 @@ export function Segmented<T extends string>({
             title={option.hint}
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-13 font-medium [&_svg]:size-3.5',
+              'relative flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-13 font-medium [&_svg]:size-3.5 [&_svg]:shrink-0',
               'transition-[background-color,color,box-shadow] duration-150 ease-ds',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-alpha)]',
               selected ? 'bg-surface text-fg-1 shadow-e1' : 'text-fg-3 hover:text-fg-1',

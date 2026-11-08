@@ -63,7 +63,7 @@
 .settings-user-card-name {
   font-size: 13px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 18px;
   color: var(--fg-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -71,7 +71,7 @@
 }
 .settings-user-card-email {
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 16px;
   color: var(--fg-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -104,7 +104,7 @@
 .settings-description {
   margin-top: 6px;
   font-size: 13.5px;
-  line-height: 1.5;
+  line-height: 20px;
   color: var(--fg-3);
 }
 .settings-rows {
@@ -132,18 +132,31 @@
 .setting-row:has(+ :not(.setting-row)) {
   border-bottom: 1px solid var(--border-subtle);
 }
+.setting-row-text {
+  position: relative;
+  min-width: 0;
+}
+.setting-row-status {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
 .setting-row-label {
   display: block;
   font-size: 13.5px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 20px;
   color: var(--fg-1);
 }
 .setting-row-hint {
-  min-height: 1.45em;
+  min-height: 16px;
   margin-top: 2px;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 16px;
   color: var(--fg-3);
 }
 .setting-row-control {
@@ -158,7 +171,7 @@
 }
 .settings-note {
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 16px;
   color: var(--fg-3);
 }
 .settings-foot {
@@ -183,8 +196,19 @@
   .setting-control-select {
     width: 100%;
   }
-  .setting-row-control:has(> [role='switch']) {
-    align-items: flex-start;
+  /* Full-width segmented controls share the width evenly instead of bunching left. */
+  .setting-row-control > [role='group'] {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
+  .setting-row-control > [role='group'] > button {
+    justify-content: center;
+  }
+  /* A switch stays beside its label, as switches do on phones. */
+  .setting-row:has(> .setting-row-control > [role='switch']) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
   }
 }
 
@@ -231,19 +255,24 @@
 .settings-list-item-label {
   font-size: 13.5px;
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 20px;
 }
 .settings-list-item-description {
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 16px;
   color: var(--fg-3);
 }
 .settings-list-item > svg:last-child {
   flex: none;
   color: var(--fg-faint);
 }
+/* Back, the user card and Sign out carry the rail's 8px inner padding; pull them out so
+   their icons line up with the title and the list's icons on the 16px gutter. */
+.settings-mobile-back {
+  margin-left: -8px;
+}
 .settings-mobile-footer {
-  margin-top: 28px;
+  margin: 28px -8px 0;
 }
 .settings-mobile-footer .board-rail-nav {
   margin-top: 4px;
@@ -265,5 +294,9 @@
   }
   .settings-list-item {
     min-height: 56px;
+  }
+  /* 40px buttons in the 2px track: a 44px control. */
+  .setting-row-control [role='group'] > button {
+    height: 40px;
   }
 }

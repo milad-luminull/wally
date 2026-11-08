@@ -12,11 +12,7 @@ export function LanguageSettings() {
   return (
     <SettingsSection id="language">
       {/* The status sits under the label, so the select stays centred in its row. */}
-      <SettingRow
-        label={t('account.language.label')}
-        htmlFor={id}
-        hint={<span role="status">{status}</span>}
-      >
+      <SettingRow label={t('account.language.label')} htmlFor={id} status={status}>
         <LanguageSelect id={id} className="setting-control-select" withStatus={false} />
       </SettingRow>
     </SettingsSection>

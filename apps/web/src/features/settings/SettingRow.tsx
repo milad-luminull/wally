@@ -9,17 +9,20 @@ export function SettingRow({
   hint,
   hintId,
   htmlFor,
+  status,
   children,
 }: {
   label: ReactNode;
   hint?: ReactNode;
   hintId?: string;
   htmlFor?: string;
+  /** A live status line under the label that takes no space, so the row never moves. */
+  status?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="setting-row">
-      <div className="min-w-0">
+      <div className="setting-row-text">
         {htmlFor ? (
           <label htmlFor={htmlFor} className="setting-row-label">
             {label}
@@ -30,6 +33,11 @@ export function SettingRow({
         {hint && (
           <p id={hintId} className="setting-row-hint">
             {hint}
+          </p>
+        )}
+        {status !== undefined && (
+          <p role="status" className="setting-row-status">
+            {status}
           </p>
         )}
       </div>

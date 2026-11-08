@@ -8,7 +8,7 @@ export function SettingsList() {
   const { t } = useTranslation();
   const { openSection } = useSettingsNavigation();
   return (
-    <div className="settings-list">
+    <nav aria-label={t('settings.title')} className="settings-list">
       {SETTINGS_SECTIONS.map(({ id, icon: Icon, labelKey, descriptionKey }) => (
         <button
           key={id}
@@ -24,6 +24,6 @@ export function SettingsList() {
           <ChevronRight size={16} strokeWidth={1.8} aria-hidden />
         </button>
       ))}
-    </div>
+    </nav>
   );
 }
