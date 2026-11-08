@@ -15,7 +15,7 @@ WORKDIR /repo
 # ---------------------------------------------------------------------------
 FROM base AS dev
 # Manifests first, as apps/api/Dockerfile does: the install layer then stays cached until a
-# dependency changes, instead of being rebuilt for every source change (CI caches layers).
+# dependency changes, instead of being rebuilt for every source change.
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
 COPY packages/config/package.json packages/config/package.json
 COPY packages/shared/package.json packages/shared/package.json
