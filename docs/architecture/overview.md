@@ -39,7 +39,7 @@ flowchart LR
     web["web<br/>React SPA, Vite<br/>Worker wally-web (static assets), wally.luminull.com"]
     proxy["api-proxy<br/>Worker wally-api-proxy, api.wally.luminull.com<br/>forwards every request unchanged"]
   end
-  subgraph wally["Wally (Google Cloud project luminull-wally)"]
+  subgraph wally["Wally (Google Cloud project luminull-wally-prod)"]
     api["api<br/>Fastify, Node 22, REST and /mcp<br/>Cloud Run, europe-west1"]
     store[("Supabase PostgreSQL<br/>Ireland, transaction pooler")]
     model["Vertex AI<br/>location eu"]

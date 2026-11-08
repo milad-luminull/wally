@@ -448,6 +448,9 @@ request logs with client IP addresses are kept 30 days, in the `global` location
 gcloud logging buckets describe _Default --location=global --project=luminull-wally
 ```
 
+That project was deleted on 2026-11-08; the API now runs in `luminull-wally-prod`, whose
+`_Default` bucket has not been checked yet. The plan below names the new project.
+
 **Not verified first-hand:** what Cloudflare itself records about each request for its own
 security and analytics features on the Free plan, and for how long.
 
@@ -470,8 +473,8 @@ page only renders in a browser; its figures were read from Google's search listi
    stops it being stored ([`gcloud logging sinks update`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/sinks/update)):
 
    ```bash
-   gcloud logging sinks update _Default --project=luminull-wally \
-     --add-exclusion=name=cloud-run-requests,filter='logName="projects/luminull-wally/logs/run.googleapis.com%2Frequests"'
+   gcloud logging sinks update _Default --project=luminull-wally-prod \
+     --add-exclusion=name=cloud-run-requests,filter='logName="projects/luminull-wally-prod/logs/run.googleapis.com%2Frequests"'
    ```
 
    The cost: a request Cloud Run rejects before the API answers it, for example when no
@@ -481,8 +484,8 @@ page only renders in a browser; its figures were read from Google's search listi
    `_Default` sink at it ([`gcloud logging buckets create`](https://docs.cloud.google.com/sdk/gcloud/reference/logging/buckets/create), [bucket destinations](https://docs.cloud.google.com/logging/docs/export/configure_export_v2)):
 
    ```bash
-   gcloud logging buckets create wally-eu --location=europe-west1 --retention-days=30 --project=luminull-wally
-   gcloud logging sinks update _Default logging.googleapis.com/projects/luminull-wally/locations/europe-west1/buckets/wally-eu --project=luminull-wally
+   gcloud logging buckets create wally-eu --location=europe-west1 --retention-days=30 --project=luminull-wally-prod
+   gcloud logging sinks update _Default logging.googleapis.com/projects/luminull-wally-prod/locations/europe-west1/buckets/wally-eu --project=luminull-wally-prod
    ```
 
    Entries already in the `global` bucket stay there until its retention expires them. The
@@ -632,7 +635,8 @@ why consent was not used. A short written record is enough; the absence of one i
 
 ### ORG-02 — Processor agreement with Google · Art. 28
 
-Accept Google's Cloud Data Processing Addendum for the `luminull-wally` project and file it.
+Accept Google's Cloud Data Processing Addendum for the `luminull-wally-prod` project (which
+replaced `luminull-wally` on 2026-11-07) and file it.
 Also add Google to the processor register with the EU regions from §3. This applies to a
 side project exactly as it does to a company — Art. 28 has no size threshold. Supabase, live
 since v0.12.0, needs the same review (agreement, region, subprocessors), as Auth0 does below
