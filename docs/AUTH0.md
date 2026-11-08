@@ -249,6 +249,9 @@ first real check.
 - Dynamic registration and CIMD are disabled, because Auth0 maps ChatGPT's CIMD client to
   `private_key_jwt`.
   [Auth0 documents that method as Enterprise-only](https://auth0.com/docs/get-started/auth0-overview/create-applications/register-applications-with-cimd).
+  ChatGPT therefore asks for the client ID when a connector is added. Wally's Connected apps
+  page (`/settings/connections`) shows it, from the API's `MCP_CLIENT_ID`, next to the
+  connector URL; the client secret stays empty.
 - The `google-oauth2` and `Username-Password-Authentication` connections are domain-level,
   so every third-party app in the tenant can use them. API grants and Wally permissions
   still apply.
