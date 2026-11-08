@@ -69,7 +69,7 @@ One white surface with the marigold mark, using existing field and elevation sty
    parser chips (dates, people, priority) show only while the hint is "Adds a note" and the
    text is one line; kept chips are sent with the message as today's `locked` fields. If the
    intake splits the text or decides it is not a note, the chips are ignored and the fill-in
-   reads the words itself. *(Builder-check call.)*
+   reads the words itself. _(Builder-check call.)_
 3. **Working:** the box's edge takes the accent ring (BRAND accent job 4, extended to the
    box) while anything is in flight; each item shows as a small chip with its first words
    and the pulsing dots. Chips finish in any order.
@@ -93,14 +93,14 @@ On Enter, unless the hint was pinned with Tab, the text goes to a new API call, 
 (POST `/whiteboards/:id/assistant/intakes`). One structured-output model call, no tools,
 reads the text with the board as data and returns a list of items, each of one kind:
 
-| Kind      | Item holds                                                                                | What happens                                    |
-| --------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `note`    | one note text, in the writer's words                                                      | Created and filled in (§5.1)                    |
-| `ask`     | the question                                                                              | The existing question turn answers it (§5.2)    |
-| `change`  | operations on notes it names by id: complete, reopen, set due date, horizon, priority, assignee, rename | Applied with one Undo (§5.3)          |
-| `clarify` | one short question, two or three options, and the note it is about (if any)              | Shown in the box; the choice resolves it (§5.4) |
+| Kind      | Item holds                                                                                              | What happens                                    |
+| --------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `note`    | one note text, in the writer's words                                                                    | Created and filled in (§5.1)                    |
+| `ask`     | the question                                                                                            | The existing question turn answers it (§5.2)    |
+| `change`  | operations on notes it names by id: complete, reopen, set due date, horizon, priority, assignee, rename | Applied with one Undo (§5.3)                    |
+| `clarify` | one short question, two or three options, and the note it is about (if any)                             | Shown in the box; the choice resolves it (§5.4) |
 
-*(Builder-check calls:)*
+_(Builder-check calls:)_
 
 - **Mixed messages:** note items always go ahead on their own. At most one other item (an
   `ask`, a `change` or a `clarify`) per message, because the box shows one reply; when the
@@ -134,7 +134,7 @@ flip it. The model has the final say unless you pinned the hint with Tab:
 - **Not pinned:** the intake decides; if it disagrees with the hint, the result simply
   follows the intake.
 
-*Difference from the design:* in 3c the hint is the decision. Here it is only a guess,
+_Difference from the design:_ in 3c the hint is the decision. Here it is only a guess,
 because the owner asked for understanding over keyword rules.
 
 ### 4.3 Without the model
@@ -145,7 +145,7 @@ because the owner asked for understanding over keyword rules.
   (as above) and the box says "Saved as written." If it said ask, the box says Wally couldn't
   answer and puts the text back in the box. Nothing is ever lost.
 
-### 4.4 Model calls in flight *(builder-check call)*
+### 4.4 Model calls in flight _(builder-check call)_
 
 Today a user may have two model calls in flight (`MAX_IN_FLIGHT = 2`, `budget/ledger.ts`),
 and a burst of notes needs one fill-in call each. The client queues fill-ins and runs at most
@@ -214,7 +214,7 @@ another model call where possible (Add anyway creates the note; Open it opens it
 - Nothing else on the wall changes. The mark goes away when you open the note, or on your next
   visit.
 - Changes you or a teammate made in Wally are not marked.
-- *(Builder-check call)* A visit is per person and per board. It starts when you open the
+- _(Builder-check call)_ A visit is per person and per board. It starts when you open the
   board, or come back to it after at least 30 minutes with the tab hidden or closed; it ends
   when you leave. Changes an app makes while you are on the board are marked too, since
   they happened after your visit began.
@@ -230,7 +230,7 @@ another model call where possible (Add anyway creates the note; Open it opens it
 - The existing inline card view (`show_cards`) shows the added notes. Fixing the known issue
   that the card view does not appear in ChatGPT is tracked separately; Undo buttons inside the
   inline view wait until that works.
-- *(Builder-check call)* "Notes for other people wait for your OK" (3a) moves to the 3f round
+- _(Builder-check call)_ "Notes for other people wait for your OK" (3a) moves to the 3f round
   (Connected apps: access and activity), where the permission levels live. Until then the
   existing tools (`create_note`, `assign_note`) behave as today.
 
