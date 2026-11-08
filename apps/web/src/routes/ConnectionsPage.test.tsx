@@ -92,7 +92,12 @@ it('reports a failed disconnect without hiding the active connection', async () 
 it('shows a gray not-connected state and numbered setup steps', async () => {
   renderWithProviders(<ConnectionsSettings />);
   expect(await screen.findByText('Not connected')).toBeInTheDocument();
-  expect(screen.getByRole('list', { name: 'Connection setup steps' }).children).toHaveLength(3);
+  expect(screen.getByRole('list', { name: 'Connection setup steps' }).children).toHaveLength(4);
+});
+it('shows the OAuth client ID that hosts such as ChatGPT ask for', async () => {
+  renderWithProviders(<ConnectionsSettings />);
+  expect(await screen.findByLabelText('OAuth client ID')).toHaveValue('client');
+  expect(screen.getByText(/leave the client secret empty/i)).toBeInTheDocument();
 });
 it('shows disconnected as an issue and keeps reconnect available', async () => {
   config.connections = [{ ...connection, revokedAt: '2026-10-22T10:00:00.000Z' }];

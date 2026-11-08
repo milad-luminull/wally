@@ -65,11 +65,14 @@ export const de = {
       'Füge die Verbindungs-URL unten als Server-URL ein und wähle OAuth als Authentifizierung.',
     setupLocalUrl:
       'Wähle in ChatGPT den eingerichteten Wally-Testtunnel. Für einen lokalen MCP-Client nutze die URL unten. Wähle OAuth als Authentifizierung.',
+    setupClientId:
+      'Fragt er nach einer OAuth-Client-ID, zum Beispiel unter den erweiterten OAuth-Einstellungen, füge die Client-ID unten ein. Lass das Client-Secret leer.',
     setupSignIn:
       'Melde dich mit deinem Wally-Konto an und bestätige den Zugriff. Wähle dann Wally in einem Chat und probiere „Zeig meine Boards“.',
     localSetupHint:
       'Dies ist ein lokaler Testserver. ChatGPT kann localhost nicht direkt erreichen und benötigt einen funktionierenden Tunnel.',
     endpoint: 'Verbindungs-URL',
+    clientId: 'OAuth-Client-ID',
   },
   welcome: {
     open: 'Wally öffnen',

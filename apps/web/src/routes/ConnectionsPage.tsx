@@ -170,6 +170,7 @@ export function ConnectionsSettings() {
               >
                 <li>{t('connections.setupOpen')}</li>
                 <li>{t(localEndpoint ? 'connections.setupLocalUrl' : 'connections.setupUrl')}</li>
+                {data.client && <li>{t('connections.setupClientId')}</li>}
                 <li>{t('connections.setupSignIn')}</li>
               </ol>
               {localEndpoint && (
@@ -184,6 +185,17 @@ export function ConnectionsSettings() {
                 value={`${import.meta.env.VITE_API_BASE_URL}/mcp`}
                 onFocus={(event) => event.currentTarget.select()}
               />
+              {data.client && (
+                <>
+                  <Label htmlFor="connection-client-id">{t('connections.clientId')}</Label>
+                  <Input
+                    id="connection-client-id"
+                    readOnly
+                    value={data.client.id}
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                </>
+              )}
             </section>
           )}
         </>
