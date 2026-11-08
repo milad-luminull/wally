@@ -135,18 +135,22 @@ export function ConnectionsSettings() {
               </li>
             ))}
           </ul>
-          {mutation.isError && (
-            <p role="alert" className="mt-2 text-12 text-status-danger">
-              {t('connections.saveError')}
-            </p>
-          )}
-          <p role="status" className="settings-note mt-2 min-h-[1rem]">
-            {mutation.isPending
-              ? t('connections.saving')
-              : mutation.isSuccess
-                ? t('connections.saved')
-                : ''}
-          </p>
+          {/* One reserved line for the save result, so nothing below moves. */}
+          <div className="mt-2 min-h-[1rem]">
+            {mutation.isError ? (
+              <p role="alert" className="text-12 text-status-danger">
+                {t('connections.saveError')}
+              </p>
+            ) : (
+              <p role="status" className="settings-note">
+                {mutation.isPending
+                  ? t('connections.saving')
+                  : mutation.isSuccess
+                    ? t('connections.saved')
+                    : ''}
+              </p>
+            )}
+          </div>
           {data.enabled && (
             <section aria-labelledby="connections-setup-title">
               <SettingsGroupTitle id="connections-setup-title">

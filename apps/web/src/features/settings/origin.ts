@@ -19,14 +19,25 @@ export function settingsLinkState(location: {
   return { from: location.pathname + location.search + location.hash };
 }
 
-export function readSettingsOrigin(state: unknown): string {
-  if (typeof state !== 'object' || state === null || !('from' in state)) return FALLBACK;
+/** The origin from location state, or null when there is none worth trusting. */
+export function settingsOriginFrom(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('from' in state)) return null;
   const { from } = state;
-  if (typeof from !== 'string') return FALLBACK;
-  // Same-origin paths only, and never Settings itself, so Back can neither leave the site
-  // nor loop.
-  if (!from.startsWith('/') || from.startsWith('//')) return FALLBACK;
-  if (from === '/settings' || from.startsWith('/settings/') || from.startsWith('/settings?'))
-    return FALLBACK;
-  return from;
+  if (typeof from !== 'string' || !from.startsWith('/')) return null;
+  // Parse it the way the browser will: `/\host` and `/<tab>/host` are other origins too.
+  let url: URL;
+  try {
+    url = new URL(from, window.location.origin);
+  } catch {
+    return null;
+  }
+  if (url.origin !== window.location.origin) return null;
+  // Never Settings itself (routes match case-insensitively), so Back cannot loop.
+  const path = url.pathname.toLowerCase();
+  if (path === '/settings' || path.startsWith('/settings/')) return null;
+  return url.pathname + url.search + url.hash;
+}
+
+export function readSettingsOrigin(state: unknown): string {
+  return settingsOriginFrom(state) ?? FALLBACK;
 }

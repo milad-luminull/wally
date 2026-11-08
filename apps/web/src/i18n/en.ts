@@ -1,7 +1,6 @@
 /** English copy. Held to the German catalogue's key set by resources.test.ts. */
 export const en = {
   accountData: {
-    title: 'Account and data',
     exportTitle: 'Your data',
     exportHint: 'Download everything you can see in Wally as one JSON file.',
     download: 'Download my data',
@@ -66,7 +65,6 @@ export const en = {
     copied: 'Copied',
   },
   connections: {
-    title: 'Connected apps',
     description:
       'A connected app can only do what you can do in Wally, and your private notes stay protected from other users.',
     loading: 'Loading connections…',
@@ -467,9 +465,7 @@ export const en = {
       saveFailed: 'Couldn’t save your language',
     },
     wallybot: {
-      label: 'Wallybot',
       alwaysAsk: 'Always ask me',
-      hint: 'Always ask me: suggestions wait for Enter instead of applying on their own.',
     },
   },
   validation: {

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router';
-import { readSettingsOrigin, type SettingsLinkState } from './origin';
+import { readSettingsOrigin, settingsOriginFrom, type SettingsLinkState } from './origin';
 import type { SettingsSectionId } from './sections';
 
 /**
@@ -10,11 +10,18 @@ export function useSettingsNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const origin = readSettingsOrigin(location.state);
+  // An entry that carries a trusted origin sits directly above it in history (links push,
+  // section switches and redirects replace), or one above the list when pushed from it.
+  const hasOrigin = settingsOriginFrom(location.state) !== null;
   const fromList = Boolean((location.state as Partial<SettingsLinkState> | null)?.fromList);
 
   return {
     origin,
-    goBack: () => navigate(origin),
+    // Popping, not pushing, so the browser's Back afterwards doesn't reopen Settings.
+    goBack: () => {
+      if (hasOrigin) navigate(fromList ? -2 : -1);
+      else navigate(origin);
+    },
     openSection: (id: SettingsSectionId, opts?: { fromList?: boolean }) =>
       navigate(`/settings/${id}`, {
         replace: !opts?.fromList,

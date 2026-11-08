@@ -9,7 +9,7 @@ export function SettingsSection({ id, children }: { id: SettingsSectionId; child
   const meta = SETTINGS_SECTIONS.find((s) => s.id === id)!;
   return (
     <section className="settings-section" aria-labelledby={titleId}>
-      <h1 id={titleId} className="settings-title">
+      <h1 id={titleId} className="settings-title" tabIndex={-1}>
         {t(meta.labelKey)}
       </h1>
       <p className="settings-description">{t(meta.descriptionKey)}</p>

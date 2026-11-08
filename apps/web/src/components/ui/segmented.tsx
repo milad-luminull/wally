@@ -25,6 +25,7 @@ interface SegmentedProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   'aria-label': string;
+  'aria-describedby'?: string;
   className?: string;
 }
 
@@ -34,11 +35,13 @@ export function Segmented<T extends string>({
   onChange,
   className,
   'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
 }: SegmentedProps<T>) {
   return (
     <div
       role="group"
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       className={cn('inline-flex items-center gap-0.5 rounded-md bg-inset p-0.5', className)}
     >
       {options.map((option) => {

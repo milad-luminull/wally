@@ -51,13 +51,13 @@ explains each setting without over-explaining; and Back that returns to the prev
 
 ### Sections and addresses
 
-| Address | Sidebar label | Line under the title | Contents (moved from) |
-|---|---|---|---|
-| `/settings/appearance` | Appearance | Colours, light or dark, and the canvas background. | Colour palette, mode, free canvas background (popover) |
-| `/settings/language` | Language | The language Wally uses. | Language select with its saving / save-failed status (popover) |
-| `/settings/wallybot` | Wallybot | Whether suggestions apply on their own or wait for you. | The "Always ask me" switch (popover) |
-| `/settings/connections` | Connected apps | Let ChatGPT, Claude or other AI apps use your boards. | Today's Connections page |
-| `/settings/account` | Account and data | Download your data or delete your account. | Today's Account and data page, with the Privacy and Terms links |
+| Address                 | Sidebar label    | Line under the title                                    | Contents (moved from)                                           |
+| ----------------------- | ---------------- | ------------------------------------------------------- | --------------------------------------------------------------- |
+| `/settings/appearance`  | Appearance       | Colours, light or dark, and the canvas background.      | Colour palette, mode, free canvas background (popover)          |
+| `/settings/language`    | Language         | The language Wally uses.                                | Language select with its saving / save-failed status (popover)  |
+| `/settings/wallybot`    | Wallybot         | Whether suggestions apply on their own or wait for you. | The "Always ask me" switch (popover)                            |
+| `/settings/connections` | Connected apps   | Let ChatGPT, Claude or other AI apps use your boards.   | Today's Connections page                                        |
+| `/settings/account`     | Account and data | Download your data or delete your account.              | Today's Account and data page, with the Privacy and Terms links |
 
 - `/settings` on a wide screen redirects (replace) to `/settings/appearance`; on a narrow
   screen it shows the section list (below).
@@ -118,12 +118,12 @@ explains each setting without over-explaining; and Back that returns to the prev
   3. **Settings** (gear icon) — the first menu item,
   4. Keyboard shortcuts (only where a board is mounted, as today),
   5. Sign out.
-  Palette, canvas background, language, Wallybot and the two settings links leave the popover.
-  Mode is in both the popover and Appearance; both read and write the same theme state.
+     Palette, canvas background, language, Wallybot and the two settings links leave the popover.
+     Mode is in both the popover and Appearance; both read and write the same theme state.
 - **Command palette** ([BoardCommands.tsx](../../../apps/web/src/features/board/BoardCommands.tsx)):
   its existing "Settings" group keeps its quick commands and gains one **Open settings**
-  command that goes to `/settings` with the board as origin. *(Builder's call, approved with
-  this doc.)*
+  command that goes to `/settings` with the board as origin. _(Builder's call, approved with
+  this doc.)_
 - `AppearanceControls` is also used by the signed-out landing page
   ([PublicHeader.tsx](../../../apps/web/src/components/PublicHeader.tsx)). Splitting Mode out
   for the popover must leave the landing page exactly as it is.
@@ -142,7 +142,7 @@ explains each setting without over-explaining; and Back that returns to the prev
 - Back restores the board's view (axis, filters, search, open note), since those live in the
   URL or saved preferences. The board rail's collapsed state is component state today and
   comes back expanded; that stays as it is, because remembering it would need new storage.
-  *(Builder's call, approved with this doc.)*
+  _(Builder's call, approved with this doc.)_
 
 ### Visual spec
 
@@ -154,16 +154,16 @@ palette-specific code.
 
 **Rail: identical to the board rail.**
 
-| Element | Value (source) |
-|---|---|
-| Rail | 212px wide, `padding: 12px 8px 10px`, `gap: 14px`, `background: var(--rail, var(--inset))` (`.board-rail`) |
-| "← Back" row | 30px tall, `padding: 0 8px`, radius 7px, `ChevronLeft` 15px / stroke 1.8, 13.5px `--fg-3`; hover `--inset-hover` with `--fg-1` (`.board-rail-toggle` colours, nav-item size) |
-| "Settings" heading | 30px row, `padding: 0 8px`, 15px / 600 / `-0.03em`, `--fg-1` (`.board-rail-brand` type) |
-| Nav items | 30px, `gap: 10px`, `padding: 0 8px`, radius 7px, 13.5px `--fg-2`, 1px between items; icon 15px / stroke 1.8 (`.board-rail-nav button`) |
-| Current item | `background: var(--surface)`, `--fg-1`, weight 500, `box-shadow: 0 1px 2px rgba(0,0,0,.04)` (`[aria-current]`) |
-| User card | `.board-rail-profile` layout: 28px avatar, 9px gap, name 13px / 500 `--fg-1`, email 12px `--fg-3` below; not interactive here, so no hover |
-| Sign out | a nav-style item (30px, `LogOut` icon) under the user card |
-| Focus | 2px `--fg-1` outline, 2px offset (the rail's focus rule); never the accent |
+| Element            | Value (source)                                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rail               | 212px wide, `padding: 12px 8px 10px`, `gap: 14px`, `background: var(--rail, var(--inset))` (`.board-rail`)                                                                   |
+| "← Back" row       | 30px tall, `padding: 0 8px`, radius 7px, `ChevronLeft` 15px / stroke 1.8, 13.5px `--fg-3`; hover `--inset-hover` with `--fg-1` (`.board-rail-toggle` colours, nav-item size) |
+| "Settings" heading | 30px row, `padding: 0 8px`, 15px / 600 / `-0.03em`, `--fg-1` (`.board-rail-brand` type)                                                                                      |
+| Nav items          | 30px, `gap: 10px`, `padding: 0 8px`, radius 7px, 13.5px `--fg-2`, 1px between items; icon 15px / stroke 1.8 (`.board-rail-nav button`)                                       |
+| Current item       | `background: var(--surface)`, `--fg-1`, weight 500, `box-shadow: 0 1px 2px rgba(0,0,0,.04)` (`[aria-current]`)                                                               |
+| User card          | `.board-rail-profile` layout: 28px avatar, 9px gap, name 13px / 500 `--fg-1`, email 12px `--fg-3` below; not interactive here, so no hover                                   |
+| Sign out           | a nav-style item (30px, `LogOut` icon) under the user card                                                                                                                   |
+| Focus              | 2px `--fg-1` outline, 2px offset (the rail's focus rule); never the accent                                                                                                   |
 
 **Board rail Settings item:** a 30px nav-style item (`Settings` gear, 15px / stroke 1.8,
 13.5px `--fg-2`) between New note and the account row, 6px above the account row. Collapsed
@@ -254,8 +254,8 @@ owner with the result.
 3. **Design critique** with the `design:design-critique` skill on the screenshots: hierarchy,
    consistency with the board, anything that reads as a template. Fix what it finds, then
    take the screenshots again.
-4. **Accessibility review** with the `design:accessibility-review` skill: keyboard order (Back,
-   nav, content, user card, Sign out), `aria-current`, visible focus everywhere, contrast of
+4. **Accessibility review** with the `design:accessibility-review` skill: keyboard order that follows the visual order (Back,
+   nav, user card, Sign out, then content), `aria-current`, visible focus everywhere, contrast of
    hints and status text in all palettes (the existing contrast tests cover the tokens),
    44px touch targets, and screen-reader names for icon-only items in the collapsed rail.
 5. **Copy review** with the `design:ux-copy` skill on every new and changed string, English

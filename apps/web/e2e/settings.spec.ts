@@ -58,7 +58,7 @@ test('phone: list, section, list, back to the board', async ({ page }) => {
   const board = page.url();
 
   await page.getByRole('button', { name: 'Profil & Einstellungen', exact: true }).click();
-  await page.getByRole('link', { name: 'Einstellungen', exact: true }).click();
+  await page.getByRole('dialog').getByRole('link', { name: 'Einstellungen', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Einstellungen' })).toBeVisible();
   for (const name of ['Darstellung', 'Sprache', 'Wallybot', 'Verbundene Apps', 'Konto und Daten']) {
     await expect(page.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible();
@@ -73,6 +73,10 @@ test('phone: list, section, list, back to the board', async ({ page }) => {
 
   await page.setViewportSize({ width: 320, height: 760 });
   await page.goto('/settings/connections');
-  await expect(page.getByRole('heading', { level: 1, name: 'Verbundene Apps' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  // Wait for the longest content (the copy fields), then check the scroller itself: the page
+  // never scrolls sideways because the settings column is its own scroll container.
+  await expect(page.getByLabel('Verbindungs-URL', { exact: true })).toBeVisible();
+  expect(
+    await page.locator('.settings-mobile').evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true);
 });

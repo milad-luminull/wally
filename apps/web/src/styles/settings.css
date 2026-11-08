@@ -140,6 +140,7 @@
   color: var(--fg-1);
 }
 .setting-row-hint {
+  min-height: 1.45em;
   margin-top: 2px;
   font-size: 12px;
   line-height: 1.45;
@@ -178,9 +179,12 @@
   .setting-row-control {
     align-items: stretch;
   }
-  .setting-row-control > *,
+  .setting-row-control > :not([role='switch']),
   .setting-control-select {
     width: 100%;
+  }
+  .setting-row-control:has(> [role='switch']) {
+    align-items: flex-start;
   }
 }
 
@@ -192,7 +196,7 @@
   padding: 16px;
   background: var(--canvas);
 }
-.settings-mobile .settings-title {
+.settings-mobile > .settings-title {
   margin: 12px 0 16px;
 }
 .settings-list {

@@ -23,9 +23,7 @@ export function AppearanceSettings() {
         hint={t('settings.appearance.modeHint')}
         hintId={modeHintId}
       >
-        <div aria-describedby={modeHintId}>
-          <ThemeModeControl label={t('settings.appearance.mode')} />
-        </div>
+        <ThemeModeControl label={t('settings.appearance.mode')} describedBy={modeHintId} />
       </SettingRow>
       <SettingRow label={t('account.canvas.label')}>
         <Segmented

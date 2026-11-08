@@ -21,7 +21,7 @@ it('offers palette, mode and canvas background, each as a row', () => {
   for (const name of ['System', 'Light', 'Dark']) {
     expect(within(mode).getByRole('button', { name })).toBeInTheDocument();
   }
-  expect(screen.getByText('Follows your device when set to System.')).toBeInTheDocument();
+  expect(mode).toHaveAccessibleDescription('Follows your device when set to System.');
   expect(screen.getByRole('group', { name: 'Free canvas background' })).toBeInTheDocument();
 });
 

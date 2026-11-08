@@ -26,6 +26,11 @@ describe('readSettingsOrigin', () => {
     { from: 'https://evil.com' },
     { from: '/settings/language' },
     { from: '/settings' },
+    { from: '/\\evil.com' },
+    { from: '/\t/evil.com' },
+    { from: '/settings#x' },
+    { from: '/SETTINGS' },
+    { from: '/Settings/language' },
   ])('falls back to the board home for %j', (state) => {
     expect(readSettingsOrigin(state)).toBe('/boards');
   });

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EmailVerificationBanner } from '@/features/auth/EmailVerificationBanner';
@@ -24,6 +24,12 @@ export function SettingsShell({
   const { t } = useTranslation();
   const { isDesktop } = useBreakpoint();
   const { goBack, backToList } = useSettingsNavigation();
+  const narrowRef = useRef<HTMLElement>(null);
+  // On a narrow screen the list and each section are whole pages; without this, focus falls
+  // to <body> on every switch and a screen-reader user starts again from the top.
+  useEffect(() => {
+    if (!isDesktop) narrowRef.current?.querySelector<HTMLElement>('h1')?.focus();
+  }, [isDesktop, section]);
 
   return (
     <div className="settings-shell">
@@ -34,7 +40,7 @@ export function SettingsShell({
           <main className="settings-content wally-scroll">{children}</main>
         </div>
       ) : (
-        <main className="settings-mobile wally-scroll">
+        <main ref={narrowRef} className="settings-mobile wally-scroll">
           {section ? (
             <>
               <button
@@ -54,7 +60,9 @@ export function SettingsShell({
                 <ChevronLeft size={15} strokeWidth={1.8} aria-hidden />
                 <span>{t('settings.back')}</span>
               </button>
-              <h1 className="settings-title">{t('settings.title')}</h1>
+              <h1 className="settings-title" tabIndex={-1}>
+                {t('settings.title')}
+              </h1>
               <SettingsList />
               <div className="settings-mobile-footer">
                 <SettingsUserCard />

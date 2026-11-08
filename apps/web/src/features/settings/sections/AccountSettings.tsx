@@ -31,7 +31,16 @@ export function AccountSettings() {
     <SettingsSection id="account">
       <SettingRow
         label={t('accountData.exportTitle')}
-        hint={t('accountData.exportHint')}
+        hint={
+          // The failure takes the hint's place, so nothing moves.
+          exportFailed ? (
+            <span role="alert" className="text-status-danger">
+              {t('accountData.exportFailed')}
+            </span>
+          ) : (
+            t('accountData.exportHint')
+          )
+        }
         hintId={exportHintId}
       >
         <Button
@@ -42,11 +51,6 @@ export function AccountSettings() {
         >
           {t('accountData.download')}
         </Button>
-        {exportFailed && (
-          <p role="alert" className="text-12 text-status-danger">
-            {t('accountData.exportFailed')}
-          </p>
-        )}
       </SettingRow>
       <SettingRow
         label={t('settings.account.accountLabel')}

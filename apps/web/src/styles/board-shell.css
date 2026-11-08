@@ -251,6 +251,9 @@
   justify-content: center;
   padding: 12px 0 0;
 }
+.board-rail[data-collapsed='true'] .board-rail-settings + .board-rail-account {
+  padding-top: 6px;
+}
 /* One floating toolbar, matching the reference's 32px search well and icon controls. */
 .board-filter-toolbar {
   display: flex;

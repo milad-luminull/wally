@@ -4,12 +4,21 @@ import { Segmented } from './ui/segmented';
 import { useTheme } from '@/lib/themeContext';
 
 /** System, Light or Dark. Lives on the landing page, in the profile menu and in Settings. */
-export function ThemeModeControl({ label, className }: { label?: string; className?: string }) {
+export function ThemeModeControl({
+  label,
+  describedBy,
+  className,
+}: {
+  label?: string;
+  describedBy?: string;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   return (
     <Segmented
       aria-label={label ?? t('account.theme.label')}
+      aria-describedby={describedBy}
       value={theme}
       onChange={setTheme}
       className={className}

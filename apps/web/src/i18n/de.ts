@@ -7,7 +7,6 @@
  */
 export const de = {
   accountData: {
-    title: 'Konto und Daten',
     exportTitle: 'Deine Daten',
     exportHint: 'Lade alles, was du in Wally siehst, als eine JSON-Datei herunter.',
     download: 'Meine Daten herunterladen',
@@ -74,7 +73,6 @@ export const de = {
     copied: 'Kopiert',
   },
   connections: {
-    title: 'Verbundene Apps',
     description:
       'Eine verbundene App kann nur, was du in Wally kannst, und deine privaten Notizen bleiben vor anderen geschützt.',
     loading: 'Verbindungen werden geladen…',
@@ -484,9 +482,7 @@ export const de = {
       saveFailed: 'Konnte die Sprache nicht speichern',
     },
     wallybot: {
-      label: 'Wallybot',
       alwaysAsk: 'Immer fragen',
-      hint: 'Immer fragen: Vorschläge warten auf Enter statt automatisch zu gelten.',
     },
   },
   validation: {

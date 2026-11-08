@@ -54,6 +54,7 @@ function LocationText() {
 }
 
 function renderSettings(route: string, state?: unknown) {
+  const from = (state as { from?: string } | undefined)?.from;
   return renderWithProviders(
     <Routes>
       <Route
@@ -76,7 +77,7 @@ function renderSettings(route: string, state?: unknown) {
       />
       <Route path="*" element={<Probe />} />
     </Routes>,
-    { route, state },
+    { route, state, before: from ? [from] : [] },
   );
 }
 
@@ -178,4 +179,33 @@ it('shows who is signed in and signs out', async () => {
   expect(screen.getByText('mika@example.com')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Sign out' }));
   expect(signOut).toHaveBeenCalledTimes(1);
+});
+
+it('moves focus to the new page title on a narrow screen', async () => {
+  breakpoint.isDesktop = false;
+  const user = userEvent.setup();
+  renderSettings('/settings', { from: '/boards/b1' });
+  await user.click(screen.getByRole('button', { name: /^Language/ }));
+  expect(screen.getByRole('heading', { level: 1, name: 'Language' })).toHaveFocus();
+  await user.click(screen.getByRole('button', { name: 'Back to settings' }));
+  expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toHaveFocus();
+});
+
+it('keeps the origin when the window crosses the desktop breakpoint', async () => {
+  breakpoint.isDesktop = false;
+  const user = userEvent.setup();
+  const { rerender } = renderSettings('/settings', { from: '/boards/b1' });
+  expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+  breakpoint.isDesktop = true;
+  rerender(<></>);
+  rerender(
+    <Routes>
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings/:section" element={<SettingsPage />} />
+      <Route path="*" element={<Probe />} />
+    </Routes>,
+  );
+  expect(await screen.findByRole('heading', { level: 1, name: 'Appearance' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Back' }));
+  expect(screen.getByText('landed /boards/b1')).toBeInTheDocument();
 });
