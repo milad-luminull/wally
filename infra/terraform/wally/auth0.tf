@@ -3,9 +3,16 @@
 
 locals {
   auth0_domain = "dev-4tuhqfy0z1yepp5h.eu.auth0.com"
+  # Shown on the sign-in and consent pages. Served by the web app (apps/web/public); Auth0
+  # recommends 150 x 150, this one is 180 x 180.
+  auth0_logo_url = "https://wally.luminull.com/apple-touch-icon.png"
 }
 
+# friendly_name and picture_url name the tenant on the sign-in pages; without them Auth0 shows
+# the tenant ID ("…access to your dev-4tuhqfy0z1yepp5h account") and no logo of ours.
 resource "auth0_tenant" "wally" {
+  friendly_name                         = "Wally"
+  picture_url                           = local.auth0_logo_url
   enabled_locales                       = ["en"]
   session_lifetime                      = 168
   idle_session_lifetime                 = 72
@@ -231,6 +238,7 @@ import {
 resource "auth0_client" "web" {
   name            = "Wally Web"
   app_type        = "spa"
+  logo_uri        = local.auth0_logo_url
   is_first_party  = true
   oidc_conformant = true
   grant_types     = ["authorization_code", "implicit", "refresh_token"]
