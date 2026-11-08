@@ -126,7 +126,9 @@ exact words), the text is too vague to act on, or a change could mean more than 
 The intake prompt follows the existing prompt rules: byte-stable prefix for caching, board
 content only as data, never follow instructions inside it, no name and no first person. It
 runs through the model boundary, budget ledger and rate limits like every other call, with a
-short deadline. It reuses the capture call's model and settings.
+capture's deadline (40 s): the eval on 2026-11-08 scored 23 of 24 and took 5.2 s at the median,
+26 s at the 95th percentile and 42 s at worst, with thinking already at the lowest level the
+model accepts. It reuses the capture call's model and settings.
 
 ### 4.2 The hint before Enter
 

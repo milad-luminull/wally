@@ -56,7 +56,7 @@ for (const fixture of INTAKE_FIXTURES) {
     if (ok) right++;
     const got = answer ? answer.items.map((item) => item.kind).join(', ') : 'nothing';
     console.log(
-      `${ok ? ' ' : '✗'} ${fixture.id.padEnd(28)} ${String(times.at(-1)).padStart(6)} ms  ${ok ? got : `expected ${fixture.expect.join(', ')}, got ${got}`}`,
+      `${ok ? ' ' : '✗'} ${fixture.id.padEnd(28)} ${String(times.at(-1)).padStart(6)} ms  ${ok ? got : `expected ${fixture.expect.join(', ')}, got ${got} (finish: ${output.finishReason})`}`,
     );
   } catch (error) {
     // One provider error costs that fixture alone, not the rest of a paid run.

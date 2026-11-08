@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { acceptIntake } from './intake.js';
+import { acceptIntake, INTAKE_DEADLINE_MS } from './intake.js';
+import { SUGGESTION_DEADLINE_MS } from './suggestions.js';
 import type { ModelIntakeItem } from './model/index.js';
 
 const item = (over: Partial<ModelIntakeItem>): ModelIntakeItem => ({
@@ -113,5 +114,11 @@ describe('acceptIntake', () => {
   it('returns null for no valid items', () => {
     expect(acceptIntake([item({ text: '   ' })], 'x', board)).toBeNull();
     expect(acceptIntake([], 'x', board)).toBeNull();
+  });
+});
+
+describe('the intake deadline', () => {
+  it('waits as long as a capture does: the model takes 5 s typically and up to 42 s at times', () => {
+    expect(INTAKE_DEADLINE_MS).toBe(SUGGESTION_DEADLINE_MS);
   });
 });

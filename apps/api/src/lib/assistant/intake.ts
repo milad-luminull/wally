@@ -14,10 +14,20 @@ import {
   buildIntakePrompt,
   INTAKE_MAX_LISTED_NOTES,
 } from './intakePrompt.js';
-import type { SuggestionContext, SuggestionDeps } from './suggestions.js';
+import {
+  SUGGESTION_DEADLINE_MS,
+  type SuggestionContext,
+  type SuggestionDeps,
+} from './suggestions.js';
 
-/** Short: the box falls back to the person's own words when it passes (the box spec, §4.3). */
-export const INTAKE_DEADLINE_MS = 15_000;
+/**
+ * As long as a capture waits (SUGGESTION_DEADLINE_MS, sized to the model's slow hours): the
+ * intake eval on 2026-11-08 took 5.2 s at the median, 26 s at the 95th percentile and 42 s at
+ * worst, while thinking is already at the lowest level the model accepts. The box stays free
+ * meanwhile; past the deadline the person's own words are kept (the box spec, §4.3). The web
+ * client waits AI_REQUEST_TIMEOUT_MS (55 s) for it.
+ */
+export const INTAKE_DEADLINE_MS = SUGGESTION_DEADLINE_MS;
 /** Room for ten notes in the writer's words and one question back. */
 export const INTAKE_MAX_OUTPUT_TOKENS = 1024;
 
