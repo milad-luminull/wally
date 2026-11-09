@@ -1,10 +1,31 @@
 # The Wally box (Wallybot v3: 3a, 3b, 3c, 3g)
 
-**Status:** approved 2026-11-08.
-**Design source:** `../wallybot-v3-design` (flows 3a In any AI app, 3b Welcome back, 3c One box,
-3g Add a card). The design is a suggestion; where this document differs, it says so.
-**Later rounds:** 3d Brief, 3e Group and link, 3f Connected apps, Plan my day/week (bulk
-changes), and voice (its own session, see §9).
+**Status:** approved 2026-11-08. **§4 and §5 are to be rewritten** (owner, 2026-11-08), see below.
+
+> **Where this stands (2026-11-09).** PR 1 (draft #126) built §3–§5 as written. Live testing
+> showed that §4–§5 are the wrong design. The intake call only labels the message, and the
+> client then branches on the label. Filling in a note is a second model call. Nothing
+> streams. The box is slow and shallow. The owner's requirements for the rewrite:
+>
+> 1. Wally first works out what the message is and acts on it as a real agent: a model with
+>    tools in a loop. No hand-written if/else in our code decides what happens.
+> 2. The person sees what is happening, step by step, through the libraries made for that.
+>    The status logic is not hand-written.
+> 3. Test on Gemini 3.7 Flash at `eu`. Anthropic models are ruled out.
+>
+> Agreed next step: a spike with one agent per message, built on the AI SDK's `ToolLoopAgent`
+> (in `ai` 7.x) and streamed to the box with `useChat` (`@ai-sdk/react`). Its tools read the
+> wall, add notes and ask back. After the spike: rewrite §4–§5, then the plan and the build.
+> That work replaces the intake call and `useWallyBox`'s queue and branching.
+>
+> Open question for the owner: does the agent fill in a note's fields itself, or does the card
+> review (§5.1) still do it?
+>
+> Everything else in this document stands: §1–§3, §6–§12, and the box UI built in PR 1.
+> **Design source:** `../wallybot-v3-design` (flows 3a In any AI app, 3b Welcome back, 3c One box,
+> 3g Add a card). The design is a suggestion; where this document differs, it says so.
+> **Later rounds:** 3d Brief, 3e Group and link, 3f Connected apps, Plan my day/week (bulk
+> changes), and voice (its own session, see §9).
 
 ## 1. Why
 
