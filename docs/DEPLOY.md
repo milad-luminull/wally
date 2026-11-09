@@ -1601,9 +1601,10 @@ gcloud auth application-default login
    - **Auth0:** Applications → Create Application → `wally-terraform`, Machine to Machine,
      authorized for the Auth0 Management API with `read:`, `update:`, `create:` and `delete:`
      on `clients`, `client_grants`, `resource_servers`, `connections`, `actions`,
-     `custom_domains`; `read:` and `update:` on `connections_options`, `prompts` and
-     `tenant_settings`. Auth0 hides a connection's options without `connections_options`.
-     No user scopes, and no `read:client_keys`, so no client secret is ever read.
+     `custom_domains` and `branding` (the sign-in pages' branding and theme); `read:` and
+     `update:` on `connections_options`, `prompts` and `tenant_settings`. Auth0 hides a
+     connection's options without `connections_options`. No user scopes, and no
+     `read:client_keys`, so no client secret is ever read.
    - **Cloudflare:** an account API token with Account · Workers Scripts · Edit, the
      permission the Custom Domains API lists
      ([API](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/update/)).
