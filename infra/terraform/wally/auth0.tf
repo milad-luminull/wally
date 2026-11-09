@@ -44,6 +44,105 @@ import {
   id = "wally"
 }
 
+# The sign-in pages in Wally's light palette (docs/BRAND.md; the values are the :root tokens in
+# apps/web/src/styles/globals.css). Auth0's pages have one look, so there is no dark variant.
+# The branding API is a singleton: creating this resource updates the tenant's branding and
+# needs no import. Auth0's own font stays: Geist would need CORS on wally.luminull.com/fonts.
+resource "auth0_branding" "wally" {
+  logo_url    = local.auth0_logo_url
+  favicon_url = "https://wally.luminull.com/favicon.svg"
+
+  colors {
+    primary         = "#18181b" # --primary
+    page_background = "#f6f6f7" # --canvas
+  }
+}
+
+# The tenant has one theme. Creating this resource adopts the existing one, if any, and writes
+# every value below over it (the provider's createBrandingTheme), so it needs no import.
+resource "auth0_branding_theme" "wally" {
+  display_name = "Wally"
+
+  borders {
+    buttons_style        = "rounded"
+    button_border_radius = 6 # controls (tailwind.config, borderRadius md)
+    button_border_weight = 1
+    inputs_style         = "rounded"
+    input_border_radius  = 6
+    input_border_weight  = 1
+    show_widget_shadow   = true
+    widget_border_weight = 1
+    widget_corner_radius = 20 # auth surfaces (docs/BRAND.md, "Shape, depth and motion")
+  }
+
+  colors {
+    base_focus_color          = "#0e0e10" # focus rings are ink, never marigold
+    base_hover_color          = "#2a2a2f" # --primary-hover
+    body_text                 = "#0e0e10" # --fg-1
+    captcha_widget_theme      = "auto"
+    error                     = "#c9302c" # --destructive
+    header                    = "#0e0e10"
+    icons                     = "#6a6a74" # --fg-3
+    input_background          = "#ffffff" # --surface
+    input_border              = "#dcdce1" # --border-input
+    input_filled_text         = "#0e0e10"
+    input_labels_placeholders = "#6a6a74"
+    links_focused_components  = "#18181b"
+    primary_button            = "#18181b" # --primary
+    primary_button_label      = "#ffffff" # --primary-foreground
+    secondary_button_border   = "#dcdce1"
+    secondary_button_label    = "#0e0e10"
+    success                   = "#13693f" # --status-success
+    widget_background         = "#ffffff" # --surface
+    widget_border             = "#e4e4e8" # --border
+  }
+
+  fonts {
+    font_url            = ""
+    links_style         = "normal"
+    reference_text_size = 16 # 16px keeps iOS from zooming into the fields
+
+    title {
+      bold = true
+      size = 125 # 20px, the page title
+    }
+    subtitle {
+      bold = false
+      size = 87.5
+    }
+    body_text {
+      bold = false
+      size = 87.5
+    }
+    buttons_text {
+      bold = false
+      size = 100
+    }
+    input_labels {
+      bold = false
+      size = 100
+    }
+    links {
+      bold = false
+      size = 87.5
+    }
+  }
+
+  page_background {
+    background_color     = "#f6f6f7" # --canvas
+    background_image_url = ""
+    page_layout          = "center"
+  }
+
+  widget {
+    header_text_alignment = "center"
+    logo_height           = 52
+    logo_position         = "center"
+    logo_url              = local.auth0_logo_url
+    social_buttons_layout = "bottom"
+  }
+}
+
 resource "auth0_custom_domain" "login" {
   domain     = "login.luminull.com"
   type       = "auth0_managed_certs"

@@ -16,8 +16,8 @@ Third-Party Auth, as a custom OIDC provider
 [DEPLOY.md](DEPLOY.md#infrastructure-in-terraform)): the tenant settings, the login prompt,
 `login.luminull.com`, the email and Google connections, the Wally Web, Wally ChatGPT (PKCE)
 and Wally account deletion applications with their grants, both APIs and the post-login
-Action. The tenant's friendly name ("Wally") and the logo on the sign-in and consent pages
-are set there too. Change them there: a dashboard change to a setting the code holds shows in the next
+Action. The tenant's friendly name ("Wally"), the logo and the sign-in pages' theme (Wally's
+light palette, `auth0_branding` and `auth0_branding_theme`) are set there too. Change them there: a dashboard change to a setting the code holds shows in the next
 plan and is reverted by its apply. Users stay in the dashboard.
 
 ## Configuration

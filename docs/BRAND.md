@@ -166,7 +166,8 @@ running text write Wally. Minimum 16px on screen — below that, the wordmark al
 and must be kept in step. The PNG favicons (16, 32, 48) and the 180px `apple-touch-icon.png` in
 `public/` come from the design source in `wally-design/wally-logos`. Auth0's sign-in and consent
 pages load `https://wally.luminull.com/apple-touch-icon.png` as the logo
-([`auth0.tf`](../infra/terraform/wally/auth0.tf)), so keep that file at that path.
+([`auth0.tf`](../infra/terraform/wally/auth0.tf)), so keep that file at that path. Their theme
+repeats the light `:root` colours from `globals.css`; change it there when those change.
 
 **Don't**: tilt it · recolour it to match a palette · add a mouth or other features · put a letter in it.
 
