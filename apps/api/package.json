@@ -16,6 +16,7 @@
     "maintenance": "tsx src/maintenance.ts",
     "assistant:smoke": "tsx src/assistant-smoke.ts",
     "assistant:capture-eval": "tsx src/capture-eval.ts",
+    "assistant:intake-eval": "tsx src/intake-eval.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/migrate-cli.ts"
   },

@@ -1405,3 +1405,51 @@ describe('useSuggestions', () => {
     });
   });
 });
+
+describe('useSuggestions, one fill-in at a time', () => {
+  it('a second capture waits for the first answer before it calls', async () => {
+    let answerFirst: (() => void) | undefined;
+    vi.mocked(assistantApi.suggest).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answerFirst = () => resolve({ suggestion: dto({ noteId: 'n1' }) });
+        }),
+    );
+    const { result } = setup();
+    act(() => {
+      result.current.request('n1', []);
+      result.current.request('n2', []);
+    });
+    await flush();
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(1);
+    expect(result.current.marks.get('n2')?.phase).toBe('asking');
+    await act(async () => {
+      answerFirst?.();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(assistantApi.suggest).mock.calls[1]![1]).toMatchObject({ noteId: 'n2' });
+  });
+
+  it('a waiting capture dismissed with Esc never calls', async () => {
+    let answerFirst: (() => void) | undefined;
+    vi.mocked(assistantApi.suggest).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answerFirst = () => resolve({ suggestion: dto({ noteId: 'n1' }) });
+        }),
+    );
+    const { result } = setup();
+    act(() => {
+      result.current.request('n1', []);
+      result.current.request('n2', []);
+    });
+    await flush();
+    act(() => result.current.discard('n2', 'esc'));
+    await act(async () => {
+      answerFirst?.();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(assistantApi.suggest).toHaveBeenCalledTimes(1);
+  });
+});

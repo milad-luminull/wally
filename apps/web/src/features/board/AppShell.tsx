@@ -1,5 +1,6 @@
 import { BoardRail } from './BoardRail';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { cn } from '@/lib/cn';
 import type { NoteDto, SuggestionFieldKey, WhiteboardDto } from '@wally/shared';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useLanguage } from '@/i18n/languageContext';
@@ -13,13 +14,11 @@ import { useSetNoteVisibility } from './hooks/mutations/useSetNoteVisibility';
 import { useDeleteNote } from './hooks/mutations/useDeleteNote';
 import { useToggleNoteStatus } from './hooks/mutations/useToggleNoteStatus';
 import { useDuplicateNote, type DuplicatePlacement } from './hooks/mutations/useDuplicateNote';
-import { nextFreeNotePosition } from './util/notePlacement';
 import { boardAccess, isOwner as isOwnerRole } from './util/permissions';
 import {
   collectFieldKeys,
   collectFieldValues,
   filterNotes,
-  defaultZoneKey,
   relatedCounts,
   showsVisibilityFilter,
 } from './util/noteDerived';
@@ -31,11 +30,11 @@ import { NoteDetailPanel } from './NoteDetail/NoteDetailPanel';
 import { BoardLoadError } from './BoardLoadError';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { BoardCommands } from './BoardCommands';
-import { useCaptureSession } from './Capture/useCaptureSession';
-import type { AskOptions, CapturePlacement } from './Capture/useCapture';
-import { useAskSession } from './Ask/useAskSession';
-import { AskCard } from './Ask/AskCard';
-import { placementsTaken, type AskSlot } from './Ask/askSlot';
+import { WallyBox } from './WallyBox/WallyBox';
+import { useWallyBox } from './WallyBox/useWallyBox';
+import { anchorShows, type CapturePlacement } from './WallyBox/placement';
+import { useDockClearance } from './WallyBox/dockClearance';
+import type { BoxSlot } from './WallyBox/boxSlot';
 import { useSuggestions } from './Suggestions/useSuggestions';
 import { usePendingFor } from './Suggestions/usePendingFor';
 import { EDIT_LOCKED, afterNoteSaves, editAskAllowed } from './Suggestions/editAsk';
@@ -49,6 +48,11 @@ import { undoMostRecent } from './Suggestions/keptOrder';
 // still loading — `notesQuery.data ?? []` would otherwise create a new empty array each
 // time, defeating the useMemo below during that window.
 const EMPTY_NOTES: NoteDto[] = [];
+/**
+ * Where the docked box writes: the board's next free spot, read when each note is written, in
+ * the view's default zone (Today, Medium).
+ */
+const DOCKED_PLACEMENT: CapturePlacement = { kind: 'list' };
 
 export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: string }) {
   const { user } = useAuth();
@@ -141,70 +145,68 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   // countdown (R3).
   const pendingFor = usePendingFor(suggestions, viewState.noteId);
 
-  // A question typed into the capture card (RFC-0005-wallybot-inline.md §3.6): the shell asks the board
-  // and draws the answer where the question was written. Off means a `?` is a plain title.
-  const askController = useAskSession(boardId);
-  const { ask: askQuestion } = askController;
-  const onAsked = useCallback(
-    (question: string, placement: CapturePlacement, { takeFocus }: AskOptions) =>
-      askQuestion(question, placement, takeFocus),
-    [askQuestion],
-  );
-
-  // The note being written in place (RFC-0005-wallybot-inline.md §3.1). The panel no longer opens on
-  // creation: only a click on the committed card, or ⌘↵ while writing, opens it.
-  const {
-    capture,
-    captureKey,
-    startCapture,
-    onCaptureDone,
-    onCaptureNoteId,
-    onCaptureAsk,
-    withoutCapturing,
-  } = useCaptureSession({
+  // The Wally box (docs/superpowers/specs/2026-11-08-wally-box-design.md): one controller, drawn
+  // docked at the bottom of the board, or anchored where the person double-clicked the wall.
+  // A note it writes is handed on for its fill-in, as one written in place was.
+  const box = useWallyBox({
     boardId,
-    view: effectiveView,
-    axis: viewState.axis,
-    openNoteId: viewState.noteId,
-    openNote: viewState.openNote,
-    onCommitted,
-    onAsked,
+    assistantEnabled: board.assistantEnabled,
+    visibility: access.newNoteVisibility,
+    onNoteCreated: onCommitted,
+    onOpenNote: viewState.openNote,
   });
-  const captureAsk = board.assistantEnabled ? onCaptureAsk : undefined;
-  const askSession = askController.session;
-  const { setPinned: setAskPinned, dismiss: dismissAsk, pause: pauseAsk } = askController;
-  const askSlot = useMemo<AskSlot | null>(
+  const [anchor, setAnchor] = useState<{ key: number; placement: CapturePlacement } | null>(null);
+  const dockedInput = useRef<HTMLTextAreaElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
+  useDockClearance(dock);
+  const startCapture = useCallback(
+    (placement: CapturePlacement) =>
+      setAnchor((prev) => ({ key: (prev?.key ?? 0) + 1, placement })),
+    [],
+  );
+  const dismissAnchor = useCallback(() => {
+    setAnchor(null);
+    document.querySelector<HTMLElement>('[data-board-surface]')?.focus();
+  }, []);
+  const boxSlot = useMemo<BoxSlot | null>(
     () =>
-      askSession
+      // Drawn only where the view can show it; anywhere else the docked box shows, with the
+      // same words, since the draft is the controller's.
+      anchor && anchorShows(effectiveView, viewState.axis, anchor.placement)
         ? {
-            key: askSession.id,
-            placement: askSession.placement,
-            card: (
-              <AskCard
-                session={askSession}
+            key: anchor.key,
+            placement: anchor.placement,
+            node: (
+              <WallyBox
+                boardId={boardId}
+                box={box}
+                mode="anchored"
+                assistantEnabled={board.assistantEnabled}
                 notes={notesQuery.data}
-                layout={effectiveView === 'list' ? 'row' : 'card'}
+                placement={anchor.placement}
+                visibility={access.newNoteVisibility}
+                visibilityChosen={access.visibilityChosen}
                 onOpenNote={viewState.openNote}
-                onSetPinned={setAskPinned}
-                onDismiss={dismissAsk}
-                onPause={pauseAsk}
+                onDismiss={dismissAnchor}
               />
             ),
           }
         : null,
     [
-      askSession,
-      dismissAsk,
+      access.newNoteVisibility,
+      access.visibilityChosen,
+      anchor,
+      board.assistantEnabled,
+      boardId,
+      box,
+      dismissAnchor,
       effectiveView,
       notesQuery.data,
-      pauseAsk,
-      setAskPinned,
+      viewState.axis,
       viewState.openNote,
     ],
   );
-  // The views, the top bar and the palette leave the note being written to its card: it is in
-  // the cache from the first keystroke, and a second copy would be clickable and openable.
-  const boardNotes = useMemo(() => withoutCapturing(notes), [notes, withoutCapturing]);
+  const boardNotes = notes;
   const filteredNotes = useMemo(
     () => filterNotes(boardNotes, viewState, user?.uid),
     [boardNotes, viewState, user?.uid],
@@ -219,22 +221,12 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
   const tidy = useTidy(boardId, tidyOn, filteredNotes, access.canEditNote, busy);
   const tidyFor = useTidyFor(tidy);
 
-  const askPlacement = askSession?.placement;
+  // New note, N and the palette: the box at the bottom, ready to type in.
   const newNote = useCallback(() => {
-    if (effectiveView === 'list') startCapture({ kind: 'list' });
-    else if (viewState.axis === 'free') {
-      // The answer card's place counts as taken: the question's draft note is gone, so the
-      // notes alone would read its point as free and the new card would land on the answer.
-      const at = nextFreeNotePosition(placementsTaken(notes, askPlacement));
-      startCapture({ kind: 'free', x: at.freeX, y: at.freeY });
-    } else
-      startCapture({
-        kind: 'zone',
-        axis: viewState.axis,
-        key: defaultZoneKey(viewState.axis),
-        at: nextFreeNotePosition(notes),
-      });
-  }, [askPlacement, effectiveView, notes, startCapture, viewState.axis]);
+    setAnchor(null);
+    // After the render that shows the docked box again.
+    setTimeout(() => dockedInput.current?.focus());
+  }, []);
 
   const { openNote } = viewState;
   const { duplicate } = useDuplicateNote(boardId, {
@@ -309,7 +301,7 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
           {!isDesktop && <FilterBar {...filterProps} />}
 
           {/* Focusable from code only: where the keyboard lands after a commit whose note has no
-          card on the board (useCaptureSession). */}
+          card on the board. */}
           <div
             data-board-surface
             tabIndex={-1}
@@ -381,15 +373,8 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                     : {}),
                 })}
                 access={access}
-                capture={capture}
-                captureKey={captureKey}
                 onCapture={startCapture}
-                onCaptureDone={onCaptureDone}
-                onCaptureNoteId={onCaptureNoteId}
-                onCaptureAsk={captureAsk}
-                ask={askSlot}
-                visibility={access.newNoteVisibility}
-                visibilityChosen={access.visibilityChosen}
+                box={boxSlot}
                 pendingFor={pendingFor}
                 editFor={editFor}
                 relatedCounts={relatedCountByNote}
@@ -409,23 +394,26 @@ export function AppShell({ board, boardId }: { board: WhiteboardDto; boardId: st
                 }
                 access={access}
                 isBelowDesktop={isBelowDesktop}
-                capture={
-                  capture && {
-                    id: captureKey,
-                    boardId,
-                    visibility: access.newNoteVisibility,
-                    visibilityChosen: access.visibilityChosen,
-                    onDone: onCaptureDone,
-                    onNoteId: onCaptureNoteId,
-                    onAsk: captureAsk,
-                  }
-                }
-                ask={askSlot}
                 pendingFor={pendingFor}
                 editFor={editFor}
                 relatedCounts={relatedCountByNote}
               />
             )}
+            {/* Docked at the bottom of every view; away while it is anchored on the wall. */}
+            <div ref={dock} className={cn('wally-box-dock', boxSlot && 'hidden')}>
+              <WallyBox
+                boardId={boardId}
+                box={box}
+                mode="docked"
+                assistantEnabled={board.assistantEnabled}
+                notes={notesQuery.data}
+                placement={DOCKED_PLACEMENT}
+                visibility={access.newNoteVisibility}
+                visibilityChosen={access.visibilityChosen}
+                onOpenNote={viewState.openNote}
+                inputRef={dockedInput}
+              />
+            </div>
           </div>
         </div>
       </div>

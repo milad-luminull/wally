@@ -35,11 +35,13 @@ At 1080px and wider, a 212px rail provides board switching, Horizon, Priority, W
    "New note" on the board, "Invite" in the share popover.
 2. Public-page calls to action. Never a drag or drop state: a zone under a
    dragged note darkens a neutral shade, and the free canvas doesn't change at all.
-3. A note whose Wallybot changes are still pending (Paper Wall v3): the moving gradient border
-   in the accent family around the card, the shimmer on the words while they are being read,
-   the pulsing dots after "Filling in", and the small dot before each line of the proposed
-   fields. Never a fill, and gone the moment the changes are kept or undone
-   (`rfcs/RFC-0005-wallybot-inline.md`). The review footer's countdown ring is ink.
+3. Wally at work (Wallybot v3): one thin accent ring with a soft halo, standing still, on the
+   Wally box while a message is in flight, around a note whose changes are still pending, and
+   for a moment on the cards an answer is about; the shimmer on a pending note's words while
+   they are being read, the pulsing dots after "Filling in" and on the box's waiting chips, and
+   the small dot before each line of the proposed fields. Never a fill, and gone the moment the
+   work is done, kept or undone (`rfcs/RFC-0005-wallybot-inline.md`,
+   `superpowers/specs/2026-11-08-wally-box-design.md`). The review footer's countdown ring is ink.
 
 Text on Minimal’s marigold is near-black (`#1A1300`, 10.2:1) — never white. Other palettes use their tested `--accent-foreground`. Focus rings and note
 selection are **ink**, never marigold, because they have to read on every note fill. Marigold
@@ -173,9 +175,13 @@ repeats the light `:root` colours from `globals.css`; change it there when those
 
 ## AI
 
-Wally's AI is three things on the board: the answer to a question typed into the capture card
-(`features/board/Ask`), drawn as a card where the question was written, with the notes it read
-listed underneath, and the fill-in on a note written in place (`features/board/Suggestions`), which
+Wally's AI is three things on the board. Two of them start in one place, the **Wally box**
+(`features/board/WallyBox`), docked at the bottom centre of every board view or anchored where
+the person double-clicked the wall. One model call reads what was typed and decides what it
+holds: one note or several, a question, a note already on the wall, or something too vague
+(the box spec, `superpowers/specs/2026-11-08-wally-box-design.md`); no keyword or question-mark
+rule decides. The three things are the answer to a question, shown in the box with the notes it
+read listed underneath, and the fill-in on a note the box wrote (`features/board/Suggestions`), which
 proposes a cleaner title and its description, a due date, a horizon, a priority, a person,
 Private, properties, tags, subtasks and links to related notes as a pending change, reviewed on
 the card itself and, with the same rows, in the note panel (rule 7 says how the title is
@@ -190,25 +196,26 @@ follow, and `brandGuards.test.ts` enforces the first one.
 1. No sparkle, wand, robot or brain icon anywhere in the product.
 2. The AI has no name and no pronoun. Copy says "Wally set the date", never "I set the date".
 3. AI output uses the same type and colour as user input. While a fresh note's proposal is
-   being made and waits for a decision, the card wears the moving gradient border (accent job
-   4), lists the proposed fields under a hairline, one labelled line each with its ×, and ends
+   being made and waits for a decision, the card wears the accent ring (accent job 3), lists the proposed fields under a hairline, one labelled line each with its ×, and ends
    in a footer with the countdown ring, the seconds left, Undo and Keep. Once kept or undone
    the card is an ordinary card again.
 4. Every AI action is reversible in one step, and the reversal is visible where the action
    happened.
-5. The AI never interrupts: no toasts, no modals, no badges counting suggestions. When it has
-   nothing to add or cannot help (busy, a limit, a decision that did not save), it says so in
-   one short line on its own card, answer or bar, and the person can dismiss it (the error
-   handling spec, 2026-10-19).
+5. The AI never interrupts: no toasts, no modals, no badges counting suggestions. It speaks in
+   the Wally box's reply area, one reply at a time with no history, or on its own card or bar.
+   When it has nothing to add or cannot help (busy, a limit, a decision that did not save), it
+   says so in one short line there, and the person can dismiss it (the error handling spec,
+   2026-10-19). It asks back only when it must: a note already on the wall, or words too vague
+   to act on.
 6. It never writes a note the user didn't start. It completes, files and reorders; it doesn't
    author.
 7. A cleaner title never replaces the person's words on the card while the proposal waits: the
    card keeps their title, and the new title is offered in a Title row (its text in a Text row
    under it) like any other field. It is written only by Keep or the countdown, and Undo
    restores the original.
-8. Questions about the wall are answered on the wall, as a card where the question was written,
-   in plain text, with the notes it read listed underneath. The card has the dashed edge and
-   nothing else: no dot, no ring, because nothing is written.
+8. Questions about the wall are answered in the Wally box, in plain text, with the notes it read
+   listed underneath; those cards wear the accent ring for a moment so the eye finds them. An
+   answer is never drawn on the wall and never becomes a note.
 
 ### "Wand" is the German word for the wall
 

@@ -202,7 +202,7 @@ describe('NoteCard with a pending change', () => {
     return p;
   };
 
-  it('wraps the card in the moving border, with the proposed fields as rows with an × each', () => {
+  it('wraps the card in the accent ring, with the proposed fields as rows with an × each', () => {
     const p = renderCard();
     const card = screen.getByText('Approve the quote comparison').closest('button')!;
     const shell = card.closest('[data-capture-card]')!;

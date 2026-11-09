@@ -22,8 +22,6 @@ import {
   type NoteDto,
   type NoteHorizon,
   type NotePriority,
-  type NoteVisibility,
-  type SuggestionFieldKey,
 } from '@wally/shared';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { BoardAccess } from '../util/permissions';
@@ -38,8 +36,8 @@ import {
   type NoteCacheSnapshot,
 } from '../hooks/mutations/shared';
 import { groupByAxis } from '../util/noteDerived';
-import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
-import type { AskSlot } from '../Ask/askSlot';
+import type { CapturePlacement } from '../WallyBox/placement';
+import type { BoxSlot } from '../WallyBox/boxSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import type { TidyController } from '../Tidy/useTidy';
@@ -67,23 +65,10 @@ interface WallViewProps {
   /** Places a copy of a note — what an Alt/Option-drag drops instead of moving it. */
   onDuplicateNote: (noteId: string, placement: DuplicatePlacement) => void;
   access: BoardAccess;
-  /** The note being written in place, if any (RFC-0005-wallybot-inline.md §3.1). */
-  capture: CapturePlacement | null;
-  /** Changes with every capture, so each one gets a fresh card. */
-  captureKey?: number;
-  /** A zone's plus or a double-click asks for a new note written there. */
+  /** A zone's plus or a double-click opens the Wally box there (the box spec, §3.1). */
   onCapture: (placement: CapturePlacement) => void;
-  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
-  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
-  onCaptureNoteId?: (noteId: string) => void;
-  /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: CaptureAsk;
-  /** The answer to a question, drawn where the question was written (§3.6). */
-  ask?: AskSlot | null;
-  /** What a new note's visibility will be; a viewer's is private. */
-  visibility: NoteVisibility;
-  /** The board's filter chose that visibility ("Shared"). */
-  visibilityChosen?: boolean;
+  /** The Wally box anchored on the wall, if it is. */
+  box?: BoxSlot | null;
   /** The pending Wallybot change each note shows, if any (RFC-0005-wallybot-inline.md §3.3). */
   pendingFor?: (noteId: string) => PendingProps | undefined;
   /** Editing a note's words in place, for a note the person may edit. */
@@ -127,15 +112,8 @@ export function WallView({
   cardActions,
   onDuplicateNote,
   access,
-  capture,
-  captureKey,
   onCapture,
-  onCaptureDone,
-  onCaptureNoteId,
-  onCaptureAsk,
-  ask,
-  visibility,
-  visibilityChosen,
+  box,
   pendingFor,
   editFor,
   relatedCounts,
@@ -460,7 +438,6 @@ export function WallView({
       >
         {axis === 'free' ? (
           <WallCanvas
-            boardId={boardId}
             notes={shownNotes}
             filtered={totalNoteCount > 0}
             currentUserId={currentUserId}
@@ -468,14 +445,7 @@ export function WallView({
             onOpenNote={onOpenNote}
             cardActions={cardActions}
             onCapture={onCapture}
-            capture={capture}
-            captureKey={captureKey}
-            onCaptureDone={onCaptureDone}
-            onCaptureNoteId={onCaptureNoteId}
-            onCaptureAsk={onCaptureAsk}
-            ask={ask}
-            visibility={visibility}
-            visibilityChosen={visibilityChosen}
+            box={box}
             canEditShared={access.canEditShared}
             activeDragId={activeId}
             pendingFor={pendingFor}
@@ -487,15 +457,7 @@ export function WallView({
             <ZoneBands
               axis={axis}
               groups={groups}
-              boardId={boardId}
-              capture={capture}
-              captureKey={captureKey}
-              onCaptureDone={onCaptureDone}
-              onCaptureNoteId={onCaptureNoteId}
-              onCaptureAsk={onCaptureAsk}
-              ask={ask}
-              visibility={visibility}
-              visibilityChosen={visibilityChosen}
+              box={box}
               currentUserId={currentUserId}
               selectedNoteId={selectedNoteId}
               onOpenNote={onOpenNote}

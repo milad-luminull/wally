@@ -168,3 +168,23 @@ export interface TidyOutput {
   finishReason: TurnFinishReason;
 }
 export type TidyRunner = (input: TidyInput) => Promise<TidyOutput>;
+
+/** One structured call that reads what was typed into the Wally box (the box spec, §4.1). */
+export type IntakeInput = TidyInput;
+export interface ModelIntakeItem {
+  kind: 'note' | 'ask' | 'duplicate' | 'clarify';
+  /** The note's or the question's words; empty for a clarify. */
+  text: string;
+  /** A duplicate's note on the board; empty otherwise. */
+  noteId: string;
+  /** A clarify's question; empty otherwise. */
+  question: string;
+  options: { label: string; action: 'note' | 'ask'; text: string }[];
+}
+export interface IntakeOutput {
+  /** null when the model produced nothing that validates against the schema. */
+  items: ModelIntakeItem[] | null;
+  usage: TurnUsage | null;
+  finishReason: TurnFinishReason;
+}
+export type IntakeRunner = (input: IntakeInput) => Promise<IntakeOutput>;

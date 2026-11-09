@@ -64,6 +64,29 @@ export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | undefined;
 
+const modelEnvSchema = envSchema.pick({
+  ASSISTANT_MODEL: true,
+  ASSISTANT_VERTEX_LOCATION: true,
+  ASSISTANT_VERTEX_PROJECT: true,
+});
+export type ModelEnv = z.infer<typeof modelEnvSchema> & { ASSISTANT_VERTEX_PROJECT: string };
+
+/**
+ * The model's settings alone, for a script that only calls the model (the eval scripts): no
+ * database or sign-in settings are needed to score prompts.
+ */
+export function loadModelEnv(source: NodeJS.ProcessEnv = process.env): ModelEnv {
+  const parsed = modelEnvSchema.safeParse(source);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+    throw new Error(`Invalid environment configuration: ${issues}`);
+  }
+  const { ASSISTANT_VERTEX_PROJECT: project } = parsed.data;
+  if (!project)
+    throw new Error('Invalid environment configuration: ASSISTANT_VERTEX_PROJECT is required');
+  return { ...parsed.data, ASSISTANT_VERTEX_PROJECT: project };
+}
+
 /** Parses and validates process.env once, throwing with a readable message on failure. */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (cached) return cached;

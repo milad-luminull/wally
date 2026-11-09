@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -43,7 +44,7 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { isMac } from '@/lib/shortcuts';
 import { BoardCommands } from './BoardCommands';
-import { InlineCaptureCard } from './Capture/InlineCaptureCard';
+import { WallyBox } from './WallyBox/WallyBox';
 
 const PALETTE = isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}';
 const MOD = isMac ? '{Meta>}d{/Meta}' : '{Control>}d{/Control}';
@@ -136,21 +137,38 @@ describe('BoardCommands', () => {
     expect(viewer.onDuplicateNote).not.toHaveBeenCalled();
   });
 
-  it('leaves n to the note being written: it is a letter in the capture, not a new note', async () => {
-    const { onNewNote } = renderCommands(
-      { noteOpen: false },
-      <InlineCaptureCard
-        boardId="board-1"
-        placement={{ kind: 'list' }}
-        visibility="SHARED"
-        layout="row"
-        onDone={vi.fn()}
-      />,
-    );
-    const title = screen.getByRole('textbox', { name: 'Title of the new note' });
-    await waitFor(() => expect(title).toHaveFocus());
+  it('leaves n to the Wally box: it is a letter typed there, not a new note', async () => {
+    function Box() {
+      const [draft, setDraft] = useState('');
+      return (
+        <WallyBox
+          boardId="board-1"
+          box={{
+            pending: [],
+            reply: null,
+            working: false,
+            send: vi.fn(),
+            choose: vi.fn(),
+            closeReply: vi.fn(),
+            draft,
+            setDraft,
+            pinned: null,
+            setPinned: vi.fn(),
+          }}
+          mode="anchored"
+          assistantEnabled
+          notes={[]}
+          placement={{ kind: 'list' }}
+          visibility="SHARED"
+          onOpenNote={vi.fn()}
+        />
+      );
+    }
+    const { onNewNote } = renderCommands({ noteOpen: false }, <Box />);
+    const field = screen.getByRole('textbox', { name: 'Write a note or ask Wally' });
+    await waitFor(() => expect(field).toHaveFocus());
     await userEvent.keyboard('n');
-    expect(title).toHaveValue('n');
+    expect(field).toHaveValue('n');
     expect(onNewNote).not.toHaveBeenCalled();
   });
 

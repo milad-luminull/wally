@@ -87,7 +87,7 @@ describe('PendingReview', () => {
     expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
   });
 
-  it('draws the card’s review: the moving border, the rows and the footer with Undo and Keep', async () => {
+  it('draws the card’s review: the accent ring, the rows and the footer with Undo and Keep', async () => {
     const user = userEvent.setup();
     const { pending } = renderReview();
     expect(document.querySelector('[data-pending-review].capture-glow')).not.toBeNull();
