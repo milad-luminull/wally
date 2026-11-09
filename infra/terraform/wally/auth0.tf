@@ -48,13 +48,26 @@ import {
 # apps/web/src/styles/globals.css). Auth0's pages have one look, so there is no dark variant.
 # The branding API is a singleton: creating this resource updates the tenant's branding and
 # needs no import. Auth0's own font stays: Geist would need CORS on wally.luminull.com/fonts.
-resource "auth0_branding" "wally" {
+resource "auth0_branding" "sign_in" {
   logo_url    = local.auth0_logo_url
   favicon_url = "https://wally.luminull.com/favicon.svg"
 
   colors {
     primary         = "#18181b" # --primary
     page_background = "#f6f6f7" # --canvas
+  }
+}
+
+# The first apply as auth0_branding.wally failed on a missing scope and left it tainted in the
+# state. Replacing it would destroy it, and destroying auth0_branding deletes the Universal
+# Login page template, an endpoint Auth0 may answer with 402. So the state forgets it without
+# a destroy, and auth0_branding.sign_in above is created in its place. Delete this block once
+# that has been applied.
+removed {
+  from = auth0_branding.wally
+
+  lifecycle {
+    destroy = false
   }
 }
 
