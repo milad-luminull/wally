@@ -98,20 +98,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     // RFC-0012 §5.2: an AppError 502, 503 or 504 is a state the code handles (provider down,
     // feature off, timeout) and logs at warn by its code; anything else is a bug and logs at
     // error with its safe fields (lib/logging), stack included.
+    // Fields by OpenTelemetry's HTTP names (RFC-0012 §5 rule 6); an error's `error.type` is its
+    // own code (lib/logging).
+    const response = {
+      'http.response.status_code': status,
+      'http.route': request.routeOptions.url,
+    };
     if (status >= 500) {
       if (err instanceof AppError && err.statusCode !== 500)
-        request.log.warn({ code: body.error, status }, 'Request failed');
-      else request.log.error({ err, error: body.error }, 'Request failed');
+        request.log.warn({ 'error.type': body.error, ...response }, 'Request failed');
+      else request.log.error({ err, ...response }, 'Request failed');
     }
     // A refusal from the assistant is logged by its code alone: "nothing came" is then never
     // a mystery in production. The words of the request never reach the log.
     else if (request.url.includes('/assistant/'))
-      request.log.warn({
-        type: 'request.refused',
-        code: body.error,
-        status,
-        route: request.routeOptions.url,
-      });
+      request.log.warn({ type: 'request.refused', 'error.type': body.error, ...response });
     return reply.code(status).send(body);
   });
   app.setNotFoundHandler((_request, reply) =>

@@ -35,7 +35,7 @@ describe('the API process', () => {
     expect(lines[0]).toMatchObject({
       severity: 'CRITICAL',
       message: 'API failed to start',
-      err: { message: expect.stringContaining('DATABASE_URL') },
+      'exception.message': expect.stringContaining('DATABASE_URL'),
     });
   });
 
@@ -51,7 +51,7 @@ describe('the API process', () => {
       expect(status).toBe(1);
       expect(lines.find((line) => line.severity === 'CRITICAL')).toMatchObject({
         message: 'API failed to listen',
-        err: { code: 'EADDRINUSE' },
+        'error.type': 'EADDRINUSE',
       });
     } finally {
       busy.close();

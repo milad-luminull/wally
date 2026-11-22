@@ -1355,7 +1355,7 @@ describe('capture suggestions', () => {
       severity: 'ERROR',
       field: 'dueDate',
       outcome: 'failed',
-      err: { code: 'P0001' },
+      'error.type': 'P0001',
     });
   });
 
@@ -2514,7 +2514,7 @@ describe('whose failure a capture is', () => {
     expect(parsed().some((l) => l.type === 'assistant.provider_error')).toBe(false);
     const failed = parsed().filter((l) => l.message === 'Request failed');
     expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ severity: 'ERROR', err: { message: 'ledger down' } });
+    expect(failed[0]).toMatchObject({ severity: 'ERROR', 'exception.message': 'ledger down' });
   });
 
   it("answers the provider's failure with 502 and logs it at warn by its shape", async () => {

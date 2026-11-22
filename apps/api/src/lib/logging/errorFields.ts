@@ -2,12 +2,22 @@ import { DrizzleQueryError } from 'drizzle-orm';
 import postgres from 'postgres';
 import { redactQuotedPaths } from './redact.js';
 
-/** What a log line may say about an error (RFC-0012 §7, workstream 1). */
+/**
+ * What a log line may say about an error, under OpenTelemetry's Stable attribute names
+ * (RFC-0012 §5 rule 6): `exception.*` for the error
+ * (https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/), `error.type` for
+ * its class (https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/) and
+ * `db.response.status_code` for a code the database returned
+ * (https://opentelemetry.io/docs/specs/semconv/registry/attributes/db/).
+ */
 export interface SafeErrorFields {
-  type: string;
-  message?: string;
-  stack?: string;
-  code?: string;
+  'exception.type': string;
+  'exception.message'?: string;
+  'exception.stacktrace'?: string;
+  /** The first string `code` along the cause chain, else the error's type. */
+  'error.type': string;
+  /** That code, when Postgres returned it (a `PostgresError` carries it). */
+  'db.response.status_code'?: string;
 }
 
 /**
@@ -53,6 +63,10 @@ function stringCode(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function isPostgresError(error: unknown): boolean {
+  return error instanceof postgres.PostgresError || typeOf(error) === 'PostgresError';
+}
+
 /**
  * A stack's frames without its header, which repeats the message. The header is cut at the end
  * of the message, not by the lines that look like frames: a parameter value can contain
@@ -75,30 +89,37 @@ function framesAfterMessage(stack: string | undefined, message: unknown): string
  * input (`QUOTING_ERRORS`), or has one among its causes, keeps no message: Postgres can repeat
  * the input (`invalid input syntax for type uuid: "…"`) and Drizzle's `DrizzleQueryError`
  * carries the query and its parameters, which can be a note's text. It keeps a stack without
- * the lines that repeat the message. `code` is the first string code along the cause chain,
- * so a SQLSTATE under a wrapper is kept. Any other message keeps its quoted paths redacted.
+ * the lines that repeat the message. `error.type` is the first string code along the cause
+ * chain, so a SQLSTATE under a wrapper is kept. Any other message keeps its quoted paths
+ * redacted.
  */
 export function safeErrorFields(error: unknown): SafeErrorFields {
   const type = typeOf(error);
-  if (error === null || typeof error !== 'object') return { type };
+  if (error === null || typeof error !== 'object')
+    return { 'exception.type': type, 'error.type': type };
   const failure = error as { message?: unknown; stack?: unknown };
   const stack = typeof failure.stack === 'string' ? failure.stack : undefined;
   const chain = causeChain(error);
-  const code = chain
-    .map((link) => stringCode((link as { code?: unknown } | null)?.code))
-    .find((value) => value !== undefined);
+  const coded = chain.find((link) => stringCode((link as { code?: unknown } | null)?.code));
+  const code = stringCode((coded as { code?: unknown } | undefined)?.code);
+  const codeFields = {
+    'error.type': code ?? type,
+    ...(code && isPostgresError(coded) ? { 'db.response.status_code': code } : {}),
+  };
   if (chain.some(quotesInput)) {
     const frames = framesAfterMessage(stack, failure.message);
     return {
-      type,
-      ...(frames ? { stack: [type, ...frames].join('\n') } : {}),
-      ...(code ? { code } : {}),
+      'exception.type': type,
+      ...(frames ? { 'exception.stacktrace': [type, ...frames].join('\n') } : {}),
+      ...codeFields,
     };
   }
   return {
-    type,
-    ...(typeof failure.message === 'string' ? { message: redactQuotedPaths(failure.message) } : {}),
-    ...(stack ? { stack: redactQuotedPaths(stack) } : {}),
-    ...(code ? { code } : {}),
+    'exception.type': type,
+    ...(typeof failure.message === 'string'
+      ? { 'exception.message': redactQuotedPaths(failure.message) }
+      : {}),
+    ...(stack ? { 'exception.stacktrace': redactQuotedPaths(stack) } : {}),
+    ...codeFields,
   };
 }

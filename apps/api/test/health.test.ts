@@ -57,7 +57,8 @@ describe('GET /health', () => {
       .find((l) => l.type === 'health.database');
     expect(line).toMatchObject({
       severity: 'WARNING',
-      err: { type: 'DrizzleQueryError', code: 'ECONNREFUSED' },
+      'exception.type': 'DrizzleQueryError',
+      'error.type': 'ECONNREFUSED',
     });
     expect(JSON.stringify(line)).not.toMatch(/a secret note|Failed query/);
   });
