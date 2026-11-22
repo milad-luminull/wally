@@ -1,5 +1,7 @@
 import type { FastifyLoggerOptions, FastifyServerOptions } from 'fastify';
+import Fastify from 'fastify';
 import { safeErrorFields } from './errorFields.js';
+import { redactPath, redactQuotedPaths } from './redact.js';
 
 /** Fastify's logger options: its own and pino's. */
 type LoggerOptions = Exclude<FastifyServerOptions['logger'], boolean | undefined>;
@@ -19,16 +21,6 @@ export const SEVERITY: Record<Level, Severity> = {
 };
 
 /**
- * A request's path as a log line may show it: the query string is dropped and share-link
- * tokens are redacted, since either can grant or reveal access. OpenTelemetry asks for the same:
- * sensitive content in `url.path` "SHOULD be scrubbed"
- * (https://opentelemetry.io/docs/specs/semconv/registry/attributes/url/).
- */
-export function redactedPath(url: string): string {
-  return url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]');
-}
-
-/**
  * What a log line may say about a request object, should one be logged as `req`: its method
  * and path, nothing else. Fastify's default request serializer also writes the client's
  * address, port and host header; an IP address is personal data, and the log has no use for it
@@ -38,13 +30,20 @@ export function redactedPath(url: string): string {
 export const requestLogSerializers = {
   req: (request: { method: string; url: string }) => ({
     method: request.method,
-    url: redactedPath(request.url),
+    url: redactPath(request.url),
   }),
   // A backstop: `errorAsAttributes` turns every logged `err` into its safe fields, but pino
   // serializes a child logger's bindings without it. An `err` bound to a child would otherwise
   // get pino's full error serializer, with a database error's query and parameters.
   err: safeErrorFields,
 };
+
+/** The error a log call without a message carries: the first argument, or its `err`. */
+function errorOf(first: unknown): unknown {
+  if (first instanceof Error) return first;
+  if (first === null || typeof first !== 'object' || 'message' in first) return undefined;
+  return (first as { err?: unknown }).err;
+}
 
 /**
  * pino's `formatters.log`, which runs before its serializers: an error logged as `err` (or as
@@ -74,23 +73,23 @@ export function loggerOptions(): LoggerOptions & { messageKey: 'message' } {
       }),
       log: errorAsAttributes,
     },
-    // pino writes an error's own message as the line's `message` when a call gives none
-    // (`log.error(error)`, `log.warn({ err })`), before any formatter runs. A database error's
-    // message is its query and parameters, so the line's message is taken from the safe
-    // fields instead: the error's message, or its type when it keeps none.
+    // A line's text is redacted, and never a database error's message: pino writes an error's
+    // own message as the line's `message` when a call gives none (`log.error(error)`,
+    // `log.warn({ err })`), before any formatter runs, so such a line takes the safe message
+    // (or the error's type) instead. Fastify quotes the raw URL in some of its own warnings.
     hooks: {
       logMethod(args, method) {
-        const [first] = args as unknown[];
-        const err =
-          first instanceof Error
-            ? first
-            : first !== null && typeof first === 'object' && !('message' in first)
-              ? (first as { err?: unknown }).err
-              : undefined;
-        if (args.length !== 1 || err == null) return method.apply(this, args);
-        const fields = safeErrorFields(err);
-        const message = fields['exception.message'] ?? fields['exception.type'];
-        return method.apply(this, [first, message] as unknown as typeof args);
+        const list = [...args] as unknown[];
+        const textAt = typeof list[0] === 'string' ? 0 : typeof list[1] === 'string' ? 1 : -1;
+        if (textAt >= 0) list[textAt] = redactQuotedPaths(list[textAt] as string);
+        else if (list.length === 1) {
+          const err = errorOf(list[0]);
+          if (err != null) {
+            const fields = safeErrorFields(err);
+            list.push(fields['exception.message'] ?? fields['exception.type']);
+          }
+        }
+        return method.apply(this, list as typeof args);
       },
     },
     // Fastify types `err` as always returning a message and a stack; pino takes any object, and
@@ -118,8 +117,10 @@ export function traceBindings(
 
 /**
  * Fastify's `childLoggerFactory`: every line a request logs carries its trace, its method as
- * `http.request.method` and its redacted path as `url.path` (OpenTelemetry's Stable names),
- * since Fastify's own per-request lines are off.
+ * `http.request.method` and its redacted path as `url.path` (OpenTelemetry's Stable names;
+ * sensitive content in `url.path` "SHOULD be scrubbed",
+ * https://opentelemetry.io/docs/specs/semconv/registry/attributes/url/), since Fastify's own
+ * per-request lines are off.
  */
 export function requestChildLogger(projectId: string | undefined): ChildLoggerFactory {
   return (logger, bindings, options, rawRequest) =>
@@ -128,8 +129,16 @@ export function requestChildLogger(projectId: string | undefined): ChildLoggerFa
         ...bindings,
         ...traceBindings(rawRequest.headers['x-cloud-trace-context'], projectId),
         'http.request.method': rawRequest.method,
-        'url.path': redactedPath(rawRequest.url ?? ''),
+        'url.path': redactPath(rawRequest.url ?? ''),
       },
       options,
     );
+}
+
+/**
+ * A logger with the API's options for the process itself, where no app exists yet (a failed
+ * start). Fastify builds it from the same options, so no logger library is added.
+ */
+export function processLogger() {
+  return Fastify({ logger: loggerOptions() }).log;
 }

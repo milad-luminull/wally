@@ -37,12 +37,13 @@ anyone queries them.
 
 Chosen option: **OpenTelemetry names, written flat**. ADR-0031 stands in everything else: the
 Cloud Logging keys, the trace field (until RFC-0012 workstream 2 replaces it), no per-request
-lines, no database message, and the logging rule.
+lines, no message for an error that quotes its input, redacted quoted paths, and the logging
+rule.
 
 - An error is logged as `err` and written as `exception.type`, `exception.message` and
   `exception.stacktrace`
   ([exceptions in logs](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/)),
-  with `error.type` set to its string code, else its type
+  with `error.type` set to the first string code along its cause chain, else its type
   ([`error.type`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/)).
   A code Postgres returned is also `db.response.status_code`
   ([database](https://opentelemetry.io/docs/specs/semconv/registry/attributes/db/)). A field

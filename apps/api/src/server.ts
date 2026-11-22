@@ -1,5 +1,6 @@
 import { buildApp } from './app.js';
 import { loadEnv } from './env.js';
+import { processLogger } from './lib/logging/index.js';
 
 async function main() {
   const env = loadEnv();
@@ -8,7 +9,7 @@ async function main() {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
   } catch (err) {
-    app.log.error(err);
+    app.log.fatal({ err }, 'API failed to listen');
     process.exit(1);
   }
 
@@ -21,7 +22,8 @@ async function main() {
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
+// Before the app exists there is no app logger: the same options, for the process.
 main().catch((err) => {
-  console.error(err);
+  processLogger().fatal({ err }, 'API failed to start');
   process.exit(1);
 });

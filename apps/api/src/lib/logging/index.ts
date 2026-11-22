@@ -1,8 +1,9 @@
 export { safeErrorFields, type SafeErrorFields } from './errorFields.js';
+export { redactPath, redactQuotedPaths } from './redact.js';
 export {
   SEVERITY,
   loggerOptions,
-  redactedPath,
+  processLogger,
   requestChildLogger,
   requestLogSerializers,
   traceBindings,

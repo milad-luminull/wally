@@ -287,6 +287,24 @@ gets its own design in `docs/superpowers/specs/` before building.
 - An `AppError` 502, 503 or 504 logs `Request failed` at `warn` with its code and status, without
   a stack; any other 5xx at `error` with `err`.
 
+**Follow-ups from the workstream's final review (2026-11-22):**
+
+- `disableRequestLogging` turns off every per-request line of Fastify's `LogController`, not
+  only "incoming request" and "request completed": also "request errored", the default error
+  handler's line, stream and `writeHead` errors and the route-not-found line. Wally's own error
+  and not-found handlers replace the two that matter.
+- Fastify quotes the raw request URL in two warnings of its own ("Reply was already sent…").
+  Every quoted path in a line's text, and in an error's message and stack, loses its query
+  string and share token (`redactQuotedPaths` in `apps/api/src/lib/logging/redact.ts`).
+- The errors that keep no message are known by class or by name (a second copy of a driver
+  is not seen by `instanceof`), along the `cause` chain up to three links, and include Zod's
+  and `JSON.parse`'s, which quote their input. `code` is the first string code along the chain,
+  so a `TransactionConflictError` keeps its SQLSTATE.
+- `apps/api/src/server.ts` logs a failed start or listen as one `CRITICAL` line (`processLogger`)
+  instead of `console.error`.
+- A suggestion revert that fails for a reason other than an `AppError` logs at `error` with
+  `err`; a refusal stays at `warn`.
+
 **Follow-up: OpenTelemetry field names (2026-11-22, built).** One small PR, merged before the
 next release so the field names change only once. It renames the fields that have a Stable
 OpenTelemetry name (§5 rule 6) and nothing else:
@@ -303,7 +321,8 @@ OpenTelemetry name (§5 rule 6) and nothing else:
   `formatters.log` (`errorAsAttributes`) moves the safe error fields to those keys, and a field
   the caller sets wins. A non-`AppError` 500 no longer logs the response code
   `INTERNAL_SERVER_ERROR`: its `error.type` is the error's own. The
-  `safeErrorFields` rules (no database message, the `logMethod` hook) are unchanged.
+  `safeErrorFields` rules (no message for an error that quotes its input, the `logMethod`
+  hook, redacted quoted paths) are unchanged.
 - `severity`, `message`, `time` and pino's `level` stay. The trace field stays as built until
   workstream 2 replaces it.
 - [ADR-0032](../adr/ADR-0032-structured-logs-with-opentelemetry-names.md) records the

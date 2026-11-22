@@ -1,5 +1,6 @@
 import { DrizzleQueryError } from 'drizzle-orm';
 import postgres from 'postgres';
+import { redactQuotedPaths } from './redact.js';
 
 /**
  * What a log line may say about an error, under OpenTelemetry's Stable attribute names
@@ -13,21 +14,39 @@ export interface SafeErrorFields {
   'exception.type': string;
   'exception.message'?: string;
   'exception.stacktrace'?: string;
-  /** The error's string `code`, else its type. */
+  /** The first string `code` along the cause chain, else the error's type. */
   'error.type': string;
-  /** The SQLSTATE of an error Postgres returned, on its own or as the `cause`. */
+  /** That code, when Postgres returned it (a `PostgresError` carries it). */
   'db.response.status_code'?: string;
 }
 
-function isDatabaseError(error: unknown): boolean {
-  return error instanceof DrizzleQueryError || error instanceof postgres.PostgresError;
+/**
+ * Errors whose message can quote their input: the database's (Postgres repeats values, Drizzle
+ * carries the query and its parameters), Zod's (`received: …`) and JSON.parse's. Known also by
+ * name, so a second copy of a driver, whose classes `instanceof` cannot see, is still caught.
+ */
+const QUOTING_ERRORS = new Set(['DrizzleQueryError', 'PostgresError', 'ZodError', 'SyntaxError']);
+/** How many `cause` links are followed: Wally wraps a database error at most twice. */
+const MAX_CAUSES = 3;
+
+function quotesInput(error: unknown): boolean {
+  if (error instanceof DrizzleQueryError || error instanceof postgres.PostgresError) return true;
+  const name = (error as { name?: unknown } | null)?.name;
+  return (
+    QUOTING_ERRORS.has(typeOf(error)) || (typeof name === 'string' && QUOTING_ERRORS.has(name))
+  );
 }
 
-function isPostgresResponse(error: unknown): boolean {
-  if (error instanceof postgres.PostgresError) return true;
-  return error !== null && typeof error === 'object'
-    ? (error as { cause?: unknown }).cause instanceof postgres.PostgresError
-    : false;
+/** The error and its causes, nearest first. */
+function causeChain(error: unknown): unknown[] {
+  const chain = [error];
+  let current = error;
+  while (chain.length <= MAX_CAUSES && current !== null && typeof current === 'object') {
+    current = (current as { cause?: unknown }).cause;
+    if (current === undefined) break;
+    chain.push(current);
+  }
+  return chain;
 }
 
 function typeOf(error: unknown): string {
@@ -42,6 +61,10 @@ function typeOf(error: unknown): string {
 
 function stringCode(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function isPostgresError(error: unknown): boolean {
+  return error instanceof postgres.PostgresError || typeOf(error) === 'PostgresError';
 }
 
 /**
@@ -62,33 +85,41 @@ function framesAfterMessage(stack: string | undefined, message: unknown): string
 
 /**
  * The fields of an error a log line keeps: its type, message, stack and string `code`, nothing
- * else, since an error's other properties can hold request data. A database error keeps no
- * message: Postgres can repeat the input (`invalid input syntax for type uuid: "…"`) and
- * Drizzle's `DrizzleQueryError` carries the query and its parameters, which can be a note's
- * text. It keeps its `code` (read as `classifyDatabaseError` reads it) and a stack without the
- * lines that repeat the message.
+ * else, since an error's other properties can hold request data. An error that can quote its
+ * input (`QUOTING_ERRORS`), or has one among its causes, keeps no message: Postgres can repeat
+ * the input (`invalid input syntax for type uuid: "…"`) and Drizzle's `DrizzleQueryError`
+ * carries the query and its parameters, which can be a note's text. It keeps a stack without
+ * the lines that repeat the message. `error.type` is the first string code along the cause
+ * chain, so a SQLSTATE under a wrapper is kept. Any other message keeps its quoted paths
+ * redacted.
  */
 export function safeErrorFields(error: unknown): SafeErrorFields {
   const type = typeOf(error);
   if (error === null || typeof error !== 'object')
     return { 'exception.type': type, 'error.type': type };
-  const failure = error as { message?: unknown; stack?: unknown; code?: unknown; cause?: unknown };
+  const failure = error as { message?: unknown; stack?: unknown };
   const stack = typeof failure.stack === 'string' ? failure.stack : undefined;
-  if (isDatabaseError(error) || isDatabaseError(failure.cause)) {
-    const code =
-      stringCode(failure.code) ?? stringCode((failure.cause as { code?: unknown } | null)?.code);
+  const chain = causeChain(error);
+  const coded = chain.find((link) => stringCode((link as { code?: unknown } | null)?.code));
+  const code = stringCode((coded as { code?: unknown } | undefined)?.code);
+  const codeFields = {
+    'error.type': code ?? type,
+    ...(code && isPostgresError(coded) ? { 'db.response.status_code': code } : {}),
+  };
+  if (chain.some(quotesInput)) {
     const frames = framesAfterMessage(stack, failure.message);
     return {
       'exception.type': type,
       ...(frames ? { 'exception.stacktrace': [type, ...frames].join('\n') } : {}),
-      'error.type': code ?? type,
-      ...(code && isPostgresResponse(error) ? { 'db.response.status_code': code } : {}),
+      ...codeFields,
     };
   }
   return {
     'exception.type': type,
-    ...(typeof failure.message === 'string' ? { 'exception.message': failure.message } : {}),
-    ...(stack ? { 'exception.stacktrace': stack } : {}),
-    'error.type': stringCode(failure.code) ?? type,
+    ...(typeof failure.message === 'string'
+      ? { 'exception.message': redactQuotedPaths(failure.message) }
+      : {}),
+    ...(stack ? { 'exception.stacktrace': redactQuotedPaths(stack) } : {}),
+    ...codeFields,
   };
 }
