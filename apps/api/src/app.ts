@@ -95,11 +95,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // One body for every error (the error handling spec, 2026-10-19): see errorReplyFor.
   app.setErrorHandler((err, request, reply) => {
     const { status, body } = errorReplyFor(err);
-    if (status >= 500)
-      request.log.error(
-        { code: (err as { code?: unknown }).code, name: (err as Error).name, error: body.error },
-        'Request failed',
-      );
+    // RFC-0012 §5.2: an AppError 502, 503 or 504 is a state the code handles (provider down,
+    // feature off, timeout) and logs at warn by its code; anything else is a bug and logs at
+    // error with its safe fields (lib/logging), stack included.
+    if (status >= 500) {
+      if (err instanceof AppError && err.statusCode !== 500)
+        request.log.warn({ code: body.error, status }, 'Request failed');
+      else request.log.error({ err, error: body.error }, 'Request failed');
+    }
     // A refusal from the assistant is logged by its code alone: "nothing came" is then never
     // a mystery in production. The words of the request never reach the log.
     else if (request.url.includes('/assistant/'))

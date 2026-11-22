@@ -37,6 +37,22 @@ describe('GET /health', () => {
     }
   });
 
+  it('logs an unreachable database at warn, with the error by its safe fields', async () => {
+    const lines: string[] = [];
+    const app = await buildTestApp({ logLines: lines });
+    vi.spyOn(app.db, 'execute').mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    try {
+      expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(503);
+    } finally {
+      vi.restoreAllMocks();
+      await app.app.close();
+    }
+    const line = lines
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .find((l) => l.type === 'health.database');
+    expect(line).toMatchObject({ severity: 'WARNING', err: { type: 'Error' } });
+  });
+
   afterAll(async () => {
     if (ctx) {
       await resetDatabase(ctx.db);

@@ -17,11 +17,13 @@ import { buildTestApp, createBoardFixture, resetDatabase, type TestContext } fro
 /** RFC 0002 §8–§10, §12: creating, deleting and leaving boards. */
 let ctx: TestContext;
 let fx: Awaited<ReturnType<typeof createBoardFixture>>;
+const logLines: string[] = [];
 
 beforeAll(async () => {
-  ctx = await buildTestApp();
+  ctx = await buildTestApp({ logLines });
 });
 beforeEach(async () => {
+  logLines.length = 0;
   await resetDatabase(ctx.db);
   fx = await createBoardFixture(ctx);
 });
@@ -178,6 +180,21 @@ describe('board.delete', () => {
     expect((await listIds(fx.ownerToken)).map((b) => b.id)).not.toContain(fx.boardId);
     expect(await drainCleanup(ctx.db)).toEqual({ completed: 1, pending: 0 });
     expect(await loadBoard(fx.boardId)).toBeUndefined();
+  });
+
+  it('logs a failed inline cleanup at error and still answers 204', async () => {
+    interruptCleanup();
+    expect((await del(fx.ownerToken, fx.boardId)).statusCode).toBe(204);
+    const line = logLines
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .find((l) => l.outcome === 'cleanup_pending');
+    expect(line).toMatchObject({
+      severity: 'ERROR',
+      message: 'Board cleanup failed',
+      command: 'board.delete',
+      cleanupId: expect.any(String),
+      err: { type: 'Error', message: 'interrupted' },
+    });
   });
 
   it('deletes a board with many notes, and a rerun finishes what a failure left', async () => {
