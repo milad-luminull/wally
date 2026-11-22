@@ -1,13 +1,17 @@
 # Observability: Sentry and the platforms' own tools
 
 - **Status:** accepted by the owner on 2026-11-08, after a builder check the same day.
-  Workstream 1 is built (§7, "As built"); the others are not.
+  Workstream 1 is built (§7, "As built"); the others are not. Revised on 2026-11-22 at the
+  owner's request to follow OpenTelemetry and other documented standards (§5 rule 6, the
+  workstream 1 follow-up and workstream 2).
 - **Date:** 2026-11-08
 - **Source:** the owner's observability requirements of 2026-11-08 (summarised in §2), and the
   [Sentry design](../superpowers/specs/2026-11-07-sentry-design.md) of 2026-11-07, which becomes
   workstream 2.
 - **Decisions to record:** [ADR-0031](../adr/ADR-0031-structured-logs-and-the-logging-rule.md)
-  (structured logs and the logging rule, recorded with workstream 1); Sentry as the application
+  (structured logs and the logging rule, recorded with workstream 1), superseded before its
+  release by [ADR-0032](../adr/ADR-0032-structured-logs-with-opentelemetry-names.md)
+  (the same, with OpenTelemetry's names, the workstream 1 follow-up); Sentry as the application
   monitor, behind one import boundary; scheduled checks as a Cloud Run Job. ADR-0029 and
   ADR-0030, the numbers first planned here, went to other decisions, so these two take the next
   free numbers when they are written.
@@ -92,14 +96,14 @@ monitoring.
 
 Each signal has exactly one owner, so nothing is instrumented twice.
 
-| Signal                                                 | Owner                                                               | Why                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Errors, traces, Web Vitals, AI spans, app-level alerts | **Sentry** (Developer plan, EU)                                     | The primary application monitor. The free plan includes 5k errors, 5M spans, 5 GB logs, 20 metric monitors, 1 cron monitor and email alerts ([pricing](https://sentry.io/pricing/)). Over quota, events "will be dropped and you won't be charged" ([pricing docs](https://docs.sentry.io/pricing/)). |
-| Logs, as the system of record                          | **Cloud Logging**                                                   | Cloud Run already ships stdout there. "First 50 GiB/project/month" free; default 30-day retention costs nothing ([pricing](https://cloud.google.com/products/observability/pricing)). The same lines also reach Sentry Logs through the pino integration (workstream 2), from one logger.             |
-| Uptime of the web app and the API                      | **Cloud Monitoring uptime checks**                                  | "1 million executions per Google Cloud project" free; alert policies on uptime metrics "are not charged", even under the alerting prices due "no sooner than September 1, 2027" (same page). Managed in Terraform with the existing `google` provider.                                                |
-| Scheduled-run failures and misses                      | **Sentry cron monitor**, fed by an ops-check job (§5, workstream 5) | One cron monitor is free on every plan.                                                                                                                                                                                                                                                               |
-| Cloud spend                                            | The **existing billing budget**                                     | Already in Terraform. Alert-only (owner, 2026-11-08).                                                                                                                                                                                                                                                 |
-| AI spend                                               | The **app's own ledger**                                            | It already prices every call and enforces the caps; Sentry shows the same cost per call.                                                                                                                                                                                                              |
+| Signal                                                 | Owner                                                               | Why                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Errors, traces, Web Vitals, AI spans, app-level alerts | **Sentry** (Developer plan, EU)                                     | The primary application monitor. The free plan includes 5k errors, 5M spans, 5 GB logs, 20 metric monitors, 1 cron monitor and email alerts ([pricing](https://sentry.io/pricing/)). Over quota, events "will be dropped and you won't be charged" ([pricing docs](https://docs.sentry.io/pricing/)).      |
+| Logs, as the system of record                          | **Cloud Logging**                                                   | Cloud Run already ships stdout there. "First 50 GiB/project/month" free; default 30-day retention costs nothing ([pricing](https://cloud.google.com/products/observability/pricing)). Sentry gets `error` lines as issues and `warn` lines as Sentry Logs (workstream 2); `info` and below stay here only. |
+| Uptime of the web app and the API                      | **Cloud Monitoring uptime checks**                                  | "1 million executions per Google Cloud project" free; alert policies on uptime metrics "are not charged", even under the alerting prices due "no sooner than September 1, 2027" (same page). Managed in Terraform with the existing `google` provider.                                                     |
+| Scheduled-run failures and misses                      | **Sentry cron monitor**, fed by an ops-check job (§5, workstream 5) | One cron monitor is free on every plan.                                                                                                                                                                                                                                                                    |
+| Cloud spend                                            | The **existing billing budget**                                     | Already in Terraform. Alert-only (owner, 2026-11-08).                                                                                                                                                                                                                                                      |
+| AI spend                                               | The **app's own ledger**                                            | It already prices every call and enforces the caps; Sentry shows the same cost per call.                                                                                                                                                                                                                   |
 
 **Not used, on purpose:**
 
@@ -134,6 +138,36 @@ Each signal has exactly one owner, so nothing is instrumented twice.
    waits at most 500 ms, and only when it captured an event.
 5. **Free by configuration.** Sample rates, log level and quotas are set in code or Terraform
    and listed in §8; nothing relies on a vendor default to stay free.
+6. **Standards first** (owner, 2026-11-22). Where a stable standard exists, Wally uses it; a
+   vendor feature only where none does. Nothing is built to bridge a gap between the two.
+
+   | Concern                | Standard                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Used as                                                                                                                                                                       |
+   | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Trace ids on log lines | OpenTelemetry [Trace Context in Non-OTLP Log Formats](https://opentelemetry.io/docs/specs/otel/compatibility/logging_trace_context/) (Stable)                                                                                                                                                                                                                                                                                                                                   | `trace_id`, `span_id`, `trace_flags`, written by `@opentelemetry/instrumentation-pino` (workstream 2)                                                                         |
+   | Tracing API            | OpenTelemetry API, implemented by Sentry's SDK ([`enableOpenTelemetrySetup`](https://docs.sentry.io/platforms/javascript/guides/node/opentelemetry/using-opentelemetry-apis/))                                                                                                                                                                                                                                                                                                  | one trace provider, no second SDK                                                                                                                                             |
+   | Log field names        | OpenTelemetry [semantic conventions](https://opentelemetry.io/docs/specs/semconv/) (Stable): [`exception.*`](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/), [`http.*`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/http/), [`url.path`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/url/), [`error.type`](https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/), `db.response.status_code` | workstream 1 follow-up                                                                                                                                                        |
+   | Severity               | OpenTelemetry [severity ranges](https://opentelemetry.io/docs/specs/otel/logs/data-model/), mapped as Google [maps them](https://docs.cloud.google.com/stackdriver/docs/reference/telemetry/otlp-log-record-to-log-entry) to `severity`                                                                                                                                                                                                                                         | as built                                                                                                                                                                      |
+   | Log transport          | JSON on stdout, read by Cloud Run's agent ([structured logging](https://docs.cloud.google.com/logging/docs/structured-logging))                                                                                                                                                                                                                                                                                                                                                 | as built                                                                                                                                                                      |
+   | Service identity       | `service.name`, `service.version`, `deployment.environment.name` (Stable)                                                                                                                                                                                                                                                                                                                                                                                                       | Sentry's project, release and environment                                                                                                                                     |
+   | Releases, source maps  | [SemVer 2.0.0](https://semver.org/); [ECMA-426](https://ecma-international.org/publications-and-standards/standards/ecma-426/)                                                                                                                                                                                                                                                                                                                                                  | Sentry's Debug IDs are a [TC39 proposal](https://github.com/tc39/ecma426/blob/main/proposals/debug-id.md), not part of the standard; maps that carry them stay valid ECMA-426 |
+
+   **Not OTLP.** The API does not export logs or spans over OTLP. Under Cloud Run's
+   request-based billing an instance has no CPU between requests, and Google lists
+   "monitoring agents like OpenTelemetry" among the reasons to choose instance-based billing
+   ([billing](https://docs.cloud.google.com/run/docs/configuring/billing-settings)), which
+   bills "the entire lifecycle of each instance" and would end the $0 budget. Sentry's own
+   OTLP intake is in open beta.
+
+   **No stable standard, so a vendor feature:** the `gen_ai` conventions are at Development
+   status, so AI spans come from Sentry's Vercel AI integration; OpenTelemetry in the browser
+   is experimental, so the web app uses Sentry's React SDK; uptime checks and missed-run
+   checks have no standard and use Cloud Monitoring and Sentry cron check-ins.
+
+   **A recommendation not followed:** OpenTelemetry's naming guide _recommends_ prefixing an
+   application's own attributes with its name and writing them in snake_case
+   ([naming](https://opentelemetry.io/docs/specs/semconv/general/naming/)). Wally's own fields
+   (`type`, `operationId`, `outcome` and the like) keep their names: they never enter an
+   OpenTelemetry pipeline, and renaming every call site would buy nothing.
 
 ## 6. Background work and reminders
 
@@ -253,6 +287,30 @@ gets its own design in `docs/superpowers/specs/` before building.
 - An `AppError` 502, 503 or 504 logs `Request failed` at `warn` with its code and status, without
   a stack; any other 5xx at `error` with `err`.
 
+**Follow-up: OpenTelemetry field names (2026-11-22, built).** One small PR, merged before the
+next release so the field names change only once. It renames the fields that have a Stable
+OpenTelemetry name (§5 rule 6) and nothing else:
+
+| As built                                                                        | Becomes                                                                                                    |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `err.type`, `err.message`, `err.stack`                                          | `exception.type`, `exception.message`, `exception.stacktrace`                                              |
+| `err.code`                                                                      | `error.type` (the code, else the error's type); a code Postgres returned is also `db.response.status_code` |
+| `req.method`, `req.url` (redacted path)                                         | `http.request.method`, `url.path`                                                                          |
+| the error handler's `status` and `code`                                         | `http.response.status_code` and `error.type`, plus `http.route`                                            |
+| a provider's own error on `assistant.provider_error` (`name`, `status`, `code`) | unchanged: it describes the provider's failure, not Wally's, and stays one of Wally's own fields           |
+
+- The keys are written flat (`"exception.type": …`), as the attribute names read. pino's
+  `formatters.log` (`errorAsAttributes`) moves the safe error fields to those keys, and a field
+  the caller sets wins. A non-`AppError` 500 no longer logs the response code
+  `INTERNAL_SERVER_ERROR`: its `error.type` is the error's own. The
+  `safeErrorFields` rules (no database message, the `logMethod` hook) are unchanged.
+- `severity`, `message`, `time` and pino's `level` stay. The trace field stays as built until
+  workstream 2 replaces it.
+- [ADR-0032](../adr/ADR-0032-structured-logs-with-opentelemetry-names.md) records the
+  conventions and supersedes ADR-0031, which was never released. DEPLOY.md's Cloud Logging
+  queries use the new keys. `logging.test.ts` and the call-site tests assert them.
+- No E2E spec: nothing in the browser changes, and CI's E2E suite must stay green.
+
 ### Workstream 2: Sentry errors, tracing and logs
 
 The [Sentry design](../superpowers/specs/2026-11-07-sentry-design.md), with two changes: session
@@ -262,6 +320,34 @@ there. It covers both apps, releases and source maps, Web Vitals (collected by
 [automatic instrumentation](https://docs.sentry.io/platforms/javascript/guides/react/tracing/instrumentation/automatic-instrumentation/)),
 Sentry Logs from the API, the projects in Terraform, the email alert on new issues, the DPA, the
 privacy policy and `docs/GDPR.md`.
+
+Revised for §5 rule 6 (2026-11-22), each point checked in a throwaway spike with
+`@sentry/node` 11.16.0, `@opentelemetry/instrumentation-pino` 0.71.0, Fastify 5.12.8 and an
+ESM `--import` preload:
+
+- **Sentry is the OpenTelemetry trace provider** (`enableOpenTelemetrySetup: true`, which
+  registers Sentry's tracer provider, context manager and propagator). No separate
+  OpenTelemetry SDK and no OTLP exporter.
+- **Trace ids on every log line** come from `@opentelemetry/instrumentation-pino` with log
+  sending off: it writes `trace_id`, `span_id` and `trace_flags` from the active span. Its
+  `logHook` adds Google's `logging.googleapis.com/trace` (the bare trace id, which Google
+  [prefers](https://docs.cloud.google.com/trace/docs/trace-log-integration) over the legacy
+  `projects/…/traces/…`), `logging.googleapis.com/spanId` and
+  `logging.googleapis.com/trace_sampled`. In the spike every request got its own ids,
+  including requests Sentry did not sample (`trace_flags` `00`).
+- **Removed:** `traceBindings`, the `X-Cloud-Trace-Context` read and the `GOOGLE_CLOUD_PROJECT`
+  setting.
+- **Trade-off, accepted:** Sentry continues an incoming trace only from its own
+  `sentry-trace` header, not from W3C `traceparent` (spike, and `@sentry/core`'s server
+  source). So a request's trace id is Sentry's, shared by the browser span, the API span and
+  the log lines, but not Cloud Run's own request-log trace: Cloud Logging groups a request's
+  lines by trace, not under Cloud Run's request entry. Wally adds no propagation code of its
+  own to change that.
+- **Each line reaches Sentry at most once:** `error` lines become issues, `warn` lines Sentry
+  Logs, and `info` and below stay in Cloud Logging, through
+  `pinoIntegration({ error: { levels: ['error'] }, log: { levels: ['warn'] } })`.
+- `dataCollection.userInfo` is set to `false` with every other field, since SDK 11 records
+  the client address when it is on.
 
 ### Workstream 3: AI observability
 
@@ -277,7 +363,12 @@ privacy policy and `docs/GDPR.md`.
 - **Failures, fallbacks and invalid output:** the existing log lines are the instrumentation.
   `assistant.provider_error` and `assistant.timeout` (`warn`), a `finishReason` other than a
   normal stop, `fields: null` from invalid output, and the rule-based tidy path are already
-  logged; they become Sentry metric monitors (rates per hour), not new code.
+  logged; they become Sentry metric monitors (rates per hour), not new code. The `warn` lines
+  reach Sentry as logs (workstream 2); the design decides how the `info`-level outcomes
+  (`finishReason`, `fields: null`) reach Sentry without sending every `info` line.
+- Sentry's integration traces `generateText`, which all three model calls use
+  (`model/runTurn.ts`, `suggest.ts`, `tidy.ts`); its page says `generateObject` and
+  `streamObject` are not traced under AI SDK v7, so none may be added without a check.
 - **Spend:** the ledger logs `assistant.spend_threshold` once per month when spend crosses 50 %
   and 90 % of the monthly cap; a Sentry monitor emails on it. At 100 % the cap already refuses
   calls.
@@ -350,7 +441,7 @@ queries read tables the API already writes (`assistant_suggestions`, `assistant_
 | ---------------------- | ------------------------------- | ------------------------------- | --------------------- |
 | Sentry errors          | 5,000 a month                   | low                             | dropped, not billed   |
 | Sentry spans           | 5M a month                      | traces at 0.2                   | dropped               |
-| Sentry logs            | 5 GB a month                    | API `info` and above            | dropped               |
+| Sentry logs            | 5 GB a month                    | API `warn` lines only           | dropped               |
 | Sentry replays         | 50 a month                      | only on error                   | dropped               |
 | Sentry metric monitors | 20                              | about 10                        | cannot add more       |
 | Sentry cron monitors   | 1                               | 1 (ops check)                   | needs a paid plan     |
@@ -389,8 +480,8 @@ the pattern. The RFC is done when:
 ## 11. Open points for the workstream designs
 
 - Whether the Terraform provider manages Sentry metric and cron monitors (else Sentry's UI).
-- Whether Cloud Run honours an incoming W3C `traceparent`, which would let Cloud Logging and
-  Sentry share one trace id instead of two linked ones.
+- Settled 2026-11-22: Sentry does not continue an incoming W3C `traceparent`, so the API's
+  trace id is Sentry's, not Cloud Run's (workstream 2).
 - Whether email notification channels in Cloud Monitoring are free.
 - Whether `gemini-3.8-flash` on Vertex matches a model in Sentry's cost table (the ledger's cost
   is passed in either way).

@@ -4,6 +4,13 @@
 > This is workstream 2 of [RFC-0012](../../rfcs/RFC-0012-observability.md). Two parts move out
 > of it there: session replay goes to workstream 7, and the logger setup it shares (severity,
 > trace field, `err` serializer) is built first in workstream 1.
+>
+> **Revised 2026-11-22** for RFC-0012 §5 rule 6 (standards first). Where this design and
+> RFC-0012's workstream 2 section differ, the RFC wins. In short: Sentry becomes the
+> OpenTelemetry trace provider (`enableOpenTelemetrySetup: true`); the trace ids on log lines
+> come from `@opentelemetry/instrumentation-pino`, with Google's trace keys added in its
+> `logHook`; only `warn` lines go to Sentry Logs; log fields use OpenTelemetry's names from the
+> workstream 1 follow-up; the SDK is 11.16.0 or later.
 
 Date: 2026-11-07. A new processor for Wally, so it also gets an ADR (ADR-0029) and changes the
 privacy policy and `docs/GDPR.md` in the same PR.
@@ -55,7 +62,7 @@ Added after the builder check, 2026-11-08:
    Fastify span.
 3. A session that hits an error has a replay of the minutes before it, with all text, inputs and
    media hidden.
-4. The API's existing pino logs reach Sentry Logs, already redacted.
+4. The API's `warn` lines reach Sentry Logs, already redacted; `error` lines become issues.
 5. Nothing that leaves Wally contains a share-link token, an Auth0 `code` or `state`, a bearer
    token, a cookie, a request body, an email address or an IP address.
 6. The release uploads the web app's source maps to Sentry and does **not** publish them.
@@ -234,7 +241,8 @@ change. Three places change, each a logging fix worth having anyway:
 - the error handler logs a 5xx that is not an `AppError` at `error` with `err`, so its stack is
   no longer lost. An `AppError` 5xx (`MCP_DISABLED`, the `ASSISTANT_*` 502/504s) is an expected
   state and logs at `warn`. `errorBody.ts` already tells the two apart;
-- pino gets an `err` serializer keeping only `name`, `message`, `stack` and `code`. Without it,
+- pino writes an error's safe fields only, under OpenTelemetry's names (built in workstream 1,
+  ADR-0032). Without that,
   enumerable fields such as a Postgres error's `detail` (`Key (email)=(…)`) would reach Cloud
   Logging and Sentry Logs;
 - `routes/health.ts` logs a database failure at `warn`. At `error` it would open an issue with
@@ -265,22 +273,22 @@ today; a Sentry major is a deliberate migration.
 
 **Changes to existing files, in full:**
 
-| File                                        | Change                                                                                                                                                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/app.ts`                       | register `observability`; spread `TRACE_HEADERS` into CORS; unexpected 5xx logs at `error` with `err`, `AppError` 5xx at `warn`; an `err` serializer; the request-log serializer uses `redactUrl` |
-| `apps/api/src/routes/health.ts`             | the database-failure log moves to `warn`                                                                                                                                                          |
-| `apps/api/src/env.ts`                       | optional `SENTRY_DSN` and `SENTRY_RELEASE`                                                                                                                                                        |
-| `apps/api/Dockerfile`                       | the prod command adds `--import ./dist/lib/observability/instrument.js`                                                                                                                           |
-| `apps/web/src/main.tsx`                     | `initObservability()` first; `rootErrorHandlers` into `createRoot`                                                                                                                                |
-| `apps/web/src/App.tsx`                      | `Routes` becomes `ObservedRoutes`                                                                                                                                                                 |
-| where `/me` resolves                        | `setObservedUser(uid)`                                                                                                                                                                            |
-| `apps/web/src/lib/queryClient.ts`           | `reportUnexpected` in the cache `onError` hooks                                                                                                                                                   |
-| `apps/web/src/components/ErrorBoundary.tsx` | the "no reporting service" comment goes; nothing else                                                                                                                                             |
-| `apps/web/vite.config.ts`                   | the Sentry plugin and hidden source maps, only when the upload token is set                                                                                                                       |
-| `apps/web/src/vite-env.d.ts`                | `VITE_SENTRY_DSN`                                                                                                                                                                                 |
-| `packages/shared`                           | `redactUrl` and `TOKEN_PATH_PREFIXES`                                                                                                                                                             |
-| `packages/config/eslint.config.base.js`     | the Sentry import boundary                                                                                                                                                                        |
-| `.github/dependabot.yml`                    | the `sentry` group                                                                                                                                                                                |
+| File                                        | Change                                                                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/app.ts`                       | register `observability`; spread `TRACE_HEADERS` into CORS; unexpected 5xx logs at `error` with `err`, `AppError` 5xx at `warn`; error fields by OpenTelemetry names (built in workstream 1); the request path uses `redactUrl` |
+| `apps/api/src/routes/health.ts`             | the database-failure log moves to `warn`                                                                                                                                                                                        |
+| `apps/api/src/env.ts`                       | optional `SENTRY_DSN` and `SENTRY_RELEASE`                                                                                                                                                                                      |
+| `apps/api/Dockerfile`                       | the prod command adds `--import ./dist/lib/observability/instrument.js`                                                                                                                                                         |
+| `apps/web/src/main.tsx`                     | `initObservability()` first; `rootErrorHandlers` into `createRoot`                                                                                                                                                              |
+| `apps/web/src/App.tsx`                      | `Routes` becomes `ObservedRoutes`                                                                                                                                                                                               |
+| where `/me` resolves                        | `setObservedUser(uid)`                                                                                                                                                                                                          |
+| `apps/web/src/lib/queryClient.ts`           | `reportUnexpected` in the cache `onError` hooks                                                                                                                                                                                 |
+| `apps/web/src/components/ErrorBoundary.tsx` | the "no reporting service" comment goes; nothing else                                                                                                                                                                           |
+| `apps/web/vite.config.ts`                   | the Sentry plugin and hidden source maps, only when the upload token is set                                                                                                                                                     |
+| `apps/web/src/vite-env.d.ts`                | `VITE_SENTRY_DSN`                                                                                                                                                                                                               |
+| `packages/shared`                           | `redactUrl` and `TOKEN_PATH_PREFIXES`                                                                                                                                                                                           |
+| `packages/config/eslint.config.base.js`     | the Sentry import boundary                                                                                                                                                                                                      |
+| `.github/dependabot.yml`                    | the `sentry` group                                                                                                                                                                                                              |
 
 No route, component, hook or query changes beyond these.
 
@@ -373,7 +381,7 @@ fails the test until someone decides which it is.
     and `beforeSendLog`. As a second net it deletes `request.headers`, `request.cookies`,
     `request.data` and `user.ip_address`.
   - `tracesSampleRate: 0.2`. `/health` is never traced.
-  - `pinoIntegration({ error: { levels: ['error'] }, log: { levels: ['info', 'warn', 'error', 'fatal'] } })`
+  - `pinoIntegration({ error: { levels: ['error'] }, log: { levels: ['warn'] } })`
     and `fastifyIntegration({ shouldHandleError: () => false })` (Part 0).
 - **Errors:** through the log, and MCP through its integration (Part 0).
 - **Cloud Run and sending:** Cloud Run throttles the CPU outside requests and scales to zero,
@@ -506,7 +514,7 @@ fails the test until someone decides which it is.
 
 - `tracesSampleRate: 0.2` on both apps; replays only on error, at 100 %.
 - The Wally user id is attached to events; no email, name or IP.
-- No tunnel; no browser logs; API logs at `info` and above.
+- No tunnel; no browser logs; API `warn` lines only (revised 2026-11-22).
 - Local variables are not sent (`stackFrameVariables: false`); AI prompts and outputs are off.
 - One shared `redactUrl` replaces the API's inline regex, with guard tests for new token routes.
 - `@sentry/*` is imported only in one folder per app, enforced by lint (ADR-0013's pattern).
