@@ -13,6 +13,7 @@ export * from './schemas/board.js';
 export * from './schemas/member.js';
 export * from './schemas/assistant.js';
 export * from './schemas/tidy.js';
+export * from './schemas/intake.js';
 export * from './schemas/accountExport.js';
 
 export * from './schemas/command.js';

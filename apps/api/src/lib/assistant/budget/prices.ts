@@ -7,11 +7,13 @@ import { AppError } from '../../errors.js';
  * per 1M tokens, the same above and below 200K input tokens:
  *   - through 2026-12-31 (introductory): global 0.75 in / 3.75 out; non-global 0.825 / 4.125
  *   - from 2027-01-01 (standard): global 1.50 in / 7.50 out; non-global 1.65 / 8.25
+ * Gemini 3.7 Flash (read 2026-11-08, same page, now cloud.google.com/model-garden/pricing) has
+ * the same rows as 3.8 Flash; it retires on 2027-01-28 (model versions page).
  * The deployment calls the EU multi-region endpoint (ASSISTANT_VERTEX_LOCATION, `eu` by
  * default), which is non-global, so the table carries the highest row, the non-global
  * standard price, and a reservation can only overshoot.
  */
-export const PRICE_TABLE_VERSION = '2026-10-15';
+export const PRICE_TABLE_VERSION = '2026-11-08';
 
 export interface ModelPrice {
   inputMicroUsdPerToken: number;
@@ -20,6 +22,7 @@ export interface ModelPrice {
 
 const PRICES: Record<string, ModelPrice> = {
   'vertex:gemini-3.8-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
+  'vertex:gemini-3.7-flash': { inputMicroUsdPerToken: 1.65, outputMicroUsdPerToken: 8.25 },
 };
 
 export function priceFor(modelRef: string): ModelPrice {

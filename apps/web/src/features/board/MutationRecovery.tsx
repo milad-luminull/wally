@@ -216,7 +216,7 @@ export function MutationRecovery() {
     <>
       <Button
         variant="outline"
-        className="fixed bottom-5 left-1/2 z-toast max-w-[90vw] -translate-x-1/2 bg-surface shadow-e3"
+        className="fixed bottom-[calc(var(--wally-dock-clearance,0px)+1.25rem)] left-1/2 z-toast max-w-[90vw] -translate-x-1/2 bg-surface shadow-e3"
         onClick={() => setSelected(recoveries[0]!.ticket.operationId)}
       >
         {t('safety.pending', { count: recoveries.length })}

@@ -18,7 +18,7 @@ export function OfflineBar() {
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-1/2 z-toast -translate-x-1/2 rounded-full bg-fg-1 px-4 py-2 text-13 text-surface shadow-e3"
+      className="fixed bottom-[calc(var(--wally-dock-clearance,0px)+1rem)] left-1/2 z-toast -translate-x-1/2 rounded-full bg-fg-1 px-4 py-2 text-13 text-surface shadow-e3"
     >
       {t('errors.offline')}
     </div>

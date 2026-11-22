@@ -9,11 +9,11 @@
  *   cd apps/api
  *   ASSISTANT_VERTEX_PROJECT=luminull-wally-prod pnpm assistant:capture-eval
  *
- * with the assistant variables from the root `.env` exported in the shell.
+ * It reads only the model's settings (`loadModelEnv`): no database is needed.
  *
  * Never used by tests.
  */
-import { loadEnv } from './env.js';
+import { loadModelEnv } from './env.js';
 import { acceptCapture, buildCaptureCall } from './lib/assistant/captureProposal.js';
 import {
   CAPTURE_FIXTURES,
@@ -25,7 +25,7 @@ import { normalizeProposal, scoreFixture, summarize } from './lib/assistant/eval
 import { createConfiguredSuggestionRunner } from './lib/assistant/model/index.js';
 import { SUGGESTION_MAX_OUTPUT_TOKENS } from './lib/assistant/suggestions.js';
 
-const env = loadEnv();
+const env = loadModelEnv();
 const runner = createConfiguredSuggestionRunner(env);
 console.log(`model: ${env.ASSISTANT_MODEL}, ${CAPTURE_FIXTURES.length} fixtures`);
 

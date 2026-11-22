@@ -10,15 +10,12 @@ import {
   NOTE_CARD_WIDTH,
   type CanvasPattern,
   type NoteDto,
-  type NoteVisibility,
-  type SuggestionFieldKey,
 } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCanvasPattern } from '@/lib/preferences';
-import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
-import { askCardOrigin, type AskSlot } from '../Ask/askSlot';
+import type { CapturePlacement } from '../WallyBox/placement';
+import type { BoxSlot } from '../WallyBox/boxSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import { NoteCard } from './NoteCard';
 import type { InlineEditProps } from '../Capture/inlineEdit';
@@ -26,30 +23,19 @@ import type { NoteCardActions } from './NoteCardActions';
 
 export const FREE_CANVAS_DROPPABLE_ID = 'free-canvas';
 
+/** The anchored box's width on the canvas; it is kept inside the canvas's right edge. */
+export const ANCHORED_BOX_WIDTH = 400;
+
 interface WallCanvasProps {
-  boardId: string;
   notes: NoteDto[];
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
   cardActions?: (note: NoteDto) => NoteCardActions;
-  /** A double-click on empty canvas asks for a new note written at that point. */
+  /** A double-click on empty canvas opens the Wally box at that point. */
   onCapture: (placement: CapturePlacement) => void;
-  /** The note being written, shown on the canvas when its placement is free. */
-  capture: CapturePlacement | null;
-  /** Changes with every capture, so each one gets a fresh card. */
-  captureKey?: number;
-  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
-  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
-  onCaptureNoteId?: (noteId: string) => void;
-  /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: CaptureAsk;
-  /** The answer to a question, shown on the canvas when its placement is free (§3.6). */
-  ask?: AskSlot | null;
-  /** What a new note's visibility will be; a viewer's is private. */
-  visibility: NoteVisibility;
-  /** The board's filter chose that visibility ("Shared"). */
-  visibilityChosen?: boolean;
+  /** The Wally box anchored on the canvas, drawn where its placement is free. */
+  box?: BoxSlot | null;
   /** Only picks the empty-state copy; anyone may add a note, and a viewer's is private. */
   canEditShared: boolean;
   /** True when the board has notes but the active filter hides all of them. */
@@ -88,21 +74,13 @@ function emptyStateKeys(filtered: boolean, canEditShared: boolean) {
 }
 
 export function WallCanvas({
-  boardId,
   notes,
   currentUserId,
   selectedNoteId,
   onOpenNote,
   cardActions,
   onCapture,
-  capture,
-  captureKey,
-  onCaptureDone,
-  onCaptureNoteId,
-  onCaptureAsk,
-  ask,
-  visibility,
-  visibilityChosen,
+  box,
   canEditShared,
   filtered,
   activeDragId,
@@ -117,9 +95,8 @@ export function WallCanvas({
   const [pattern] = useCanvasPattern();
 
   function handleDoubleClick(e: MouseEvent<HTMLDivElement>) {
-    // A double-click on a card, on the note being written (selecting a word) or on an answer
-    // is not a request for another note.
-    if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
+    // A double-click on a card, or in the box (selecting a word), is not a request for a note.
+    if ((e.target as HTMLElement).closest('[data-note-id], [data-wally-box]')) return;
     const el = scrollRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -161,39 +138,19 @@ export function WallCanvas({
               style={{ position: 'absolute', left: note.freeX, top: note.freeY }}
             />
           ))}
-          {capture?.kind === 'free' && (
+          {box?.placement.kind === 'free' && (
             <div
-              key={captureKey}
-              data-capture
-              // Above an answer card at the same point (31 over 30): a note started from New
-              // note may land where the answer stands, and the card being written comes first.
-              style={{ position: 'absolute', left: capture.x, top: capture.y, zIndex: 31 }}
-            >
-              <InlineCaptureCard
-                boardId={boardId}
-                placement={capture}
-                visibility={visibility}
-                visibilityChosen={visibilityChosen}
-                layout="card"
-                onDone={onCaptureDone}
-                onNoteId={onCaptureNoteId}
-                onAsk={onCaptureAsk}
-              />
-            </div>
-          )}
-          {ask?.placement.kind === 'free' && (
-            <div
-              key={ask.key}
-              data-ask
+              key={box.key}
               style={{
                 position: 'absolute',
-                // Clamped like a capture point, for the answer's own size.
-                left: askCardOrigin(ask.placement).x,
-                top: askCardOrigin(ask.placement).y,
-                zIndex: 30,
+                // The note lands at the point; the box, wider than a note, stays on the canvas.
+                left: Math.min(box.placement.x, FREE_CANVAS_WIDTH - ANCHORED_BOX_WIDTH),
+                top: box.placement.y,
+                width: ANCHORED_BOX_WIDTH,
+                zIndex: 31,
               }}
             >
-              {ask.card}
+              {box.node}
             </div>
           )}
         </div>
@@ -202,7 +159,7 @@ export function WallCanvas({
       {/* Sits outside the scroll container so the prompt stays centred in the visible
           panel instead of drifting off with the 2400px canvas. `pointer-events-none` keeps
           the double-click-to-create gesture working straight through it. */}
-      {notes.length === 0 && !capture && !ask && (
+      {notes.length === 0 && !box && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <EmptyState
             icon={<MousePointerClick strokeWidth={1.75} />}

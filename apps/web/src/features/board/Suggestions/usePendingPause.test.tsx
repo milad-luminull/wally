@@ -46,7 +46,7 @@ describe('usePendingPause', () => {
     const onPause = vi.fn();
     const { rerender } = render(<Card pending={pendingAt('asking', onPause)} />);
     const card = screen.getByTestId('card');
-    // The board focuses the committed card (useCaptureSession) before the proposal arrives.
+    // The board focuses the committed card before the proposal arrives.
     act(() => card.focus());
     expect(card).toHaveFocus();
     rerender(<Card pending={pendingAt('pending', onPause)} />);

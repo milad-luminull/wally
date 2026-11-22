@@ -1,0 +1,55 @@
+import type { NoteCreateInput, NoteDto } from '@wally/shared';
+import { nextFreeNotePosition } from '../util/notePlacement';
+
+/** Where a note written in the box lands: the spot it was opened at, or the board's default. */
+export type CapturePlacement =
+  | { kind: 'free'; x: number; y: number }
+  | {
+      kind: 'zone';
+      axis: 'horizon' | 'priority';
+      key: string;
+      at: { freeX: number; freeY: number };
+      /** The person chose this zone (a click in it), rather than the New note button's default. */
+      picked?: boolean;
+    }
+  | { kind: 'list' };
+
+/** How far below the one before it each further note from one message lands on the free wall. */
+export const NOTE_STACK_GAP = 112;
+
+export function placementInput(
+  placement: CapturePlacement,
+  notes: NoteDto[],
+): Partial<NoteCreateInput> {
+  switch (placement.kind) {
+    case 'free':
+      return { freeX: placement.x, freeY: placement.y };
+    case 'zone':
+      return placement.axis === 'horizon'
+        ? { ...nextFreeNotePosition(notes), horizon: placement.key as NoteCreateInput['horizon'] }
+        : {
+            ...nextFreeNotePosition(notes),
+            priority: placement.key as NoteCreateInput['priority'],
+          };
+    case 'list':
+      return nextFreeNotePosition(notes);
+  }
+}
+
+/** The `index`-th note of one message: one under another at a free spot, else the same place. */
+export function placementAt(placement: CapturePlacement, index: number): CapturePlacement {
+  return placement.kind === 'free' && index > 0
+    ? { ...placement, y: placement.y + index * NOTE_STACK_GAP }
+    : placement;
+}
+
+/** Whether the view can draw a box anchored at `placement`; if not, the docked box shows. */
+export function anchorShows(
+  view: 'wall' | 'list',
+  axis: 'horizon' | 'priority' | 'free',
+  placement: CapturePlacement,
+): boolean {
+  if (view !== 'wall') return false;
+  if (placement.kind === 'free') return axis === 'free';
+  return placement.kind === 'zone' && placement.axis === axis;
+}

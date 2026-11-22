@@ -1,17 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { makeNote } from '@/test/fixtures';
-import { renderWithProviders } from '@/test/renderWithProviders';
 import { boardAccess } from '../util/permissions';
 import { ListView } from './ListView';
 
-// The capture row reads the board's members for its person chips, and the language its
-// date words are parsed in.
-vi.mock('@/lib/resources', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/resources')>()),
-  membersApi: { list: vi.fn().mockResolvedValue([]) },
-}));
+// The rows read dates in the person's language.
 vi.mock('@/i18n/languageContext', async () => {
   const actual =
     await vi.importActual<typeof import('@/i18n/languageContext')>('@/i18n/languageContext');
@@ -182,92 +175,6 @@ describe('ListView', () => {
       />,
     );
     expect(screen.getByText('No note matches the filter')).toBeInTheDocument();
-  });
-
-  it('writes a new note in a row above the first group, and in place of the empty state', async () => {
-    const listProps = {
-      axis: 'horizon',
-      currentUserId: 'user-1',
-      onOpenNote: vi.fn(),
-      onToggleDone: vi.fn(),
-      access: owner,
-      isBelowDesktop: false,
-      capture: { boardId: 'b1', visibility: 'SHARED', onDone: vi.fn() },
-    } as const;
-    const { unmount } = renderWithProviders(
-      <ListView notes={notes} totalNoteCount={notes.length} {...listProps} />,
-    );
-    const row = await screen.findByRole('group', { name: 'Write a new note' });
-    const firstGroup = screen.getByRole('heading', { name: 'Today' });
-    expect(row.compareDocumentPosition(firstGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    unmount();
-
-    renderWithProviders(<ListView notes={[]} totalNoteCount={0} {...listProps} />);
-    expect(await screen.findByRole('group', { name: 'Write a new note' })).toBeInTheDocument();
-    expect(screen.queryByText('Your board is still empty')).not.toBeInTheDocument();
-  });
-
-  it('keeps the filter message above the capture row when a filter hides every note', async () => {
-    renderWithProviders(
-      <ListView
-        notes={[]}
-        totalNoteCount={3}
-        axis="horizon"
-        currentUserId="user-1"
-        onOpenNote={vi.fn()}
-        onToggleDone={vi.fn()}
-        access={owner}
-        isBelowDesktop={false}
-        capture={{ boardId: 'b1', visibility: 'SHARED', onDone: vi.fn() }}
-      />,
-    );
-    const row = await screen.findByRole('group', { name: 'Write a new note' });
-    const message = screen.getByText('No note matches the filter');
-    expect(message.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('keeps the capture row as it is when the first notes arrive under it', async () => {
-    const listProps = {
-      axis: 'horizon',
-      currentUserId: 'user-1',
-      onOpenNote: vi.fn(),
-      onToggleDone: vi.fn(),
-      access: owner,
-      isBelowDesktop: false,
-      capture: { id: 1, boardId: 'b1', visibility: 'SHARED', onDone: vi.fn() },
-    } as const;
-    const { rerender } = renderWithProviders(
-      <ListView notes={[]} totalNoteCount={0} {...listProps} />,
-    );
-    const title = await screen.findByRole('textbox', { name: 'Title of the new note' });
-    // Opens the text line without typing, so no note is created.
-    await userEvent.setup().type(title, '{Shift>}{Enter}{/Shift}');
-    expect(screen.getByRole('textbox', { name: 'Text of the new note' })).toHaveFocus();
-
-    rerender(<ListView notes={notes} totalNoteCount={notes.length} {...listProps} />);
-    expect(screen.getByRole('textbox', { name: 'Title of the new note' })).toBe(title);
-    expect(screen.getByRole('textbox', { name: 'Text of the new note' })).toHaveFocus();
-  });
-
-  it('draws the answer card as the top row, above the groups', () => {
-    renderWithProviders(
-      <ListView
-        notes={notes}
-        totalNoteCount={notes.length}
-        axis="horizon"
-        currentUserId="user-1"
-        onOpenNote={vi.fn()}
-        onToggleDone={vi.fn()}
-        access={owner}
-        isBelowDesktop={false}
-        ask={{ key: 1, placement: { kind: 'list' }, card: <div data-testid="answer" /> }}
-      />,
-    );
-    const answer = screen.getByTestId('answer');
-    expect(answer.parentElement).toHaveAttribute('data-ask');
-    expect(answer.compareDocumentPosition(screen.getByText('Today note'))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
   });
 
   it('shows the mobile drag hint below desktop width', () => {

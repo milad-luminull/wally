@@ -59,7 +59,7 @@ describe('NoteRow with a pending change', () => {
     return p;
   };
 
-  it('wraps the row in the moving border, with the proposed fields as rows under the title', () => {
+  it('wraps the row in the accent ring, with the proposed fields as rows under the title', () => {
     const p = renderRow();
     const row = rowOf();
     expect(row).toHaveAttribute('data-note-id', 'note-1');

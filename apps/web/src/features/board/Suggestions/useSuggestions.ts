@@ -210,6 +210,10 @@ export function useSuggestions(
    * forgetting it here alone would bring it back on the next visit.
    */
   const dismissed = useRef(new Set<symbol>());
+  /** The capture calls in line: each starts when the one before it has answered. */
+  const lane = useRef<Promise<unknown>>(Promise.resolve());
+  /** Calls in line or running. */
+  const waiting = useRef(0);
   /** The fade of an outcome line that needs nothing from the person. */
   const fadeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   /** What each outcome line's Try again repeats. */
@@ -488,16 +492,23 @@ export function useSuggestions(
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           today: localDate(),
         });
+      // One capture call at a time (the box spec, §4.4): a burst of notes from the box waits in
+      // line, "Filling in", so the person's next question always finds a free model slot. A
+      // turn that comes after Esc or a newer ask makes no call at all.
+      const inLine = () => {
+        const start = () =>
+          dismissed.current.delete(token) || asking.current.get(noteId) !== token ? null : call();
+        // An idle line starts the call at once, as before there was a line.
+        const turn = waiting.current === 0 ? Promise.resolve(start()) : lane.current.then(start);
+        waiting.current++;
+        lane.current = turn.then(
+          () => void waiting.current--,
+          () => void waiting.current--,
+        );
+        return turn;
+      };
       const { after } = options ?? {};
-      void (
-        after
-          ? after().then(() =>
-              dismissed.current.delete(token) || asking.current.get(noteId) !== token
-                ? null
-                : call(),
-            )
-          : call()
-      )
+      void (after ? after().then(inLine) : inLine())
         .then((answer) => {
           if (answer === null) return;
           const { suggestion } = answer;

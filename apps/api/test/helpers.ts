@@ -130,6 +130,7 @@ export async function buildTestApp(
     | 'assistantRunner'
     | 'suggestionRunner'
     | 'tidyRunner'
+    | 'intakeRunner'
     | 'assistantEnabled'
     | 'assistantDeadlineMs'
     | 'auth0SignupEnabled'

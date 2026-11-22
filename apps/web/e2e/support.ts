@@ -85,22 +85,107 @@ export async function signIn(page: Page) {
   }
 }
 
+/** The Wally box's field, by its German name (the E2E user writes German). */
+export const BOX_FIELD = 'Schreib eine Notiz oder frag Wally';
+
 /**
- * Creates a note the way the top bar does now (RFC-0005-wallybot-inline.md §3.1): "Neue Notiz" puts
- * a capture card on the board, with no panel. Enter (or a blur) writes the note in place;
- * ⌘↵ / Ctrl+↵ writes it and opens its detail panel, which `open` asks for. Returns once the
- * card has given way to the note (and, with `open`, the panel is showing), so the card's
- * "Titel der neuen Notiz" field can no longer be mistaken for the panel's "Titel".
+ * Creates a note through the Wally box (docs/superpowers/specs/2026-11-08-wally-box-design.md):
+ * "Neue Notiz" focuses the box at the bottom of the board, Enter writes the note and frees the
+ * box at once; ⌘↵ / Ctrl+↵ writes it as a note whatever the hint says and opens its detail
+ * panel, which `open` asks for. Returns once the note is saved (and, with `open`, the panel is
+ * showing).
  */
 export async function captureNote(page: Page, title: string, { open = false } = {}) {
-  await page.getByRole('button', { name: 'Neue Notiz' }).click();
-  const card = page.getByRole('group', { name: 'Neue Notiz schreiben' });
-  const titleField = card.getByLabel('Titel der neuen Notiz', { exact: true });
-  await titleField.fill(title);
-  // The card takes Meta or Control with Enter; ControlOrMeta is Control on the Linux runner.
-  await titleField.press(open ? 'ControlOrMeta+Enter' : 'Enter');
-  await expect(card).toBeHidden();
+  await page.getByRole('button', { name: 'Neue Notiz' }).first().click();
+  const field = page.getByRole('textbox', { name: BOX_FIELD });
+  await expect(field).toBeFocused();
+  await field.fill(title);
+  // Waited for by the request, not the card: a remembered filter may hide the note.
+  const created = page.waitForResponse(
+    (r) =>
+      /\/whiteboards\/[^/]+\/notes$/.test(new URL(r.url()).pathname) &&
+      r.request().method() === 'POST',
+  );
+  // ControlOrMeta is Control on the Linux runner.
+  await field.press(open ? 'ControlOrMeta+Enter' : 'Enter');
+  await expect(field).toHaveValue('');
+  expect((await created).ok()).toBe(true);
   const panel = page.getByRole('complementary', { name: 'Notizdetails' });
   if (open) await expect(panel).toBeVisible();
   return panel;
+}
+
+/** A proposal as the API answers one, for the note the capture names. */
+export function proposal(noteId: string, boardId: string) {
+  return {
+    id: `e2e-${noteId}`,
+    boardId,
+    noteId,
+    status: 'PENDING',
+    // Never behind the note: the board drops a proposal made for an older revision, and the
+    // real note moves on with every write.
+    baseRevision: 1_000_000,
+    fields: {
+      dueDate: { value: '2026-10-23', reason: 'Freitag' },
+      priority: null,
+      assignee: null,
+      title: null,
+      reference: null,
+      subtasks: null,
+      links: null,
+      horizon: { value: 'THIS_WEEK', reason: 'diese Woche' },
+      visibility: { value: 'PRIVATE', reason: 'persönlich' },
+      tags: { items: ['ops', 'sales'], reason: 'Tags der Wand' },
+      properties: null,
+      description: null,
+    },
+    typed: [],
+    kept: null,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** Each capture call the board made, with what it locked. */
+export type CaptureCall = { noteId: string; locked: string[] };
+
+/**
+ * CI runs with the assistant off and no model, so this stubs the board's switch and the
+ * assistant's calls at the network: what a spec checks is the board, not the model. The
+ * intake answers `intake(message)`, by default one note in the message's words.
+ */
+export async function stubAssistant(
+  page: Page,
+  {
+    intake = (message: string) => ({ items: [{ kind: 'note', text: message }], truncated: false }),
+  }: { intake?: (message: string) => unknown } = {},
+): Promise<CaptureCall[]> {
+  const captures: CaptureCall[] = [];
+  // The board reads as having its assistant on.
+  await page.route(/\/whiteboards\/[^/?]+(\?.*)?$/, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), assistantEnabled: true } });
+  });
+  await page.route(/\/assistant\/suggestions\/pending/, (route) =>
+    route.fulfill({ json: { suggestions: [] } }),
+  );
+  await page.route(/\/assistant\/intakes$/, async (route) => {
+    const { message } = route.request().postDataJSON() as { message: string };
+    await route.fulfill({ json: intake(message) });
+  });
+  await page.route(/\/assistant\/captures$/, async (route) => {
+    const { noteId, locked } = route.request().postDataJSON() as CaptureCall;
+    captures.push({ noteId, locked });
+    const boardId = new URL(route.request().url()).pathname.split('/')[2]!;
+    await route.fulfill({ json: { suggestion: proposal(noteId, boardId) } });
+  });
+  await page.route(/\/assistant\/suggestions\/[^/]+\/decision$/, async (route) => {
+    const parts = new URL(route.request().url()).pathname.split('/');
+    const id = parts[parts.length - 2]!;
+    const noteId = id.replace(/^e2e-/, '');
+    await route.fulfill({
+      json: { suggestion: { ...proposal(noteId, parts[2]!), id, status: 'DISCARDED' } },
+    });
+  });
+  return captures;
 }

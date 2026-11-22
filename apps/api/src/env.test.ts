@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { _resetEnvCacheForTests, loadEnv } from './env.js';
+import { _resetEnvCacheForTests, loadEnv, loadModelEnv } from './env.js';
 import { priceFor } from './lib/assistant/budget/prices.js';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 
@@ -119,5 +119,19 @@ describe('the Auth0 Management settings', () => {
     _resetEnvCacheForTests();
     expect(loadEnv({ ...base, NODE_ENV: 'production' }).AUTH0_MANAGEMENT_CLIENT_ID).toBeUndefined();
     _resetEnvCacheForTests();
+  });
+});
+
+describe('loadModelEnv', () => {
+  it('reads the model settings alone: a script that only calls the model needs no database', () => {
+    expect(loadModelEnv({ ASSISTANT_VERTEX_PROJECT: 'luminull-wally-prod' })).toEqual({
+      ASSISTANT_MODEL: 'vertex:gemini-3.8-flash',
+      ASSISTANT_VERTEX_LOCATION: 'eu',
+      ASSISTANT_VERTEX_PROJECT: 'luminull-wally-prod',
+    });
+  });
+
+  it('refuses to run without the Vertex project', () => {
+    expect(() => loadModelEnv({})).toThrow(/ASSISTANT_VERTEX_PROJECT/);
   });
 });

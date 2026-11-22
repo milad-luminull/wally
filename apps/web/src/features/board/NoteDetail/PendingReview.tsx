@@ -15,7 +15,7 @@ interface PendingReviewProps {
 
 /**
  * The note panel's review of a change, drawn as the card draws it (the smarter-capture spec,
- * revision "editing the text asks again": one look): inside the moving border, "Filling in"
+ * revision "editing the text asks again": one look): inside the accent ring, "Filling in"
  * while the call runs, then the same rows and the same footer (ring, seconds or Paused, Undo,
  * Keep). Once kept, the border goes and only Undo stays, as the card's corner does. A keep
  * pressed from the keyboard hands the focus to that Undo, so the keyboard is never dropped.

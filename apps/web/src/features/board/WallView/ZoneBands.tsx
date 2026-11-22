@@ -1,13 +1,11 @@
 import { useDroppable } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { NoteDto, NoteVisibility, SuggestionFieldKey } from '@wally/shared';
+import type { NoteDto } from '@wally/shared';
 import { cn } from '@/lib/cn';
 import type { BoardAxis } from '../hooks/useBoardViewState';
 import type { NoteGroup } from '../util/noteDerived';
-import { InlineCaptureCard } from '../Capture/InlineCaptureCard';
-import type { CaptureAsk, CapturePlacement } from '../Capture/useCapture';
-import type { AskSlot } from '../Ask/askSlot';
+import type { BoxSlot } from '../WallyBox/boxSlot';
 import type { PendingProps } from '../Suggestions/pendingProps';
 import type { TidyProps } from '../Tidy/tidyProps';
 import { NoteCard } from './NoteCard';
@@ -15,25 +13,11 @@ import type { InlineEditProps } from '../Capture/inlineEdit';
 import type { NoteCardActions } from './NoteCardActions';
 import { zoneDroppableId } from './zoneDroppableId';
 
-/** The note being written into one zone, and what the card needs to write it. */
-interface ZoneCapture {
-  key: number | undefined;
-  boardId: string;
-  placement: Extract<CapturePlacement, { kind: 'zone' }>;
-  visibility: NoteVisibility;
-  visibilityChosen?: boolean;
-  onDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
-  onNoteId: ((noteId: string) => void) | undefined;
-  onAsk: CaptureAsk | undefined;
-}
-
 interface ZoneBandProps {
   axis: 'horizon' | 'priority';
   group: NoteGroup<string>;
-  /** Set on the one zone a new note is being written into. */
-  capture: ZoneCapture | null;
-  /** Set on the one zone a question was written in: its answer, drawn at the top (§3.6). */
-  ask: AskSlot | null;
+  /** Set on the one zone the Wally box was opened in: drawn at the top of the zone. */
+  box: BoxSlot | null;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -55,8 +39,7 @@ interface ZoneBandProps {
 function ZoneBand({
   axis,
   group,
-  capture,
-  ask,
+  box,
   currentUserId,
   selectedNoteId,
   onOpenNote,
@@ -71,15 +54,15 @@ function ZoneBand({
 }: ZoneBandProps) {
   const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: zoneDroppableId(axis, group.key) });
-  const isEmpty = group.notes.length === 0 && !capture && !ask;
+  const isEmpty = group.notes.length === 0 && !box;
 
   return (
     <section
       ref={setNodeRef}
       onDoubleClick={(e) => {
-        // A double-click on a card edits it; selecting a word in the note being written, or in
-        // an answer, is not a request for another note either.
-        if ((e.target as HTMLElement).closest('[data-note-id], [data-capture], [data-ask]')) return;
+        // A double-click on a card edits it; selecting a word in the box is not a request for a
+        // note either.
+        if ((e.target as HTMLElement).closest('[data-note-id], [data-wally-box]')) return;
         onCreateInZone(group.key);
       }}
       aria-label={t('board.zone.aria', { label: group.label, count: group.notes.length })}
@@ -113,25 +96,10 @@ function ZoneBand({
 
       <div className="paper-zone-body">
         <div className="paper-zone-notes">
-          {ask && (
-            // min-w-0 lets this flex item shrink below the card's 376px, so the card's own
-            // max-w-full can cap it to a narrow column instead of spilling past it.
-            <div key={ask.key} data-ask className="min-w-0 max-w-full">
-              {ask.card}
-            </div>
-          )}
-          {capture && (
-            <div key={capture.key} data-capture>
-              <InlineCaptureCard
-                boardId={capture.boardId}
-                placement={capture.placement}
-                visibility={capture.visibility}
-                visibilityChosen={capture.visibilityChosen}
-                layout="card"
-                onDone={capture.onDone}
-                onNoteId={capture.onNoteId}
-                onAsk={capture.onAsk}
-              />
+          {box && (
+            // min-w-0 lets the box shrink to a narrow column instead of spilling past it.
+            <div key={box.key} className="min-w-0 max-w-full">
+              {box.node}
             </div>
           )}
           {group.notes.map((note: NoteDto) => (
@@ -166,7 +134,7 @@ function ZoneBand({
             {!filteredOut && <p className="text-12 text-fg-faint">{t('board.zone.emptyHint')}</p>}
           </div>
         )}
-        {!capture && (
+        {!box && (
           <button
             type="button"
             className="paper-zone-add"
@@ -184,21 +152,8 @@ function ZoneBand({
 interface ZoneBandsProps {
   axis: Exclude<BoardAxis, 'free'>;
   groups: NoteGroup<string>[];
-  boardId: string;
-  /** The note being written; shown at the top of its zone when its placement is a zone. */
-  capture: CapturePlacement | null;
-  /** Changes with every capture, so each one gets a fresh card. */
-  captureKey?: number;
-  onCaptureDone: (noteId: string | null, open: boolean, locked: SuggestionFieldKey[]) => void;
-  /** Hears each id the note being written is shown under, so the board leaves it to its card. */
-  onCaptureNoteId?: (noteId: string) => void;
-  /** Hears a question typed into the card; absent when the board's assistant is off. */
-  onCaptureAsk?: CaptureAsk;
-  /** The answer to a question; shown at the top of its zone when its placement is a zone. */
-  ask?: AskSlot | null;
-  visibility: NoteVisibility;
-  /** The board's filter chose that visibility ("Shared"). */
-  visibilityChosen?: boolean;
+  /** The Wally box; drawn at the top of its zone when its placement is a zone. */
+  box?: BoxSlot | null;
   currentUserId: string | undefined;
   selectedNoteId: string | null;
   onOpenNote: (id: string) => void;
@@ -218,22 +173,9 @@ interface ZoneBandsProps {
 
 /** Time and priority groups share the open column layout. Never rendered in free mode —
  * WallCanvas swaps this out entirely for the absolute-position free canvas. */
-export function ZoneBands({
-  axis,
-  groups,
-  boardId,
-  capture,
-  captureKey,
-  onCaptureDone,
-  onCaptureNoteId,
-  onCaptureAsk,
-  ask,
-  visibility,
-  visibilityChosen,
-  ...rest
-}: ZoneBandsProps) {
-  const zoneCapture = capture?.kind === 'zone' && capture.axis === axis ? capture : null;
-  const zoneAsk = ask?.placement.kind === 'zone' && ask.placement.axis === axis ? ask : null;
+export function ZoneBands({ axis, groups, box, ...rest }: ZoneBandsProps) {
+  const zoneBox =
+    box?.placement.kind === 'zone' && box.placement.axis === axis ? box.placement.key : null;
   return (
     <div className="paper-zones-scroll board-surface wally-scroll min-h-0 overflow-y-auto">
       <div className="paper-zones">
@@ -242,25 +184,7 @@ export function ZoneBands({
             key={group.key}
             axis={axis}
             group={group}
-            capture={
-              zoneCapture?.key === group.key
-                ? {
-                    key: captureKey,
-                    boardId,
-                    placement: zoneCapture,
-                    visibility,
-                    visibilityChosen,
-                    onDone: onCaptureDone,
-                    onNoteId: onCaptureNoteId,
-                    onAsk: onCaptureAsk,
-                  }
-                : null
-            }
-            ask={
-              zoneAsk && zoneAsk.placement.kind === 'zone' && zoneAsk.placement.key === group.key
-                ? zoneAsk
-                : null
-            }
+            box={zoneBox === group.key ? (box ?? null) : null}
             {...rest}
           />
         ))}

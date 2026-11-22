@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { makeNote } from '@/test/fixtures';
 import { boardAccess } from '../util/permissions';
-import type { CapturePlacement } from '../Capture/useCapture';
+import type { CapturePlacement } from '../WallyBox/placement';
+import { WallyBox } from '../WallyBox/WallyBox';
+import { useWallyBox } from '../WallyBox/useWallyBox';
 import type { TidyController } from '../Tidy/useTidy';
 import type { TidyProps } from '../Tidy/tidyProps';
 import type { NoteDto } from '@wally/shared';
@@ -27,7 +29,7 @@ vi.mock('@/lib/resources', async (importOriginal) => ({
   membersApi: { list: vi.fn() },
 }));
 
-// The capture card parses date words in the person's language.
+// The box parses date words in the person's language.
 vi.mock('@/i18n/languageContext', async () => {
   const actual =
     await vi.importActual<typeof import('@/i18n/languageContext')>('@/i18n/languageContext');
@@ -51,7 +53,10 @@ beforeEach(() => {
   vi.mocked(membersApi.list).mockResolvedValue([]);
 });
 
-/** The wall with the shell's capture state: a create path opens a capture, done closes it. */
+/**
+ * The wall with the shell's box: a create path anchors the box there, and a message sent from it
+ * writes the note (the assistant off, so with no model call).
+ */
 function Wall({
   axis,
   access,
@@ -68,7 +73,14 @@ function Wall({
   editFor?: (note: NoteDto) => InlineEditProps | undefined;
 }) {
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'TODAY', priority: 'HIGH' })];
-  const [capture, setCapture] = useState<CapturePlacement | null>(null);
+  const [anchor, setAnchor] = useState<CapturePlacement | null>(null);
+  const box = useWallyBox({
+    boardId: 'board-1',
+    assistantEnabled: false,
+    visibility: access.newNoteVisibility,
+    onNoteCreated: vi.fn(),
+    onOpenNote: vi.fn(),
+  });
   return (
     <WallView
       boardId="board-1"
@@ -80,10 +92,26 @@ function Wall({
       onOpenNote={vi.fn()}
       onDuplicateNote={vi.fn()}
       access={access}
-      capture={capture}
-      onCapture={setCapture}
-      onCaptureDone={() => setCapture(null)}
-      visibility={access.newNoteVisibility}
+      onCapture={setAnchor}
+      box={
+        anchor && {
+          key: 1,
+          placement: anchor,
+          node: (
+            <WallyBox
+              boardId="board-1"
+              box={box}
+              mode="anchored"
+              assistantEnabled={false}
+              notes={notes}
+              placement={anchor}
+              visibility={access.newNoteVisibility}
+              onOpenNote={vi.fn()}
+              onDismiss={() => setAnchor(null)}
+            />
+          ),
+        }
+      }
       relatedCounts={relatedCounts}
       tidy={tidy}
       tidyFor={tidyFor}
@@ -134,11 +162,11 @@ function idleTidy(): TidyController {
   };
 }
 
-/** A create path opens the capture and sends nothing; the first keystroke creates the note. */
+/** A create path opens the box and sends nothing; Enter writes the note. */
 async function typeFirstLetter() {
-  const title = await screen.findByRole('textbox', { name: 'Title of the new note' });
+  const field = await screen.findByRole('textbox', { name: 'Write a note or ask Wally' });
   expect(notesApi.create).not.toHaveBeenCalled();
-  await userEvent.type(title, 'M');
+  await userEvent.type(field, 'M{Enter}');
 }
 
 /** A double-click on the empty free canvas, which is the scroll area itself. */
@@ -163,7 +191,7 @@ describe('WallView: the related count comes from the board', () => {
   });
 });
 
-describe('WallView: every create path writes the note in place, with its visibility', () => {
+describe('WallView: every create path opens the box there, and the note keeps its visibility', () => {
   describe('a viewer (every new note is private)', () => {
     const viewer = boardAccess('VIEW', 'me', 'all');
 
@@ -215,7 +243,9 @@ describe('WallView: every create path writes the note in place, with its visibil
         );
         await userEvent.dblClick(screen.getByText('Existing'));
         expect(start).toHaveBeenCalled();
-        expect(screen.queryByRole('group', { name: 'Write a new note' })).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('textbox', { name: 'Write a note or ask Wally' }),
+        ).not.toBeInTheDocument();
       },
     );
   });
@@ -250,8 +280,11 @@ describe('WallView: every create path writes the note in place, with its visibil
     it('sends SHARED from a double-click on the free canvas, writing at the click point', async () => {
       const { container } = renderWall('free', owner);
       doubleClickCanvas(container);
-      const card = await screen.findByRole('group', { name: 'Write a new note' });
-      expect(card.parentElement).toHaveStyle({ left: '300px', top: '200px' });
+      const field = await screen.findByRole('textbox', { name: 'Write a note or ask Wally' });
+      expect(field.closest('[data-wally-box]')!.parentElement).toHaveStyle({
+        left: '300px',
+        top: '200px',
+      });
       await typeFirstLetter();
 
       await waitFor(() => expect(notesApi.create).toHaveBeenCalledTimes(1));
@@ -314,11 +347,11 @@ describe('WallView: a card of a Tidy batch', () => {
   });
 });
 
-describe('WallView answer card', () => {
+describe('WallView: the box anchored in a zone', () => {
   const owner = boardAccess('OWNER', 'me', 'all');
   const notes = [makeNote({ id: 'n1', title: 'Existing', horizon: 'TODAY' })];
 
-  function renderWithAnswer(onCapture = vi.fn()) {
+  function renderWithBox(onCapture = vi.fn()) {
     return renderWithProviders(
       <WallView
         boardId="board-1"
@@ -330,11 +363,8 @@ describe('WallView answer card', () => {
         onOpenNote={vi.fn()}
         onDuplicateNote={vi.fn()}
         access={owner}
-        capture={null}
         onCapture={onCapture}
-        onCaptureDone={vi.fn()}
-        visibility={owner.newNoteVisibility}
-        ask={{
+        box={{
           key: 1,
           placement: {
             kind: 'zone',
@@ -342,36 +372,33 @@ describe('WallView answer card', () => {
             key: 'THIS_WEEK',
             at: { freeX: 0, freeY: 0 },
           },
-          card: <div data-testid="answer" />,
+          node: <div data-wally-box="anchored" data-testid="box" />,
         }}
       />,
     );
   }
 
-  it('draws the answer card at the top of the zone the question was written in', () => {
-    renderWithAnswer();
+  it('draws the box at the top of the zone it was opened in', () => {
+    renderWithBox();
     const thisWeek = screen.getByRole('region', { name: /^This week/ });
-    const answer = within(thisWeek).getByTestId('answer');
-    expect(answer.parentElement).toHaveAttribute('data-ask');
-    // The answer takes the empty zone's place, and the other zones are left as they were.
+    expect(within(thisWeek).getByTestId('box')).toBeInTheDocument();
+    // The box takes the empty zone's place, and the other zones are left as they were.
     expect(within(thisWeek).queryByText('Empty')).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole('region', { name: /^Today/ })).queryByTestId('answer'),
+      within(screen.getByRole('region', { name: /^Today/ })).queryByTestId('box'),
     ).not.toBeInTheDocument();
   });
 
-  it('lets the answer card shrink to a column narrower than the card', () => {
-    // A flex item keeps min-width:auto, so without min-w-0 the 376px card would never
-    // shrink and its own max-w-full could not cap it to the zone column.
-    renderWithAnswer();
-    const wrapper = screen.getByTestId('answer').parentElement;
-    expect(wrapper).toHaveClass('min-w-0', 'max-w-full');
+  it('lets the box shrink to a column narrower than it', () => {
+    // A flex item keeps min-width:auto: without min-w-0 the box would spill past the column.
+    renderWithBox();
+    expect(screen.getByTestId('box').parentElement).toHaveClass('min-w-0', 'max-w-full');
   });
 
-  it('does not start a note when a word in the answer is double-clicked', async () => {
+  it('does not start a note when a word in the box is double-clicked', async () => {
     const onCapture = vi.fn();
-    renderWithAnswer(onCapture);
-    await userEvent.dblClick(screen.getByTestId('answer'));
+    renderWithBox(onCapture);
+    await userEvent.dblClick(screen.getByTestId('box'));
     expect(onCapture).not.toHaveBeenCalled();
   });
 });

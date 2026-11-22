@@ -124,7 +124,7 @@ export function NoteCard({
     });
   const stepsLabel =
     proposed.subtasks && t('suggest.fields.subtasks', { count: proposed.subtasks.kept.length });
-  // Under review the moving border is the marker: no corner dot.
+  // Under review the accent ring is the marker: no corner dot.
   const corner =
     overlay || !pending || reviewing ? null : pending.mark.phase === 'kept' ? 'undo' : 'dot';
   // A tidy's corner: the waiting dot while the batch is pending, Undo once it moved (R6, R7).
@@ -511,7 +511,7 @@ function RestingNoteCard({
     );
 
   if (review)
-    // A change under review (Paper Wall v3): one card inside the moving border, holding the
+    // A change under review (Paper Wall v3): one card inside the accent ring, holding the
     // card's own button (title and words: open, drag) and the rows and footer beside it, so
     // no control sits inside the button. The lift and the focus ring belong to the whole card.
     return (

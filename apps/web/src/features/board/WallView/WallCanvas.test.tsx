@@ -1,11 +1,11 @@
 import { makeNote } from '@/test/fixtures';
-import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import { DndContext } from '@dnd-kit/core';
+import { FREE_CANVAS_WIDTH, type NoteDto } from '@wally/shared';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { ASK_CARD_MAX_HEIGHT } from '../Ask/AskCard';
-import { WallCanvas } from './WallCanvas';
+import type { BoxSlot } from '../WallyBox/boxSlot';
+import { ANCHORED_BOX_WIDTH, WallCanvas } from './WallCanvas';
 
 // The canvas reads its backdrop from the profile; signed out, that query never runs.
 vi.mock('@/features/auth/AuthProvider', async () => {
@@ -15,200 +15,71 @@ vi.mock('@/features/auth/AuthProvider', async () => {
   return { ...actual, useAuth: () => ({ status: 'unauthenticated', user: null }) };
 });
 
-vi.mock('../Capture/InlineCaptureCard', () => ({
-  InlineCaptureCard: ({ placement }: { placement: { kind: string; x?: number; y?: number } }) => (
-    <div data-testid="capture" data-x={placement.x} data-y={placement.y} />
-  ),
-}));
+function renderCanvas({
+  notes = [],
+  box = null,
+  onCapture = vi.fn(),
+}: { notes?: NoteDto[]; box?: BoxSlot | null; onCapture?: () => void } = {}) {
+  return renderWithProviders(
+    <DndContext>
+      <WallCanvas
+        notes={notes}
+        filtered={false}
+        currentUserId="u1"
+        selectedNoteId={null}
+        onOpenNote={vi.fn()}
+        onCapture={onCapture}
+        box={box}
+        canEditShared
+        activeDragId={null}
+      />
+    </DndContext>,
+  );
+}
 
-describe('WallCanvas capture', () => {
+const boxAt = (x: number, y: number): BoxSlot => ({
+  key: 1,
+  placement: { kind: 'free', x, y },
+  node: <div data-wally-box="anchored" data-testid="box" />,
+});
+
+describe('WallCanvas', () => {
   it('draws kept links beneath the cards', () => {
-    const { container } = renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[makeNote({ id: 'a', links: ['b'] }), makeNote({ id: 'b' })]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={vi.fn()}
-          capture={null}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-        />
-      </DndContext>,
-    );
+    const { container } = renderCanvas({
+      notes: [makeNote({ id: 'a', links: ['b'] }), makeNote({ id: 'b' })],
+    });
     expect(container.querySelectorAll('[data-link-lines] line')).toHaveLength(1);
   });
-  it('asks for a capture at the double-click point', () => {
+
+  it('asks for the box at the double-click point', () => {
     const onCapture = vi.fn();
-    renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={onCapture}
-          capture={null}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-        />
-      </DndContext>,
-    );
-    const surface = screen.getByTestId('wall-canvas');
-    fireEvent.doubleClick(surface, { clientX: 300, clientY: 200 });
+    renderCanvas({ onCapture });
+    fireEvent.doubleClick(screen.getByTestId('wall-canvas'), { clientX: 300, clientY: 200 });
     // jsdom lays the canvas out at the origin, unscrolled: the point is the client point.
     expect(onCapture).toHaveBeenCalledWith({ kind: 'free', x: 300, y: 200 });
   });
 
-  it('renders the capture card at its placement', () => {
-    renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={vi.fn()}
-          capture={{ kind: 'free', x: 120, y: 80 }}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-        />
-      </DndContext>,
-    );
-    const card = screen.getByTestId('capture');
-    expect(card).toHaveAttribute('data-x', '120');
-    expect(card.parentElement).toHaveStyle({ position: 'absolute', left: '120px', top: '80px' });
-  });
-});
-
-describe('WallCanvas answer card', () => {
-  function render(
-    ask: { key: number; placement: { kind: 'free'; x: number; y: number }; card: ReactNode } | null,
-  ) {
-    renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={vi.fn()}
-          capture={null}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-          ask={ask}
-        />
-      </DndContext>,
-    );
-  }
-
-  it('draws the answer card where the question was written', () => {
-    render({
-      key: 1,
-      placement: { kind: 'free', x: 120, y: 80 },
-      card: <div data-testid="answer" />,
-    });
-    const card = screen.getByTestId('answer');
-    expect(card.parentElement).toHaveAttribute('data-ask');
-    expect(card.parentElement).toHaveStyle({ position: 'absolute', left: '120px', top: '80px' });
-    // The card is there instead of the empty wall's prompt.
-    expect(screen.queryByText('Free canvas')).not.toBeInTheDocument();
+  it('draws the anchored box at its point', () => {
+    renderCanvas({ box: boxAt(120, 80) });
+    expect(screen.getByTestId('box').parentElement).toHaveStyle({ left: '120px', top: '80px' });
   });
 
-  it('keeps a card written near the right edge on the canvas', () => {
-    render({
-      key: 1,
-      placement: { kind: 'free', x: 2300, y: 80 },
-      card: <div data-testid="answer" />,
-    });
-    expect(screen.getByTestId('answer').parentElement).toHaveStyle({ left: `${2400 - 376}px` });
-  });
-
-  it('keeps a card written near the bottom edge on the canvas', () => {
-    render({
-      key: 1,
-      placement: { kind: 'free', x: 120, y: 1350 },
-      card: <div data-testid="answer" />,
-    });
-    expect(screen.getByTestId('answer').parentElement).toHaveStyle({
-      top: `${1400 - ASK_CARD_MAX_HEIGHT}px`,
+  it('keeps a box opened near the right edge on the canvas', () => {
+    renderCanvas({ box: boxAt(FREE_CANVAS_WIDTH - 50, 80) });
+    expect(screen.getByTestId('box').parentElement).toHaveStyle({
+      left: `${FREE_CANVAS_WIDTH - ANCHORED_BOX_WIDTH}px`,
     });
   });
 
-  it('draws a capture started at the answer’s point above the answer', () => {
-    renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={vi.fn()}
-          capture={{ kind: 'free', x: 120, y: 80 }}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-          ask={{
-            key: 1,
-            placement: { kind: 'free', x: 120, y: 80 },
-            card: <div data-testid="answer" />,
-          }}
-        />
-      </DndContext>,
-    );
-    const capture = screen.getByTestId('capture').parentElement!;
-    const answer = screen.getByTestId('answer').parentElement!;
-    expect(capture).toHaveAttribute('data-capture');
-    expect(answer).toHaveAttribute('data-ask');
-    expect(Number(capture.style.zIndex)).toBeGreaterThan(Number(answer.style.zIndex));
-  });
-
-  it('does not start a note when a word in the answer is double-clicked', () => {
+  it('does not start a note when a word in the box is double-clicked', () => {
     const onCapture = vi.fn();
-    renderWithProviders(
-      <DndContext>
-        <WallCanvas
-          notes={[]}
-          filtered={false}
-          currentUserId="u1"
-          selectedNoteId={null}
-          onOpenNote={vi.fn()}
-          onCapture={onCapture}
-          capture={null}
-          onCaptureDone={vi.fn()}
-          visibility="SHARED"
-          boardId="b1"
-          canEditShared
-          activeDragId={null}
-          ask={{
-            key: 1,
-            placement: { kind: 'free', x: 120, y: 80 },
-            card: <div data-testid="answer" />,
-          }}
-        />
-      </DndContext>,
-    );
-    fireEvent.doubleClick(screen.getByTestId('answer'));
+    renderCanvas({ box: boxAt(120, 80), onCapture });
+    fireEvent.doubleClick(screen.getByTestId('box'));
     expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it('shows no empty state while the box is open on an empty canvas', () => {
+    renderCanvas({ box: boxAt(120, 80) });
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
   });
 });
