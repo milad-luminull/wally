@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyBaseLogger } from 'fastify';
 import { DrizzleQueryError } from 'drizzle-orm';
 import postgres from 'postgres';
+import { z } from 'zod';
 import { _resetEnvCacheForTests } from '../src/env.js';
+import { TransactionConflictError } from '../src/lib/postgres/errors.js';
 import {
   SEVERITY,
   loggerOptions,
@@ -79,6 +81,36 @@ describe('request log', () => {
     expect(log).toContain('"url":"/share-links/[redacted]/redeem"');
     expect(log).not.toContain('tok-123');
     expect(log).not.toContain('max@example.com');
+  });
+});
+
+describe("Fastify's own warnings", () => {
+  it('drops the query string and share token of a route that replies twice', async () => {
+    const lines: string[] = [];
+    const app = Fastify({
+      logger: { ...loggerOptions(), stream: streamInto(lines) },
+      childLoggerFactory: requestChildLogger(undefined),
+    });
+    app.get('/share-links/:token/redeem', async (_req, reply) => {
+      void reply.send({ first: true });
+      void reply.send({ second: true });
+      return reply;
+    });
+    await app.inject({ method: 'GET', url: '/share-links/tok-123/redeem?email=max@example.com' });
+    await app.close();
+    const log = lines.join('');
+    expect(log).toContain('FST_ERR_REP_ALREADY_SENT');
+    expect(log).not.toMatch(/tok-123|max@example\.com/);
+  });
+
+  it('drops the query string of a URL quoted in a message', async () => {
+    const line = await logOne((log) =>
+      log.warn(
+        'Reply was already sent, did you forget to "return reply" in the "/notes/n1?q=a%20secret" (GET) route?',
+      ),
+    );
+    expect(JSON.parse(line).message).toContain('"/notes/n1"');
+    expect(line).not.toContain('secret');
   });
 });
 
@@ -169,6 +201,43 @@ describe('safe error fields', () => {
   it("keeps an ordinary error's message as the line's message", async () => {
     const line = JSON.parse(await logOne((log) => log.error(new Error('listen EADDRINUSE'))));
     expect(line).toMatchObject({ message: 'listen EADDRINUSE', err: { type: 'Error' } });
+  });
+
+  it('reads the SQLSTATE of a database error two causes down', () => {
+    const conflict = Object.assign(new Error('could not serialize access'), { code: '40001' });
+    const error = new TransactionConflictError(
+      3,
+      new DrizzleQueryError('update notes set title = $1', ['a secret note'], conflict),
+    );
+    const fields = safeErrorFields(error);
+    expect(fields).toMatchObject({ type: 'TransactionConflictError', code: '40001' });
+    expect(JSON.stringify(fields)).not.toMatch(/a secret note|update notes/);
+  });
+
+  it('knows a database error by its name when instanceof cannot (a second copy of the driver)', () => {
+    const copies = {
+      DrizzleQueryError: class DrizzleQueryError extends Error {},
+      PostgresError: class PostgresError extends Error {},
+    };
+    for (const Copy of Object.values(copies)) {
+      const fields = safeErrorFields(new Copy('Failed query: select $1\nparams: a secret note'));
+      expect(JSON.stringify(fields)).not.toContain('a secret note');
+    }
+  });
+
+  it('drops the message of a validation or JSON error, which quotes its input', () => {
+    const parsed = z.object({ kind: z.literal('note') }).safeParse({ kind: 'a secret note' });
+    const thrown: unknown[] = [parsed.error];
+    try {
+      JSON.parse('{"title": a secret note}');
+    } catch (error) {
+      thrown.push(error);
+    }
+    for (const error of thrown) {
+      const fields = safeErrorFields(error);
+      expect(JSON.stringify(fields)).not.toContain('a secret note');
+      expect(fields.stack?.split('\n')[1]).toMatch(/^ {4}at /);
+    }
   });
 
   it.each([

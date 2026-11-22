@@ -509,10 +509,12 @@ describe('a capture whose model is busy or slow', () => {
 
 describe('capture suggestions', () => {
   let ctx: TestContext;
+  const logLines: string[] = [];
   beforeAll(async () => {
-    ctx = await buildTestApp({ suggestionRunner: fakeRunner, assistantEnabled: true });
+    ctx = await buildTestApp({ suggestionRunner: fakeRunner, assistantEnabled: true, logLines });
   });
   afterEach(async () => {
+    logLines.length = 0;
     lastInput = null;
     await resetDatabase(ctx.db);
   });
@@ -1304,6 +1306,57 @@ describe('capture suggestions', () => {
       expect(again.json().error).toBe('ASSISTANT_SUGGESTION_SETTLED');
     }
     expect((await note(n.id)).revision).toBe(n.revision + 3);
+  });
+
+  it('logs a revert that fails for an unexpected reason at error, with its err', async () => {
+    const fx = await createBoardFixture(ctx);
+    const n = (await createNote(fx.ownerToken, fx.boardId, { title: 'all fx-editor' })).json();
+    const { suggestion } = (await suggest(fx.ownerToken, fx.boardId, n.id)).json();
+    const record = await stored(fx.ownerId, suggestion.id);
+    // The keep's first write commits, then a panel edit lands before its second write.
+    await runOperation(asSuggestion(fx.ownerId, fx.boardId, suggestion.id), {
+      name: 'update_note',
+      input: {
+        boardId: fx.boardId,
+        noteId: n.id,
+        expectedRevision: n.revision,
+        input: { dueDate: '2026-10-23' },
+      },
+      operationId: record.operationIds.dueDate.apply,
+    });
+    expect((await patchTitle(fx.ownerToken, n.id, 'Changed')).statusCode).toBe(200);
+    // Putting the due date back fails in the database: not a refusal, a fault.
+    await ctx.db.execute(sql`
+      create function refuse_due_reset() returns trigger language plpgsql as $$
+      begin
+        if old.due_date is not null and new.due_date is null then
+          raise exception 'reset refused';
+        end if;
+        return new;
+      end $$`);
+    await ctx.db.execute(
+      sql`create trigger refuse_due_reset before update on notes for each row execute function refuse_due_reset()`,
+    );
+    let res;
+    try {
+      res = await decide(fx.ownerToken, fx.boardId, suggestion.id, {
+        decision: 'keep',
+        source: 'enter',
+      });
+    } finally {
+      await ctx.db.execute(sql`drop trigger refuse_due_reset on notes`);
+      await ctx.db.execute(sql`drop function refuse_due_reset`);
+    }
+    expect(res.statusCode).toBe(409);
+    const line = logLines
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .find((l) => l.type === 'assistant.suggestion_revert_failed');
+    expect(line).toMatchObject({
+      severity: 'ERROR',
+      field: 'dueDate',
+      outcome: 'failed',
+      err: { code: 'P0001' },
+    });
   });
 
   it('a repeat keep finishes a keep that was cut short, under the same receipts', async () => {
