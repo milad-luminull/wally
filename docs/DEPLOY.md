@@ -899,15 +899,20 @@ is for.
 ### Reading the API's logs
 
 The API writes one JSON object per line in Cloud Logging's structured format
-([ADR-0031](adr/ADR-0031-structured-logs-and-the-logging-rule.md)): `severity`, `message`,
-`time` and, on Cloud Run, `logging.googleapis.com/trace`. In the Logs Explorer, filter the
-service by severity, for example
-`resource.labels.service_name="wally-api" severity>=WARNING`. `ERROR` is a failure the code
-did not expect, with its `err` (type, message, stack, code); `WARNING` is one it handles, such as
-`assistant.provider_error`, `assistant.timeout` or an unreachable database on `/health`. The
-API writes no line per request: open a request in Cloud Run's request log and expand it to see
-the lines the API wrote for it. Database errors show their SQLSTATE `code`, never their
-message, which can repeat a note's text.
+([ADR-0032](adr/ADR-0032-structured-logs-with-opentelemetry-names.md)): `severity`, `message`,
+`time` and, on Cloud Run, `logging.googleapis.com/trace`. Other fields use OpenTelemetry's
+names, which contain dots, so quote them in queries. In the Logs Explorer, filter the service
+by severity, for example `resource.labels.service_name="wally-api" severity>=WARNING`, or by
+error, for example `jsonPayload."error.type"="ASSISTANT_PRICE_MISSING"`. `ERROR` is a failure
+the code did not expect, with `exception.type`, `exception.message` and
+`exception.stacktrace`; `WARNING` is one it handles, such as `assistant.provider_error`,
+`assistant.timeout` or an unreachable database on `/health`; a provider's failure keeps the
+provider's own `name`, `status` and `code`, so filter those by `jsonPayload.type`. Every line a
+request logs carries `http.request.method` and `url.path`; the error handler's lines add
+`http.route` and `http.response.status_code`. The API writes
+no line per request: open a request in Cloud Run's request log and expand it to see the lines
+the API wrote for it. A database error shows its code as `error.type` (and, when Postgres
+returned it, `db.response.status_code`), never its message, which can repeat a note's text.
 
 **The new revision never starts, and its logs mention the secret**
 Cloud Run could not read `wally-database-url`: the `wally-api` account lacks

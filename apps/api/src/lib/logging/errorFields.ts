@@ -1,16 +1,33 @@
 import { DrizzleQueryError } from 'drizzle-orm';
 import postgres from 'postgres';
 
-/** What a log line may say about an error (RFC-0012 §7, workstream 1). */
+/**
+ * What a log line may say about an error, under OpenTelemetry's Stable attribute names
+ * (RFC-0012 §5 rule 6): `exception.*` for the error
+ * (https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-logs/), `error.type` for
+ * its class (https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/) and
+ * `db.response.status_code` for a code the database returned
+ * (https://opentelemetry.io/docs/specs/semconv/registry/attributes/db/).
+ */
 export interface SafeErrorFields {
-  type: string;
-  message?: string;
-  stack?: string;
-  code?: string;
+  'exception.type': string;
+  'exception.message'?: string;
+  'exception.stacktrace'?: string;
+  /** The error's string `code`, else its type. */
+  'error.type': string;
+  /** The SQLSTATE of an error Postgres returned, on its own or as the `cause`. */
+  'db.response.status_code'?: string;
 }
 
 function isDatabaseError(error: unknown): boolean {
   return error instanceof DrizzleQueryError || error instanceof postgres.PostgresError;
+}
+
+function isPostgresResponse(error: unknown): boolean {
+  if (error instanceof postgres.PostgresError) return true;
+  return error !== null && typeof error === 'object'
+    ? (error as { cause?: unknown }).cause instanceof postgres.PostgresError
+    : false;
 }
 
 function typeOf(error: unknown): string {
@@ -48,12 +65,13 @@ function framesAfterMessage(stack: string | undefined, message: unknown): string
  * else, since an error's other properties can hold request data. A database error keeps no
  * message: Postgres can repeat the input (`invalid input syntax for type uuid: "…"`) and
  * Drizzle's `DrizzleQueryError` carries the query and its parameters, which can be a note's
- * text. It keeps its SQLSTATE `code` (read as `classifyDatabaseError` reads it) and a stack
- * without the lines that repeat the message.
+ * text. It keeps its `code` (read as `classifyDatabaseError` reads it) and a stack without the
+ * lines that repeat the message.
  */
 export function safeErrorFields(error: unknown): SafeErrorFields {
   const type = typeOf(error);
-  if (error === null || typeof error !== 'object') return { type };
+  if (error === null || typeof error !== 'object')
+    return { 'exception.type': type, 'error.type': type };
   const failure = error as { message?: unknown; stack?: unknown; code?: unknown; cause?: unknown };
   const stack = typeof failure.stack === 'string' ? failure.stack : undefined;
   if (isDatabaseError(error) || isDatabaseError(failure.cause)) {
@@ -61,16 +79,16 @@ export function safeErrorFields(error: unknown): SafeErrorFields {
       stringCode(failure.code) ?? stringCode((failure.cause as { code?: unknown } | null)?.code);
     const frames = framesAfterMessage(stack, failure.message);
     return {
-      type,
-      ...(frames ? { stack: [type, ...frames].join('\n') } : {}),
-      ...(code ? { code } : {}),
+      'exception.type': type,
+      ...(frames ? { 'exception.stacktrace': [type, ...frames].join('\n') } : {}),
+      'error.type': code ?? type,
+      ...(code && isPostgresResponse(error) ? { 'db.response.status_code': code } : {}),
     };
   }
-  const code = stringCode(failure.code);
   return {
-    type,
-    ...(typeof failure.message === 'string' ? { message: failure.message } : {}),
-    ...(stack ? { stack } : {}),
-    ...(code ? { code } : {}),
+    'exception.type': type,
+    ...(typeof failure.message === 'string' ? { 'exception.message': failure.message } : {}),
+    ...(stack ? { 'exception.stacktrace': stack } : {}),
+    'error.type': stringCode(failure.code) ?? type,
   };
 }

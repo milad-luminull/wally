@@ -193,7 +193,8 @@ describe('board.delete', () => {
       message: 'Board cleanup failed',
       command: 'board.delete',
       cleanupId: expect.any(String),
-      err: { type: 'Error', message: 'interrupted' },
+      'exception.type': 'Error',
+      'exception.message': 'interrupted',
     });
   });
 

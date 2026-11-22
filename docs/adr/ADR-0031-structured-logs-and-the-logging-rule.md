@@ -1,6 +1,6 @@
 # ADR-0031: Structured logs for Cloud Logging, and one logging rule
 
-- **Status:** accepted
+- **Status:** superseded by [ADR-0032](ADR-0032-structured-logs-with-opentelemetry-names.md)
 - **Date:** 2026-11-22
 - **Deciders:** the owner, through [RFC-0012](../rfcs/RFC-0012-observability.md) (accepted 2026-11-08)
 

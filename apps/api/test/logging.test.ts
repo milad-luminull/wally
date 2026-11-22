@@ -61,7 +61,7 @@ describe('request log', () => {
         'user-agent': 'UA/1',
       },
     });
-    expect(log).toContain('"req":{"method":"GET","url":"/whiteboards/b1"}');
+    expect(log).toContain('"http.request.method":"GET","url.path":"/whiteboards/b1"');
     for (const leak of [
       '203.0.113.7',
       'remoteAddress',
@@ -76,7 +76,7 @@ describe('request log', () => {
 
   it('drops the query string and redacts share-link tokens', async () => {
     const log = await logsFor({ url: '/share-links/tok-123/redeem?email=max@example.com' });
-    expect(log).toContain('"url":"/share-links/[redacted]/redeem"');
+    expect(log).toContain('"url.path":"/share-links/[redacted]/redeem"');
     expect(log).not.toContain('tok-123');
     expect(log).not.toContain('max@example.com');
   });
@@ -101,15 +101,18 @@ describe('Cloud Logging fields', () => {
 });
 
 describe('safe error fields', () => {
-  it('keeps name, message, stack and code of an ordinary error, nothing else', () => {
+  it('keeps type, message, stack and code of an ordinary error, nothing else', () => {
     const error = Object.assign(new Error('boom'), { code: 'E_X', secret: 'leak' });
     expect(safeErrorFields(error)).toEqual({
-      type: 'Error',
-      message: 'boom',
-      stack: error.stack,
-      code: 'E_X',
+      'exception.type': 'Error',
+      'exception.message': 'boom',
+      'exception.stacktrace': error.stack,
+      'error.type': 'E_X',
     });
   });
+
+  it('names an error without a code by its type', () =>
+    expect(safeErrorFields(new TypeError('x'))).toMatchObject({ 'error.type': 'TypeError' }));
 
   it('drops the message, query and params of a failed Drizzle query', () => {
     const cause = Object.assign(new Error('invalid input syntax for type uuid: "my note"'), {
@@ -118,9 +121,25 @@ describe('safe error fields', () => {
     const error = new DrizzleQueryError('select * from notes where id = $1', ['my note'], cause);
     const fields = safeErrorFields(error);
     expect(JSON.stringify(fields)).not.toMatch(/my note|select|params/);
-    expect(fields).toMatchObject({ type: 'DrizzleQueryError', code: '22P02' });
-    expect(fields.stack?.split('\n')[0]).toBe('DrizzleQueryError');
-    expect(fields.stack?.split('\n')[1]).toMatch(/^ {4}at /);
+    expect(fields).toMatchObject({ 'exception.type': 'DrizzleQueryError', 'error.type': '22P02' });
+    expect(fields).not.toHaveProperty('exception.message');
+    expect(fields['exception.stacktrace']?.split('\n')[0]).toBe('DrizzleQueryError');
+    expect(fields['exception.stacktrace']?.split('\n')[1]).toMatch(/^ {4}at /);
+  });
+
+  it("reports a code Postgres returned as the database's status code", () => {
+    const PostgresError = postgres.PostgresError as unknown as new (fields: object) => Error;
+    const cause = new PostgresError({ message: 'duplicate key "my note"', code: '23505' });
+    const fields = safeErrorFields(new DrizzleQueryError('insert …', ['my note'], cause));
+    expect(fields).toMatchObject({ 'error.type': '23505', 'db.response.status_code': '23505' });
+    expect(JSON.stringify(fields)).not.toContain('my note');
+  });
+
+  it('keeps a client-side code, such as a refused connection, out of the database status', () => {
+    const cause = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    const fields = safeErrorFields(new DrizzleQueryError('select 1', [], cause));
+    expect(fields['error.type']).toBe('ECONNREFUSED');
+    expect(fields).not.toHaveProperty('db.response.status_code');
   });
 
   it('keeps no message line that only looks like a stack frame', () => {
@@ -128,26 +147,46 @@ describe('safe error fields', () => {
     const error = new DrizzleQueryError('insert into notes values ($1)', [note]);
     const fields = safeErrorFields(error);
     expect(JSON.stringify(fields)).not.toContain('my private note');
-    expect(fields.stack?.split('\n').slice(1).length).toBeGreaterThan(0);
+    expect(fields['exception.stacktrace']?.split('\n').slice(1).length).toBeGreaterThan(0);
   });
 
   it('drops the stack of a database error whose message it cannot find there', () => {
     const error = new DrizzleQueryError('select 1', ['secret value']);
     error.stack = 'Error: rewritten\n    at secret value';
-    expect(safeErrorFields(error)).toEqual({ type: 'DrizzleQueryError' });
+    expect(safeErrorFields(error)).toEqual({
+      'exception.type': 'DrizzleQueryError',
+      'error.type': 'DrizzleQueryError',
+    });
   });
 
   it('drops the message of a Postgres error', () => {
     const PostgresError = postgres.PostgresError as unknown as new (fields: object) => Error;
     const error = new PostgresError({ message: 'value "secret" too long', code: '22001' });
-    expect(safeErrorFields(error)).toMatchObject({ type: 'PostgresError', code: '22001' });
+    expect(safeErrorFields(error)).toMatchObject({
+      'exception.type': 'PostgresError',
+      'db.response.status_code': '22001',
+    });
     expect(JSON.stringify(safeErrorFields(error))).not.toContain('secret');
   });
 
-  it("writes the safe fields as the line's err", async () => {
+  it('writes the safe fields as flat OpenTelemetry attributes, not as err', async () => {
     const error = Object.assign(new Error('boom'), { secret: 'leak' });
     const line = JSON.parse(await logOne((log) => log.error({ err: error }, 'failed')));
-    expect(line.err).toEqual({ type: 'Error', message: 'boom', stack: error.stack });
+    expect(line).toMatchObject({
+      'exception.type': 'Error',
+      'exception.message': 'boom',
+      'exception.stacktrace': error.stack,
+      'error.type': 'Error',
+    });
+    expect(line).not.toHaveProperty('err');
+    expect(JSON.stringify(line)).not.toContain('leak');
+  });
+
+  it("keeps the caller's own error.type", async () => {
+    const line = JSON.parse(
+      await logOne((log) => log.error({ err: new Error('x'), 'error.type': 'MINE' }, 'failed')),
+    );
+    expect(line['error.type']).toBe('MINE');
   });
 
   it.each([
@@ -162,13 +201,27 @@ describe('safe error fields', () => {
     expect(line).not.toMatch(/a secret note|Failed query|select/);
     expect(JSON.parse(line)).toMatchObject({
       message: 'DrizzleQueryError',
-      err: { type: 'DrizzleQueryError', code: '22P02' },
+      'exception.type': 'DrizzleQueryError',
+      'error.type': '22P02',
     });
+  });
+
+  it("keeps a database error's message out of an error bound to a child logger", async () => {
+    const error = new DrizzleQueryError('select $1', ['a secret note']);
+    const line = await logOne((log) => log.child({ err: error }).warn('seen'));
+    expect(line).not.toMatch(/a secret note|Failed query/);
+    expect(JSON.parse(line).err).toMatchObject({ 'exception.type': 'DrizzleQueryError' });
+  });
+
+  it('writes no exception for err: null', async () => {
+    const line = JSON.parse(await logOne((log) => log.warn({ err: null }, 'nothing thrown')));
+    expect(line.message).toBe('nothing thrown');
+    expect(line).not.toHaveProperty('exception.type');
   });
 
   it("keeps an ordinary error's message as the line's message", async () => {
     const line = JSON.parse(await logOne((log) => log.error(new Error('listen EADDRINUSE'))));
-    expect(line).toMatchObject({ message: 'listen EADDRINUSE', err: { type: 'Error' } });
+    expect(line).toMatchObject({ message: 'listen EADDRINUSE', 'exception.type': 'Error' });
   });
 
   it.each([
@@ -209,7 +262,7 @@ describe('request correlation', () => {
     const lines = await healthWithFailingDatabase('wally-test');
     const line = lines.find((l) => l.type === 'health.database');
     expect(line?.['logging.googleapis.com/trace']).toBe(`projects/wally-test/traces/${TRACE_ID}`);
-    expect(line?.req).toEqual({ method: 'GET', url: '/health' });
+    expect(line).toMatchObject({ 'http.request.method': 'GET', 'url.path': '/health' });
   });
 
   it('writes no per-request "incoming request" or "request completed" lines', async () => {

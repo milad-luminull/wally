@@ -92,7 +92,9 @@ describe('the error log line', () => {
       await ctx.app.close();
     }
     const failed = lines
-      .map((line) => JSON.parse(line) as Record<string, unknown> & { err?: { stack?: string } })
+      .map(
+        (line) => JSON.parse(line) as Record<string, unknown> & { 'exception.stacktrace'?: string },
+      )
       .filter((line) => line.message === 'Request failed');
     expect(failed).toHaveLength(1);
     return failed[0]!;
@@ -145,10 +147,13 @@ describe('the error log line', () => {
     expect(line).toMatchObject({
       severity: 'ERROR',
       message: 'Request failed',
-      err: { type: 'Error', message: 'kaboom' },
-      error: 'INTERNAL_SERVER_ERROR',
+      'exception.type': 'Error',
+      'exception.message': 'kaboom',
+      'error.type': 'Error',
+      'http.response.status_code': 500,
     });
-    expect(line.err?.stack).toContain('kaboom');
+    expect(line['exception.stacktrace']).toContain('kaboom');
+    expect(line['http.route']).toMatch(/^\//);
   });
 
   it('logs an AppError 500 at error', async () => {
@@ -161,8 +166,9 @@ describe('the error log line', () => {
     );
     expect(line).toMatchObject({
       severity: 'ERROR',
-      error: 'ASSISTANT_PRICE_MISSING',
-      err: { type: 'AppError', code: 'ASSISTANT_PRICE_MISSING' },
+      'exception.type': 'AppError',
+      'error.type': 'ASSISTANT_PRICE_MISSING',
+      'http.response.status_code': 500,
     });
   });
 
@@ -176,8 +182,13 @@ describe('the error log line', () => {
     [504, { suggestionRunner: slow, assistantEnabled: true, assistantDeadlineMs: 50 }, capture],
   ] as const)('logs an AppError %i at warn, without a stack', async (status, options, act) => {
     const line = await failedLine(options, act, status);
-    expect(line).toMatchObject({ severity: 'WARNING', message: 'Request failed', status });
-    expect(line.err).toBeUndefined();
+    expect(line).toMatchObject({
+      severity: 'WARNING',
+      message: 'Request failed',
+      'http.response.status_code': status,
+    });
+    expect(line['error.type']).toEqual(expect.any(String));
+    expect(line).not.toHaveProperty('exception.stacktrace');
     expect(JSON.stringify(line)).not.toContain('secret-prompt');
   });
 });

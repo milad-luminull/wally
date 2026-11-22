@@ -248,7 +248,7 @@ client address, port, host or header. The query string is dropped and share-link
 redacted — `requestLogSerializers` and `requestChildLogger` in
 [`apps/api/src/lib/logging/options.ts`](../apps/api/src/lib/logging/options.ts), replacing
 Fastify's default serializer, which writes the client's address. Fastify's own per-request
-lines are off (ADR-0031). An error is logged by its type, message, stack and code only
+lines are off (ADR-0032). An error is logged by its type, message, stack and code only
 (`safeErrorFields`), and a database error without its message, since Postgres and Drizzle
 repeat query values, which can be a note's text, in theirs. Pinned by
 [`apps/api/test/logging.test.ts`](../apps/api/test/logging.test.ts). Checked on 2026-10-14
@@ -420,7 +420,7 @@ follow.
 ### GAP-05 — Cloud Run's request log records client IP addresses, in a log bucket outside the EU regions · **Medium** · Art. 5(1)(c), (e), 44 · **deferred**
 
 The API's own log no longer records who called it (§3, "The API's request log names no
-caller"; fixed in `df717400`, pinned by a test). Since ADR-0031 its lines carry no IP address
+caller"; fixed in `df717400`, pinned by a test). Since ADR-0031 (now ADR-0032) its lines carry no IP address
 and no query string, and its error lines no database values. What is left is outside the code,
 in Google Cloud.
 
