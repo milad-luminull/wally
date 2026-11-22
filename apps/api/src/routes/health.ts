@@ -22,7 +22,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     try {
       await fastify.db.execute(sql`select 1`);
     } catch (error) {
-      request.log.error({ type: 'health.database', error: (error as Error).name });
+      request.log.warn({ type: 'health.database', err: error });
       return reply.code(503).send({ status: 'unavailable', database: 'unreachable' });
     }
     return {

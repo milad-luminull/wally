@@ -24,6 +24,7 @@ export type { Actor, CommandResult } from './context.js';
 export interface CommandLogger {
   info(fields: Record<string, unknown>, message?: string): void;
   warn(fields: Record<string, unknown>, message?: string): void;
+  error(fields: Record<string, unknown>, message?: string): void;
 }
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -261,13 +262,18 @@ export async function executeBoardCommand(
     if (result.cleanupId) {
       try {
         await drainCleanupJob(db, result.cleanupId);
-      } catch {
-        options.logger?.warn({
-          command: command.type,
-          operationId,
-          cleanupId: result.cleanupId,
-          outcome: 'cleanup_pending',
-        });
+      } catch (error) {
+        // The command stands; the job waits for a later drain (pnpm maintenance --cleanup).
+        options.logger?.error(
+          {
+            err: error,
+            command: command.type,
+            operationId,
+            cleanupId: result.cleanupId,
+            outcome: 'cleanup_pending',
+          },
+          'Board cleanup failed',
+        );
       }
     }
     // Receipts preserve the original result, but target visibility may have changed since.

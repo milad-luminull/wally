@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { buildApp } from '../src/app.js';
 import { _resetEnvCacheForTests } from '../src/env.js';
 import {
@@ -35,6 +36,30 @@ describe('GET /health', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('logs an unreachable database at warn, with the error by its safe fields', async () => {
+    const lines: string[] = [];
+    const app = await buildTestApp({ logLines: lines });
+    // What the driver really throws: Drizzle's wrapper, whose message is the query and params.
+    const cause = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    vi.spyOn(app.db, 'execute').mockRejectedValueOnce(
+      new DrizzleQueryError('select 1', ['a secret note'], cause),
+    );
+    try {
+      expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(503);
+    } finally {
+      vi.restoreAllMocks();
+      await app.app.close();
+    }
+    const line = lines
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .find((l) => l.type === 'health.database');
+    expect(line).toMatchObject({
+      severity: 'WARNING',
+      err: { type: 'DrizzleQueryError', code: 'ECONNREFUSED' },
+    });
+    expect(JSON.stringify(line)).not.toMatch(/a secret note|Failed query/);
   });
 
   afterAll(async () => {

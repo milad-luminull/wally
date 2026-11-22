@@ -5,6 +5,7 @@ import { AppError } from '../errors.js';
 import { estimateTokens } from './budget/estimate.js';
 import { trackAttempts } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
+import { isOwn, own } from './ownErrors.js';
 import { retryDelayMs, withOneRetry, type SuggestionInput } from './model/index.js';
 
 /** A retry starts only when at least this much of the deadline is left for it. */
@@ -35,7 +36,8 @@ export interface MeteredCall<Output> {
  * One structured model call for a capture or a tidy, metered: every attempt reserves before it
  * is dispatched and settles with its usage (or is released without it), a busy or failing
  * provider gets one more try within the deadline, and the deadline aborts the call. Throws
- * BudgetError and AppError only; the provider's own error becomes 502 without its wording.
+ * BudgetError, AppError and Wally's own errors (the ledger's) only; the provider's own error
+ * becomes 502 without its wording.
  * Returns the runner's output and when the call started, for the caller's log line.
  */
 export async function runMeteredCall<Output>(
@@ -75,22 +77,35 @@ export async function runMeteredCall<Output>(
             maxOutputTokens: call.maxOutputTokens,
             abortSignal: controller.signal,
             onAttempt: async (info) => {
-              const { attemptId } = await attempts.reserve({
-                estimate: {
-                  inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
-                  // The runner's allowance, thinking room included: everything the call may bill.
-                  outputTokens: info.maxOutputTokens,
-                },
-                price,
-                caps,
-              });
+              // The ledger's failures are Wally's own: marked, so the catch below rethrows them
+              // instead of reporting the provider (the pattern of turn.ts).
+              const { attemptId } = await attempts
+                .reserve({
+                  estimate: {
+                    inputTokens: estimateTokens([instructions, prompt, schema]) + 16,
+                    // The runner's allowance, thinking room included: everything the call may bill.
+                    outputTokens: info.maxOutputTokens,
+                  },
+                  price,
+                  caps,
+                })
+                .catch((error: unknown) => {
+                  throw own(error);
+                });
               return {
                 settle: (usage) =>
-                  attempts.settle(attemptId, {
-                    inputTokens: usage.inputTokens,
-                    outputTokens: usage.outputTokens,
+                  attempts
+                    .settle(attemptId, {
+                      inputTokens: usage.inputTokens,
+                      outputTokens: usage.outputTokens,
+                    })
+                    .catch((error: unknown) => {
+                      throw own(error);
+                    }),
+                release: () =>
+                  attempts.release(attemptId).catch((error: unknown) => {
+                    throw own(error);
                   }),
-                release: () => attempts.release(attemptId),
               };
             },
           })
@@ -104,7 +119,8 @@ export async function runMeteredCall<Output>(
     );
     return { output, startedAt };
   } catch (error) {
-    if (error instanceof AppError) throw error;
+    // Wally's own failure (the ledger) goes to the error handler, which logs it at error.
+    if (error instanceof AppError || isOwn(error)) throw error;
     // Our own deadline, not the provider's fault: said as a timeout.
     if (controller.signal.aborted) {
       deps.logger?.warn({
@@ -119,6 +135,7 @@ export async function runMeteredCall<Output>(
       boardId,
       name: (error as { name?: unknown } | null)?.name,
       status: (error as { statusCode?: unknown } | null)?.statusCode,
+      code: (error as { code?: unknown } | null)?.code,
     });
     throw new AppError(502, 'ASSISTANT_PROVIDER_ERROR', 'The model provider failed');
   } finally {

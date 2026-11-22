@@ -406,7 +406,10 @@ needs every one that `apiConfig` in
 [`scripts/resolve-release-image.mjs`](../scripts/resolve-release-image.mjs) defines:
 `NODE_ENV`, `CORS_ORIGIN`, `ASSISTANT_ENABLED`, `ASSISTANT_MODEL`,
 `ASSISTANT_VERTEX_LOCATION`, `ASSISTANT_VERTEX_PROJECT`, `AUTH0_MANAGEMENT_CLIENT_ID`,
-`AUTH0_SIGNUP_ENABLED`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when set, `MCP_CLIENT_ID`. A
+`AUTH0_SIGNUP_ENABLED`, `GOOGLE_CLOUD_PROJECT`, `MCP_ENABLED`, `MCP_WRITES_ENABLED` and, when
+set, `MCP_CLIENT_ID`. `GOOGLE_CLOUD_PROJECT` is `GCP_PROJECT_ID`: the API writes it into each
+log line's trace field, so a request's lines group under its Cloud Run request log
+([Reading the API's logs](#reading-the-apis-logs)). A
 hand-typed list drops one easily, and a dropped `AUTH0_SIGNUP_ENABLED` turns production
 signup off. So build the flags with `apiConfig`, `runEnvFlag` and `runSecretsFlag`, the
 functions the release uses. Compare the values below with `gh variable list` and
@@ -892,6 +895,19 @@ is for.
 ---
 
 ## 15. Troubleshooting
+
+### Reading the API's logs
+
+The API writes one JSON object per line in Cloud Logging's structured format
+([ADR-0031](adr/ADR-0031-structured-logs-and-the-logging-rule.md)): `severity`, `message`,
+`time` and, on Cloud Run, `logging.googleapis.com/trace`. In the Logs Explorer, filter the
+service by severity, for example
+`resource.labels.service_name="wally-api" severity>=WARNING`. `ERROR` is a failure the code
+did not expect, with its `err` (type, message, stack, code); `WARNING` is one it handles, such as
+`assistant.provider_error`, `assistant.timeout` or an unreachable database on `/health`. The
+API writes no line per request: open a request in Cloud Run's request log and expand it to see
+the lines the API wrote for it. Database errors show their SQLSTATE `code`, never their
+message, which can repeat a note's text.
 
 **The new revision never starts, and its logs mention the secret**
 Cloud Run could not read `wally-database-url`: the `wally-api` account lacks

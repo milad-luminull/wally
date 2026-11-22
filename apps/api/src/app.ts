@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import {
@@ -26,6 +26,7 @@ import {
 } from './lib/auth/auth0.js';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 import { errorReplyFor } from './lib/errorBody.js';
+import { loggerOptions, requestChildLogger } from './lib/logging/index.js';
 
 export interface BuildAppOptions {
   /** Overrides the PostgreSQL database — tests pass their own per-file database. */
@@ -59,19 +60,6 @@ export interface BuildAppOptions {
   auth0UserDeleter?: Auth0UserDeleter | null;
 }
 
-/**
- * What a request log line may say about a request: its method and path, nothing else. Fastify's
- * default request serializer also writes the client's address, port and host header; an IP
- * address is personal data, and the request log has no use for it (GDPR.md, GAP-05). The query
- * string is dropped and share-link tokens are redacted, since either can grant or reveal access.
- */
-export const requestLogSerializers = {
-  req: (request: { method: string; url: string }) => ({
-    method: request.method,
-    url: request.url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]'),
-  }),
-};
-
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = loadEnv();
   const auth0UserDeleter =
@@ -90,10 +78,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   const app = Fastify({
     logger: options.logStream
-      ? { serializers: requestLogSerializers, stream: options.logStream }
+      ? { ...loggerOptions(), stream: options.logStream }
       : (options.logger ?? env.NODE_ENV !== 'test')
-        ? { serializers: requestLogSerializers }
+        ? loggerOptions()
         : false,
+    // No "incoming request" / "request completed" lines: Cloud Run's request log already records
+    // each request (RFC-0012 §7, workstream 1). Every line a request does log carries its trace,
+    // method and redacted URL instead.
+    logController: new LogController({ disableRequestLogging: true }),
+    childLoggerFactory: requestChildLogger(env.GOOGLE_CLOUD_PROJECT),
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -102,11 +95,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // One body for every error (the error handling spec, 2026-10-19): see errorReplyFor.
   app.setErrorHandler((err, request, reply) => {
     const { status, body } = errorReplyFor(err);
-    if (status >= 500)
-      request.log.error(
-        { code: (err as { code?: unknown }).code, name: (err as Error).name, error: body.error },
-        'Request failed',
-      );
+    // RFC-0012 §5.2: an AppError 502, 503 or 504 is a state the code handles (provider down,
+    // feature off, timeout) and logs at warn by its code; anything else is a bug and logs at
+    // error with its safe fields (lib/logging), stack included.
+    if (status >= 500) {
+      if (err instanceof AppError && err.statusCode !== 500)
+        request.log.warn({ code: body.error, status }, 'Request failed');
+      else request.log.error({ err, error: body.error }, 'Request failed');
+    }
     // A refusal from the assistant is logged by its code alone: "nothing came" is then never
     // a mystery in production. The words of the request never reach the log.
     else if (request.url.includes('/assistant/'))

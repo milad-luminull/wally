@@ -15,6 +15,7 @@ import { AppError } from '../errors.js';
 import { CHARS_PER_TOKEN, estimateTokens } from './budget/estimate.js';
 import { trackAttempts } from './budget/ledger.js';
 import { priceFor } from './budget/prices.js';
+import { isOwn, own } from './ownErrors.js';
 import { resolveChips } from './chips.js';
 import {
   appendTurn,
@@ -89,16 +90,6 @@ class StoppedTurn extends Error {
   constructor(readonly reason: 'TOOL_LIMIT' | 'TIMEOUT') {
     super(reason);
   }
-}
-
-/**
- * Errors raised by Wally's own callbacks (the ledger, the conversation store) pass through the
- * runner unchanged. Anything else the runner throws came from the model provider.
- */
-const ownErrors = new WeakSet<object>();
-function own(error: unknown): unknown {
-  if (error !== null && typeof error === 'object') ownErrors.add(error);
-  return error;
 }
 
 /** One turn: reserve, run, resolve chips, store. Throws BudgetError and AppError only. */
@@ -260,7 +251,7 @@ export async function runAssistantTurn(
   } catch (error) {
     const reason = controller.signal.aborted ? controller.signal.reason : error;
     if (reason instanceof StoppedTurn) outcome = reason.reason;
-    else if (error instanceof AppError || ownErrors.has(error as object)) throw error;
+    else if (error instanceof AppError || isOwn(error)) throw error;
     else {
       // The provider's message can carry its own wording, ids or quota details: log the
       // shape only, and answer with Wally's own error.

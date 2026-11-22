@@ -117,11 +117,17 @@ test('the configuration sets exactly the variables the API reads in production',
       'AUTH0_MANAGEMENT_CLIENT_ID',
       'AUTH0_SIGNUP_ENABLED',
       'CORS_ORIGIN',
+      'GOOGLE_CLOUD_PROJECT',
       'MCP_CLIENT_ID',
       'MCP_ENABLED',
       'MCP_WRITES_ENABLED',
       'NODE_ENV',
     ],
+  ));
+test("the API learns its Google Cloud project for the logs' trace field", () =>
+  assert.deepEqual(
+    apiConfig(releaseEnv).env.find(({ name }) => name === 'GOOGLE_CLOUD_PROJECT'),
+    { name: 'GOOGLE_CLOUD_PROJECT', value: releaseEnv.GCP_PROJECT_ID },
   ));
 test('configuration rejects a value that would split the deploy flag', () =>
   assert.throws(() => apiConfig({ ...releaseEnv, WEB_ORIGIN: 'https://a@b' }), /delimiter/));
