@@ -237,8 +237,10 @@ gets its own design in `docs/superpowers/specs/` before building.
 - The `err` line keeps `type` (the constructor's name, since `DrizzleQueryError` sets no
   `name`), `message`, `stack` and a string `code`. A database error, or one with a database
   error as `cause`, keeps no message, and its stack keeps only the frames after the message:
-  a parameter value can itself contain a line that looks like a frame. Sentry's `scrub` gets
-  the same rule in workstream 2.
+  a parameter value can itself contain a line that looks like a frame. pino copies an error's
+  own message into a line logged without one (`log.error(error)`, `log.warn({ err })`), past the
+  serializer, so a `hooks.logMethod` gives such a line the safe message, or the error's type.
+  Sentry's `scrub` gets the same rule in workstream 2, for both the `err` and the `message`.
 - The request serializer is the existing one (method and path, query dropped, share tokens
   redacted), moved into the module and bound to every line a request logs through Fastify's
   `childLoggerFactory`. The shared `redactUrl` arrives with workstream 2, which first needs it

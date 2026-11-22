@@ -2421,6 +2421,7 @@ describe('whose failure a capture is', () => {
     throw Object.assign(new Error('quota for secret-project'), {
       name: 'AI_APICallError',
       statusCode: 400,
+      code: 'E_PROVIDER',
     });
   };
   beforeAll(async () => {
@@ -2468,7 +2469,12 @@ describe('whose failure a capture is', () => {
     const res = await ask();
     expect(res.statusCode).toBe(502);
     const line = parsed().find((l) => l.type === 'assistant.provider_error');
-    expect(line).toMatchObject({ severity: 'WARNING', name: 'AI_APICallError', status: 400 });
+    expect(line).toMatchObject({
+      severity: 'WARNING',
+      name: 'AI_APICallError',
+      status: 400,
+      code: 'E_PROVIDER',
+    });
     expect(JSON.stringify(parsed())).not.toContain('secret-project');
   });
 });

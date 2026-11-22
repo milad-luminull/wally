@@ -135,6 +135,7 @@ export async function runMeteredCall<Output>(
       boardId,
       name: (error as { name?: unknown } | null)?.name,
       status: (error as { statusCode?: unknown } | null)?.statusCode,
+      code: (error as { code?: unknown } | null)?.code,
     });
     throw new AppError(502, 'ASSISTANT_PROVIDER_ERROR', 'The model provider failed');
   } finally {

@@ -40,7 +40,10 @@ Chosen option: **pino options in one module**, `apps/api/src/lib/logging/`.
   ([structured logging](https://docs.cloud.google.com/logging/docs/structured-logging)).
 - An error is logged as `err` with its type, message, stack and string `code` only
   (`safeErrorFields`). A database error (`DrizzleQueryError`, `postgres.PostgresError`, or one
-  as `cause`) keeps no message, and its stack keeps only frames after the message.
+  as `cause`) keeps no message, and its stack keeps only frames after the message. pino would
+  still copy an error's own message into a line logged without one (`log.error(error)`,
+  `log.warn({ err })`), so a `logMethod` hook gives such a line the safe message, or the
+  error's type.
 - Fastify's "incoming request" and "request completed" lines are off (`LogController` with
   `disableRequestLogging`): Cloud Run's request log already records each request. Every line a
   request logs carries its method and redacted path instead (`requestChildLogger`).

@@ -47,6 +47,24 @@ export function loggerOptions(): LoggerOptions & { messageKey: 'message' } {
         level: number,
       }),
     },
+    // pino writes an error's own message as the line's `message` when a call gives none
+    // (`log.error(error)`, `log.warn({ err })`), past the `err` serializer. A database error's
+    // message is its query and parameters, so the line's message is taken from the safe
+    // fields instead: the error's message, or its type when it keeps none.
+    hooks: {
+      logMethod(args, method) {
+        const [first] = args as unknown[];
+        const err =
+          first instanceof Error
+            ? first
+            : first !== null && typeof first === 'object' && !('message' in first)
+              ? (first as { err?: unknown }).err
+              : undefined;
+        if (args.length !== 1 || err === undefined) return method.apply(this, args);
+        const fields = safeErrorFields(err);
+        return method.apply(this, [first, fields.message ?? fields.type] as unknown as typeof args);
+      },
+    },
     // Fastify types `err` as always returning a message and a stack; pino takes any object, and
     // a database error deliberately keeps no message (safeErrorFields).
     serializers: requestLogSerializers as unknown as FastifyLoggerOptions['serializers'],

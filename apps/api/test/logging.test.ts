@@ -151,6 +151,27 @@ describe('safe error fields', () => {
   });
 
   it.each([
+    ['an err field', (log: FastifyBaseLogger, error: Error) => log.warn({ err: error })],
+    ['the error itself', (log: FastifyBaseLogger, error: Error) => log.error(error)],
+  ])("keeps a database error out of the line's message when logged as %s", async (_, write) => {
+    const cause = Object.assign(new Error('invalid input syntax for type uuid: "x"'), {
+      code: '22P02',
+    });
+    const error = new DrizzleQueryError('select $1::uuid', ['a secret note'], cause);
+    const line = await logOne((log) => write(log, error));
+    expect(line).not.toMatch(/a secret note|Failed query|select/);
+    expect(JSON.parse(line)).toMatchObject({
+      message: 'DrizzleQueryError',
+      err: { type: 'DrizzleQueryError', code: '22P02' },
+    });
+  });
+
+  it("keeps an ordinary error's message as the line's message", async () => {
+    const line = JSON.parse(await logOne((log) => log.error(new Error('listen EADDRINUSE'))));
+    expect(line).toMatchObject({ message: 'listen EADDRINUSE', err: { type: 'Error' } });
+  });
+
+  it.each([
     ['a string', 'oops'],
     ['null', null],
     ['an object', { reason: 'x' }],
