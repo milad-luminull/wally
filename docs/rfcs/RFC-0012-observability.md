@@ -253,6 +253,24 @@ gets its own design in `docs/superpowers/specs/` before building.
 - An `AppError` 502, 503 or 504 logs `Request failed` at `warn` with its code and status, without
   a stack; any other 5xx at `error` with `err`.
 
+**Follow-ups from the workstream's final review (2026-11-22):**
+
+- `disableRequestLogging` turns off every per-request line of Fastify's `LogController`, not
+  only "incoming request" and "request completed": also "request errored", the default error
+  handler's line, stream and `writeHead` errors and the route-not-found line. Wally's own error
+  and not-found handlers replace the two that matter.
+- Fastify quotes the raw request URL in two warnings of its own ("Reply was already sent…").
+  Every quoted path in a line's text, and in an error's message and stack, loses its query
+  string and share token (`redactQuotedPaths` in `apps/api/src/lib/logging/redact.ts`).
+- The errors that keep no message are known by class or by name (a second copy of a driver
+  is not seen by `instanceof`), along the `cause` chain up to three links, and include Zod's
+  and `JSON.parse`'s, which quote their input. `code` is the first string code along the chain,
+  so a `TransactionConflictError` keeps its SQLSTATE.
+- `apps/api/src/server.ts` logs a failed start or listen as one `CRITICAL` line (`processLogger`)
+  instead of `console.error`.
+- A suggestion revert that fails for a reason other than an `AppError` logs at `error` with
+  `err`; a refusal stays at `warn`.
+
 ### Workstream 2: Sentry errors, tracing and logs
 
 The [Sentry design](../superpowers/specs/2026-11-07-sentry-design.md), with two changes: session

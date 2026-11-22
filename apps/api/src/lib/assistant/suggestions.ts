@@ -823,12 +823,22 @@ async function revertWrites(
       const { name, input } = stepCall(step, doc, note.revision, restore);
       await runOperation(opCtx, { name, input, operationId: randomUUID() });
     } catch (error) {
-      deps.logger?.warn({
-        type: 'assistant.suggestion_revert_failed',
-        suggestionId: doc.id,
-        field: step.key,
-        outcome: error instanceof AppError ? error.code : 'failed',
-      });
+      // A refusal (someone changed the note) is expected; anything else is a fault (§5.2).
+      if (error instanceof AppError)
+        deps.logger?.warn({
+          type: 'assistant.suggestion_revert_failed',
+          suggestionId: doc.id,
+          field: step.key,
+          outcome: error.code,
+        });
+      else
+        deps.logger?.error({
+          type: 'assistant.suggestion_revert_failed',
+          suggestionId: doc.id,
+          field: step.key,
+          outcome: 'failed',
+          err: error,
+        });
     }
   }
 }

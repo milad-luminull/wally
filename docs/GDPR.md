@@ -249,8 +249,10 @@ redacted — `requestLogSerializers` and `requestChildLogger` in
 [`apps/api/src/lib/logging/options.ts`](../apps/api/src/lib/logging/options.ts), replacing
 Fastify's default serializer, which writes the client's address. Fastify's own per-request
 lines are off (ADR-0031). An error is logged by its type, message, stack and code only
-(`safeErrorFields`), and a database error without its message, since Postgres and Drizzle
-repeat query values, which can be a note's text, in theirs. Pinned by
+(`safeErrorFields`), and a database, validation or JSON error without its message, since
+Postgres, Drizzle, Zod and `JSON.parse` repeat their input, which can be a note's text, in
+theirs. A path quoted in a line's text or an error's message, as Fastify does in some of its
+warnings, loses its query string and share token. Pinned by
 [`apps/api/test/logging.test.ts`](../apps/api/test/logging.test.ts). Checked on 2026-10-14
 against 2,000 lines from the running development API: no IP address, no authorization or
 cookie header. Board-command lines add the command, operation ID, board ID and outcome.
