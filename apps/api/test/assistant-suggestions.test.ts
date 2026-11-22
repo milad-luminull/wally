@@ -2404,3 +2404,71 @@ describe('capture suggestions', () => {
     expect((await stored(fx.viewerId, suggestion.id)).typed).toEqual(['dueDate']);
   });
 });
+
+/**
+ * RFC-0012 §5.2: a failure of Wally's own (the ledger) in a capture is Wally's error, logged at
+ * `error` with its stack; only the provider's own failure is `assistant.provider_error`.
+ */
+describe('whose failure a capture is', () => {
+  let ctx: TestContext;
+  const lines: string[] = [];
+  let failure: 'ledger' | 'provider' = 'ledger';
+  const runner: SuggestionRunner = async (input) => {
+    // The ledger's reservation is the next transaction: it fails as a database outage would.
+    if (failure === 'ledger')
+      vi.spyOn(ctx.db, 'transaction').mockRejectedValueOnce(new Error('ledger down'));
+    await input.onAttempt({ stepNumber: 0, messageCount: 1, maxOutputTokens: 256 });
+    throw Object.assign(new Error('quota for secret-project'), {
+      name: 'AI_APICallError',
+      statusCode: 400,
+    });
+  };
+  beforeAll(async () => {
+    ctx = await buildTestApp({ suggestionRunner: runner, assistantEnabled: true, logLines: lines });
+  });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    lines.length = 0;
+    await resetDatabase(ctx.db);
+  });
+  afterAll(async () => {
+    await ctx.app.close();
+  });
+  const parsed = () => lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+  async function ask() {
+    const fx = await createBoardFixture(ctx);
+    const note = (
+      await ctx.inject({
+        method: 'POST',
+        url: `/whiteboards/${fx.boardId}/notes`,
+        headers: ctx.authHeader(fx.ownerToken),
+        payload: { title: 'Plan the launch' },
+      })
+    ).json();
+    return ctx.inject({
+      method: 'POST',
+      url: `/whiteboards/${fx.boardId}/assistant/captures`,
+      headers: ctx.authHeader(fx.ownerToken),
+      payload: { noteId: note.id, locked: [], timeZone: 'Europe/Berlin', today: '2026-10-17' },
+    });
+  }
+
+  it('answers a ledger failure with 500 and logs it at error, not as the provider', async () => {
+    failure = 'ledger';
+    const res = await ask();
+    expect(res.statusCode).toBe(500);
+    expect(parsed().some((l) => l.type === 'assistant.provider_error')).toBe(false);
+    const failed = parsed().filter((l) => l.message === 'Request failed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ severity: 'ERROR', err: { message: 'ledger down' } });
+  });
+
+  it("answers the provider's failure with 502 and logs it at warn by its shape", async () => {
+    failure = 'provider';
+    const res = await ask();
+    expect(res.statusCode).toBe(502);
+    const line = parsed().find((l) => l.type === 'assistant.provider_error');
+    expect(line).toMatchObject({ severity: 'WARNING', name: 'AI_APICallError', status: 400 });
+    expect(JSON.stringify(parsed())).not.toContain('secret-project');
+  });
+});
