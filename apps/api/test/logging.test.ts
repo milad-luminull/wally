@@ -123,6 +123,20 @@ describe('safe error fields', () => {
     expect(fields.stack?.split('\n')[1]).toMatch(/^ {4}at /);
   });
 
+  it('keeps no message line that only looks like a stack frame', () => {
+    const note = 'first line\n    at my private note';
+    const error = new DrizzleQueryError('insert into notes values ($1)', [note]);
+    const fields = safeErrorFields(error);
+    expect(JSON.stringify(fields)).not.toContain('my private note');
+    expect(fields.stack?.split('\n').slice(1).length).toBeGreaterThan(0);
+  });
+
+  it('drops the stack of a database error whose message it cannot find there', () => {
+    const error = new DrizzleQueryError('select 1', ['secret value']);
+    error.stack = 'Error: rewritten\n    at secret value';
+    expect(safeErrorFields(error)).toEqual({ type: 'DrizzleQueryError' });
+  });
+
   it('drops the message of a Postgres error', () => {
     const PostgresError = postgres.PostgresError as unknown as new (fields: object) => Error;
     const error = new PostgresError({ message: 'value "secret" too long', code: '22001' });

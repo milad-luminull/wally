@@ -28,6 +28,22 @@ function stringCode(value: unknown): string | undefined {
 }
 
 /**
+ * A stack's frames without its header, which repeats the message. The header is cut at the end
+ * of the message, not by the lines that look like frames: a parameter value can contain
+ * "\n    at …" too. A stack whose message cannot be found is dropped whole.
+ */
+function framesAfterMessage(stack: string | undefined, message: unknown): string[] | undefined {
+  if (!stack || typeof message !== 'string') return undefined;
+  const end = stack.indexOf(message);
+  if (end < 0) return undefined;
+  const frames = stack
+    .slice(end + message.length)
+    .split('\n')
+    .filter((line) => line.startsWith('    at '));
+  return frames.length ? frames : undefined;
+}
+
+/**
  * The fields of an error a log line keeps: its type, message, stack and string `code`, nothing
  * else, since an error's other properties can hold request data. A database error keeps no
  * message: Postgres can repeat the input (`invalid input syntax for type uuid: "…"`) and
@@ -43,10 +59,10 @@ export function safeErrorFields(error: unknown): SafeErrorFields {
   if (isDatabaseError(error) || isDatabaseError(failure.cause)) {
     const code =
       stringCode(failure.code) ?? stringCode((failure.cause as { code?: unknown } | null)?.code);
-    const frames = stack?.split('\n').filter((line) => line.startsWith('    at ')) ?? [];
+    const frames = framesAfterMessage(stack, failure.message);
     return {
       type,
-      ...(stack ? { stack: [type, ...frames].join('\n') } : {}),
+      ...(frames ? { stack: [type, ...frames].join('\n') } : {}),
       ...(code ? { code } : {}),
     };
   }
