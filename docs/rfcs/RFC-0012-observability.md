@@ -1,14 +1,16 @@
 # Observability: Sentry and the platforms' own tools
 
-- **Status:** accepted by the owner on 2026-11-08, after a builder check the same day. Nothing
-  is built.
+- **Status:** accepted by the owner on 2026-11-08, after a builder check the same day.
+  Workstream 1 is built (§7, "As built"); the others are not.
 - **Date:** 2026-11-08
 - **Source:** the owner's observability requirements of 2026-11-08 (summarised in §2), and the
   [Sentry design](../superpowers/specs/2026-11-07-sentry-design.md) of 2026-11-07, which becomes
   workstream 2.
-- **Decisions to record:** ADR-0029 (Sentry as the application monitor, behind one import
-  boundary), ADR-0030 (structured logs and the logging rule), ADR-0031 (scheduled checks as a
-  Cloud Run Job).
+- **Decisions to record:** [ADR-0031](../adr/ADR-0031-structured-logs-and-the-logging-rule.md)
+  (structured logs and the logging rule, recorded with workstream 1); Sentry as the application
+  monitor, behind one import boundary; scheduled checks as a Cloud Run Job. ADR-0029 and
+  ADR-0030, the numbers first planned here, went to other decisions, so these two take the next
+  free numbers when they are written.
 - **Fulfils:** the dashboards and alerts listed in [RFC-0011 §9](RFC-0011-platform-migration.md)
   ("API p95 latency and errors; database size…; AI spend"). Queue age, notification delay and
   Realtime belong to RFC-0011 workstream 5 and follow the rule in §6.
@@ -27,7 +29,7 @@ Wally gets a lightweight observability foundation at **$0 extra cost**:
 - a failed or missed scheduled run raises an alert;
 - spending and telemetry volume stay inside free tiers by configuration, not by luck.
 
-Feature code stays almost untouched. Sentry is imported in one folder per app (ADR-0029), and
+Feature code stays almost untouched. Sentry is imported in one folder per app (its ADR, §7 workstream 2), and
 the API's one reporting rule is a logging rule (§5).
 
 ## 2. Requirements (owner, 2026-11-08)
@@ -225,6 +227,29 @@ gets its own design in `docs/superpowers/specs/` before building.
 - Tests: the severity mapping for every pino level; the trace field; the `err` serializer
   dropping extra fields and database messages; each changed call site logging at the level the
   rule gives; redaction on the error line.
+
+**As built (2026-11-22), [ADR-0031](../adr/ADR-0031-structured-logs-and-the-logging-rule.md):**
+
+- `apps/api/src/lib/logging/` exports `loggerOptions`, `requestLogSerializers`,
+  `requestChildLogger`, `traceBindings`, `safeErrorFields` and `SEVERITY`. Only `app.ts` uses
+  it today: the ops check arrives in workstream 5, and the CLI scripts keep `console.*` for
+  the terminal.
+- The `err` line keeps `type` (the constructor's name, since `DrizzleQueryError` sets no
+  `name`), `message`, `stack` and a string `code`. A database error, or one with a database
+  error as `cause`, keeps no message, and its stack keeps only the frames after the message:
+  a parameter value can itself contain a line that looks like a frame. Sentry's `scrub` gets
+  the same rule in workstream 2.
+- The request serializer is the existing one (method and path, query dropped, share tokens
+  redacted), moved into the module and bound to every line a request logs through Fastify's
+  `childLoggerFactory`. The shared `redactUrl` arrives with workstream 2, which first needs it
+  in the web app.
+- `GOOGLE_CLOUD_PROJECT` is set by the release from `GCP_PROJECT_ID` (`apiConfig` in
+  `scripts/resolve-release-image.mjs`); without it, lines carry no trace.
+- `runMeteredCall` marks the ledger's errors with `own` from
+  `apps/api/src/lib/assistant/ownErrors.ts`, moved out of `turn.ts`, which now imports it. A
+  ledger failure in a capture or a tidy answers 500 and logs at `error`.
+- An `AppError` 502, 503 or 504 logs `Request failed` at `warn` with its code and status, without
+  a stack; any other 5xx at `error` with `err`.
 
 ### Workstream 2: Sentry errors, tracing and logs
 
