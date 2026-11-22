@@ -204,7 +204,7 @@ describe('DELETE /me', () => {
     expect(res.statusCode).toBe(500);
     const logged = lines
       .map((line) => JSON.parse(line))
-      .find((l) => l.msg === 'account erase failed');
+      .find((l) => l.message === 'account erase failed');
     expect(logged).toMatchObject({ userId: fx.ownerId, auth0Deleted: true });
   });
 });

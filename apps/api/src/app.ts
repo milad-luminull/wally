@@ -26,6 +26,7 @@ import {
 } from './lib/auth/auth0.js';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 import { errorReplyFor } from './lib/errorBody.js';
+import { loggerOptions } from './lib/logging/index.js';
 
 export interface BuildAppOptions {
   /** Overrides the PostgreSQL database — tests pass their own per-file database. */
@@ -59,19 +60,6 @@ export interface BuildAppOptions {
   auth0UserDeleter?: Auth0UserDeleter | null;
 }
 
-/**
- * What a request log line may say about a request: its method and path, nothing else. Fastify's
- * default request serializer also writes the client's address, port and host header; an IP
- * address is personal data, and the request log has no use for it (GDPR.md, GAP-05). The query
- * string is dropped and share-link tokens are redacted, since either can grant or reveal access.
- */
-export const requestLogSerializers = {
-  req: (request: { method: string; url: string }) => ({
-    method: request.method,
-    url: request.url.split('?')[0]!.replace(/(\/share-links\/)[^/?]+/g, '$1[redacted]'),
-  }),
-};
-
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const env = loadEnv();
   const auth0UserDeleter =
@@ -90,9 +78,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   const app = Fastify({
     logger: options.logStream
-      ? { serializers: requestLogSerializers, stream: options.logStream }
+      ? { ...loggerOptions(), stream: options.logStream }
       : (options.logger ?? env.NODE_ENV !== 'test')
-        ? { serializers: requestLogSerializers }
+        ? loggerOptions()
         : false,
   }).withTypeProvider<ZodTypeProvider>();
 
