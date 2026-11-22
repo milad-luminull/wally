@@ -58,6 +58,9 @@ const envSchema = z.object({
   // integer micro-USD, from the versioned price table. Starting points, chosen 2026-10-15.
   ASSISTANT_DAILY_CAP_TOKENS: z.coerce.number().int().positive().default(300_000),
   ASSISTANT_MONTHLY_CAP_MICRO_USD: z.coerce.number().int().positive().default(15_000_000),
+  // The Google Cloud project, for the logs' `logging.googleapis.com/trace` field
+  // (lib/logging). The release sets it; without it, lines carry no trace (local, CI).
+  GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

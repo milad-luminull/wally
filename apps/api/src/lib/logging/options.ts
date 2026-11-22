@@ -3,6 +3,7 @@ import { safeErrorFields } from './errorFields.js';
 
 /** Fastify's logger options: its own and pino's. */
 type LoggerOptions = Exclude<FastifyServerOptions['logger'], boolean | undefined>;
+type ChildLoggerFactory = NonNullable<FastifyServerOptions['childLoggerFactory']>;
 
 type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 type Severity = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
@@ -50,4 +51,37 @@ export function loggerOptions(): LoggerOptions & { messageKey: 'message' } {
     // a database error deliberately keeps no message (safeErrorFields).
     serializers: requestLogSerializers as unknown as FastifyLoggerOptions['serializers'],
   };
+}
+
+const TRACE_KEY = 'logging.googleapis.com/trace';
+
+/**
+ * The Cloud Logging trace field from Cloud Run's `X-Cloud-Trace-Context`
+ * (`TRACE_ID/SPAN_ID;o=OPTIONS`), so a request's lines group under Cloud Run's own request log.
+ * Nothing without a project or a 32-hex trace id (local, CI, tests).
+ */
+export function traceBindings(
+  header: string | string[] | undefined,
+  projectId: string | undefined,
+): { [TRACE_KEY]?: string } {
+  const value = Array.isArray(header) ? header[0] : header;
+  const traceId = value?.split('/')[0];
+  if (!projectId || !traceId || !/^[0-9a-f]{32}$/i.test(traceId)) return {};
+  return { [TRACE_KEY]: `projects/${projectId}/traces/${traceId}` };
+}
+
+/**
+ * Fastify's `childLoggerFactory`: every line a request logs carries its trace and its method
+ * and redacted URL (the `req` serializer), since Fastify's own per-request lines are off.
+ */
+export function requestChildLogger(projectId: string | undefined): ChildLoggerFactory {
+  return (logger, bindings, options, rawRequest) =>
+    logger.child(
+      {
+        ...bindings,
+        ...traceBindings(rawRequest.headers['x-cloud-trace-context'], projectId),
+        req: { method: rawRequest.method, url: rawRequest.url },
+      },
+      options,
+    );
 }

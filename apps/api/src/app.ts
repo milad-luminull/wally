@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import {
@@ -26,7 +26,7 @@ import {
 } from './lib/auth/auth0.js';
 import { AUTH0_AUDIENCE, AUTH0_ISSUER } from './lib/auth/constants.js';
 import { errorReplyFor } from './lib/errorBody.js';
-import { loggerOptions } from './lib/logging/index.js';
+import { loggerOptions, requestChildLogger } from './lib/logging/index.js';
 
 export interface BuildAppOptions {
   /** Overrides the PostgreSQL database — tests pass their own per-file database. */
@@ -82,6 +82,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : (options.logger ?? env.NODE_ENV !== 'test')
         ? loggerOptions()
         : false,
+    // No "incoming request" / "request completed" lines: Cloud Run's request log already records
+    // each request (RFC-0012 §7, workstream 1). Every line a request does log carries its trace,
+    // method and redacted URL instead.
+    logController: new LogController({ disableRequestLogging: true }),
+    childLoggerFactory: requestChildLogger(env.GOOGLE_CLOUD_PROJECT),
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

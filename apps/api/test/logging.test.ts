@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyBaseLogger } from 'fastify';
 import { DrizzleQueryError } from 'drizzle-orm';
 import postgres from 'postgres';
-import { SEVERITY, loggerOptions, safeErrorFields } from '../src/lib/logging/index.js';
+import { _resetEnvCacheForTests } from '../src/env.js';
+import {
+  SEVERITY,
+  loggerOptions,
+  requestChildLogger,
+  safeErrorFields,
+  traceBindings,
+} from '../src/lib/logging/index.js';
+import { buildTestApp } from './helpers.js';
 
 function streamInto(lines: string[]) {
   return { write: (line: string) => void lines.push(line) };
@@ -11,7 +19,8 @@ function streamInto(lines: string[]) {
 /**
  * GDPR GAP-05: the API's request log must not record who called it. Fastify's default request
  * serializer writes the client's address, port and host; the app replaces it with method and
- * path only. These checks build a server with the app's logger options and read what it logs.
+ * path only, bound to every line the request logs. These checks build a server with the app's
+ * logger options and request bindings, log one line from a route and read it.
  */
 async function logsFor(request: {
   url: string;
@@ -19,9 +28,12 @@ async function logsFor(request: {
   remoteAddress?: string;
 }) {
   const lines: string[] = [];
-  const app = Fastify({ logger: { ...loggerOptions(), stream: streamInto(lines) } });
+  const app = Fastify({
+    logger: { ...loggerOptions(), stream: streamInto(lines) },
+    childLoggerFactory: requestChildLogger(undefined),
+  });
   app.get('/*', async (req) => {
-    req.log.info({ req }, 'seen');
+    req.log.warn('seen');
     return { ok: true };
   });
   await app.inject({ method: 'GET', ...request });
@@ -129,4 +141,60 @@ describe('safe error fields', () => {
     ['null', null],
     ['an object', { reason: 'x' }],
   ])('survives %s thrown', (_label, thrown) => expect(() => safeErrorFields(thrown)).not.toThrow());
+});
+
+const TRACE_ID = '105445aa7843bc8bf206b12000100000';
+
+describe('request correlation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    _resetEnvCacheForTests();
+  });
+
+  async function healthWithFailingDatabase(project: string | undefined) {
+    if (project) vi.stubEnv('GOOGLE_CLOUD_PROJECT', project);
+    _resetEnvCacheForTests();
+    const lines: string[] = [];
+    const ctx = await buildTestApp({ logLines: lines });
+    vi.spyOn(ctx.db, 'execute').mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    try {
+      const res = await ctx.inject({
+        method: 'GET',
+        url: '/health?probe=1',
+        headers: { 'x-cloud-trace-context': `${TRACE_ID}/1;o=1` },
+      });
+      expect(res.statusCode).toBe(503);
+    } finally {
+      await ctx.app.close();
+    }
+    return lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+  }
+
+  it('binds the Cloud Run trace and the redacted request to every line of a request', async () => {
+    const lines = await healthWithFailingDatabase('wally-test');
+    const line = lines.find((l) => l.type === 'health.database');
+    expect(line?.['logging.googleapis.com/trace']).toBe(`projects/wally-test/traces/${TRACE_ID}`);
+    expect(line?.req).toEqual({ method: 'GET', url: '/health' });
+  });
+
+  it('writes no per-request "incoming request" or "request completed" lines', async () => {
+    const lines = await healthWithFailingDatabase(undefined);
+    expect(JSON.stringify(lines)).not.toMatch(/incoming request|request completed/);
+    expect(lines.find((l) => l.type === 'health.database')).not.toHaveProperty(
+      'logging.googleapis.com/trace',
+    );
+  });
+
+  it('reads the trace id from X-Cloud-Trace-Context', () =>
+    expect(traceBindings(`${TRACE_ID}/1;o=1`, 'wally-test')).toEqual({
+      'logging.googleapis.com/trace': `projects/wally-test/traces/${TRACE_ID}`,
+    }));
+
+  it.each([undefined, '', 'garbage', '/1;o=1', [] as string[]])(
+    'omits the trace for header %j',
+    (header) => expect(traceBindings(header, 'wally-test')).toEqual({}),
+  );
+
+  it('omits the trace without a project', () =>
+    expect(traceBindings(`${TRACE_ID}/1;o=1`, undefined)).toEqual({}));
 });
